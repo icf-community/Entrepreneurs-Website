@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { allow, check, clientIp, failOpen } from "./ratelimit";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { allow, check, clientIp, failOpen, checkLocal, __resetLocalBuckets } from "./ratelimit";
 
 describe("clientIp", () => {
   // 173.245.48.1 is inside Cloudflare's published 173.245.48.0/20 — see
@@ -107,17 +107,39 @@ describe("check when the limiter backend throws", () => {
     return import("./ratelimit");
   }
 
-  it("says 'unavailable' rather than 'limited'", async () => {
+  it("says 'unavailable' rather than 'limited' for a fail-OPEN bucket", async () => {
+    // Fail-open callers already treat "unavailable" as allowed, so there
+    // is nothing for the in-process fallback to improve here — the value
+    // still has to be distinguishable from a real "limited" so an outage
+    // never reads as the member's fault.
     const rl = await loadWithBrokenRedis();
-    expect(await rl.check("submit", "user-1")).toBe("unavailable");
     expect(await rl.check("mutations", "u:user-1")).toBe("unavailable");
   });
 
-  it("still fails closed on submit and open on the mutation buckets", async () => {
+  it("falls back to the in-process limiter for a fail-CLOSED bucket", async () => {
+    // Changed deliberately (B3.5). This used to return "unavailable",
+    // which made every fail-closed bucket REFUSE during a Redis blip —
+    // including otpVerify, i.e. sign-in. The ceiling still exists, it is
+    // just enforced per-instance now.
     const rl = await loadWithBrokenRedis();
-    expect(await rl.allow("submit", "user-1")).toBe(false);
+    expect(await rl.check("submit", "user-1")).toBe("allowed");
+  });
+
+  it("still fails open on the mutation buckets", async () => {
+    const rl = await loadWithBrokenRedis();
     expect(await rl.allow("mutations", "u:user-1")).toBe(true);
     expect(await rl.allow("anonMutations", "ip:1.2.3.4")).toBe(true);
+  });
+
+  it("still enforces a real ceiling on a fail-closed bucket during an outage", async () => {
+    // The security property the FAIL_CLOSED list exists for: an outage
+    // must not become an unlimited-submission window.
+    const rl = await loadWithBrokenRedis();
+    for (let i = 0; i < 10; i += 1) {
+      expect(await rl.check("submit", "burst-user")).toBe("allowed");
+    }
+    expect(await rl.check("submit", "burst-user")).toBe("limited");
+    expect(await rl.allow("submit", "burst-user")).toBe(false);
   });
 
   it("logs the outage — a swallowed error is how this went unnoticed", async () => {
@@ -127,5 +149,44 @@ describe("check when the limiter backend throws", () => {
       expect.stringContaining('"submit" bucket is unreachable'),
       expect.any(Error),
     );
+  });
+});
+
+// ─── In-process fallback (B3.5) ────────────────────────────────────────
+// The failure this exists to prevent: a Redis blip during a traffic spike
+// made every FAIL_CLOSED bucket refuse — including otpVerify, which is the
+// sign-in path. Everyone funnelled through /login got told they were going
+// too fast, during the one event where that matters most.
+describe("in-process limiter fallback", () => {
+  beforeEach(() => __resetLocalBuckets());
+
+  it("allows a normal number of attempts, then limits", () => {
+    for (let i = 0; i < 10; i += 1) {
+      expect(checkLocal("otpVerify", "a@ic.ac.uk")).toBe("allowed");
+    }
+    expect(checkLocal("otpVerify", "a@ic.ac.uk")).toBe("limited");
+  });
+
+  it("keeps identities independent — one member cannot lock out another", () => {
+    for (let i = 0; i < 11; i += 1) checkLocal("otpVerify", "noisy@ic.ac.uk");
+    expect(checkLocal("otpVerify", "quiet@ic.ac.uk")).toBe("allowed");
+  });
+
+  it("keeps buckets independent", () => {
+    for (let i = 0; i < 11; i += 1) checkLocal("postReport", "u1");
+    expect(checkLocal("otpVerify", "u1")).toBe("allowed");
+  });
+
+  it("still bounds an outage — it is weaker limiting, not no limiting", () => {
+    // 5/day on postReport. The whole security argument for the fallback is
+    // that the ceiling survives, just per-instance rather than shared.
+    for (let i = 0; i < 5; i += 1) expect(checkLocal("postReport", "u2")).toBe("allowed");
+    expect(checkLocal("postReport", "u2")).toBe("limited");
+  });
+
+  it("never returns 'unavailable' — that is the value that locked members out", () => {
+    for (let i = 0; i < 20; i += 1) {
+      expect(checkLocal("otpVerify", "x")).not.toBe("unavailable");
+    }
   });
 });
