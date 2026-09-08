@@ -39,6 +39,28 @@
 -- admin_delete_graduates / delete_my_account / reject_user — see
 -- supabase/migrations/20260529000007_admin_delete_user_rpcs.sql.
 --
+-- UPDATED 2026-09-08 for the CV matchmaker (cvs, cv_profiles, cv_chunks,
+-- member_skills, github_connections, jobs — 20260906000001 / 20260907000001)
+-- and post-approval listing edits (listing_edits — 20260907000005).
+--
+-- Only `jobs` actually needed adding: it carries NO foreign key at all
+-- (deliberately — it is a queue, and a job must outlive the row it
+-- references long enough to report why it failed), so a full account wipe
+-- leaves ingest_cv / scan_github rows pointing at cv_ids and member_ids
+-- that no longer exist, which the worker then picks up and fails forever.
+-- Everything else in that set cascades from profiles or auth.users and is
+-- listed explicitly only so the notices account for it.
+--
+-- `cv_skills` is the matchmaker's TAXONOMY, not member data — it is kept,
+-- for the same reason as skills/sectors. `member_skills.skill_id` points
+-- at it; the member rows go, the vocabulary stays.
+--
+-- Blobs: `cvs.blob_key` is the SAME Azure blob as `profiles.cv_path` (see
+-- confirm_cv_upload, 20260906000001:279) and `cvs` has no deletion
+-- trigger of its own — so the CV file is removed by
+-- profiles_enqueue_media_deletion when the profile goes, exactly as
+-- before. Deleting `cvs` first does not orphan anything.
+--
 -- UPDATED 2026-08-31 for the community feature (posts, post_images,
 -- post_reports — added 20260829; post_likes — added 20260831). None of
 -- their FKs are RESTRICT (posts.author_id, post_images.post_id and
@@ -102,6 +124,22 @@ union all
 select 'DELETING · post_reports',  count(*)::text, '' from public.post_reports
 union all
 select 'DELETING · post_likes',    count(*)::text, '' from public.post_likes
+union all
+select 'DELETING · listing_edits', count(*)::text, '' from public.listing_edits
+union all
+select 'DELETING · cvs',           count(*)::text, '' from public.cvs
+union all
+select 'DELETING · cv_profiles',   count(*)::text, '' from public.cv_profiles
+union all
+select 'DELETING · cv_chunks',     count(*)::text, '' from public.cv_chunks
+union all
+select 'DELETING · member_skills', count(*)::text, '' from public.member_skills
+union all
+select 'DELETING · github_connections', count(*)::text, '' from public.github_connections
+union all
+select 'DELETING · jobs',          count(*)::text, '' from public.jobs
+union all
+select 'KEEPING · cv_skills (taxonomy)', count(*)::text, '' from public.cv_skills
 union all
 select 'KEEPING · skills',         count(*)::text, '' from public.skills
 union all
@@ -173,6 +211,36 @@ begin
   delete from public.posts;                 get diagnostics v_n = row_count;
     raise notice 'deleted % posts (and their post_images, cascaded)', v_n;
 
+  -- ── CV matchmaker pipeline (20260906000001, 20260907000001) ────────
+  -- Children first, purely so the notices report real numbers: cv_chunks
+  -- and cv_profiles both cascade from cvs, and cvs/member_skills/
+  -- github_connections all cascade from profiles, so any of these left
+  -- out would still vanish with the account — silently, and uncounted.
+  --
+  -- `jobs` is the one that genuinely must be here. It has no foreign key
+  -- to anything, so it survives the account wipe and the worker keeps
+  -- claiming rows whose cv_id and member_id no longer resolve.
+  delete from public.cv_chunks;             get diagnostics v_n = row_count;
+    raise notice 'deleted % cv_chunks', v_n;
+  delete from public.cv_profiles;           get diagnostics v_n = row_count;
+    raise notice 'deleted % cv_profiles', v_n;
+  delete from public.cvs;                   get diagnostics v_n = row_count;
+    raise notice 'deleted % cvs', v_n;
+  delete from public.member_skills;         get diagnostics v_n = row_count;
+    raise notice 'deleted % member_skills', v_n;
+  delete from public.github_connections;    get diagnostics v_n = row_count;
+    raise notice 'deleted % github_connections (encrypted tokens included)', v_n;
+  delete from public.jobs;                  get diagnostics v_n = row_count;
+    raise notice 'deleted % jobs', v_n;
+
+  -- ── Proposed listing revisions (20260907000005) ────────────────────
+  -- listing_edits.listing_id is polymorphic and carries no FK, so the
+  -- AFTER DELETE triggers on the three listing tables are what normally
+  -- clean these up. Deleting them here first means those triggers find
+  -- nothing rather than doing the work uncounted.
+  delete from public.listing_edits;         get diagnostics v_n = row_count;
+    raise notice 'deleted % listing_edits', v_n;
+
   -- admin_actions.admin_id is RESTRICT against auth.users. Clearing it
   -- here is what lets any non-surviving admin be removed below.
   delete from public.admin_actions;         get diagnostics v_n = row_count;
@@ -196,6 +264,30 @@ begin
   delete from auth.users where id <> v_keep_id;
   get diagnostics v_n = row_count;
   raise notice 'deleted % auth users', v_n;
+
+  -- ── The kept account's own test uploads ────────────────────────────
+  -- The account survives; the files it uploaded while testing do not.
+  -- Its cvs/github_connections rows were already cleared above, so
+  -- leaving cv_path set would leave the profile claiming a CV the
+  -- pipeline no longer has a row for. Nulling these fires
+  -- profiles_enqueue_media_deletion's UPDATE branch, which queues both
+  -- blobs for the drain cron — this is the only place in the script that
+  -- removes a file belonging to the surviving account, so it is separate
+  -- and explicit rather than folded into the deletes above.
+  --
+  -- The trigger guarding these two columns
+  -- (tg_profiles_protect_avatar_path) returns early for service_role,
+  -- which the set_config at the top of this block has already claimed.
+  update public.profiles
+     set avatar_path          = null,
+         cv_path              = null,
+         cv_uploaded_at       = null,
+         cv_original_filename = null,
+         cv_suggested_skill_ids = null
+   where id = v_keep_id
+     and (avatar_path is not null or cv_path is not null);
+  get diagnostics v_n = row_count;
+  raise notice 'cleared media pointers on the kept account (% row)', v_n;
 
   -- ── Post-conditions, checked before the transaction is allowed to end ─
   if not exists (select 1 from auth.users where id = v_keep_id) then
@@ -229,8 +321,16 @@ union all select 'posts',                count(*)::text from public.posts
 union all select 'post_likes',           count(*)::text from public.post_likes
 union all select 'post_images',          count(*)::text from public.post_images
 union all select 'post_reports',         count(*)::text from public.post_reports
+union all select 'listing_edits',        count(*)::text from public.listing_edits
+union all select 'cvs',                  count(*)::text from public.cvs
+union all select 'cv_profiles',          count(*)::text from public.cv_profiles
+union all select 'cv_chunks',            count(*)::text from public.cv_chunks
+union all select 'member_skills',        count(*)::text from public.member_skills
+union all select 'github_connections',   count(*)::text from public.github_connections
+union all select 'jobs',                 count(*)::text from public.jobs
 union all select 'blob_deletion_queue (pending)',
   count(*)::text from public.blob_deletion_queue where deleted_at is null
+union all select 'cv_skills (kept, taxonomy)', count(*)::text from public.cv_skills
 union all select 'skills (kept)',       count(*)::text from public.skills
 union all select 'sectors (kept)',      count(*)::text from public.sectors
 union all select 'app_config (kept)',   count(*)::text from public.app_config

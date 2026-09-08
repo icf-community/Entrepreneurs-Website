@@ -1,0 +1,69 @@
+[Unit]
+Description=Foundry CV/GitHub ingest worker (instance %i)
+Documentation=https://github.com/icf-community/Entrepreneurs-Website/blob/main/server/README.md
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+EnvironmentFile=/etc/foundry/worker.env
+Environment=GATEWAY_IMAGE=ghcr.io/icf-community/foundry-gateway:latest
+
+# A TEMPLATE unit (note the @ in the filename). The worker is >90% blocked
+# on network I/O — GitHub API calls, OpenAI calls, blob reads — so the
+# lever for throughput is CONCURRENCY, not CPU: several instances on this
+# same VM, not a bigger VM and not another one. _claim_job already uses
+# `for update skip locked`, so running N of these is safe with no code
+# change, and %i keeps their container names from colliding.
+#
+#   systemctl enable --now foundry-worker@{1,2,3}
+#
+# Start with one. Add instances when the queue-drain measurement says to,
+# so process count stays a config change rather than a code change.
+#
+# Same image as the gateway (one build, one registry entry) with a
+# different command. The pull credential setup is identical — see
+# infra/vm/bootstrap.sh's GHCR section for how /etc/foundry/ghcr-pull.env
+# gets onto the box.
+ExecStartPre=/bin/sh -c '. /etc/foundry/ghcr-pull.env && echo "$GHCR_TOKEN" | /usr/bin/docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin'
+ExecStartPre=/usr/bin/docker pull ${GATEWAY_IMAGE}
+ExecStartPre=-/usr/bin/docker rm -f foundry-worker-%i
+
+# NO --network host here, unlike the gateway. The worker listens on
+# nothing at all — it only makes outbound calls — so it has no reason to
+# share the host's network namespace, and the X-Forwarded-For trust
+# argument that forces host networking on the gateway simply doesn't
+# apply. The default bridge is the stricter option, so it's the right one.
+#
+# /etc/foundry/worker.env carries the gateway's Azure storage vars plus
+# the worker-only OPENAI_API_KEY, DATABASE_URL and
+# GITHUB_TOKEN_ENCRYPTION_KEY (see server/README.md and app/config.py's
+# WorkerSettings). SENTRY_DSN is optional — absent means errors are logged
+# only, never a placeholder DSN.
+ExecStart=/usr/bin/docker run --rm --name foundry-worker-%i \
+  --env-file /etc/foundry/worker.env \
+  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --cap-drop=ALL --security-opt=no-new-privileges \
+  --memory=512m --pids-limit=256 \
+  ${GATEWAY_IMAGE} \
+  python -m app.worker
+
+# -t 90: worker.py traps SIGTERM and finishes the CURRENT job before
+# exiting, so an orderly deploy never severs a job mid-flight and never
+# strands a row in `jobs.status = 'running'`. 90s is comfortably above the
+# slowest realistic job (a 300-repo GitHub scan: three repo-listing pages,
+# a bounded pool of README fetches, and up to three LLM calls).
+#
+# reap_stalled_jobs (migration 20260907000004, every 5 minutes) is the
+# backstop for the DISORDERLY deaths this can't cover — SIGKILL, a dropped
+# Postgres connection, the VM going away. Both exist because before them
+# nothing ever moved a row out of 'running', so any worker death stranded
+# that job forever and left the member's dialog polling into the void.
+ExecStop=/usr/bin/docker stop -t 90 foundry-worker-%i
+# systemd's default TimeoutStopSec is 90s, which would race the line
+# above. Give the stop a genuine margin over the container's own timeout.
+TimeoutStopSec=120
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

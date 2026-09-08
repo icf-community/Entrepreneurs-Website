@@ -72,4 +72,12 @@ production-runbook.md
 *.local.js
 *.local.ts
 
+# Same convention, for SQL. supabase/snippets/reset_to_admin_only.local.sql
+# is the destructive prod clear-down with the real admin address filled in;
+# the tracked reset_to_admin_only.sql keeps REDACTED-ADMIN-EMAIL. This repo
+# is public, so a real address must never reach its history — and a wipe
+# script that already names the one account to spare is a loaded gun to
+# leave lying in a public repo besides.
+*.local.sql
+
 azure-clerk-migration-playbook.md
