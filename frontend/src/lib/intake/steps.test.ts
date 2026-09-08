@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ORDER, TOTAL_SCREENS, completeness, indexOf } from "./steps";
+import { ORDER, STEPS, TOTAL_SCREENS, completeness, indexOf } from "./steps";
 
 describe("intake step order", () => {
   it("puts youre-in right after face, before every other question", () => {
@@ -38,5 +38,29 @@ describe("completeness", () => {
 
   it("indexOf and ORDER agree", () => {
     ORDER.forEach((id, i) => expect(indexOf(id)).toBe(i));
+  });
+});
+
+describe("github screen", () => {
+  it("sits between the CV and Skills screens", () => {
+    // Order matters: connecting GitHub navigates out to github.com and
+    // back, and cvFile is excluded from the localStorage draft — so this
+    // must come AFTER the CV has been uploaded, never on the same screen.
+    expect(indexOf("github")).toBe(indexOf("cv") + 1);
+    expect(indexOf("github")).toBeLessThan(indexOf("skills"));
+  });
+
+  it("advances completeness like any other question screen", () => {
+    expect(completeness("github")).toBeGreaterThan(completeness("cv"));
+    expect(completeness("github")).toBeLessThan(completeness("skills"));
+  });
+
+  it("carries a sidebar number, so it reads as a real step", () => {
+    expect(STEPS.github.num).not.toBeNull();
+  });
+
+  it("keeps the sidebar numbering contiguous and in order", () => {
+    const numbered = ORDER.map((id) => STEPS[id].num).filter((n): n is string => n !== null);
+    expect(numbered).toEqual(numbered.map((_, i) => String(i + 1).padStart(2, "0")));
   });
 });

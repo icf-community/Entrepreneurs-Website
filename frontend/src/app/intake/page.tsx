@@ -30,14 +30,18 @@ export default async function IntakePage() {
   // fails the whole query with "permission denied for table profiles",
   // not just those two columns. get_my_cv_info() is the one legitimate
   // way back in, same as profile/page.tsx and mediaActions.ts use.
-  const [profileRes, isAdminRes, cvInfoRes] = await Promise.all([
+  const [profileRes, isAdminRes, cvInfoRes, githubRes] = await Promise.all([
     supabase
       .from("profiles")
-      .select("status, profile_version, first_name, avatar_path, role, linkedin_url")
+      // github_url is not one of the locked CV columns (20260901000009), so
+      // it can be selected directly. It is what the GitHub screen names
+      // back to the member ("we've got @handle from when you signed up").
+      .select("status, profile_version, first_name, avatar_path, role, linkedin_url, github_url")
       .eq("id", user.id)
       .single(),
     supabase.rpc("is_admin"),
     supabase.rpc("get_my_cv_info").maybeSingle(),
+    supabase.rpc("get_my_github_status").maybeSingle(),
   ]);
 
   const profile = profileRes.data;
@@ -81,6 +85,8 @@ export default async function IntakePage() {
           ? { blobKey: cvInfo.cv_path, filename: cvInfo.cv_original_filename ?? "Your CV", downloadUrl: existingCvUrl }
           : null
       }
+      existingGithubUrl={profile.github_url}
+      githubConnected={!!githubRes.data}
     />
   );
 }

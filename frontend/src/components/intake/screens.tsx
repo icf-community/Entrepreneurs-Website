@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { inputCls } from "@/components/forms/styles";
 import { ChipGroup, type ChipItem } from "@/components/forms/ChipGroup";
+import { ErrorBanner } from "@/components/forms/Banners";
 import { AvatarCropper } from "@/components/media/AvatarCropper";
 import { MemberDialog, memberSubtitle } from "@/components/members/MemberDialog";
 import type { DirectoryMember } from "@/lib/data/directory";
@@ -21,6 +22,10 @@ import {
   type IntakeState,
 } from "@/lib/intake/state";
 import { Field, ChoiceCards, PillChoice, TagInput, FilePicker, RankPicker, SkillPicker, type SkillOption } from "./controls";
+import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { RepoPicker } from "@/components/github/RepoPicker";
+import type { AvailableRepo, ShowcaseRepo } from "@/lib/github/showcase";
 import type { Affiliation } from "@/lib/intake/steps";
 import { MAX_NAME_LENGTH } from "@/lib/text";
 
@@ -39,6 +44,30 @@ export type ScreenProps = {
   role: Affiliation;
   existingLinkedin: string | null;
   suggestionsLoading: boolean;
+  /** profiles.github_url, collected at /onboarding before verification.
+   *  Used to NAME the handle already on file so connecting reads as
+   *  confirming the same account, not a second thing being asked for. */
+  existingGithubUrl: string | null;
+  github: GithubScreenState;
+};
+
+/** Everything the GitHub screen needs, owned by IntakeFlow so screens.tsx
+ *  stays pure UI — same split as the avatar/CV upload handlers. */
+export type GithubScreenState = {
+  connected: boolean;
+  scanning: boolean;
+  connecting: boolean;
+  error: string;
+  showcase: {
+    availableRepos: AvailableRepo[];
+    showcaseRepos: ShowcaseRepo[] | null;
+    suggestedRepos: AvailableRepo[];
+    seenRepos: string[];
+  } | null;
+  saving: boolean;
+  saved: boolean;
+  onConnect: () => void;
+  onSave: (picks: { name: string; blurb: string }[]) => void;
 };
 
 /** A previously-confirmed CV: its blob key (so a Back→Continue doesn't
@@ -347,7 +376,106 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin }: Scree
   );
 }
 
-// ─── 03 · Skills ─────────────────────────────────────────────────────
+// ─── 03 · GitHub ─────────────────────────────────────────────────────
+//
+// Optional for every affiliation — validate("github") always passes and
+// this never enters compulsoryDone. Its own screen rather than a block on
+// the CV screen because connecting navigates out to github.com and back,
+// and cvFile is deliberately excluded from the localStorage draft.
+//
+// "Prefilling" here can't mean prefilling OAuth — the account is whatever
+// the member authorises. It means naming the handle we already have from
+// /onboarding, so this reads as confirming a known account rather than
+// being asked for GitHub a second time.
+
+function githubHandle(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/github\.com\/([A-Za-z0-9-]+)/);
+  return match ? match[1] : null;
+}
+
+export function GithubScreen({ existingGithubUrl, github }: ScreenProps) {
+  const knownHandle = githubHandle(existingGithubUrl);
+
+  if (github.connected && github.saved) {
+    return (
+      <div className="space-y-4">
+        <Lead>Saved — these are the projects recruiters will see first.</Lead>
+        <p className="text-[0.85rem] text-text-muted">
+          You can change them any time from your profile.
+        </p>
+      </div>
+    );
+  }
+
+  if (github.connected && github.scanning) {
+    return (
+      <div className="space-y-4">
+        <Lead>Reading your public repositories…</Lead>
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-5/6" />
+        <Skeleton className="h-3 w-2/3" />
+        <p className="text-[0.8rem] text-text-muted">
+          This usually takes a few seconds. You can keep going and choose your projects later from
+          your profile.
+        </p>
+      </div>
+    );
+  }
+
+  if (github.connected && github.showcase) {
+    return (
+      <div className="space-y-6">
+        <Lead>Pick the projects you&apos;d actually want a recruiter to look at.</Lead>
+        {github.error && <ErrorBanner>{github.error}</ErrorBanner>}
+        <RepoPicker
+          availableRepos={github.showcase.availableRepos}
+          showcaseRepos={github.showcase.showcaseRepos}
+          suggestedRepos={github.showcase.suggestedRepos}
+          seenRepos={github.showcase.seenRepos}
+          saving={github.saving}
+          onSave={github.onSave}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Lead>
+        Optional. If you write code, connecting GitHub lets recruiters see what you&apos;ve actually
+        built — not just what your CV says. You&apos;ll pick which projects to spotlight, and nothing
+        private is ever read.
+      </Lead>
+
+      {knownHandle && (
+        <p className="text-[0.85rem] text-text-secondary">
+          We&apos;ve got <span className="text-text-primary">@{knownHandle}</span> from when you
+          signed up — connect it to spotlight your projects.
+        </p>
+      )}
+
+      {github.error && <ErrorBanner>{github.error}</ErrorBanner>}
+
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        loading={github.connecting}
+        onClick={github.onConnect}
+      >
+        Connect GitHub
+      </Button>
+
+      <p className="text-[0.8rem] text-text-muted">
+        You&apos;ll see GitHub&apos;s own authorisation screen — there&apos;s nothing to generate or
+        paste in yourself. We only read public repository information.
+      </p>
+    </div>
+  );
+}
+
+// ─── 04 · Skills ─────────────────────────────────────────────────────
 
 export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading }: ScreenProps) {
   const suggested = s.suggestedSkillIds
@@ -400,7 +528,7 @@ export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading }: Sc
   );
 }
 
-// ─── 04 · Interests ──────────────────────────────────────────────────
+// ─── 05 · Interests ──────────────────────────────────────────────────
 
 export function InterestsScreen({ s, patch, sectors }: ScreenProps) {
   const toggleSector = (id: number) =>
@@ -450,7 +578,7 @@ export function InterestsScreen({ s, patch, sectors }: ScreenProps) {
   );
 }
 
-// ─── 05 · Where you're at ────────────────────────────────────────────
+// ─── 06 · Where you're at ────────────────────────────────────────────
 
 export function WhereScreen({ s, patch }: ScreenProps) {
   const nameId = useId();
@@ -533,7 +661,7 @@ export function WhereScreen({ s, patch }: ScreenProps) {
   );
 }
 
-// ─── 06 · What you want ──────────────────────────────────────────────
+// ─── 07 · What you want ──────────────────────────────────────────────
 
 export function WantScreen({ s, patch }: ScreenProps) {
   const toggle = (v: string) =>
