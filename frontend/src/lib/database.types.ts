@@ -133,6 +133,181 @@ export type Database = {
         }
         Relationships: []
       }
+      cv_chunks: {
+        Row: {
+          chunk_type: Database["public"]["Enums"]["cv_chunk_type"]
+          content: string
+          content_tsv: unknown
+          created_at: string
+          cv_id: string
+          embedding: string
+          embedding_model: string
+          id: string
+          is_current: boolean
+          member_id: string
+        }
+        Insert: {
+          chunk_type: Database["public"]["Enums"]["cv_chunk_type"]
+          content: string
+          content_tsv?: unknown
+          created_at?: string
+          cv_id: string
+          embedding: string
+          embedding_model: string
+          id?: string
+          is_current?: boolean
+          member_id: string
+        }
+        Update: {
+          chunk_type?: Database["public"]["Enums"]["cv_chunk_type"]
+          content?: string
+          content_tsv?: unknown
+          created_at?: string
+          cv_id?: string
+          embedding?: string
+          embedding_model?: string
+          id?: string
+          is_current?: boolean
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cv_chunks_cv_id_fkey"
+            columns: ["cv_id"]
+            isOneToOne: false
+            referencedRelation: "cvs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cv_chunks_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cv_profiles: {
+        Row: {
+          created_at: string
+          cv_id: string
+          id: string
+          is_current: boolean
+          model_name: string
+          profile: Json
+          prompt_version: string
+          summary: string
+          summary_regenerated_at: string | null
+          summary_source: string
+        }
+        Insert: {
+          created_at?: string
+          cv_id: string
+          id?: string
+          is_current?: boolean
+          model_name: string
+          profile: Json
+          prompt_version: string
+          summary: string
+          summary_regenerated_at?: string | null
+          summary_source?: string
+        }
+        Update: {
+          created_at?: string
+          cv_id?: string
+          id?: string
+          is_current?: boolean
+          model_name?: string
+          profile?: Json
+          prompt_version?: string
+          summary?: string
+          summary_regenerated_at?: string | null
+          summary_source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cv_profiles_cv_id_fkey"
+            columns: ["cv_id"]
+            isOneToOne: true
+            referencedRelation: "cvs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cv_skills: {
+        Row: {
+          canonical_name: string
+          created_at: string
+          embedding: string
+          esco_uri: string | null
+          id: string
+        }
+        Insert: {
+          canonical_name: string
+          created_at?: string
+          embedding: string
+          esco_uri?: string | null
+          id?: string
+        }
+        Update: {
+          canonical_name?: string
+          created_at?: string
+          embedding?: string
+          esco_uri?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      cvs: {
+        Row: {
+          blob_key: string
+          created_at: string
+          failure_reason: string | null
+          id: string
+          is_current: boolean
+          member_id: string
+          mime_type: string | null
+          original_filename: string | null
+          raw_text: string | null
+          raw_text_hash: string | null
+          status: Database["public"]["Enums"]["cv_status"]
+        }
+        Insert: {
+          blob_key: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          is_current?: boolean
+          member_id: string
+          mime_type?: string | null
+          original_filename?: string | null
+          raw_text?: string | null
+          raw_text_hash?: string | null
+          status?: Database["public"]["Enums"]["cv_status"]
+        }
+        Update: {
+          blob_key?: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          is_current?: boolean
+          member_id?: string
+          mime_type?: string | null
+          original_filename?: string | null
+          raw_text?: string | null
+          raw_text_hash?: string | null
+          status?: Database["public"]["Enums"]["cv_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cvs_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_change_log: {
         Row: {
           changed_at: string
@@ -225,6 +400,152 @@ export type Database = {
           },
         ]
       }
+      github_connections: {
+        Row: {
+          access_token_encrypted: string
+          available_repos: Json | null
+          connected_at: string
+          github_signal: Json | null
+          github_user_id: number
+          github_username: string
+          last_scanned_at: string | null
+          member_id: string
+          scan_failure_reason: string | null
+          scan_fingerprint: string | null
+          scan_status: string
+          showcase_nudged_at: string | null
+          showcase_nudges_enabled: boolean
+          showcase_repos: Json | null
+          showcase_seen_repos: string[] | null
+          showcase_selected_at: string | null
+        }
+        Insert: {
+          access_token_encrypted: string
+          available_repos?: Json | null
+          connected_at?: string
+          github_signal?: Json | null
+          github_user_id: number
+          github_username: string
+          last_scanned_at?: string | null
+          member_id: string
+          scan_failure_reason?: string | null
+          scan_fingerprint?: string | null
+          scan_status?: string
+          showcase_nudged_at?: string | null
+          showcase_nudges_enabled?: boolean
+          showcase_repos?: Json | null
+          showcase_seen_repos?: string[] | null
+          showcase_selected_at?: string | null
+        }
+        Update: {
+          access_token_encrypted?: string
+          available_repos?: Json | null
+          connected_at?: string
+          github_signal?: Json | null
+          github_user_id?: number
+          github_username?: string
+          last_scanned_at?: string | null
+          member_id?: string
+          scan_failure_reason?: string | null
+          scan_fingerprint?: string | null
+          scan_status?: string
+          showcase_nudged_at?: string | null
+          showcase_nudges_enabled?: boolean
+          showcase_repos?: Json | null
+          showcase_seen_repos?: string[] | null
+          showcase_selected_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_connections_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          kind: string
+          last_error: string | null
+          max_attempts: number
+          next_attempt_at: string
+          payload: Json
+          status: Database["public"]["Enums"]["job_status"]
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          kind: string
+          last_error?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          payload: Json
+          status?: Database["public"]["Enums"]["job_status"]
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          payload?: Json
+          status?: Database["public"]["Enums"]["job_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      listing_edits: {
+        Row: {
+          created_at: string
+          id: string
+          listing_id: string
+          listing_kind: Database["public"]["Enums"]["listing_event_kind"]
+          previous: Json | null
+          proposed: Json
+          proposed_by: string
+          reject_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["listing_edit_status"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          listing_id: string
+          listing_kind: Database["public"]["Enums"]["listing_event_kind"]
+          previous?: Json | null
+          proposed: Json
+          proposed_by: string
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["listing_edit_status"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          listing_id?: string
+          listing_kind?: Database["public"]["Enums"]["listing_event_kind"]
+          previous?: Json | null
+          proposed?: Json
+          proposed_by?: string
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["listing_edit_status"]
+        }
+        Relationships: []
+      }
       listing_events: {
         Row: {
           created_at: string
@@ -251,6 +572,51 @@ export type Database = {
           viewer_id?: string
         }
         Relationships: []
+      }
+      member_skills: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          id: string
+          member_id: string
+          raw_text: string
+          skill_id: string | null
+          source: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          member_id: string
+          raw_text: string
+          skill_id?: string | null
+          source?: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          member_id?: string
+          raw_text?: string
+          skill_id?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_skills_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_skills_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "cv_skills"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       opportunities: {
         Row: {
@@ -1097,6 +1463,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_apply_listing_edit: {
+        Args: { p_edit_id: string }
+        Returns: {
+          email: string
+          first_name: string
+          title: string
+        }[]
+      }
       admin_clear_avatar: { Args: { p_profile_id: string }; Returns: undefined }
       admin_create_event: {
         Args: {
@@ -1181,6 +1555,20 @@ export type Database = {
         Returns: {
           email: string
           user_id: string
+        }[]
+      }
+      admin_list_listing_edits: {
+        Args: never
+        Returns: {
+          created_at: string
+          current_values: Json
+          id: string
+          listing_id: string
+          listing_kind: Database["public"]["Enums"]["listing_event_kind"]
+          listing_title: string
+          proposed: Json
+          proposed_by: string
+          proposed_by_name: string
         }[]
       }
       admin_list_pending_profiles: {
@@ -1279,6 +1667,14 @@ export type Database = {
           total: number
         }[]
       }
+      admin_reject_listing_edit: {
+        Args: { p_edit_id: string; p_reason: string }
+        Returns: {
+          email: string
+          first_name: string
+          title: string
+        }[]
+      }
       admin_resolve_post_report: {
         Args: { p_note?: string; p_report_id: string; p_status: string }
         Returns: {
@@ -1292,6 +1688,22 @@ export type Database = {
           p_committee_role?: string
           p_is_committee: boolean
           p_member_id: string
+        }
+        Returns: undefined
+      }
+      admin_update_listing: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["listing_event_kind"]
+          p_listing_id: string
+          p_payload: Json
+        }
+        Returns: undefined
+      }
+      apply_listing_edit_payload: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["listing_event_kind"]
+          p_listing_id: string
+          p_payload: Json
         }
         Returns: undefined
       }
@@ -1345,6 +1757,15 @@ export type Database = {
         Args: { p_blob_key: string; p_consent: boolean; p_filename: string }
         Returns: undefined
       }
+      confirm_github_connected: {
+        Args: {
+          p_access_token: string
+          p_encryption_key: string
+          p_github_user_id: number
+          p_github_username: string
+        }
+        Returns: undefined
+      }
       create_post: {
         Args: { p_body: string; p_images?: Json; p_title: string }
         Returns: {
@@ -1368,9 +1789,22 @@ export type Database = {
       }
       cron_drain_blob_deletions: { Args: never; Returns: undefined }
       cron_drain_outbound_email: { Args: never; Returns: undefined }
+      cron_github_showcase_nudge: { Args: never; Returns: undefined }
       defer_intake: { Args: never; Returns: undefined }
       delete_my_account: { Args: never; Returns: undefined }
       delete_my_post: { Args: { p_post_id: string }; Returns: undefined }
+      disconnect_github: { Args: never; Returns: undefined }
+      dismiss_my_github_showcase_prompt: { Args: never; Returns: undefined }
+      due_github_showcase_nudges: {
+        Args: { p_limit?: number }
+        Returns: {
+          email: string
+          first_name: string
+          member_id: string
+          new_repos: string[]
+        }[]
+      }
+      enqueue_github_rescans: { Args: never; Returns: number }
       enqueue_outbound_email: {
         Args: {
           p_html: string
@@ -1425,6 +1859,40 @@ export type Database = {
           cv_uploaded_at: string
         }[]
       }
+      get_my_cv_profile: {
+        Args: never
+        Returns: {
+          skills: string[]
+          summary: string
+        }[]
+      }
+      get_my_cv_status: {
+        Args: never
+        Returns: {
+          failure_reason: string
+          status: Database["public"]["Enums"]["cv_status"]
+        }[]
+      }
+      get_my_github_showcase: {
+        Args: never
+        Returns: {
+          available_repos: Json
+          seen_repos: string[]
+          showcase_repos: Json
+          suggested_repos: Json
+        }[]
+      }
+      get_my_github_status: {
+        Args: never
+        Returns: {
+          github_username: string
+          has_showcase: boolean
+          has_signal: boolean
+          needs_showcase_review: boolean
+          scan_failure_reason: string
+          scan_status: string
+        }[]
+      }
       get_my_listing_actions: {
         Args: never
         Returns: {
@@ -1441,6 +1909,18 @@ export type Database = {
           listing_id: string
           listing_kind: Database["public"]["Enums"]["listing_event_kind"]
           view_count: number
+        }[]
+      }
+      get_my_pending_listing_edit: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["listing_event_kind"]
+          p_listing_id: string
+        }
+        Returns: {
+          created_at: string
+          current_values: Json
+          id: string
+          proposed: Json
         }[]
       }
       get_opportunity_for_edit: {
@@ -1716,6 +2196,28 @@ export type Database = {
           start_year: number
         }[]
       }
+      listing_has_pending_edit: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["listing_event_kind"]
+          p_listing_id: string
+        }
+        Returns: boolean
+      }
+      listing_snapshot: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["listing_event_kind"]
+          p_listing_id: string
+        }
+        Returns: Json
+      }
+      listing_table_name: {
+        Args: { p_kind: Database["public"]["Enums"]["listing_event_kind"] }
+        Returns: string
+      }
+      mark_github_showcase_nudged: {
+        Args: { p_member_ids: string[] }
+        Returns: undefined
+      }
       mark_listing_action: {
         Args: {
           p_action: Database["public"]["Enums"]["user_action_type"]
@@ -1729,6 +2231,7 @@ export type Database = {
       purge_moderation_records: { Args: never; Returns: number }
       purge_rejected_listings: { Args: never; Returns: number }
       purge_stale_upload_tickets: { Args: never; Returns: number }
+      reap_stalled_jobs: { Args: never; Returns: number }
       record_listing_event: {
         Args: {
           p_event_type: Database["public"]["Enums"]["listing_event_type"]
@@ -1785,9 +2288,19 @@ export type Database = {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: undefined
       }
+      set_my_github_nudges: { Args: { p_enabled: boolean }; Returns: undefined }
+      set_my_github_showcase: { Args: { p_picks: Json }; Returns: undefined }
       set_my_linkedin: { Args: { p_linkedin_url: string }; Returns: undefined }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      stage_listing_edit: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["listing_event_kind"]
+          p_listing_id: string
+          p_payload: Json
+        }
+        Returns: undefined
+      }
       submit_event: {
         Args: {
           p_contact_email: string
@@ -1880,6 +2393,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_cv_currency: { Args: { p_cv_id: string }; Returns: undefined }
       update_event: {
         Args: {
           p_contact_email: string
@@ -1960,6 +2474,16 @@ export type Database = {
     }
     Enums: {
       apply_method: "email" | "link"
+      cv_chunk_type: "role" | "project" | "education" | "skills" | "summary"
+      cv_status:
+        | "pending"
+        | "extracting"
+        | "embedding"
+        | "ready"
+        | "failed"
+        | "flagged"
+      job_status: "pending" | "running" | "done" | "failed" | "dead"
+      listing_edit_status: "pending" | "applied" | "rejected" | "discarded"
       listing_event_kind: "opportunity" | "event" | "vc_grant"
       listing_event_type:
         | "expand"
@@ -2113,6 +2637,17 @@ export const Constants = {
   public: {
     Enums: {
       apply_method: ["email", "link"],
+      cv_chunk_type: ["role", "project", "education", "skills", "summary"],
+      cv_status: [
+        "pending",
+        "extracting",
+        "embedding",
+        "ready",
+        "failed",
+        "flagged",
+      ],
+      job_status: ["pending", "running", "done", "failed", "dead"],
+      listing_edit_status: ["pending", "applied", "rejected", "discarded"],
       listing_event_kind: ["opportunity", "event", "vc_grant"],
       listing_event_type: [
         "expand",

@@ -15,7 +15,7 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [profileRes, skillTaxonomy, sectors, selected, isAdminRes, cvInfoRes] = await Promise.all([
+  const [profileRes, skillTaxonomy, sectors, selected, isAdminRes, cvInfoRes, githubStatusRes] = await Promise.all([
     supabase
       .from("profiles")
       .select(`
@@ -32,6 +32,7 @@ export default async function ProfilePage() {
     profileIntakeData(supabase, user.id),
     supabase.rpc("is_admin"),
     supabase.rpc("get_my_cv_info").maybeSingle(),
+    supabase.rpc("get_my_github_status").maybeSingle(),
   ]);
 
   const profile = profileRes.data;
@@ -52,6 +53,8 @@ export default async function ProfilePage() {
     cv_original_filename: string | null;
     cv_uploaded_at: string | null;
   } | null;
+
+  const githubStatus = githubStatusRes.data;
 
   return (
     <AppShell
@@ -94,6 +97,9 @@ export default async function ProfilePage() {
             cvOriginalFilename={cvInfo?.cv_original_filename ?? null}
             cvUploadedAt={cvInfo?.cv_uploaded_at ?? null}
             hasCv={!!cvInfo?.cv_path}
+            githubUsername={githubStatus?.github_username ?? null}
+            githubScanStatus={githubStatus?.scan_status ?? null}
+            githubScanFailureReason={githubStatus?.scan_failure_reason ?? null}
             currentFocus={profile.current_focus ?? ""}
             ventureStage={profile.venture_stage ?? ""}
             ventureName={profile.venture_name ?? ""}

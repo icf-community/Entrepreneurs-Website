@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ChipGroup, type ChipItem } from "@/components/forms/ChipGroup";
 import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
@@ -19,7 +19,12 @@ import {
   requestAvatarTicket, confirmAvatarUpload, removeAvatar,
   requestCvTicket, confirmCvUpload, removeCv, getMyCvDownloadUrl,
   getMySuggestedCvSkillIds,
+  requestGithubConnectUrl, disconnectGithub, type GithubScanStatus,
+  getMyGithubShowcase, getMyGithubStatus, dismissGithubShowcasePrompt, setGithubNudges,
 } from "@/app/profile/mediaActions";
+import { CvProcessingDialog } from "@/app/profile/CvProcessingDialog";
+import { GithubDialog } from "@/app/profile/GithubDialog";
+import type { ShowcaseRepo } from "@/lib/github/showcase";
 import type { Affiliation } from "@/lib/intake/steps";
 import {
   MAX_CORE_SKILLS, MAX_INTENTS,
@@ -58,6 +63,9 @@ type Props = {
   cvOriginalFilename: string | null;
   cvUploadedAt: string | null;
   hasCv: boolean;
+  githubUsername: string | null;
+  githubScanStatus: string | null;
+  githubScanFailureReason: string | null;
   currentFocus: string;
   ventureStage: string;
   ventureName: string;
@@ -268,6 +276,12 @@ export default function ProfileForm(props: Props) {
         uploadedAt={props.cvUploadedAt}
         hasCv={props.hasCv}
         onSuggested={(ids) => setSuggestedSkillIds((prev) => [...prev, ...ids])}
+      />
+
+      <GithubSection
+        username={props.githubUsername}
+        scanStatus={props.githubScanStatus as GithubScanStatus | null}
+        scanFailureReason={props.githubScanFailureReason}
       />
 
       <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
@@ -563,6 +577,7 @@ function CvSection({
   const [filename, setFilename] = useState(originalFilename);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [showProcessingDialog, setShowProcessingDialog] = useState(false);
 
   const upload = async () => {
     if (!file) return;
@@ -601,6 +616,13 @@ function CvSection({
       // times for it to land instead of making the member wait on it.
       // Not awaited: the upload itself is already done.
       if (consent) void pollForSuggestions(onSuggested);
+
+      // confirm_cv_upload only enqueues the CV matchmaker's ingest
+      // pipeline (moderation, extraction, skill normalisation,
+      // chunk+embed — cv-matchmaker-spec.md) when consent is ticked, same
+      // gate as the suggestion prefill above — see privacy policy section
+      // 2a. This dialog watches it finish and shows the generated summary.
+      if (consent) setShowProcessingDialog(true);
     } catch {
       setError("Couldn't reach the file service. Try again in a moment.");
     } finally {
@@ -628,8 +650,9 @@ function CvSection({
     <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
       <h2 className="mb-1 text-[1rem] font-medium text-text-primary">CV</h2>
       <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
-        Kept for you and, if you allow it once on upload, read to suggest
-        skills. Only you and admins handling account reviews can open it.
+        Kept for you and, if you allow it once on upload, read to generate
+        a searchable summary of your background and skills. Only you and
+        admins handling account reviews can open the file itself.
       </p>
       {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
@@ -673,8 +696,10 @@ function CvSection({
                   className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
                 />
                 <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
-                  Read the skills section of my CV once, to suggest skills to
-                  add above. The text itself is never stored.
+                  Read my CV to suggest skills to add above and generate a
+                  searchable summary of my background. The extracted text
+                  and summary are stored and used to help match me to
+                  relevant opportunities.
                 </span>
               </label>
               <Button type="button" onClick={upload} loading={uploading} variant="primary" size="md" className="mt-3">
@@ -683,6 +708,244 @@ function CvSection({
             </>
           )}
         </>
+      )}
+
+      {showProcessingDialog && (
+        <CvProcessingDialog onClose={() => setShowProcessingDialog(false)} />
+      )}
+    </section>
+  );
+}
+
+function GithubSection({
+  username, scanStatus, scanFailureReason,
+}: {
+  username: string | null;
+  scanStatus: GithubScanStatus | null;
+  scanFailureReason: string | null;
+}) {
+  const searchParams = useSearchParams();
+  const [connected, setConnected] = useState(!!username);
+  const [status, setStatus] = useState(scanStatus);
+  const [error, setError] = useState(
+    searchParams.get("github") === "error" ? "We couldn't connect your GitHub account. Please try again." : "",
+  );
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
+  // Opened by the OAuth return (phase: scanning), or by the member
+  // choosing to change their picks (phase: picking).
+  const [dialog, setDialog] = useState<null | "scan" | "pick">(
+    searchParams.get("github") === "connected" ? "scan" : null,
+  );
+
+  const [picks, setPicks] = useState<ShowcaseRepo[] | null>(null);
+  const [needsReview, setNeedsReview] = useState(false);
+  const [nudgesEnabled, setNudgesEnabled] = useState(true);
+  const [dismissing, setDismissing] = useState(false);
+
+  // The picks and the review flag both change as a side effect of the
+  // dialog and of background scans, so they're loaded here rather than
+  // threaded through the server component — one small RPC on a page the
+  // member opened deliberately.
+  const refreshShowcase = useCallback(async () => {
+    const [showcase, statusResult] = await Promise.all([
+      getMyGithubShowcase(),
+      getMyGithubStatus(),
+    ]);
+    if (showcase.ok && showcase.data) setPicks(showcase.data.showcaseRepos);
+    if (statusResult.ok && statusResult.data) {
+      setNeedsReview(statusResult.data.needsShowcaseReview);
+      setStatus(statusResult.data.scanStatus);
+    }
+  }, []);
+
+  useEffect(() => {
+    // refreshShowcase awaits two server actions before it touches any
+    // state, so nothing is actually set synchronously here — the rule
+    // traces into the callback without seeing the await.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (connected) void refreshShowcase();
+  }, [connected, refreshShowcase]);
+
+  const connect = async () => {
+    setError("");
+    setConnecting(true);
+    try {
+      const result = await requestGithubConnectUrl("profile");
+      if (!result.ok) { setError(result.error); return; }
+      window.location.href = result.data;
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const disconnect = async () => {
+    setError("");
+    setDisconnecting(true);
+    try {
+      const result = await disconnectGithub();
+      if (!result.ok) { setError(result.error); return; }
+      setConnected(false);
+      setStatus(null);
+      setPicks(null);
+      setNeedsReview(false);
+      setConfirmingDisconnect(false);
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const dismissPrompt = async () => {
+    setDismissing(true);
+    try {
+      const result = await dismissGithubShowcasePrompt();
+      if (result.ok) setNeedsReview(false);
+    } finally {
+      setDismissing(false);
+    }
+  };
+
+  const toggleNudges = async (enabled: boolean) => {
+    setNudgesEnabled(enabled);
+    const result = await setGithubNudges(enabled);
+    if (!result.ok) setNudgesEnabled(!enabled); // revert on failure
+  };
+
+  const statusLabel =
+    status === "ready" ? "Repositories scanned"
+      : status === "failed" ? (scanFailureReason ?? "Scan failed")
+        : "Scanning your repositories…";
+
+  return (
+    <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
+      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">GitHub</h2>
+      <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
+        Optional. Connect your GitHub account to have your public
+        repositories count as an extra skill signal alongside your CV —
+        real GitHub sign-in and authorisation, nothing to generate or
+        paste in yourself.
+      </p>
+      {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
+
+      {connected ? (
+        <div className="space-y-4">
+          <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
+              GH
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[0.85rem] text-text-primary">@{username}</span>
+              <span className="block text-[0.75rem] text-text-muted">{statusLabel}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setConfirmingDisconnect(true)}
+              disabled={disconnecting}
+              className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Disconnect
+            </button>
+          </div>
+
+          {/* Disconnecting deletes the picks and the hand-written blurbs
+              along with the connection (disconnect_github drops the row).
+              That is the right privacy default, but it is not something a
+              member should discover afterwards. */}
+          {confirmingDisconnect && (
+            <div className="rounded-lg border border-[#ff4d4d]/40 bg-[#ff4d4d]/[0.06] p-4">
+              <p className="mb-3 text-[0.8rem] text-text-secondary">
+                Disconnecting removes your GitHub-derived skills, your spotlit projects and the
+                descriptions you wrote for them. You can reconnect later, but you&apos;ll need to
+                choose your projects again.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="dangerGhost" size="sm" loading={disconnecting} onClick={disconnect}>
+                  Disconnect GitHub
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmingDisconnect(false)}>
+                  Keep it connected
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {needsReview && (
+            <div className="rounded-lg border border-accent/50 bg-accent/[0.06] p-4">
+              <p className="mb-3 text-[0.8rem] text-text-secondary">
+                There&apos;s something new on your GitHub that you haven&apos;t looked at yet. Want to
+                update which projects recruiters see?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={() => setDialog("pick")}>
+                  Review projects
+                </Button>
+                <Button type="button" variant="ghost" size="sm" loading={dismissing} onClick={dismissPrompt}>
+                  Not now
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {status === "ready" && (
+            <div className="rounded-lg border border-border-strong bg-white/[0.02] p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-[0.85rem] text-text-primary">Spotlit projects</h3>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setDialog("pick")}>
+                  {picks && picks.length > 0 ? "Change projects" : "Choose projects"}
+                </Button>
+              </div>
+              {picks && picks.length > 0 ? (
+                <ul className="space-y-2">
+                  {picks.map((repo) => (
+                    <li key={repo.name} className="rounded-lg border border-border bg-white/[0.02] p-3">
+                      <a
+                        href={repo.url ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[0.825rem] text-text-primary underline-offset-2 hover:underline"
+                      >
+                        {repo.name}
+                      </a>
+                      {(repo.blurb ?? repo.description) && (
+                        <p className="mt-1 text-[0.775rem] text-text-secondary">
+                          {repo.blurb ?? repo.description}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[0.8rem] text-text-muted">
+                  You haven&apos;t chosen any yet. Until you do, we&apos;ll show the projects our scan
+                  rated highest.
+                </p>
+              )}
+
+              <label className="mt-4 flex cursor-pointer items-start gap-2 text-[0.75rem] text-text-muted">
+                <input
+                  type="checkbox"
+                  checked={nudgesEnabled}
+                  onChange={(event) => void toggleNudges(event.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--color-accent)]"
+                />
+                Email me when I&apos;ve pushed something worth spotlighting (at most once a month)
+              </label>
+            </div>
+          )}
+        </div>
+      ) : (
+        <Button type="button" onClick={connect} loading={connecting} variant="primary" size="md">
+          Connect GitHub
+        </Button>
+      )}
+
+      {dialog && (
+        <GithubDialog
+          startAtPicker={dialog === "pick"}
+          onClose={() => { setDialog(null); void refreshShowcase(); }}
+          onSaved={() => { setNeedsReview(false); void refreshShowcase(); }}
+        />
       )}
     </section>
   );
