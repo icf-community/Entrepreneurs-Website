@@ -4,33 +4,9 @@ version = "0.1.0"
 description = "Foundry upload gateway — sanitises member images into Azure Blob Storage"
 requires-python = ">=3.12"
 
-# Pinned, not ranged. CI and the VM must build the same environment, and
-# the image-handling dependency in particular is a decoder taking hostile
-# input — "whatever resolved today" is not an acceptable answer for it.
-dependencies = [
-    "fastapi==0.141.1",
-    "uvicorn[standard]==0.52.4",
-    "gunicorn==26.2.0",
-    "python-multipart==0.0.32",
-    "pillow==12.3.0",
-    "pyjwt==2.13.0",
-    "azure-storage-blob==12.30.1",
-    "azure-identity==1.25.3",
-    # qpdf-backed PDF parsing for documents.py — reads the real object graph
-    # (encryption dictionary, /OpenAction, /AA, the JavaScript name tree)
-    # instead of a byte search that can't see through object-stream
-    # compression. Ships a bundled qpdf; no system package needed.
-    "pikepdf==10.12.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest==9.1.1",
-    # starlette.testclient tries `import httpx2 as httpx` first and only
-    # falls back to plain httpx with a deprecation warning — httpx2 is a
-    # drop-in for this use, so there's no reason to carry the deprecated one.
-    "httpx2==2.12.0",
-]
+# Dependencies live in requirements.txt / requirements-dev.txt, not here —
+# pip install -r requirements.txt (add -r requirements-dev.txt for tests).
+# See README.md for the full setup and for how those files get regenerated.
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -41,3 +17,15 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    # PyMuPDF's SWIG-generated extension types (SwigPyObject, SwigPyPacked,
+    # swigvarlink) don't set __module__, which CPython 3.12 warns about at
+    # import time. This fires on a bare `import pymupdf`, before any of our
+    # code runs — it's an upstream packaging gap, not something cv_sanitise.py
+    # can fix, and it isn't scoped narrowly enough to filter by module (the
+    # warning's reported location is importlib itself). Filtered by message
+    # instead of a blanket `ignore::DeprecationWarning`, so a real
+    # deprecation warning from our own code still surfaces.
+    "ignore:builtin type Swig.*has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+]

@@ -1,6 +1,17 @@
+# Full pinned dependency closure (direct + transitive) for the runtime image.
+# Regenerate after any change to this list: in a clean venv, `pip install`
+# each direct dependency by exact pinned version (there's no [project]
+# dependency list to install from any more — see README.md), then
+# `pip freeze`. Never freeze your own dev venv into this file — it will
+# also pick up whatever unrelated tooling (linters, security scanners, an
+# editable self-install) happens to be sitting in that venv.
+#
+# psycopg[binary] was added for the CV ingest worker (app/db.py) — the
+# only thing in server/ with a direct Postgres connection. main.py/the
+# request-serving gateway never imports app.db and still holds none.
 annotated-doc==0.0.5
 annotated-types==0.8.0
-anyio==4.15.0
+anyio==4.15.1
 azure-core==1.41.0
 azure-identity==1.25.3
 azure-storage-blob==12.30.1
@@ -12,24 +23,39 @@ cryptography==50.0.1
 fastapi==0.141.1
 gunicorn==26.2.0
 h11==0.16.0
+httpcore2==2.12.0
 httptools==0.8.0
+httpx2==2.12.0
 idna==3.19
 isodate==0.7.2
+jiter==0.16.0
 lxml==6.1.3
 msal==1.38.0
 msal-extensions==1.3.1
+openai==3.8.0
 packaging==26.3
 pikepdf==10.12.0
 pillow==12.3.0
+psycopg==3.3.5
+psycopg-binary==3.3.5
 pycparser==3.0
 pydantic==2.13.5
 pydantic_core==2.46.5
 PyJWT==2.13.0
+pymupdf==1.28.2
+python-docx==1.2.0
 python-dotenv==1.2.3
 python-multipart==0.0.32
 PyYAML==6.0.3
 requests==2.34.2
+# Worker error reporting (app/worker.py). Its only runtime dependencies
+# are urllib3 and certifi, both already pinned above, so this adds no new
+# transitive closure. Imported optionally — an environment without
+# SENTRY_DSN set degrades to logging rather than failing to start.
+sentry-sdk==2.68.1
+sniffio==1.3.1
 starlette==1.6.0
+truststore==0.10.4
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 urllib3==2.7.0

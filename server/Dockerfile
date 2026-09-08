@@ -3,11 +3,10 @@
 # Single-stage: Pillow ships manylinux wheels for this platform, so no
 # compiler is needed to build the dependency closure.
 #
-# requirements.txt is the full pinned dependency closure (direct + transitive),
-# generated from pyproject.toml — see server/README.md for how to regenerate
-# it. Installing from it first, then the app with --no-deps, keeps that
-# (expensive, rarely-changing) layer cached across builds where only app/
-# changed.
+# requirements.txt is the full pinned dependency closure (direct + transitive)
+# — see server/README.md for how to regenerate it. Installing from it first,
+# then the app with --no-deps, keeps that (expensive, rarely-changing) layer
+# cached across builds where only app/ changed.
 FROM python:3.12-slim-bookworm
 
 WORKDIR /app

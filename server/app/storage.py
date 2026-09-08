@@ -80,6 +80,19 @@ def put_blob(
         raise BlobAlreadyExists(key) from exc
 
 
+def get_blob(container: str, key: str) -> bytes:
+    """Read a blob back. Used by the ingest worker to re-fetch a member's CV
+    for (re)processing — never by the gateway's own request handlers, which
+    only ever write.
+
+    No ResourceNotFoundError handling here: a caller asking for a key it
+    doesn't already have on record (from a `cvs` row) is a bug in the
+    caller, not an expected outcome to swallow.
+    """
+    blob = _service().get_blob_client(container, key)
+    return blob.download_blob().readall()
+
+
 def delete_blob(container: str, key: str) -> bool:
     """Delete one blob. Returns False when it was already gone.
 

@@ -66,3 +66,33 @@ def settings() -> Settings:
         max_upload_bytes=int(os.environ.get("MAX_UPLOAD_BYTES", 8 * 1024 * 1024)),
         max_document_bytes=int(os.environ.get("MAX_DOCUMENT_BYTES", 8 * 1024 * 1024)),
     )
+
+
+@dataclass(frozen=True)
+class WorkerSettings:
+    """Config for the CV ingest worker (worker.py) only.
+
+    Deliberately a separate dataclass from Settings, not two more fields
+    bolted onto it: main.py calls settings() eagerly at import time (see
+    its CORSMiddleware setup), so if OPENAI_API_KEY/DATABASE_URL lived on
+    Settings, the request-serving gateway would refuse to boot without an
+    OpenAI key and a database connection it has no other use for —
+    exactly the coupling its own docstring says it doesn't have.
+    """
+
+    openai_api_key: str
+    database_url: str
+    # Shared with the Next.js GitHub OAuth callback (same env var name on
+    # that side) — decrypts github_connections.access_token_encrypted,
+    # encrypted there with pgcrypto's pgp_sym_encrypt. Never persisted in
+    # the database itself. See 20260907000001_github_signal.sql.
+    github_token_encryption_key: str
+
+
+@lru_cache(maxsize=1)
+def worker_settings() -> WorkerSettings:
+    return WorkerSettings(
+        openai_api_key=_required("OPENAI_API_KEY"),
+        database_url=_required("DATABASE_URL"),
+        github_token_encryption_key=_required("GITHUB_TOKEN_ENCRYPTION_KEY"),
+    )
