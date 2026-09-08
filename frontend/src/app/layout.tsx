@@ -1,12 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
 import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
+import { SITE_URL, SITE_NAME } from "@/lib/structuredData";
 
 // Canonical host: the apex 307-redirects to www, so www is the indexable origin.
-const SITE_URL = "https://www.imperialentrepreneurs.com";
-const SITE_NAME = "Imperial Entrepreneurs";
+
 
 // One grotesque for the whole app. The wordmark builds its hierarchy from
 // weight and tracking inside a single family, so a second display face would
@@ -91,50 +90,27 @@ const PRECONNECT_ORIGINS = [
   })
   .filter((origin): origin is string => origin !== null);
 
-// Organization + WebSite structured data. This is the primary signal that the
-// site *is* the entity "Imperial Entrepreneurs" (knowledge panel / sitelinks /
-// branded-search recognition). alternateName carries the "Foundry" product brand.
-const structuredData = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Organization",
-      "@id": `${SITE_URL}/#organization`,
-      name: SITE_NAME,
-      alternateName: "Foundry",
-      url: SITE_URL,
-      // Square mark, not the banner lockup: this slot is cropped to a
-      // square in knowledge panels and chat unfurls, and is also served raw.
-      logo: `${SITE_URL}/logo-square.png`,
-      description:
-        "The founder community at Imperial College London, connecting student founders, alumni, mentors, and investors through Foundry.",
-      sameAs: [
-        "https://www.linkedin.com/company/imperial-entrepreneurs/",
-        "https://www.instagram.com/imperialentrepreneurs/",
-      ],
-    },
-    {
-      "@type": "WebSite",
-      "@id": `${SITE_URL}/#website`,
-      name: SITE_NAME,
-      alternateName: "Foundry",
-      url: SITE_URL,
-      publisher: { "@id": `${SITE_URL}/#organization` },
-      inLanguage: "en-GB",
-    },
-  ],
-};
 
-// The middleware (proxy.ts) sets a per-request CSP nonce; Next.js only stamps
-// that nonce onto its scripts when the page is dynamically rendered. Force it
-// app-wide so the strict (nonce + strict-dynamic) CSP holds on every route.
-// Cost is minimal here — only /login, /privacy, /terms were ever static.
-export const dynamic = "force-dynamic";
+// `export const dynamic = "force-dynamic"` used to sit here, and the
+// `await headers()` below used to read the nonce for the JSON-LD tag.
+// Both are gone (C2 Finding 6, 2026-09-08), and removing the headers()
+// call is the half that actually mattered: reading a dynamic API in the
+// ROOT layout opts every route in the application out of static
+// rendering, whether or not force-dynamic is also present. That is why
+// /privacy — a static legal page reading nothing — measured as the
+// second-slowest route in the app at every load level.
+//
+// Routes that genuinely need per-request rendering still get it, and get
+// it honestly: anything calling cookies() (which is every authenticated
+// page, via the Supabase server client) is dynamic automatically. Routes
+// that are public AND touch no dynamic API now render statically, and
+// each one must therefore appear in csp.ts's STATIC_CSP_ROUTES — a
+// statically rendered page cannot carry a per-request nonce, so without
+// the nonce-free policy its own bundle would be blocked by
+// strict-dynamic. csp.test.ts asserts that correspondence; if you make a
+// route static without listing it there, its JavaScript will not run.
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // The middleware (proxy.ts) mints a per-request CSP nonce and exposes it on
-  // x-nonce. Carry it onto the JSON-LD tag so the strict nonce CSP never flags it.
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${archivo.variable} ${plexMono.variable}`} data-scroll-behavior="smooth">
       <body suppressHydrationWarning>
@@ -161,12 +137,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             content attribute, so it sees "" against the server's real value
             and reports a mismatch on every page load. The difference is
             correct and expected; the warning is not actionable. */}
-        <script
-          type="application/ld+json"
-          nonce={nonce}
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-        />
+        {/* The Organization/WebSite JSON-LD that used to live here has moved
+            to app/page.tsx. It had to: emitting it from the root layout meant
+            reading the per-request nonce with headers(), and that single call
+            made every route in the app dynamic. Site-level schema belongs on
+            the canonical homepage anyway — search engines want it once, on
+            "/", not repeated on every URL — so this is where it should have
+            been. It needs no nonce there because "/" is served the nonce-free
+            static policy (STATIC_CSP_ROUTES). */}
         <PostHogProvider>{children}</PostHogProvider>
       </body>
     </html>
