@@ -6,6 +6,7 @@ import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import { toggleOpportunityBookmark } from "../actions";
 import type { Opportunity } from "@/lib/data/opportunities";
+import { externalHref } from "@/lib/safeUrl";
 
 // Everything on the detail page that needs the browser: the apply
 // click-through (recorded), the applied pill, and the bookmark star.
@@ -51,7 +52,7 @@ export default function OpportunityActions({
     <div className="flex flex-wrap items-start gap-2">
       {o.applyMethod === "link" && o.applyUrl ? (
         <a
-          href={o.applyUrl}
+          href={externalHref(o.applyUrl)}
           target="_blank"
           rel="noreferrer noopener"
           onClick={() => recordListingEvent("opportunity", o.id, "apply_click")}

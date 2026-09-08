@@ -89,9 +89,25 @@ jobs:
           # or PyJWT behaviour difference reaches the box unnoticed.
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: server/pyproject.toml
+          # Both files, or a dependency bump in either one silently reuses a
+          # stale wheel cache.
+          cache-dependency-path: |
+            server/requirements.txt
+            server/requirements-dev.txt
 
-      - run: pip install -e '.[dev]'
+      # Was `pip install -e '.[dev]'`. Dependencies moved out of
+      # pyproject.toml into pinned requirements files when the worker and
+      # CV pipeline landed, and pip does not fail on a missing extra — it
+      # prints "does not provide the extra 'dev'" as a WARNING, exits 0,
+      # and installs nothing. The job then died three lines later on
+      # `pytest: command not found`, which points at the runner rather
+      # than at the real cause.
+      #
+      # requirements.txt is what the Dockerfile installs, so the tests now
+      # run against the same pinned set that ships to production instead
+      # of whatever pip resolved that morning.
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -e . --no-deps
 
       # These are the security tests, not smoke tests: SVG rejection, magic-byte
       # typing, decompression bombs, EXIF/GPS absence from the re-encoded output,

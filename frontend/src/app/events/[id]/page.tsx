@@ -7,6 +7,7 @@ import { approvedEvent } from "@/lib/data/events";
 import { formatDateTime, formatDateTimeLong } from "@/lib/dates";
 import EventActions, { ContactOrganiserLink } from "./EventActions";
 import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { externalHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One event
@@ -83,7 +84,7 @@ export default async function EventPage({ params }: { params: Promise<Params> })
             <>
               {" · "}
               <a
-                href={ev.postedBy.linkedinUrl}
+                href={externalHref(ev.postedBy.linkedinUrl)}
                 target="_blank"
                 rel="noreferrer noopener"
                 className="text-[0.8rem] text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"

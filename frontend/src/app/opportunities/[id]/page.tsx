@@ -8,6 +8,7 @@ import { formatDate } from "@/lib/dates";
 import { startLabel, locationLabel } from "@/lib/listings/format";
 import OpportunityActions from "./OpportunityActions";
 import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { externalHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One opportunity
@@ -91,7 +92,7 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
             <>
               {" · "}
               <a
-                href={o.postedBy.linkedinUrl}
+                href={externalHref(o.postedBy.linkedinUrl)}
                 target="_blank"
                 rel="noreferrer noopener"
                 className="text-[0.8rem] text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"

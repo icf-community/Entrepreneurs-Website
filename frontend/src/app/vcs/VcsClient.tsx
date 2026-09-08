@@ -11,6 +11,7 @@ import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import { formatDate } from "@/lib/dates";
 import type { Vc, VcFilters } from "@/lib/data/vcs";
+import { externalHref } from "@/lib/safeUrl";
 
 const KINDS = [
   { value: "all",   label: "All" },
@@ -186,7 +187,7 @@ function VcCard({ vc: v, applied, onDismiss }: {
 
           <div className="mt-5 flex items-start gap-2 flex-wrap">
             <a
-              href={v.link}
+              href={externalHref(v.link)}
               target="_blank"
               rel="noreferrer noopener"
               onClick={() => recordListingEvent("vc_grant", v.id, "external_click")}

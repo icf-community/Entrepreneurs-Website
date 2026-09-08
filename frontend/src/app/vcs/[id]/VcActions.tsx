@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import type { Vc } from "@/lib/data/vcs";
+import { externalHref } from "@/lib/safeUrl";
 
 // The browser-side half of /vcs/[id]: the click-through to the fund's own
 // site, and the applied pill.
@@ -22,7 +23,7 @@ export default function VcActions({ vc: v, applied }: { vc: Vc; applied: boolean
   return (
     <div className="flex flex-wrap items-start gap-2">
       <a
-        href={v.link}
+        href={externalHref(v.link)}
         target="_blank"
         rel="noreferrer noopener"
         onClick={() => recordListingEvent("vc_grant", v.id, "external_click")}

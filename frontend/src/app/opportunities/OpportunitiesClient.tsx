@@ -13,6 +13,7 @@ import { formatDate } from "@/lib/dates";
 import { startLabel, locationLabel } from "@/lib/listings/format";
 import { toggleOpportunityBookmark } from "./actions";
 import type { Opportunity } from "@/lib/data/opportunities";
+import { externalHref } from "@/lib/safeUrl";
 
 export default function OpportunitiesClient({
   items, bookmarkedIds, appliedIds = [], removeOnUnbookmark = false,
@@ -219,7 +220,7 @@ function OpportunityCard({
               </div>
               {o.postedBy.linkedinUrl && (
                 <a
-                  href={o.postedBy.linkedinUrl}
+                  href={externalHref(o.postedBy.linkedinUrl)}
                   target="_blank"
                   rel="noreferrer noopener"
                   className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
@@ -239,7 +240,7 @@ function OpportunityCard({
             <div className="flex items-start gap-2 flex-wrap">
               {o.applyMethod === "link" && o.applyUrl ? (
                 <a
-                  href={o.applyUrl}
+                  href={externalHref(o.applyUrl)}
                   target="_blank"
                   rel="noreferrer noopener"
                   onClick={() => recordListingEvent("opportunity", o.id, "apply_click")}

@@ -5,6 +5,7 @@ import { approveOpportunity, rejectOpportunity } from "./actions";
 import { formatDate } from "@/lib/dates";
 import { Button } from "@/components/ui/Button";
 import { ErrorBanner } from "@/components/forms/Banners";
+import { externalHref } from "@/lib/safeUrl";
 
 type Opportunity = {
   id: string;
@@ -117,7 +118,7 @@ export default function OpportunityReviewCard({ opportunity: o }: { opportunity:
 
           <DetailBlock label="How to apply">
             {o.applyMethod === "link" ? (
-              <a href={o.applyUrl ?? "#"} target="_blank" rel="noreferrer noopener" className="text-[0.85rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
+              <a href={externalHref(o.applyUrl)} target="_blank" rel="noreferrer noopener" className="text-[0.85rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
                 {o.applyUrl} ↗
               </a>
             ) : (
@@ -129,7 +130,7 @@ export default function OpportunityReviewCard({ opportunity: o }: { opportunity:
             <DetailBlock label="Poster (signup email)">
               <p className="text-[0.85rem] text-text-secondary">{o.postedBy.signupEmail ?? "—"}</p>
               {o.postedBy.linkedinUrl && (
-                <a href={o.postedBy.linkedinUrl} target="_blank" rel="noreferrer noopener" className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">LinkedIn ↗</a>
+                <a href={externalHref(o.postedBy.linkedinUrl)} target="_blank" rel="noreferrer noopener" className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">LinkedIn ↗</a>
               )}
             </DetailBlock>
             <DetailBlock label="Public contact email">

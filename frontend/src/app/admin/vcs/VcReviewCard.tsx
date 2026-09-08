@@ -5,6 +5,7 @@ import { approveVcGrant, rejectVcGrant } from "./actions";
 import { formatDate } from "@/lib/dates";
 import { Button } from "@/components/ui/Button";
 import { ErrorBanner } from "@/components/forms/Banners";
+import { externalHref } from "@/lib/safeUrl";
 
 type Vc = {
   id: string;
@@ -87,14 +88,14 @@ export default function VcReviewCard({ vc: v }: { vc: Vc }) {
             <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{v.description}</p>
           </DetailBlock>
           <DetailBlock label="Link">
-            <a href={v.link} target="_blank" rel="noreferrer noopener" className="text-[0.85rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
+            <a href={externalHref(v.link)} target="_blank" rel="noreferrer noopener" className="text-[0.85rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
               {v.link} ↗
             </a>
           </DetailBlock>
           <DetailBlock label="Poster (signup email)">
             <p className="text-[0.85rem] text-text-secondary">{v.postedBy.signupEmail ?? "—"}</p>
             {v.postedBy.linkedinUrl && (
-              <a href={v.postedBy.linkedinUrl} target="_blank" rel="noreferrer noopener" className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">LinkedIn ↗</a>
+              <a href={externalHref(v.postedBy.linkedinUrl)} target="_blank" rel="noreferrer noopener" className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">LinkedIn ↗</a>
             )}
           </DetailBlock>
         </div>

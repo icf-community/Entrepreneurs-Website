@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { externalHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · "Your changes are with an admin"
@@ -54,7 +55,7 @@ export default function RevisionQueuedNotice({
             <>
               {" "}
               <a
-                href={lumaLink}
+                href={externalHref(lumaLink)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-accent-light underline"

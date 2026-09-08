@@ -2214,6 +2214,7 @@ export type Database = {
         Args: { p_kind: Database["public"]["Enums"]["listing_event_kind"] }
         Returns: string
       }
+      llm_job_budget_available: { Args: { p_member: string }; Returns: boolean }
       mark_github_showcase_nudged: {
         Args: { p_member_ids: string[] }
         Returns: undefined

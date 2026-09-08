@@ -26,6 +26,7 @@ import { CvProcessingDialog } from "@/app/profile/CvProcessingDialog";
 import { GithubDialog } from "@/app/profile/GithubDialog";
 import type { ShowcaseRepo } from "@/lib/github/showcase";
 import type { Affiliation } from "@/lib/intake/steps";
+import { externalHref } from "@/lib/safeUrl";
 import {
   MAX_CORE_SKILLS, MAX_INTENTS,
   CURRENT_FOCUS, VENTURE_STAGES, VENTURE_STAGES_WITH_DETAIL, RECRUITING_STATUSES,
@@ -900,7 +901,7 @@ function GithubSection({
                   {picks.map((repo) => (
                     <li key={repo.name} className="rounded-lg border border-border bg-white/[0.02] p-3">
                       <a
-                        href={repo.url ?? undefined}
+                        href={externalHref(repo.url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[0.825rem] text-text-primary underline-offset-2 hover:underline"

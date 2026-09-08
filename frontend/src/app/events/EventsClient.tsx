@@ -11,6 +11,7 @@ import { AddToCalendarMenu } from "@/components/AddToCalendarMenu";
 import { recordListingEvent } from "@/lib/analytics";
 import { formatDateWeekday, formatTime } from "@/lib/dates";
 import type { FoundryEvent } from "@/lib/data/events";
+import { externalHref } from "@/lib/safeUrl";
 
 const MODES = [
   { value: "all",       label: "All" },
@@ -203,7 +204,7 @@ function EventCard({ ev, going, onDismiss }: {
               </div>
               {ev.postedBy.linkedinUrl && (
                 <a
-                  href={ev.postedBy.linkedinUrl}
+                  href={externalHref(ev.postedBy.linkedinUrl)}
                   target="_blank"
                   rel="noreferrer noopener"
                   className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
@@ -228,7 +229,7 @@ function EventCard({ ev, going, onDismiss }: {
 
           <div className="mt-5 flex items-start gap-2 flex-wrap">
             <a
-              href={ev.lumaLink}
+              href={externalHref(ev.lumaLink)}
               target="_blank"
               rel="noreferrer noopener"
               onClick={() => recordListingEvent("event", ev.id, "external_click")}
