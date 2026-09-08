@@ -10,6 +10,7 @@ import { submitEvent, updateOwnEvent } from "@/app/events/actions";
 import { eventSchema } from "@/lib/validation/listings";
 import { collectFieldErrors, showFieldErrors, FORM_ERROR, type FieldErrors } from "@/lib/validation/fields";
 import { Button } from "@/components/ui/Button";
+import RevisionQueuedNotice from "@/components/forms/RevisionQueuedNotice";
 import { track } from "@/components/analytics/PostHogProvider";
 
 type Mode = "user" | "admin";
@@ -31,9 +32,15 @@ type Props = {
   mode: Mode;
   editingId?: string;
   initialValues?: EventInitialValues;
+  /**
+   * The listing is already approved, so saving proposes a revision an
+   * admin reviews rather than writing through (20260907000005). Only
+   * changes the wording here — the database decides which path runs.
+   */
+  reviewOnSave?: boolean;
 };
 
-export default function EventForm({ signupEmail, defaultOrganiser, mode, editingId, initialValues }: Props) {
+export default function EventForm({ signupEmail, defaultOrganiser, mode, editingId, initialValues, reviewOnSave }: Props) {
   const router = useRouter();
 
   const iv = initialValues;
@@ -56,6 +63,8 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
   const showSocietyToggle = mode === "admin" && !editingId;
 
   const [isLoading, setIsLoading] = useState(false);
+  // Set once the server confirms the edit was staged rather than applied.
+  const [staged, setStaged] = useState<{ remindAboutLuma: boolean } | null>(null);
   const [error, setError] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -102,6 +111,17 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
         return;
       }
       track("listing_edited", { kind: "event", mode });
+      if (res.data.staged) {
+        // Only time and place get the Luma reminder: those are the two
+        // fields somebody who already registered has to be told about.
+        setStaged({
+          remindAboutLuma:
+            payload.eventAtIso !== (iv?.eventAt ? new Date(iv.eventAt).toISOString() : "")
+            || payload.location !== iv?.location,
+        });
+        setIsLoading(false);
+        return;
+      }
       router.replace("/my-submissions");
       router.refresh();
       return;
@@ -119,6 +139,16 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
     router.replace(mode === "admin" ? "/admin/events" : "/events?submitted=1");
     router.refresh();
   };
+
+  if (staged) {
+    return (
+      <RevisionQueuedNotice
+        noun="event"
+        remindAboutLuma={staged.remindAboutLuma}
+        lumaLink={lumaLink.trim() || undefined}
+      />
+    );
+  }
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
@@ -200,7 +230,7 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
         className="w-full mt-3"
       >
         {editingId ? (
-          "Save changes"
+          reviewOnSave ? "Submit changes for review" : "Save changes"
         ) : mode === "admin" ? (
           "Publish event"
         ) : (

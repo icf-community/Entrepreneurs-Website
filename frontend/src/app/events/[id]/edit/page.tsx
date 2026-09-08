@@ -5,6 +5,8 @@ import { requireApprovedUser } from "@/lib/auth/guard";
 import { posterName } from "@/lib/data/profiles";
 import { eventForEdit } from "@/lib/data/events";
 import EventForm, { type EventInitialValues } from "../../new/EventForm";
+import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditStatusNote";
+import { pendingRevision } from "@/lib/listings/pendingRevision";
 
 type Params = { id: string };
 
@@ -31,17 +33,28 @@ export default async function EditEventPage({ params }: { params: Promise<Params
   // comes back empty and 404s here. Status still gates editability.
   const row = await eventForEdit(supabase, id);
   if (!row) notFound();
-  if (row.status !== "pending") notFound();
+  // Rejected and expired listings stay closed — there is nothing
+  // published to revise. Approved ones are editable now, through the
+  // review path (20260907000005).
+  if (row.status !== "pending" && row.status !== "approved") notFound();
+
+  // When a revision is already queued, the form starts from *that*, not
+  // from the live row — otherwise opening the page and saving would
+  // silently throw away the change still waiting for review.
+  const revision = row.status === "approved"
+    ? await pendingRevision(supabase, "event", id)
+    : null;
+  const src = { ...row, ...(revision?.proposed ?? {}) };
 
   const initialValues: EventInitialValues = {
-    title:               row.title,
-    description:         row.description,
-    lumaLink:            row.luma_link,
-    eventAt:             toDatetimeLocal(row.event_at),
-    location:            row.location,
-    organiserName:       row.organiser_name,
-    contactEmail:        row.contact_email,
-    contactEmailVisible: row.contact_email_visible,
+    title:               String(src.title),
+    description:         String(src.description),
+    lumaLink:            String(src.luma_link),
+    eventAt:             toDatetimeLocal(String(src.event_at)),
+    location:            String(src.location),
+    organiserName:       String(src.organiser_name),
+    contactEmail:        String(src.contact_email),
+    contactEmailVisible: Boolean(src.contact_email_visible),
   };
 
   const defaultOrganiser = poster.displayName;
@@ -58,16 +71,16 @@ export default async function EditEventPage({ params }: { params: Promise<Params
             <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
               {row.title}
             </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2">
-              You can edit this event while it&apos;s still pending review. Once an admin approves it, it&apos;ll be locked.
-            </p>
+            <EditStatusNote status={row.status} noun="event" />
           </div>
+          {revision && <QueuedRevisionBanner queuedAt={revision.createdAt} />}
           <EventForm
             signupEmail={user.email ?? ""}
             defaultOrganiser={defaultOrganiser}
             mode="user"
             editingId={id}
             initialValues={initialValues}
+            reviewOnSave={row.status === "approved"}
           />
         </div>
       </div>

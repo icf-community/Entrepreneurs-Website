@@ -21,6 +21,6 @@ export async function submitEvent(
   return submitListing("event", args);
 }
 
-export async function updateOwnEvent(id: string, payload: unknown): Promise<Result> {
+export async function updateOwnEvent(id: string, payload: unknown): Promise<Result<{ staged: boolean }>> {
   return updateOwnListing("event", id, payload);
 }

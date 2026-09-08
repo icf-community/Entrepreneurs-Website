@@ -6,6 +6,7 @@ import { markedIds } from "@/lib/data/activity";
 import { approvedEvent } from "@/lib/data/events";
 import { formatDateTime, formatDateTimeLong } from "@/lib/dates";
 import EventActions, { ContactOrganiserLink } from "./EventActions";
+import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One event
@@ -44,7 +45,10 @@ export default async function EventPage({ params }: { params: Promise<Params> })
     );
   }
 
-  const goingIds = await markedIds(supabase, "event", "going");
+  const [goingIds, revisionPending] = await Promise.all([
+    markedIds(supabase, "event", "going"),
+    hasPendingRevision(supabase, "event", id),
+  ]);
   const posterName = `${ev.postedBy.firstName} ${ev.postedBy.surname}`.trim();
 
   return (
@@ -57,6 +61,8 @@ export default async function EventPage({ params }: { params: Promise<Params> })
       title={ev.title}
       meta={`${formatDateTime(ev.eventAt)} · ${ev.location}`}
     >
+      {revisionPending && <PendingRevisionNotice noun="event" />}
+
       {ev.isSocietyEvent && (
         <div className="mb-8">
           <span className="inline-block rounded-lg bg-accent px-2.5 py-0.5 text-[0.7rem] font-semibold text-bg-primary">

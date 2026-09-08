@@ -4,6 +4,8 @@ import AppShell from "@/components/app/AppShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { vcForEdit } from "@/lib/data/vcs";
 import VcForm, { type VcInitialValues } from "../../new/VcForm";
+import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditStatusNote";
+import { pendingRevision } from "@/lib/listings/pendingRevision";
 
 type Params = { id: string };
 
@@ -14,16 +16,21 @@ export default async function EditVcGrantPage({ params }: { params: Promise<Para
   const row = await vcForEdit(supabase, id);
   if (!row) notFound();
   if (row.posted_by !== user.id) notFound();
-  if (row.status !== "pending") notFound();
+  if (row.status !== "pending" && row.status !== "approved") notFound();
+
+  const revision = row.status === "approved"
+    ? await pendingRevision(supabase, "vc_grant", id)
+    : null;
+  const src = { ...row, ...(revision?.proposed ?? {}) };
 
   const initialValues: VcInitialValues = {
-    kind:        row.kind,
-    name:        row.name,
-    description: row.description,
-    link:        row.link,
-    amount:      row.amount ?? "",
-    deadline:    row.deadline ?? "",
-    stage:       row.stage ?? "",
+    kind:        src.kind as typeof row.kind,
+    name:        String(src.name),
+    description: String(src.description),
+    link:        String(src.link),
+    amount:      src.amount == null ? "" : String(src.amount),
+    deadline:    src.deadline == null ? "" : String(src.deadline),
+    stage:       src.stage == null ? "" : String(src.stage),
   };
 
   return (
@@ -38,14 +45,14 @@ export default async function EditVcGrantPage({ params }: { params: Promise<Para
             <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
               {row.name}
             </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2">
-              You can edit this listing while it&apos;s still pending review. Once an admin approves it, it&apos;ll be locked.
-            </p>
+            <EditStatusNote status={row.status} noun="listing" />
           </div>
+          {revision && <QueuedRevisionBanner queuedAt={revision.createdAt} />}
           <VcForm
             mode="user"
             editingId={id}
             initialValues={initialValues}
+            reviewOnSave={row.status === "approved"}
           />
         </div>
       </div>

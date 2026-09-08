@@ -7,6 +7,7 @@ import { approvedOpportunity, bookmarkedOpportunityIds } from "@/lib/data/opport
 import { formatDate } from "@/lib/dates";
 import { startLabel, locationLabel } from "@/lib/listings/format";
 import OpportunityActions from "./OpportunityActions";
+import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One opportunity
@@ -46,9 +47,10 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
     );
   }
 
-  const [bookmarkedIds, appliedIds] = await Promise.all([
+  const [bookmarkedIds, appliedIds, revisionPending] = await Promise.all([
     bookmarkedOpportunityIds(supabase, user.id),
     markedIds(supabase, "opportunity", "applied"),
+    hasPendingRevision(supabase, "opportunity", id),
   ]);
 
   const posterName = `${o.postedBy.firstName} ${o.postedBy.surname}`.trim();
@@ -63,6 +65,8 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
       title={o.positionName}
       meta={`${o.company} · ${locationLabel(o)} · Starts ${startLabel(o)}`}
     >
+      {revisionPending && <PendingRevisionNotice noun="role" />}
+
       {(o.sectors.length > 0 || o.skills.length > 0) && (
         <div className="mb-8 flex flex-wrap gap-1.5">
           {o.sectors.map((s) => (

@@ -11,6 +11,7 @@ import { submitOpportunity, updateOwnOpportunity } from "@/app/opportunities/act
 import { opportunitySchema } from "@/lib/validation/listings";
 import { collectFieldErrors, showFieldErrors, FORM_ERROR, type FieldErrors } from "@/lib/validation/fields";
 import { Button } from "@/components/ui/Button";
+import RevisionQueuedNotice from "@/components/forms/RevisionQueuedNotice";
 import { track } from "@/components/analytics/PostHogProvider";
 
 type Lookup = ChipItem;
@@ -41,6 +42,8 @@ type Props = {
   mode: Mode;
   editingId?: string;
   initialValues?: OpportunityInitialValues;
+  /** Already approved: saving proposes a revision an admin reviews. */
+  reviewOnSave?: boolean;
 };
 
 const MONTHS = [
@@ -55,7 +58,7 @@ const START_YEARS = (() => {
   return out;
 })();
 
-export default function OpportunityForm({ signupEmail, skills, sectors, mode, editingId, initialValues }: Props) {
+export default function OpportunityForm({ signupEmail, skills, sectors, mode, editingId, initialValues, reviewOnSave }: Props) {
   const router = useRouter();
 
   const iv = initialValues;
@@ -79,6 +82,8 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
   const [sectorIds, setSectorIds] = useState<Set<number>>(new Set(iv?.sectorIds ?? []));
 
   const [isLoading, setIsLoading] = useState(false);
+  // Set once the server confirms the edit was staged rather than applied.
+  const [staged, setStaged] = useState(false);
   const [error, setError] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -133,9 +138,24 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
 
     setIsLoading(true);
 
-    const res = editingId
-      ? await updateOwnOpportunity(editingId, payload)
-      : await submitOpportunity({ mode, payload, turnstileToken });
+    // Split rather than a ternary into one `res`: the edit path returns
+    // Result<{ staged }> and the submit path returns Result<void>, and a
+    // union of the two only narrows by widening res.data to unknown.
+    if (editingId) {
+      const res = await updateOwnOpportunity(editingId, payload);
+      if (!res.ok) {
+        setError(res.error);
+        setIsLoading(false);
+        return;
+      }
+      track("listing_edited", { kind: "opportunity", mode });
+      if (res.data.staged) { setStaged(true); setIsLoading(false); return; }
+      router.replace("/my-submissions");
+      router.refresh();
+      return;
+    }
+
+    const res = await submitOpportunity({ mode, payload, turnstileToken });
 
     if (!res.ok) {
       setError(res.error);
@@ -143,14 +163,12 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
       return;
     }
 
-    track(editingId ? "listing_edited" : "listing_submitted", { kind: "opportunity", mode });
-    router.replace(
-      editingId ? "/my-submissions"
-      : mode === "admin" ? "/admin/opportunities"
-      : "/opportunities?submitted=1"
-    );
+    track("listing_submitted", { kind: "opportunity", mode });
+    router.replace(mode === "admin" ? "/admin/opportunities" : "/opportunities?submitted=1");
     router.refresh();
   };
+
+  if (staged) return <RevisionQueuedNotice noun="opportunity" />;
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
@@ -265,7 +283,7 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
         className="w-full mt-3"
       >
         {editingId ? (
-          "Save changes"
+          reviewOnSave ? "Submit changes for review" : "Save changes"
         ) : mode === "admin" ? (
           "Publish opportunity"
         ) : (

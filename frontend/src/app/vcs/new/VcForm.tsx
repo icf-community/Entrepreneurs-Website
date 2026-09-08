@@ -10,6 +10,7 @@ import { submitVcGrant, updateOwnVcGrant } from "@/app/vcs/actions";
 import { vcGrantSchema } from "@/lib/validation/listings";
 import { collectFieldErrors, showFieldErrors, FORM_ERROR, type FieldErrors } from "@/lib/validation/fields";
 import { Button } from "@/components/ui/Button";
+import RevisionQueuedNotice from "@/components/forms/RevisionQueuedNotice";
 import { track } from "@/components/analytics/PostHogProvider";
 
 type Mode = "user" | "admin";
@@ -25,11 +26,13 @@ export type VcInitialValues = {
 };
 
 export default function VcForm({
-  mode, editingId, initialValues,
+  mode, editingId, initialValues, reviewOnSave,
 }: {
   mode: Mode;
   editingId?: string;
   initialValues?: VcInitialValues;
+  /** Already approved: saving proposes a revision an admin reviews. */
+  reviewOnSave?: boolean;
 }) {
   const router = useRouter();
 
@@ -44,6 +47,8 @@ export default function VcForm({
   const [stage, setStage] = useState(iv?.stage ?? "");
 
   const [isLoading, setIsLoading] = useState(false);
+  // Set once the server confirms the edit was staged rather than applied.
+  const [staged, setStaged] = useState(false);
   const [error, setError] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -88,6 +93,7 @@ export default function VcForm({
         return;
       }
       track("listing_edited", { kind: "vc_grant", mode });
+      if (res.data.staged) { setStaged(true); setIsLoading(false); return; }
       router.replace("/my-submissions");
       router.refresh();
       return;
@@ -105,6 +111,8 @@ export default function VcForm({
     router.replace(mode === "admin" ? "/admin/vcs" : "/vcs?submitted=1");
     router.refresh();
   };
+
+  if (staged) return <RevisionQueuedNotice noun="listing" />;
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
@@ -157,7 +165,7 @@ export default function VcForm({
         className="w-full mt-3"
       >
         {editingId ? (
-          "Save changes"
+          reviewOnSave ? "Submit changes for review" : "Save changes"
         ) : mode === "admin" ? (
           "Publish listing"
         ) : (

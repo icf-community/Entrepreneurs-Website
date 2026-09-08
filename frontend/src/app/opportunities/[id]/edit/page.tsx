@@ -5,6 +5,8 @@ import { requireApprovedUser } from "@/lib/auth/guard";
 import { listTaxonomy, opportunityTaxonomy } from "@/lib/data/taxonomy";
 import { opportunityForEdit } from "@/lib/data/opportunities";
 import OpportunityForm, { type OpportunityInitialValues } from "../../new/OpportunityForm";
+import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditStatusNote";
+import { pendingRevision } from "@/lib/listings/pendingRevision";
 
 type Params = { id: string };
 
@@ -21,25 +23,32 @@ export default async function EditOpportunityPage({ params }: { params: Promise<
   ]);
 
   if (!row) notFound();
-  // posted_by check happens inside the RPC; status still gates editability.
-  if (row.status !== "pending") notFound();
+  // posted_by check happens inside the RPC; status still gates which
+  // path an edit takes — approved goes through review (20260907000005).
+  if (row.status !== "pending" && row.status !== "approved") notFound();
+
+  const revision = row.status === "approved"
+    ? await pendingRevision(supabase, "opportunity", id)
+    : null;
+  const p = revision?.proposed ?? {};
+  const src = { ...row, ...p };
 
   const initialValues: OpportunityInitialValues = {
-    positionName:        row.position_name,
-    company:             row.company,
-    pay:                 row.pay,
-    locationType:        row.location_type,
-    locationText:        row.location_text ?? "",
-    description:         row.description,
-    startMonth:          String(row.start_month),
-    startYear:           String(row.start_year),
-    applicationDeadline: row.application_deadline,
-    contactEmail:        row.contact_email,
-    contactEmailVisible: row.contact_email_visible,
-    applyMethod:         row.apply_method,
-    applyUrl:            row.apply_url ?? "",
-    skillIds:            selected.skillIds,
-    sectorIds:           selected.sectorIds,
+    positionName:        String(src.position_name),
+    company:             String(src.company),
+    pay:                 String(src.pay),
+    locationType:        src.location_type as typeof row.location_type,
+    locationText:        src.location_text == null ? "" : String(src.location_text),
+    description:         String(src.description),
+    startMonth:          String(src.start_month),
+    startYear:           String(src.start_year),
+    applicationDeadline: String(src.application_deadline),
+    contactEmail:        String(src.contact_email),
+    contactEmailVisible: Boolean(src.contact_email_visible),
+    applyMethod:         src.apply_method as typeof row.apply_method,
+    applyUrl:            src.apply_url == null ? "" : String(src.apply_url),
+    skillIds:            (p.skill_ids  as number[] | undefined) ?? selected.skillIds,
+    sectorIds:           (p.sector_ids as number[] | undefined) ?? selected.sectorIds,
   };
 
   return (
@@ -54,10 +63,9 @@ export default async function EditOpportunityPage({ params }: { params: Promise<
             <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
               {row.position_name}
             </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2">
-              You can edit this listing while it&apos;s still pending review. Once an admin approves it, it&apos;ll be locked.
-            </p>
+            <EditStatusNote status={row.status} noun="opportunity" />
           </div>
+          {revision && <QueuedRevisionBanner queuedAt={revision.createdAt} />}
           <OpportunityForm
             signupEmail={user.email ?? ""}
             skills={taxonomy.skills}
@@ -65,6 +73,7 @@ export default async function EditOpportunityPage({ params }: { params: Promise<
             mode="user"
             editingId={id}
             initialValues={initialValues}
+            reviewOnSave={row.status === "approved"}
           />
         </div>
       </div>

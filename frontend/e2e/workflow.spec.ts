@@ -78,9 +78,10 @@ const KINDS: Kind[] = [
 ];
 
 for (const kind of KINDS) {
-  test(`${kind.name} lifecycle: submit → edit → approve → live → delete`, async ({ page, browser }) => {
+  test(`${kind.name} lifecycle: submit → edit → approve → live → revise → delete`, async ({ page, browser }) => {
     const title = `E2E ${kind.name} ${Date.now()}`;
     const editedTitle = `${title} (edited)`;
+    const revisedTitle = `${title} (revised)`;
 
     // 1. Student submits.
     await page.goto(kind.newPath);
@@ -122,7 +123,42 @@ for (const kind of KINDS) {
     await expect(liveCard).toHaveCount(1);
     await expect(liveCard).toBeVisible();
 
-    // 6. Student deletes it; it disappears from their submissions.
+    // 6. Post-approval revision (20260907000005). The property this proves,
+    //    and the reason it is worth the extra minute of suite time: a change
+    //    an organiser makes to a LIVE listing does not reach the public page
+    //    until an admin approves it, and the old version stays up in the
+    //    meantime. Both halves matter — one without the other is either a
+    //    bait-and-switch hole or an event vanishing over a typo.
+    await page.goto("/my-submissions");
+    await page.getByTestId("submission-row").filter({ hasText: editedTitle })
+      .getByRole("link", { name: "Propose a change" }).click();
+    await expect(page).toHaveURL(/\/[0-9a-f-]+\/edit/);
+    await page.getByLabel(kind.titleField).first().fill(revisedTitle);
+    await page.getByRole("button", { name: "Submit changes for review" }).click();
+    await expect(page.getByText("Your changes are with an admin")).toBeVisible();
+
+    // The published board still shows the approved version, not the proposal.
+    await page.goto(kind.listPath);
+    await expect(page.getByText(editedTitle)).toHaveCount(1);
+    await expect(page.getByText(revisedTitle)).toHaveCount(0);
+
+    // 7. An admin reviews the diff and approves it.
+    const editCtx = await browser.newContext({ storageState: storageStatePath("admin") });
+    const editPage = await editCtx.newPage();
+    await editPage.goto("/admin/edits");
+    const proposal = editPage.locator("div").filter({ hasText: editedTitle }).last();
+    await expect(proposal.getByText(revisedTitle)).toBeVisible();
+    await editPage.getByRole("button", { name: "Approve changes" }).first().click();
+    await expect(editPage.getByText(revisedTitle)).toHaveCount(0);
+    await editCtx.close();
+
+    // 8. Only now is the change public.
+    await page.goto(kind.listPath);
+    const revisedCard = page.getByText(revisedTitle);
+    await expect(revisedCard).toHaveCount(1);
+    await expect(revisedCard).toBeVisible();
+
+    // 9. Student deletes it; it disappears from their submissions.
     //
     // Both locators are resolved fresh against the current DOM and scoped to
     // one row by test id. The earlier version scoped by "a div containing the
@@ -131,9 +167,9 @@ for (const kind of KINDS) {
     // ancestor happened to hold a *different* row's Delete button, and CI's
     // retry hid that by leaving an orphaned approved listing behind.
     await page.goto("/my-submissions");
-    const liveRow = () => page.getByTestId("submission-row").filter({ hasText: editedTitle });
+    const liveRow = () => page.getByTestId("submission-row").filter({ hasText: revisedTitle });
     await liveRow().getByRole("button", { name: "Delete" }).click();
     await liveRow().getByRole("button", { name: "Confirm" }).click();
-    await expect(page.getByTestId("submission-row").filter({ hasText: editedTitle })).toHaveCount(0);
+    await expect(page.getByTestId("submission-row").filter({ hasText: revisedTitle })).toHaveCount(0);
   });
 }

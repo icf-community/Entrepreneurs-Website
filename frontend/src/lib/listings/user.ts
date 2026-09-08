@@ -4,6 +4,7 @@ import { getActionAuth } from "@/lib/auth/actionAuth";
 import { guardSubmission, type SubmissionMode } from "@/lib/actions/guardSubmission";
 import { ok, err, type Result } from "@/lib/result";
 import { LISTINGS, type ListingKind } from "./registry";
+import { changedFields, notifyEditProposed } from "./edits";
 import { invalidate } from "@/lib/cache";
 
 // ════════════════════════════════════════════════════════════════════
@@ -39,14 +40,21 @@ export async function submitListing(
   return ok();
 }
 
-// Edit one of your own listings. Ownership and status='pending' are
-// enforced inside the RPC — since 20260826000001 all three types work this
-// way, which is what lets this be one function.
+// Edit one of your own listings. Ownership and status are enforced
+// inside the RPC — since 20260826000001 all three types work this way,
+// which is what lets this be one function.
+//
+// Since 20260907000005 the same call has two outcomes: a pending listing
+// is edited in place, and an approved one has the change staged as a
+// revision for an admin to review while the published version stays up.
+// Which one happened is read back from the database rather than inferred
+// from the status the page rendered with — an approval that lands
+// mid-edit would otherwise make the confirmation lie.
 export async function updateOwnListing(
   kind: ListingKind,
   id: string,
   payload: unknown,
-): Promise<Result> {
+): Promise<Result<{ staged: boolean }>> {
   const def = LISTINGS[kind];
 
   const { user, supabase } = await getActionAuth();
@@ -55,8 +63,52 @@ export async function updateOwnListing(
   const res = await def.update(supabase, id, payload);
   if (!res.ok) return res;
 
+  const { data: pending } = await supabase.rpc("get_my_pending_listing_edit", {
+    p_kind: EDIT_KIND[kind],
+    p_listing_id: id,
+  });
+  const revision = (Array.isArray(pending) ? pending[0] : pending) ?? null;
+
+  if (revision) {
+    // Nothing published changed, so no public cache is stale. What is
+    // needed is a human: this is the one notification on the path, and
+    // it is deliberately immediate rather than batched.
+    const current  = (revision.current_values ?? {}) as Record<string, unknown>;
+    const proposed = (revision.proposed ?? {}) as Record<string, unknown>;
+    await notifyEditProposed({
+      kind,
+      listingTitle: String(current.title ?? current.name ?? current.position_name ?? "(untitled)"),
+      proposerName: await proposerDisplayName(supabase, user.id),
+      changed: changedFields(current, proposed),
+    });
+    revalidatePath("/my-submissions");
+    return ok({ staged: true });
+  }
+
   await invalidate(...def.cacheKeys);
   revalidatePath("/my-submissions");
   revalidatePath(def.revalidate.public);
-  return ok();
+  return ok({ staged: false });
+}
+
+// listing_event_kind in the database uses the same three labels as
+// ListingKind. Restated rather than cast so a future divergence is a
+// compile error here instead of a runtime 404 from PostgREST.
+const EDIT_KIND = {
+  opportunity: "opportunity",
+  event:       "event",
+  vc_grant:    "vc_grant",
+} as const satisfies Record<ListingKind, "opportunity" | "event" | "vc_grant">;
+
+async function proposerDisplayName(
+  supabase: Awaited<ReturnType<typeof getActionAuth>>["supabase"],
+  userId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("first_name, surname")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!data) return null;
+  return [data.first_name, data.surname].filter(Boolean).join(" ").trim() || null;
 }

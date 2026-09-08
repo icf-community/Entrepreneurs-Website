@@ -83,13 +83,15 @@ export type PendingCounts = {
   opportunities: number;
   events: number;
   vcs: number;
-  /** All four added up — what the header badge shows. */
+  /** Proposed changes to listings that are already published. */
+  edits: number;
+  /** All five added up — what the header badge shows. */
   total: number;
 };
 
-/** The four queue depths behind the admin dashboard tiles. */
+/** The queue depths behind the admin dashboard tiles. */
 export async function pendingCounts(db: Db): Promise<PendingCounts> {
-  const [profiles, opportunities, events, vcs] = await Promise.all([
+  const [profiles, opportunities, events, vcs, edits] = await Promise.all([
     countOf("profiles (pending_review)", () =>
       db.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pending_review")),
     countOf("opportunities (pending)", () =>
@@ -98,6 +100,11 @@ export async function pendingCounts(db: Db): Promise<PendingCounts> {
       db.from("events").select("id", { count: "exact", head: true }).eq("status", "pending")),
     countOf("vcs_grants (pending)", () =>
       db.from("vcs_grants").select("id", { count: "exact", head: true }).eq("status", "pending")),
+    // listing_edits is deny-all RLS, so a head-count through PostgREST
+    // would read 0 for everyone. The RPC is the only door, and it
+    // returns the queue itself — which is small by construction, since
+    // a listing can have at most one open revision.
+    pendingEditCount(db),
   ]);
 
   return {
@@ -105,8 +112,24 @@ export async function pendingCounts(db: Db): Promise<PendingCounts> {
     opportunities,
     events,
     vcs,
-    total: profiles + opportunities + events + vcs,
+    edits,
+    total: profiles + opportunities + events + vcs + edits,
   };
+}
+
+async function pendingEditCount(db: Db): Promise<number> {
+  const { data, error } = await db.rpc("admin_list_listing_edits");
+  if (error) {
+    // 42501 is the RPC's own "Forbidden: not an admin" raise, which a
+    // non-admin loading /admin reaches before the page 404s them. That is
+    // the expected path, not a fault: the four sibling counts above are
+    // PostgREST reads that RLS quietly returns 0 rows for, so logging this
+    // one made every non-admin probe of /admin write an error nobody should
+    // be paged about. Anything else is genuinely wrong and still surfaces.
+    if (error.code !== "42501") console.error("Failed to count listing edits:", error);
+    return 0;
+  }
+  return data?.length ?? 0;
 }
 
 // ────────────────────────────────────────────────────────────────────
