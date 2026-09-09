@@ -283,14 +283,39 @@ otp_expiry = 1800
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-# The change-email template is wired in locally on purpose, unlike the
-# others. The stock GoTrue template for this flow carries only a
-# {{ .ConfirmationURL }} and no {{ .Token }}, so with the default the
-# emails hold no 6-digit code and the OTP flow cannot be exercised at
-# all. Pointing the local stack at the real template is what lets the
-# E2E read the codes back out of Inbucket and confirm a change end to
-# end. Hosted Supabase never reads supabase/templates/ — the same file
-# still has to be pasted into the dashboard by hand.
+# Every template this project actually uses is wired in here, because
+# the stock GoTrue templates carry only a {{ .ConfirmationURL }} and no
+# {{ .Token }} — so with the defaults the emails hold no 6-digit code
+# and the OTP flow cannot be exercised locally at all. Pointing the
+# local stack at the real templates is what lets a human (and the E2E
+# suite) read codes back out of Mailpit and complete a sign-in.
+#
+# Only email_change was wired originally, which left local sign-in and
+# signup falling back to the stock magic-link email while production —
+# where these same files are pasted into the dashboard by hand — sent
+# codes. Local diverged from prod on the single most-used flow in the
+# app. Fixed 2026-09-09.
+#
+# recovery is a deliberate exception in CONTENT, not in wiring: its
+# template uses {{ .ConfirmationURL }} because password recovery is a
+# PKCE link flow, not a typed code. It is wired here so local matches
+# production; it is not meant to contain a token.
+#
+# Hosted Supabase never reads supabase/templates/. Changing any file
+# here means pasting it into the dashboard too, or prod silently keeps
+# the old copy.
+[auth.email.template.magic_link]
+subject = "Your Foundry sign-in code"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.confirm_signup]
+subject = "Confirm your Foundry email"
+content_path = "./supabase/templates/confirm_signup.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Foundry password"
+content_path = "./supabase/templates/reset_password.html"
+
 [auth.email.template.email_change]
 subject = "Confirm your new Foundry email"
 content_path = "./supabase/templates/change_email.html"
