@@ -93,12 +93,40 @@ export function buildCsp(nonce: string): string {
   ].filter(Boolean);
   const imgSrc = ["'self'", "data:", "blob:", supabaseOrigin, blobOrigin].filter(Boolean);
 
+  const isDev = process.env.NODE_ENV === "development";
   // React uses eval() in development for richer error stacks; not needed in prod.
-  const devEval = process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
+  const devEval = isDev ? " 'unsafe-eval'" : "";
+
+  // strict-dynamic is PRODUCTION ONLY, and dropping it in development is a
+  // deliberate, narrow concession rather than a loosening of the real policy.
+  //
+  // In production Next renders the bootstrap script itself, stamps it with the
+  // nonce above, and strict-dynamic then extends that trust to every chunk it
+  // loads. That chain is what makes the policy strong, and it is untouched.
+  //
+  // In development Turbopack injects its own HMR and chunk scripts through the
+  // dev runtime rather than through Next's SSR, so they never receive a nonce.
+  // Under strict-dynamic the host allowlist is disabled by design, so 'self'
+  // cannot cover them either and the browser blocks them — every page load in
+  // dev produced console errors like:
+  //
+  //   Loading the script '…/_next/static/chunks/src_app_members_loading_tsx…'
+  //   violates the following Content Security Policy directive: script-src …
+  //
+  // Those were noise, not a real finding: the same pages are clean in a
+  // production build. But constant false errors in the dev console are how a
+  // genuine CSP violation goes unnoticed, which is the actual cost.
+  //
+  // Without strict-dynamic, 'self' becomes effective again and same-origin dev
+  // chunks load. The nonce is still emitted, so the production path stays
+  // exercised locally; what dev no longer catches on its own is a chunk that
+  // fails ONLY under strict-dynamic. csp.test.ts pins that production keeps
+  // strict-dynamic so this can't silently leak out of development.
+  const strictDynamic = isDev ? "" : " 'strict-dynamic'";
 
   const directives = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline'${devEval}`,
+    `script-src 'self' 'nonce-${nonce}'${strictDynamic} https: 'unsafe-inline'${devEval}`,
     // style-src has no nonce plumbing (Tailwind's inline `style=` usage is
     // app-wide and would all need it), so unlike script-src's unsafe-inline
     // above, this one isn't neutralized by strict-dynamic — it's a real

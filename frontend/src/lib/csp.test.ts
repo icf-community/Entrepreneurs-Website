@@ -19,6 +19,33 @@ describe("generateNonce", () => {
   });
 });
 
+describe("buildCsp — strict-dynamic is production-only", () => {
+  // strict-dynamic is dropped in development so Turbopack's un-nonced HMR
+  // chunks stop being blocked (see buildCsp for the full reasoning). The
+  // concession must never reach production: without strict-dynamic the
+  // `https:` fallback token becomes live, and the policy degrades from
+  // "only what the nonce vouches for" to "anything over https".
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps strict-dynamic when NODE_ENV is production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const csp = buildCsp("ABC123");
+    expect(csp).toContain("'strict-dynamic'");
+    expect(csp).not.toContain("'unsafe-eval'");
+  });
+
+  it("drops strict-dynamic in development, but still emits the nonce", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const csp = buildCsp("ABC123");
+    expect(csp).not.toContain("'strict-dynamic'");
+    expect(csp).toContain("'nonce-ABC123'");
+    // 'self' is what has to become effective again for the dev chunks to load.
+    expect(csp).toContain("script-src 'self' 'nonce-ABC123'");
+  });
+});
+
 describe("buildCsp", () => {
   it("embeds the nonce and strict-dynamic in script-src", () => {
     const csp = buildCsp("ABC123");
