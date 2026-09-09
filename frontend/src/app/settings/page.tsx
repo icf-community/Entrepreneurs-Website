@@ -7,7 +7,6 @@ import EmailChangeForm from "./EmailChangeForm";
 import PasswordChangeForm from "./PasswordChangeForm";
 import DeleteAccountSection from "./DeleteAccountSection";
 import SessionsSection from "./SessionsSection";
-import SettingsNav from "./SettingsNav";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -41,14 +40,7 @@ export default async function SettingsPage() {
       isAdmin={isAdmin}
     >
       <div className="px-4 sm:px-8 py-10 sm:py-12">
-        {/* 184 (nav) + 56 (gap) + 640 (content) = 880. Below xl the nav is
-            hidden and this collapses back to the original centred column. */}
-        <div className="mx-auto w-full max-w-[640px] xl:grid xl:max-w-[880px] xl:grid-cols-[184px_1fr] xl:gap-14">
-          <div className="hidden xl:block xl:pt-[4.5rem]">
-            <SettingsNav />
-          </div>
-
-          <div className="min-w-0">
+        <div className="max-w-[640px] mx-auto">
           <div className="mb-10 rule-draw pt-6">
             <p className="label-wide text-text-secondary mb-3">Settings</p>
             <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
@@ -57,7 +49,6 @@ export default async function SettingsPage() {
           </div>
 
           <div className="space-y-5">
-            <section id="shortcuts" className="space-y-5">
             <Link
               href="/profile"
               className="group block rounded-2xl border border-border bg-bg-card p-6 no-underline transition-colors duration-150 hover:border-accent hover:bg-bg-card-hover"
@@ -98,24 +89,13 @@ export default async function SettingsPage() {
               </div>
             </Link>
 
-            </section>
+            <EmailChangeForm currentEmail={user.email ?? ""} role={profile.role} />
 
-            <section id="email">
-              <EmailChangeForm currentEmail={user.email ?? ""} role={profile.role} />
-            </section>
+            <PasswordChangeForm hasPassword={hasPassword} email={user.email ?? ""} />
 
-            <section id="password">
-              <PasswordChangeForm hasPassword={hasPassword} email={user.email ?? ""} />
-            </section>
+            <SessionsSection />
 
-            <section id="sessions">
-              <SessionsSection />
-            </section>
-
-            <section id="danger">
-              <DeleteAccountSection email={user.email ?? ""} />
-            </section>
-          </div>
+            <DeleteAccountSection email={user.email ?? ""} />
           </div>
         </div>
       </div>
