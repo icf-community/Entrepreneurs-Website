@@ -20,6 +20,9 @@
 /playwright/.cache
 /e2e/.auth
 
+# load test — holds live (local-only) session tokens for the seeded corpus
+/scripts/.loadtest-sessions.json
+
 # next.js
 /.next/
 /out/

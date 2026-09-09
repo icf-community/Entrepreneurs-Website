@@ -193,10 +193,46 @@ estimate.
 
 ---
 
-## Finding 5 — Under burst load, failure is queueing, not exhaustion
+## Finding 5 — Under *anonymous* burst load, failure is queueing, not exhaustion
+
+> **Corrected 2026-09-09.** Two statements in the original version of this
+> finding were wrong, and both flattered the result. See Finding 8, which
+> re-measures the same journey with real signed-in sessions and reaches a
+> materially worse conclusion. The numbers in this section are unchanged
+> and still accurate *for anonymous traffic*; what was wrong was the
+> description of what anonymous traffic costs.
+>
+> 1. **Gated routes do not answer anonymous requests with a 3xx.** This
+>    section described one step of the journey as "a gated redirect" and
+>    named the metric `route_members_redirect`. Verified by `curl -i`:
+>    `/home`, `/events`, `/opportunities`, `/vcs` and `/members` all
+>    return **HTTP 200** to a logged-out client — a complete HTML document
+>    with the CSP nonce, font preloads and app shell, carrying a
+>    *client-side* redirect. `requireApprovedUser()` does call
+>    `redirect()`, but the root layout has already begun streaming by the
+>    time the page component awaits it, so the status line is long gone
+>    and Next must deliver the redirect in-band. **`/committee` is the
+>    only genuine 307** in the journey — which matches the
+>    `expected_redirect` counter exactly, at one per iteration.
+>    The metric name `members_redirect` is kept below only so the rows
+>    stay comparable with the table as first published; it never measured
+>    a redirect.
+> 2. **Therefore this finding measured document renders, not redirects,
+>    but it still never reached the listing data.** The guard returns
+>    before `loadEvents()` runs, so no anonymous row in this table
+>    includes a single listing query. That is not a leak — the data is
+>    correctly withheld — but it means these numbers are a *floor*, not
+>    the cost of the page a member sees.
+>
+> The operational consequence, which is a finding in its own right: an
+> unauthenticated crawler or scraper currently burns a full server render
+> on **every** gated URL. The cheapest possible response to a logged-out
+> hit is presently one of the more expensive ones. That is more evidence
+> for B3.1, and it is the reason `/privacy` (Finding 6) is not the
+> anomaly it first appeared to be.
 
 k6, anonymous sessions (9 requests each: home, both listing boards, vcs,
-committee, a gated redirect, login, a legal page), ramped and **held** at
+committee, members, login, a legal page), ramped and **held** at
 each level.
 
 **38,277 requests. 0.00% errors. No 5xx, no resets, no dropped
@@ -294,6 +330,103 @@ randomly-drawn tuples collided long before the target row count.
 
 ---
 
+## Finding 8 — Signed-in load is 3–4× anonymous, and it is where the app breaks
+
+Added 2026-09-09. Finding 5 measured logged-out traffic only, and its
+"Not measured here" note argued authenticated burst load was untestable
+because signing in 500 VUs would measure the OTP limiter. **That argument
+was wrong** — sessions do not have to be minted by the VUs. They can be
+minted out of band and replayed.
+
+`frontend/scripts/mint-loadtest-sessions.mjs` (new) mints 20 real
+sessions for seeded corpus members using the same `@supabase/ssr`
+cookie-writing path as `e2e/global-setup.ts`, and `loadtest.js` gained
+`MODE=anon|auth|mixed`. 20, not 500, because
+`[auth.rate_limit] sign_in_sign_ups = 30` per 5 minutes per IP makes
+one-session-per-VU impossible rather than merely slow; VUs share the pool
+round-robin. The harness **fails the run** if any signed-in request comes
+back 3xx, so a silent regression to measuring redirect timings — which is
+exactly what Finding 5 did by accident — cannot happen again.
+
+### The isolated cost of the listing render
+
+At 10 VUs (unsaturated, both populations against the same server in the
+same run, so this is a controlled comparison rather than two runs
+subtracted):
+
+| route | anonymous p50 | signed-in p50 | delta |
+| --- | --- | --- | --- |
+| `/events` | 141.3 ms | 494.6 ms | **+353 ms** |
+| `/opportunities` | 142.6 ms | 577.7 ms | **+435 ms** |
+| `/members` | 136.5 ms | 554.4 ms | +418 ms |
+| `/vcs` | 138.1 ms | 433.5 ms | +295 ms |
+| `/` (static-ish) | 19.6 ms | — | — |
+
+The anonymous column is the document render that stops just before the
+guard's redirect; the signed-in column is the same page with its data and
+list. **The delta is the listing work, isolated.**
+
+### This settles B3.3, against my own earlier ranking
+
+Finding 2 measured the list RPCs themselves at **2.2 ms** (events) and
+**10.2 ms** (opportunities). Against the deltas above that is **0.6%** and
+**2.3%**. B3.3 makes the *query* cacheable; the query is a rounding error
+in the page it was supposed to speed up. The other ~98% is the
+unavoidable `getUser()` + `is_admin` + profiles select that
+`requireApprovedUser()` costs on every gated view regardless, plus
+rendering 153 and 268 rows of markup.
+
+B3.3's stated prize in the plan — "one cached render shared by everyone"
+— is also unreachable on a gated page: ISR and edge caching need shared
+HTML, and there is none. Only the Upstash read-through layer works behind
+auth, and that layer caches the 2.2 ms.
+
+**Recommendation: defer B3.3, do not drop it.** The entitlement reasoning
+behind it is still correct and the split is still the right shape if the
+listing boards are ever made public. It is simply not a performance
+lever, and it should stop being ranked as one.
+
+### Where it actually breaks
+
+`MODE=mixed` (half the VUs signed in, half anonymous, same server, same
+instant), each level run separately:
+
+| level | requests | error rate | worst p95 |
+| --- | --- | --- | --- |
+| 100 VUs | 4,461 | **0.00%** | 4,189 ms (`/opportunities` signed-in) |
+| 250 VUs | 4,608 | **0.00%** | 14,593 ms (`/members` signed-in) |
+| 500 VUs | 4,465 | **21.21%** | 46,740 ms (`/home` signed-in) |
+
+**The knee is between 250 and 500 VUs, and past it the failure mode is no
+longer queueing.** At 500 the errors are 60-second timeouts, not slow
+responses. This is the first non-zero error rate ever recorded for this
+application, and Finding 5's headline "0.00% errors at every level
+including 500 VUs" survived only because every gated route was being
+answered by a comparatively cheap redirect document.
+
+Throughput, same VU ramp, run separately: anonymous completed **4,841**
+iterations (43,569 requests); authenticated completed **1,585** (9,512
+requests). Roughly **one third the work at the same concurrency**, and
+per-request p95 on `/events` is 3,568 ms anonymous against 20,008 ms
+signed in.
+
+`/home` is the worst route at every level — worse than either listing
+board — which is consistent with it doing the guard's work plus its own
+dashboard queries.
+
+### Caveats that bound this finding
+
+- **Laptop-relative**, like everything else here. Read the ratios.
+- **The rate limiter and the read-through cache were both disabled** for
+  this run (Upstash env blanked, so as not to touch production). In
+  production `/members` serves `list_directory_facets` from a 1-hour
+  cache; here it paid the uncached 91 ms every hit. Neither affects the
+  anonymous-vs-authenticated delta on `/events`, which is the number this
+  finding turns on.
+- Turnstile is likewise inert, so no bot-check cost is included.
+
+---
+
 ## Ranked recommendations
 
 1. **B3.1 — decouple the CSP nonce from rendering** and let public routes
@@ -304,9 +437,11 @@ randomly-drawn tuples collided long before the target row count.
    corpus, several searches per agent turn.
 3. **~~Directory search~~ — done.** Finding 1, shipped in
    `20260908000001`, 27× and behaviour-verified.
-4. **B3.3 — split `contact_email` out of the list RPCs** so `/events` and
-   `/opportunities` become cacheable. Still correct, now ranked below
-   B3.1.
+4. **~~B3.3~~ — deferred, on measurement.** Finding 8: the split buys
+   2.2–10.2 ms of a 353–435 ms authenticated-render delta (under 3%), and
+   the "one cached render shared by everyone" it was sold on is
+   structurally impossible behind an auth guard. Right idea, wrong
+   ranking; revisit only if the listing boards are ever made public.
 5. **Storage plan before 2,000 members are actually ingested.** Finding 4:
    ~270 MB projected against a 500 MB free tier with no backups, before
    the index in (2). Belongs to the Azure playbook §2a.
@@ -318,9 +453,9 @@ randomly-drawn tuples collided long before the target row count.
 - Deployed-infrastructure latency. Everything above is laptop-relative.
   Re-run `frontend/scripts/loadtest.js` against Vercel with
   `BASE=https://…` before the numbers are quoted anywhere externally.
-- Authenticated burst load. Deliberate: signing in 500 VUs would measure
-  the OTP rate limiter's refusal rate, not throughput. The authenticated
-  read paths are covered by Finding 2 instead, where RLS cost is visible
-  directly rather than through five layers of HTTP.
+- ~~Authenticated burst load.~~ **Measured — see Finding 8.** The reason
+  given here for skipping it (500 sign-ins would measure the OTP limiter)
+  confused minting a session with using one; 20 sessions minted out of
+  band and shared round-robin costs the limiter nothing.
 - The pipeline load test (B2.8) and the agent's per-turn cost (C2.6),
   which needs Phase 2 to exist.
