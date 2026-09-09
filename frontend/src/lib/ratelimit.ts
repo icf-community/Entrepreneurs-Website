@@ -39,6 +39,32 @@ export type RateBucket =
   | "githubShowcase"
   | "otpVerify";
 
+// ─── Key namespace ──────────────────────────────────────────────────
+//
+// UPSTASH_REDIS_REST_URL/TOKEN are scoped to Production AND Preview in
+// Vercel, so both environments limit against ONE database, and a bucket
+// key is prefix + identifier (a user id, usually). Without a namespace a
+// preview deploy writes into production's counters for the same person:
+// connect GitHub three times on a preview and the 3-per-24h githubConnect
+// budget is spent on the real site too.
+//
+// It fails STRICT rather than loose — sharing a counter can only exhaust
+// an allowance sooner, never grant more — which is why this is a
+// papercut and not a hole. It stops being a papercut the moment a
+// preview URL is handed to members for feedback, because then their
+// production budgets are what preview traffic is spending, otpVerify
+// (fail-closed, the sign-in path) included.
+//
+// Production deliberately keeps the BARE prefix it has always used, so
+// adding this cannot reset a live counter. Only non-production
+// deployments gain a segment. VERCEL_ENV is set by Vercel itself and is
+// already load-bearing in instrumentation.ts; nothing new to configure.
+const NS = process.env.VERCEL_ENV === "production" ? "" : `${process.env.VERCEL_ENV ?? "dev"}:`;
+
+/** Bucket key prefix. Always build prefixes through this — two buckets
+ *  sharing a literal silently merge their limits. */
+const p = (name: string) => `rl:${NS}${name}`;
+
 // Factory per bucket. slidingWindow chosen for smooth limiting; analytics
 // off to keep the command count (and cost) down.
 const BUCKETS: Record<RateBucket, () => Ratelimit> = {
@@ -46,7 +72,7 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // 60/min is far more than one person generates by hand, and because the
   // key is an account it no longer collides with everyone else on campus.
   mutations: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(60, "1 m"), prefix: "rl:mut", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(60, "1 m"), prefix: p("mut"), analytics: false }),
   // Anonymous non-GET traffic, keyed on IP because there is no better
   // identity. One key can stand for the whole campus — a signup wave after
   // an announcement is the case that matters — so the ceiling is a flood
@@ -88,10 +114,10 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // people reading pages — is not rate limited on any key. Only mutations
   // are. If reads need shedding, that is Cloudflare and B3.1, not this.
   anonMutations: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(1200, "1 m"), prefix: "rl:mut:anon", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(1200, "1 m"), prefix: p("mut:anon"), analytics: false }),
   // Precise per-user limit on listing/contact submissions.
   submit: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 h"), prefix: "rl:sub", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 h"), prefix: p("sub"), analytics: false }),
   // Community posts. Its own bucket rather than sharing `submit`, because
   // posting to the feed should not consume the quota for posting a job.
   //
@@ -104,13 +130,13 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // budget shared with the response cache on the free tier) to re-enforce
   // something already enforced.
   communityPost: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: "rl:post", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("post"), analytics: false }),
   // Report-bombing — one member mass-reporting someone they dislike — is a
   // real abuse vector, and a lower ceiling than posting because a member
   // with more than a handful of genuine reports in a day is an outlier
   // worth an admin noticing.
   postReport: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: "rl:rep", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: p("rep"), analytics: false }),
   // Uploads get their own allowance rather than drawing on `communityPost`.
   // Sharing looked tidy and was wrong: a post with two images spent three
   // tokens, so the real ceiling for anyone who posts pictures was three a
@@ -120,7 +146,7 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // and the ceiling that actually matters (how much reaches the feed) is
   // still `communityPost`.
   communityUpload: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(40, "24 h"), prefix: "rl:upl", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(40, "24 h"), prefix: p("upl"), analytics: false }),
   // Avatar and CV uploads each get their own allowance rather than sharing
   // communityUpload — posting pictures to the feed and setting a profile
   // photo are unrelated activities, and lumping them would let a member
@@ -134,9 +160,9 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // ticket at a time, so it cannot be approached by traffic through
   // these two buckets alone.
   avatarUpload: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: "rl:ava", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("ava"), analytics: false }),
   cvUpload: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: "rl:cv", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("cv"), analytics: false }),
   // The two GitHub buckets exist because both actions behind them spend
   // money and worker time on someone else's behalf, which none of the
   // buckets above do. 20260908000002 stops the *duplicate* job — a second
@@ -154,7 +180,7 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // everyone, and the ceiling only needs to leave room for a genuine
   // retry after a failure, plus switching accounts once or twice.
   githubConnect: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(3, "24 h"), prefix: "rl:ghc", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(3, "24 h"), prefix: p("ghc"), analytics: false }),
   // Editing your showcase must not feel rationed — the plan's standing
   // decision is that prompting is throttled and editing never is, and the
   // on-screen copy promises exactly that ("change them any time"). So this
@@ -166,7 +192,7 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // profile until midnight, which is the failure this bucket is supposed
   // to prevent, not cause.
   githubShowcase: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 h"), prefix: "rl:ghs", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 h"), prefix: p("ghs"), analytics: false }),
   // verifyOtp (student/alum login-signup codes, email-change confirmation)
   // runs on the browser Supabase client, straight to Supabase's REST
   // endpoint — it never passes through proxy.ts's `mutations` backstop and,
@@ -176,7 +202,7 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // (see verifyOtpGate.ts), not the caller, and generous enough for a
   // typo-prone human: 10 tries in 10 minutes.
   otpVerify: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: "rl:otp", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: p("otp"), analytics: false }),
 };
 
 const instances = new Map<RateBucket, Ratelimit>();

@@ -190,3 +190,72 @@ describe("in-process limiter fallback", () => {
     }
   });
 });
+
+describe("bucket key namespace", () => {
+  // Preview deploys share the limiter's Upstash database with production
+  // (the env vars are scoped to both), so the prefix is the only thing
+  // keeping their counters apart. Two properties matter and neither is
+  // visible by reading a call site: production's keys must be unchanged
+  // from what is already live, and no two buckets may collide.
+  const ALL_BUCKETS = [
+    "mutations", "anonMutations", "submit", "communityPost", "communityUpload",
+    "postReport", "avatarUpload", "cvUpload", "githubConnect", "githubShowcase",
+    "otpVerify",
+  ] as const;
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.doUnmock("@upstash/ratelimit");
+    vi.doUnmock("@upstash/redis");
+    vi.resetModules();
+  });
+
+  async function prefixesFor(vercelEnv: string | undefined) {
+    vi.resetModules();
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://example.upstash.io");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "test-token");
+    if (vercelEnv === undefined) vi.stubEnv("VERCEL_ENV", "");
+    else vi.stubEnv("VERCEL_ENV", vercelEnv);
+
+    const seen: string[] = [];
+    vi.doMock("@upstash/redis", () => ({ Redis: class {} }));
+    vi.doMock("@upstash/ratelimit", () => ({
+      Ratelimit: class {
+        static slidingWindow = () => ({});
+        constructor(opts: { prefix: string }) {
+          seen.push(opts.prefix);
+        }
+        limit() {
+          return Promise.resolve({ success: true });
+        }
+      },
+    }));
+
+    const rl = await import("./ratelimit");
+    // Buckets are built lazily, so they have to be touched to exist.
+    for (const b of ALL_BUCKETS) await rl.check(b, "someone");
+    return seen;
+  }
+
+  it("leaves production's keys exactly as they were before namespacing", async () => {
+    // The whole point of the conditional: adding the namespace must not
+    // reset a single live counter. If this fails, a deploy silently hands
+    // every member a fresh allowance on every bucket.
+    const prefixes = await prefixesFor("production");
+    expect(prefixes).toContain("rl:mut");
+    expect(prefixes).toContain("rl:otp");
+    expect(prefixes.every((p) => !p.includes("production"))).toBe(true);
+  });
+
+  it("separates preview from production", async () => {
+    const prefixes = await prefixesFor("preview");
+    expect(prefixes).toContain("rl:preview:mut");
+    expect(prefixes).not.toContain("rl:mut");
+  });
+
+  it("gives every bucket a distinct key", async () => {
+    const prefixes = await prefixesFor("production");
+    expect(prefixes).toHaveLength(ALL_BUCKETS.length);
+    expect(new Set(prefixes).size).toBe(ALL_BUCKETS.length);
+  });
+});
