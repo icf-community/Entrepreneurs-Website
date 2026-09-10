@@ -36,7 +36,7 @@ from .cv_pipeline import EXTRACTION_MODEL
 from .openai_client import client
 
 GITHUB_API = "https://api.github.com"
-SUMMARY_PROMPT_VERSION = "github-summary-v14"
+SUMMARY_PROMPT_VERSION = "github-summary-v15"
 PER_PAGE = 100
 # Hard cap, not a real pagination limit — a member with more than 300
 # owned repos is far outside what this feature needs to handle well, and
@@ -811,6 +811,7 @@ _SUMMARY_SCHEMA = {
     "properties": {
         "summary": {
             "type": "string",
+            "maxLength": 1400,
             "description": (
                 "6-10 sentences, factual — no evaluative language, no ranking or "
                 "prestige comments about employers, no speculation about what roles "
@@ -832,17 +833,18 @@ _SUMMARY_SCHEMA = {
                 "qualification title, multiple job/project entries, multiple "
                 "repos, github_signal.themes (already ranked strongest-first, see "
                 "its own field) — and lead with and structure the summary around "
-                "THAT one thread first. With the extra length now available, give "
-                "other genuinely-evidenced themes (github_signal.themes[1:], or a "
-                "skill/problem-area backed by 2+ CV entries or repos) real, "
-                "specific coverage too — not just the top theme — since this "
-                "breadth is what lets the summary actually surface in a wider "
-                "range of recruiter searches. The bar to only give BRIEF, "
-                "secondary mention is reserved for genuinely ONE-OFF, incidental "
-                "facts that don't belong to any recurring theme at all (a single "
-                "unrelated repo, a one-off CV line) — those must not get equal "
-                "billing next to a real, multi-evidenced theme, and must never be "
-                "what the summary leads with. Where a skill or "
+                "THAT one thread first, in real specific detail. The target length "
+                "is short enough for a recruiter to skim in one glance, so stay "
+                "disciplined: after the dominant thread, give AT MOST one other "
+                "genuinely-evidenced secondary theme (github_signal.themes[1:], or "
+                "a skill/problem-area backed by 2+ CV entries or repos) a single "
+                "brief, specific sentence — never expand a second theme to the "
+                "same depth as the dominant one, and do not attempt to mention "
+                "every theme that's present. Genuinely ONE-OFF, incidental facts "
+                "that don't belong to any recurring theme at all (a single "
+                "unrelated repo, a one-off CV line) get skipped entirely unless "
+                "space is trivially available — they must never compete with the "
+                "dominant thread for airtime. Where a skill or "
                 "technology appears in BOTH the CV and their repos, say that the "
                 "overlap reflects genuine depth rather than just resume-listed "
                 "familiarity. Never name a specific school, college, or "
@@ -858,16 +860,14 @@ _SUMMARY_SCHEMA = {
                 "that can be more informative than an individual repo's own "
                 "description. If it (or the CV) describes winning or placing in a "
                 "competition, hackathon, or judged challenge, that is a strong, "
-                "third-party-validated signal of technical ability. IF THERE ARE "
-                "MULTIPLE such wins, don't arbitrarily mention only one — cover "
-                "every one that's relevant to the dominant thread (or, if there's "
-                "room, every genuine win regardless), by name (e.g. 'won the X "
-                "hackathon', 'placed in the Y challenge'); do not treat any of "
-                "them as just a routine detail to skip for space. Otherwise, "
-                "weave in a genuinely impressive detail from profile_readme the "
-                "same way you would a CV metric, under the same one-or-two-only, "
-                "not-routine bar (competition wins are the exception to that cap "
-                "— always worth including, all of them, not just one). STRICT naming rule: only call something a "
+                "third-party-validated signal of technical ability worth naming "
+                "specifically (e.g. 'won the X hackathon') — but cap it at the "
+                "single most significant win; only name a second if it comes from "
+                "a clearly different, unrelated theme genuinely worth surfacing "
+                "separately, and never list more than two. Otherwise, weave in at "
+                "most one genuinely impressive detail from profile_readme the "
+                "same way you would a CV metric, under the same not-routine bar. "
+                "STRICT naming rule: only call something a "
                 "'repository', 'repo', or 'his GitHub work/shows X' if its name "
                 "exactly matches an entry in github_signal.top_repos. A project "
                 "named in <profile> (e.g. a CV project) or described in "
