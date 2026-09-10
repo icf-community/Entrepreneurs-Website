@@ -35,7 +35,7 @@ function NavLink({ label, href, isActive, onClick }: {
     <a
       href={href}
       onClick={(e) => onClick(e, href)}
-      className={`relative label-wide no-underline transition-colors duration-150 ${isActive ? "text-text-primary" : "text-text-secondary hover:text-text-primary"}`}
+      className={`relative label-wide whitespace-nowrap no-underline transition-colors duration-150 ${isActive ? "text-text-primary" : "text-text-secondary hover:text-text-primary"}`}
     >
       {label}
       {isActive && (
@@ -49,7 +49,7 @@ function JoinButton() {
   return (
     <a
       href="/login"
-      className="hidden md:inline-flex items-center rounded-lg px-5 py-2 text-sm font-semibold no-underline bg-accent text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
+      className="hidden md:inline-flex items-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-semibold no-underline bg-accent text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
     >
       Join Foundry
     </a>
@@ -101,11 +101,19 @@ export default function Navbar() {
     <header
       className={scrolled ? "fixed top-0 left-0 right-0 z-50 px-8 transition-colors duration-300 bg-bg-primary/92 backdrop-blur-md border-b border-border" : "fixed top-0 left-0 right-0 z-50 px-8 transition-colors duration-300 bg-transparent border-b border-transparent"}
     >
-      <nav className="max-w-[1200px] mx-auto h-16 flex items-center justify-between gap-6">
+      <nav className="max-w-[1200px] mx-auto h-16 flex items-center gap-6">
         <Logo />
 
-        {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-8">
+        {/* Desktop links. With "Who are we?" no longer allowed to wrap
+            (whitespace-nowrap), the row's true content width — logo +
+            5 links + Join Foundry, none of them shrinkable — exceeds the
+            site's 1200px content width at gap-8 (40px): ~1254px needed vs
+            1200px available. The flex-shrink algorithm then mis-sized the
+            logo box under the strain (a nested-flex min-content quirk) and
+            let its text paint outside its own box instead of visibly
+            overflowing. gap-6 (30px) brings total content to ~1134px —
+            comfortable real slack, not a few px of luck. */}
+        <div className="hidden md:flex items-center gap-6">
           {NAV_LINKS.map((link) => (
             <NavLink
               key={link.href}
@@ -116,7 +124,7 @@ export default function Navbar() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-3">
           <JoinButton />
           <HamburgerButton open={menuOpen} onClick={() => setMenuOpen(!menuOpen)} />
         </div>
