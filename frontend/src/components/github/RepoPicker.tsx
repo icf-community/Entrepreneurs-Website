@@ -114,6 +114,10 @@ export function RepoPicker({
     });
   }
 
+  function remove(name: string) {
+    setPicks((current) => current.filter((pick) => pick.name !== name));
+  }
+
   function setBlurb(name: string, blurb: string) {
     setPicks((current) =>
       current.map((pick) => (pick.name === name ? { ...pick, blurb } : pick)),
@@ -158,15 +162,57 @@ export function RepoPicker({
         className={inputCls}
       />
 
+      {/* Picked projects and their blurbs live in their own block, separate
+          from the scrollable browse list below. They used to expand inline
+          under each row, which meant checking one box changed the height of
+          the list every other row sits in — the exact thing that turns a
+          fast run down a checklist into a misclick, since the row you meant
+          to hit next has already moved by the time the click lands. */}
+      {picks.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-accent/40 bg-white/[0.03] p-3">
+          <p className="text-[0.7rem] text-text-muted">
+            {picks.length} of {SHOWCASE_MAX_PICKS} chosen — in the order recruiters will see them
+          </p>
+          <ul className="space-y-3">
+            {picks.map((pick) => (
+              <li key={pick.name}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[0.8rem] text-text-primary">{pick.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => remove(pick.name)}
+                    className="shrink-0 cursor-pointer text-[0.7rem] text-text-muted hover:text-[#ff8080]"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <input
+                  id={`blurb-${pick.name}`}
+                  type="text"
+                  value={pick.blurb}
+                  maxLength={SHOWCASE_BLURB_MAX}
+                  onChange={(event) => setBlurb(pick.name, event.target.value)}
+                  placeholder="What it does, and what you built"
+                  aria-label={`One line about ${pick.name}`}
+                  className={`${inputCls} mt-1`}
+                />
+                <p className="mt-1 text-right text-[0.68rem] text-text-muted">
+                  {pick.blurb.length}/{SHOWCASE_BLURB_MAX}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <p className="text-[0.75rem] text-text-muted" aria-live="polite">
         {picks.length} of {SHOWCASE_MAX_PICKS} chosen
-        {atLimit && " — deselect one to swap it out"}
+        {atLimit && " — deselect one below to swap it out"}
       </p>
 
       <ul className="max-h-[45vh] space-y-2 overflow-y-auto overscroll-contain pr-1">
         {visible.map((repo) => {
           const picked = pickedNames.has(repo.name);
-          const pick = picks.find((entry) => entry.name === repo.name);
           const pushed = relativePush(repo.pushed_at);
           return (
             <li
@@ -204,29 +250,6 @@ export function RepoPicker({
                   </span>
                 </span>
               </label>
-
-              {picked && pick && (
-                <div className="mt-3 pl-7">
-                  <label
-                    htmlFor={`blurb-${repo.name}`}
-                    className="mb-1 block text-[0.7rem] text-text-muted"
-                  >
-                    One line about this project
-                  </label>
-                  <input
-                    id={`blurb-${repo.name}`}
-                    type="text"
-                    value={pick.blurb}
-                    maxLength={SHOWCASE_BLURB_MAX}
-                    onChange={(event) => setBlurb(repo.name, event.target.value)}
-                    placeholder="What it does, and what you built"
-                    className={inputCls}
-                  />
-                  <p className="mt-1 text-right text-[0.68rem] text-text-muted">
-                    {pick.blurb.length}/{SHOWCASE_BLURB_MAX}
-                  </p>
-                </div>
-              )}
             </li>
           );
         })}
