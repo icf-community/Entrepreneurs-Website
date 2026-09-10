@@ -283,6 +283,7 @@ export function SkillPicker({
   coreIds,
   suggested,
   onAdd,
+  onAcceptSuggestion,
   onRemove,
   onToggleCore,
   maxCore,
@@ -292,10 +293,17 @@ export function SkillPicker({
   coreIds: number[];
   suggested: SkillOption[];
   onAdd: (id: number) => void;
+  /** Same effect as onAdd, but tags the id as CV-sourced — see
+   *  IntakeState.cvSkillIds — so a later CV swap knows this one came
+   *  from the document rather than being typed in by hand. Only the
+   *  intake flow's SkillsScreen tracks that; ProfileForm.tsx (no CV-swap
+   *  concept of its own) falls back to plain onAdd. */
+  onAcceptSuggestion?: (id: number) => void;
   onRemove: (id: number) => void;
   onToggleCore: (id: number) => void;
   maxCore: number;
 }) {
+  const acceptSuggestion = onAcceptSuggestion ?? onAdd;
   const [draft, setDraft] = useState("");
   const byId = new Map(taxonomy.map((t) => [t.id, t]));
   const selectedSet = new Set(selectedIds);
@@ -317,7 +325,7 @@ export function SkillPicker({
               <button
                 key={s.id}
                 type="button"
-                onClick={() => onAdd(s.id)}
+                onClick={() => acceptSuggestion(s.id)}
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-signal/40 bg-white/[0.03] px-3 py-1.5 text-[0.775rem] text-text-primary transition-colors duration-150 hover:border-signal hover:bg-signal-muted"
               >
                 <span aria-hidden className="text-signal">+</span>

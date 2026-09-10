@@ -411,6 +411,7 @@ export type Database = {
           last_scanned_at: string | null
           member_id: string
           scan_failure_reason: string | null
+          scan_failure_transient: boolean
           scan_fingerprint: string | null
           scan_status: string
           showcase_nudged_at: string | null
@@ -429,6 +430,7 @@ export type Database = {
           last_scanned_at?: string | null
           member_id: string
           scan_failure_reason?: string | null
+          scan_failure_transient?: boolean
           scan_fingerprint?: string | null
           scan_status?: string
           showcase_nudged_at?: string | null
@@ -447,6 +449,7 @@ export type Database = {
           last_scanned_at?: string | null
           member_id?: string
           scan_failure_reason?: string | null
+          scan_failure_transient?: boolean
           scan_fingerprint?: string | null
           scan_status?: string
           showcase_nudged_at?: string | null

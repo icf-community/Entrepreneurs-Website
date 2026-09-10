@@ -17,13 +17,17 @@ import pytest
 
 from app import worker
 from app.cv_pipeline import SkillMatch
+from app.github_pipeline import GithubScanError
 from app.worker import (
     _apply_effective_showcase,
     _process_job,
     _prune_dead_picks,
     _refresh_combined_summary,
     _replace_member_skills,
+    _revert_to_cv_only_summary,
+    _set_github_status,
     process_refresh_github_summary,
+    process_scan_github,
 )
 
 
@@ -148,6 +152,69 @@ def test_refresh_combined_summary_is_a_noop_when_profile_missing() -> None:
     fake_synth.assert_not_called()
 
 
+# ─── _revert_to_cv_only_summary ──────────────────────────────────────────
+# Counterpart to _refresh_combined_summary, for disconnect_github
+# (20260911000001) — no LLM call, since the CV-only text is still
+# sitting untouched in cv_profiles.profile.
+
+
+def test_revert_to_cv_only_summary_restores_original_text() -> None:
+    cv_id = uuid.uuid4()
+    profile = {"summary": "original cv-only summary", "skills_raw": []}
+    select_cur = _cursor_mock(fetchone_return=(profile, "cv_github"))
+    update_cur = _cursor_mock()
+
+    fake_chunk = MagicMock(
+        content="original cv-only summary", embedding=[0.1, 0.2], embedding_model="text-embedding-3-small"
+    )
+
+    with (
+        patch(
+            "app.worker.connection",
+            side_effect=[_connection_cm(_conn_mock(select_cur)), _connection_cm(_conn_mock(update_cur))],
+        ),
+        patch("app.worker.cv_pipeline.re_embed_summary", return_value=fake_chunk) as fake_embed,
+    ):
+        _revert_to_cv_only_summary(cv_id)
+
+    fake_embed.assert_called_once_with("original cv-only summary")
+    executed = [c.args for c in update_cur.execute.call_args_list]
+    profile_call = next(args for args in executed if "update public.cv_profiles" in args[0])
+    assert profile_call[1][0] == "original cv-only summary"
+    assert "cv_github" not in profile_call[1]
+    assert any("update public.cv_chunks" in args[0] for args in executed)
+
+
+def test_revert_to_cv_only_summary_is_a_noop_when_already_cv_only() -> None:
+    """summary_source='cv' means either GitHub was never connected, or a
+    fresh CV upload already replaced this row with its own CV-only
+    summary — either way, nothing to revert, and no embedding call to
+    spend on it."""
+    cv_id = uuid.uuid4()
+    select_cur = _cursor_mock(fetchone_return=({"summary": "x"}, "cv"))
+
+    with (
+        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(select_cur))]),
+        patch("app.worker.cv_pipeline.re_embed_summary") as fake_embed,
+    ):
+        _revert_to_cv_only_summary(cv_id)
+
+    fake_embed.assert_not_called()
+
+
+def test_revert_to_cv_only_summary_is_a_noop_when_row_missing() -> None:
+    cv_id = uuid.uuid4()
+    select_cur = _cursor_mock(fetchone_return=None)
+
+    with (
+        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(select_cur))]),
+        patch("app.worker.cv_pipeline.re_embed_summary") as fake_embed,
+    ):
+        _revert_to_cv_only_summary(cv_id)
+
+    fake_embed.assert_not_called()
+
+
 # ─── _prune_dead_picks ──────────────────────────────────────────────────
 # A recruiter clicking through to a 404 is exactly the failure the
 # showcase feature exists to prevent, so this is correctness, not polish.
@@ -268,6 +335,107 @@ def test_refresh_github_summary_regenerates_when_both_signals_exist() -> None:
         process_refresh_github_summary(member_id)
 
     fake_refresh.assert_called_once_with(member_id, cv_id, signal)
+
+
+def test_refresh_github_summary_reverts_when_disconnected_with_a_ready_cv() -> None:
+    """disconnect_github (20260911000001) enqueues this same job kind
+    with no github_connections row left to read — the opposite of the
+    two cases above, so it must revert rather than regenerate."""
+    member_id = uuid.uuid4()
+    cv_id = uuid.uuid4()
+    cur = MagicMock()
+    cur.__enter__.return_value = cur
+    cur.__exit__.return_value = False
+    cur.fetchone.side_effect = [None, (cv_id,)]  # no ready connection, but a current CV exists
+
+    with (
+        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(cur))]),
+        patch("app.worker._refresh_combined_summary") as fake_refresh,
+        patch("app.worker._revert_to_cv_only_summary") as fake_revert,
+    ):
+        process_refresh_github_summary(member_id)
+
+    fake_refresh.assert_not_called()
+    fake_revert.assert_called_once_with(cv_id)
+
+
+# ─── GitHub scan failure classification ──────────────────────────────
+# 20260911000001: a primary/hourly rate limit is retryable by the
+# already-hourly enqueue_github_rescans() cron; a revoked token or an
+# oversized account is not, and still requires the member to reconnect.
+
+
+def test_set_github_status_records_failure_transient() -> None:
+    member_id = uuid.uuid4()
+    cur = _cursor_mock()
+
+    with patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(cur))]):
+        _set_github_status(member_id, "failed", failure_reason="rate limited", failure_transient=True)
+
+    params = cur.execute.call_args.args[1]
+    assert params == ("failed", "rate limited", True, member_id)
+
+
+def test_set_github_status_defaults_failure_transient_to_false() -> None:
+    """Every non-failure call site (the 'scanning' transition included)
+    must correctly clear any earlier transient flag without saying so
+    explicitly."""
+    member_id = uuid.uuid4()
+    cur = _cursor_mock()
+
+    with patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(cur))]):
+        _set_github_status(member_id, "scanning")
+
+    params = cur.execute.call_args.args[1]
+    assert params == ("scanning", None, False, member_id)
+
+
+def test_process_scan_github_forwards_retryable_flag_on_scan_error() -> None:
+    member_id = uuid.uuid4()
+    row_cur = _cursor_mock(fetchone_return=("token", "octocat", None, None))
+
+    with (
+        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(row_cur))]),
+        patch("app.worker.worker_settings") as fake_settings,
+        patch("app.worker._set_github_status") as fake_status,
+        patch(
+            "app.worker.github_pipeline.fetch_github_signal",
+            side_effect=GithubScanError("GitHub API rate limit exceeded", retryable_by_rescan=True),
+        ),
+    ):
+        fake_settings.return_value.github_token_encryption_key = "test-key"
+        process_scan_github(member_id)
+
+    fake_status.assert_any_call(
+        member_id,
+        "failed",
+        failure_reason="GitHub API rate limit exceeded",
+        failure_transient=True,
+    )
+
+
+def test_process_scan_github_does_not_mark_dead_token_as_retryable() -> None:
+    member_id = uuid.uuid4()
+    row_cur = _cursor_mock(fetchone_return=("token", "octocat", None, None))
+
+    with (
+        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(row_cur))]),
+        patch("app.worker.worker_settings") as fake_settings,
+        patch("app.worker._set_github_status") as fake_status,
+        patch(
+            "app.worker.github_pipeline.fetch_github_signal",
+            side_effect=GithubScanError("GitHub token is invalid or was revoked"),
+        ),
+    ):
+        fake_settings.return_value.github_token_encryption_key = "test-key"
+        process_scan_github(member_id)
+
+    fake_status.assert_any_call(
+        member_id,
+        "failed",
+        failure_reason="GitHub token is invalid or was revoked",
+        failure_transient=False,
+    )
 
 
 # ─── Loop-level failure handling ─────────────────────────────────────

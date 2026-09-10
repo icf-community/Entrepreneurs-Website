@@ -44,6 +44,15 @@ export type ScreenProps = {
   role: Affiliation;
   existingLinkedin: string | null;
   suggestionsLoading: boolean;
+  /** True once the bounded poll for CV skill suggestions has given up
+   *  without finding any — the document is treated as unreadable/wrong
+   *  rather than "still working", and the member is asked to re-upload. */
+  suggestionsGaveUp: boolean;
+  /** True while onRejectCv's removeCv() round trip is in flight. */
+  rejectingCv: boolean;
+  /** Clears the stored CV (profile row + its blob) and returns the
+   *  member to the CV screen to upload a different document. */
+  onRejectCv: () => void;
   /** profiles.github_url, collected at /onboarding before verification.
    *  Used to NAME the handle already on file so connecting reads as
    *  confirming the same account, not a second thing being asked for. */
@@ -346,10 +355,11 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin }: Scree
             className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
           />
           <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
-            Read the skills section of my CV once, to suggest skills to add on
-            the next screen. We never add anything without you confirming it,
-            and the text itself is never stored — only the matched skills. You
-            can leave this unticked and add skills yourself instead.
+            Read my CV to suggest skills to add on the next screen and generate a summary
+            recruiters can search to find me. The extracted text and summary are stored and used
+            to help match me to relevant opportunities. You can leave this unticked and add
+            skills yourself instead — but recruiters won&apos;t be able to find you through CV
+            matching.
           </span>
         </label>
       )}
@@ -477,15 +487,25 @@ export function GithubScreen({ existingGithubUrl, github }: ScreenProps) {
 
 // ─── 04 · Skills ─────────────────────────────────────────────────────
 
-export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading }: ScreenProps) {
+export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading, suggestionsGaveUp, rejectingCv, onRejectCv }: ScreenProps) {
   const suggested = s.suggestedSkillIds
     .filter((id) => !s.skillIds.includes(id))
     .map((id) => skillTaxonomy.find((t) => t.id === id))
     .filter((t): t is SkillOption => !!t);
 
   const add = (id: number) => patch({ skillIds: [...s.skillIds, id] });
+  // Same effect as add, plus tagging the id as CV-sourced — see
+  // IntakeState.cvSkillIds — so "Upload a different CV" below knows to
+  // drop it once a replacement CV is actually confirmed, without
+  // touching anything the member searched for and added themselves.
+  const acceptSuggestion = (id: number) =>
+    patch({ skillIds: [...s.skillIds, id], cvSkillIds: [...s.cvSkillIds, id] });
   const remove = (id: number) =>
-    patch({ skillIds: s.skillIds.filter((x) => x !== id), coreSkillIds: s.coreSkillIds.filter((x) => x !== id) });
+    patch({
+      skillIds: s.skillIds.filter((x) => x !== id),
+      coreSkillIds: s.coreSkillIds.filter((x) => x !== id),
+      cvSkillIds: s.cvSkillIds.filter((x) => x !== id),
+    });
   const toggleCore = (id: number) =>
     patch({
       coreSkillIds: s.coreSkillIds.includes(id)
@@ -513,12 +533,37 @@ export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading }: Sc
             </div>
           </div>
         )}
+        {/* Available any time a CV is on file — not just when nothing
+            matched — because a member who already accepted CV-sourced
+            skills may still realise it's the wrong document. The old
+            CV's skills aren't touched here; they're only dropped once a
+            replacement is actually confirmed uploaded (IntakeFlow's
+            uploadCv), so clicking this and then changing your mind
+            leaves everything exactly as it was. */}
+        {s.cvConsent && (s.cvFile || s.cvUploadedKey) && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border-strong bg-white/[0.03] p-3">
+            <p className="text-[0.7rem] text-text-secondary">
+              {suggestionsGaveUp && suggested.length === 0
+                ? "We couldn't find any matching skills in that document. You can still search for skills below in the meantime."
+                : "Not the right document? Uploading a different CV swaps out whatever it found — anything you've added yourself stays."}
+            </p>
+            <button
+              type="button"
+              onClick={onRejectCv}
+              disabled={rejectingCv}
+              className="shrink-0 cursor-pointer rounded-lg border border-border-strong px-3 py-1.5 text-[0.7rem] font-medium text-text-primary hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {rejectingCv ? "Removing…" : "Upload a different CV"}
+            </button>
+          </div>
+        )}
         <SkillPicker
           taxonomy={skillTaxonomy}
           selectedIds={s.skillIds}
           coreIds={s.coreSkillIds}
           suggested={suggested}
           onAdd={add}
+          onAcceptSuggestion={acceptSuggestion}
           onRemove={remove}
           onToggleCore={toggleCore}
           maxCore={MAX_CORE_SKILLS}

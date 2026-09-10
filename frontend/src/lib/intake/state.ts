@@ -30,6 +30,12 @@ export type IntakeState = {
   /** Suggested by the CV text match, shown as "found in your CV" chips
    *  until tapped. Never written unless the member adds them. */
   suggestedSkillIds: number[];
+  /** Subset of skillIds that got there by the member tapping a CV
+   *  suggestion, as opposed to searching for it themselves. Lets
+   *  "Upload a different CV" (screens.tsx's SkillsScreen) discard only
+   *  the skills the OLD CV contributed once a replacement is confirmed
+   *  — anything the member typed in by hand survives untouched. */
+  cvSkillIds: number[];
 
   // Interests
   sectorIds: number[];
@@ -81,6 +87,7 @@ export function initialState(seed: {
     skillIds: [],
     coreSkillIds: [],
     suggestedSkillIds: [],
+    cvSkillIds: [],
 
     sectorIds: [],
     academicInterests: [],

@@ -16,9 +16,14 @@ import { getMyCvProfile, getMyCvStatus, type CvIngestStatus } from "./mediaActio
 // pattern CommunityClient.tsx uses for its own polling, then shows the
 // generated summary and matched skills via get_my_cv_profile once ready.
 //
-// Independent of the CV section's parse-consent checkbox, which only
-// gates the older, separate skill-prefill flow (prefillCvSkillsInBackground)
-// — every CV upload now also feeds this new pipeline.
+// GATED ON THE SAME parse-consent checkbox as the older, separate
+// skill-prefill flow (prefillCvSkillsInBackground) — confirm_cv_upload
+// (20260906000001) only opens a cvs row, and so only enqueues anything
+// for this pipeline to process, when that box is ticked. This dialog
+// is only ever opened when it was (ProfileForm.tsx / IntakeFlow.tsx
+// both check consent first), so it never has to account for the
+// unconsented case itself — but don't assume "every CV upload feeds
+// this pipeline" from reading this file in isolation; it doesn't.
 // ════════════════════════════════════════════════════════════════════
 
 const POLL_INTERVAL_MS = 2000;

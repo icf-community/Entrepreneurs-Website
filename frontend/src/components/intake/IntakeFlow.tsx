@@ -16,6 +16,7 @@ import {
   confirmAvatarUpload,
   requestCvTicket,
   confirmCvUpload,
+  removeCv,
   requestGithubConnectUrl,
   getMyGithubStatus,
   getMyGithubShowcase,
@@ -36,6 +37,7 @@ import { MIN_SKILLS, initialState, type IntakeState } from "@/lib/intake/state";
 import { useIntakeDraft } from "@/lib/intake/useIntakeDraft";
 import StepRail from "./StepRail";
 import { SkipWarningDialog } from "./SkipWarningDialog";
+import { ConsentWarningDialog } from "./ConsentWarningDialog";
 import {
   CvScreen,
   FaceScreen,
@@ -138,6 +140,15 @@ export default function IntakeFlow({
   // whole gate exists for — 20260901000013's header comment).
   const [linkedinSaved, setLinkedinSaved] = useState(!!existingLinkedin);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  // Set only when the bounded poll below exhausts its attempts with
+  // nothing found. We can't distinguish "slow extraction" from "this
+  // wasn't a CV we could read" from here, and the product call is to
+  // treat it as the latter: ask for the right document back rather than
+  // leave someone polling indefinitely on a maybe-bad upload.
+  const [suggestionsGaveUp, setSuggestionsGaveUp] = useState(false);
+  // True while rejectCv's removeCv() round trip is in flight — disables
+  // the reject button so a slow connection can't fire it twice.
+  const [rejectingCv, setRejectingCv] = useState(false);
 
   // ─── GitHub (optional, screen 03) ─────────────────────────────────
   // Owned here rather than in screens.tsx for the same reason the avatar
@@ -157,6 +168,12 @@ export default function IntakeFlow({
   // second time has read it and decided; nagging again is just friction.
   const [skipWarningFor, setSkipWarningFor] = useState<StepId | null>(null);
   const [skipWarned, setSkipWarned] = useState<Set<StepId>>(() => new Set());
+  // Separate from skipWarned/skipWarningFor: this one fires for a CV
+  // that IS attached but unconsented, including for a student, where
+  // shouldWarnAboutSkipping deliberately never fires (see its own
+  // comment) — a different problem needs a different warning.
+  const [consentWarningFor, setConsentWarningFor] = useState<StepId | null>(null);
+  const [consentWarned, setConsentWarned] = useState(false);
 
   /** Every compulsory item for this role is already saved on the profile
    *  row — the gate for showing "Skip for now" at all. */
@@ -208,10 +225,12 @@ export default function IntakeFlow({
       if (ids && ids.length > 0) {
         patch({ suggestedSkillIds: ids });
         setSuggestionsLoading(false);
+        setSuggestionsGaveUp(false);
         return;
       }
       if (attempts >= MAX_ATTEMPTS) {
         setSuggestionsLoading(false);
+        setSuggestionsGaveUp(true);
         return;
       }
       timer = setTimeout(poll, INTERVAL_MS);
@@ -368,10 +387,22 @@ export default function IntakeFlow({
       // parses the CV in the background and persists the result, so a
       // fresh upload clears whatever the previous CV suggested until the
       // effect below picks up the new value once the Skills screen mounts.
+      //
+      // This is also the one point that "a replacement CV is actually
+      // uploaded" (as opposed to just clicking "Upload a different CV"
+      // and reconsidering) — so it's where stale CV-sourced skills from
+      // whatever CV was on file before get dropped. cvSkillIds only ever
+      // contains ids added via acceptSuggestion (screens.tsx), never
+      // ones the member searched for and added themselves, so this never
+      // touches a manually-added skill. On a first-ever upload
+      // cvSkillIds is already empty, so the filter is a no-op there.
       patch({
         cvUploadedKey: stored.key,
         cvOriginalFilename: s.cvFile.name,
         suggestedSkillIds: [],
+        skillIds: s.skillIds.filter((id) => !s.cvSkillIds.includes(id)),
+        coreSkillIds: s.coreSkillIds.filter((id) => !s.cvSkillIds.includes(id)),
+        cvSkillIds: [],
       });
       return null;
     } catch {
@@ -433,7 +464,55 @@ export default function IntakeFlow({
     setError("");
     setDir(direction);
     setStep(to);
+    // Arms the same bounded poll the CV-upload branch of advance() starts
+    // — but also covers arriving here any other way (the rail lets you
+    // jump to any screen, visited or not; so does Back). Without this, a
+    // member who left "skills" mid-poll (or before ever polling) and
+    // came back via the rail saw a permanently empty box even once
+    // cv_suggested_skill_ids was sitting on the row. Only the first visit
+    // auto-fetches — !suggestionsGaveUp keeps this from re-arming itself
+    // on every rail click after a member has already used the manual
+    // "Check again" retry once.
+    if (
+      to === "skills" &&
+      s.suggestedSkillIds.length === 0 &&
+      s.cvConsent && (s.cvFile || s.cvUploadedKey) &&
+      !suggestionsLoading && !suggestionsGaveUp
+    ) {
+      setSuggestionsLoading(true);
+    }
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "auto" });
+  };
+
+  /**
+   * "We couldn't find any matching skills in that document" — offered
+   * once the poll above gives up. Rather than an indefinite "check
+   * again" loop, this removes the stored CV outright (removeCv() clears
+   * profiles.cv_path and enqueues the blob for deletion — see
+   * tg_enqueue_profile_media_deletion, 20260901000002) and sends the
+   * member back to the CV screen to pick the right file. We only ever
+   * store one CV per member, so freeing that slot is required before a
+   * fresh upload can take its place.
+   */
+  const rejectCv = async () => {
+    if (rejectingCv) return;
+    setRejectingCv(true);
+    const removed = await removeCv();
+    setRejectingCv(false);
+    if (!removed.ok) {
+      setError(removed.error);
+      return;
+    }
+    setSuggestionsGaveUp(false);
+    setSuggestionsLoading(false);
+    patch({
+      cvFile: null,
+      cvUploadedKey: null,
+      cvOriginalFilename: null,
+      suggestedSkillIds: [],
+    });
+    go("cv", "back");
+    setError("That didn't look like a CV we could read — please upload a different document.");
   };
 
   const finish = async () => {
@@ -481,9 +560,31 @@ export default function IntakeFlow({
     return !hasCv && !ghConnected;
   };
 
+  /**
+   * True when leaving the CV screen with a file attached but
+   * cvConsent unticked — confirm_cv_upload (20260906000001) only opens
+   * a cvs row, and so only runs any of the recruiter-matching pipeline,
+   * when that box is ticked. This satisfies validate()'s "a CV is
+   * present" check for a compulsory student CV while doing nothing the
+   * requirement exists for, and nothing else would ever say so — unlike
+   * shouldWarnAboutSkipping, this fires for students too.
+   */
+  const shouldWarnAboutConsent = (id: StepId): boolean => {
+    if (id !== "cv") return false;
+    if (consentWarned) return false;
+    const hasCv = !!s.cvFile || !!s.cvUploadedKey;
+    return hasCv && !s.cvConsent;
+  };
+
   const next = async () => {
     const validationError = validate(step);
     if (validationError) { setError(validationError); return; }
+
+    if (shouldWarnAboutConsent(step)) {
+      setConsentWarned(true);
+      setConsentWarningFor(step);
+      return;
+    }
 
     if (shouldWarnAboutSkipping(step)) {
       setSkipWarned((prev) => new Set(prev).add(step));
@@ -542,7 +643,7 @@ export default function IntakeFlow({
   const screenProps: ScreenProps = {
     s, patch, firstName, skillTaxonomy, sectors,
     avatarUploading, avatarError, onCropAvatar, existingCv,
-    role, existingLinkedin, suggestionsLoading,
+    role, existingLinkedin, suggestionsLoading, suggestionsGaveUp, rejectingCv, onRejectCv: rejectCv,
     existingGithubUrl,
     github: {
       connected: ghConnected,
@@ -664,6 +765,13 @@ export default function IntakeFlow({
                   <SkipWarningDialog
                     onAddNow={() => setSkipWarningFor(null)}
                     onSkip={() => { setSkipWarningFor(null); void advance(); }}
+                  />
+                )}
+
+                {consentWarningFor && (
+                  <ConsentWarningDialog
+                    onTickNow={() => setConsentWarningFor(null)}
+                    onContinueAnyway={() => { setConsentWarningFor(null); void advance(); }}
                   />
                 )}
               </div>

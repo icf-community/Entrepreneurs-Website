@@ -330,14 +330,29 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
         _refresh_combined_summary(member_id, cv_id, github_row[0])
 
 
-def _set_github_status(member_id: uuid.UUID, status: str, *, failure_reason: str | None = None) -> None:
+def _set_github_status(
+    member_id: uuid.UUID,
+    status: str,
+    *,
+    failure_reason: str | None = None,
+    failure_transient: bool = False,
+) -> None:
     """Same immediacy shape as _set_cv_status — its own short transaction
     so a member watching the GitHub section sees the status change as
-    soon as it happens."""
+    soon as it happens.
+
+    failure_transient backs enqueue_github_rescans() (20260911000001) —
+    defaulting it false means every non-failure call site (the
+    "scanning" transition included) correctly clears any earlier
+    transient flag without having to say so explicitly."""
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
-            "update public.github_connections set scan_status = %s, scan_failure_reason = %s where member_id = %s",
-            (status, failure_reason, member_id),
+            """
+            update public.github_connections
+               set scan_status = %s, scan_failure_reason = %s, scan_failure_transient = %s
+             where member_id = %s
+            """,
+            (status, failure_reason, failure_transient, member_id),
         )
 
 
@@ -425,6 +440,54 @@ def _refresh_combined_summary(member_id: uuid.UUID, cv_id: uuid.UUID, github_sig
         )
 
 
+def _revert_to_cv_only_summary(cv_id: uuid.UUID) -> None:
+    """Counterpart to _refresh_combined_summary, for when GitHub evidence
+    is no longer available (disconnect_github, 20260911000001) rather
+    than newly available. The original CV-only text is never overwritten
+    in place by _refresh_combined_summary — it's still sitting in
+    cv_profiles.profile->>'summary' exactly as extract_profile produced
+    it — so this is a cheap restore-and-re-embed, not a fresh LLM call.
+
+    A no-op when summary_source is already 'cv': nothing to revert,
+    whether because GitHub was never connected or a fresh CV upload
+    already replaced this row with its own CV-only summary."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "select profile, summary_source from public.cv_profiles where cv_id = %s",
+            (cv_id,),
+        )
+        row = cur.fetchone()
+    if row is None or row[1] != "cv_github":
+        return
+
+    profile, _ = row
+    cv_only_summary = profile["summary"]
+    summary_chunk = cv_pipeline.re_embed_summary(cv_only_summary)
+
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            update public.cv_profiles
+               set summary = %s, summary_source = 'cv', summary_regenerated_at = now()
+             where cv_id = %s
+            """,
+            (cv_only_summary, cv_id),
+        )
+        cur.execute(
+            """
+            update public.cv_chunks
+               set content = %s, embedding = %s::vector, embedding_model = %s
+             where cv_id = %s and chunk_type = 'summary'
+            """,
+            (
+                summary_chunk.content,
+                cv_pipeline.vector_literal(summary_chunk.embedding),
+                summary_chunk.embedding_model,
+                cv_id,
+            ),
+        )
+
+
 def _prune_dead_picks(picks: list[dict] | None, available_repos: list[dict]) -> list[dict] | None:
     """Drop any showcase pick whose repo is no longer visible — deleted,
     renamed, or made private since the member chose it.
@@ -468,7 +531,9 @@ def process_scan_github(member_id: uuid.UUID) -> None:
         )
     except github_pipeline.GithubScanError as exc:
         log.warning("github scan for member %s failed: %s", member_id, exc)
-        _set_github_status(member_id, "failed", failure_reason=str(exc))
+        _set_github_status(
+            member_id, "failed", failure_reason=str(exc), failure_transient=exc.retryable_by_rescan
+        )
         return
 
     # Nothing this pipeline judges has changed since the last scan, so
@@ -549,7 +614,12 @@ def process_refresh_github_summary(member_id: uuid.UUID) -> None:
 
     A member with no ready CV is a no-op rather than a failure: there is
     no cv_profiles row to rewrite, and the GitHub-first ordering in
-    process_ingest_cv will fold the picks in when a CV does arrive."""
+    process_ingest_cv will fold the picks in when a CV does arrive.
+
+    Also enqueued by disconnect_github (20260911000001), for the
+    opposite direction: no connection row exists any more (find None
+    below), so instead of folding GitHub in, this reverts a combined
+    summary back to CV-only — see _revert_to_cv_only_summary."""
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -571,7 +641,11 @@ def process_refresh_github_summary(member_id: uuid.UUID) -> None:
         )
         current_cv = cur.fetchone()
 
-    if connection_row is None or connection_row[0] is None or current_cv is None:
+    if current_cv is None:
+        return
+
+    if connection_row is None or connection_row[0] is None:
+        _revert_to_cv_only_summary(current_cv[0])
         return
 
     _refresh_combined_summary(member_id, current_cv[0], connection_row[0])

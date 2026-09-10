@@ -48,8 +48,17 @@
 --     It cascades correctly, but only if cvs is deleted — so it is
 --     removed via a subquery BEFORE cvs, not after.
 --
--- Taxonomy and reference data (skills, sectors, cv_skills, app_config)
--- are never touched.
+-- Taxonomy and reference data (skills, sectors, app_config) are never
+-- touched — EXCEPT cv_skills. seed_scale_corpus.sql writes 5000 rows
+-- straight into that table ('scale skill 1' .. 'scale skill 5000') to
+-- test its scan cost, not scoped by member_id like everything else here
+-- because cv_skills has no member column at all. normalise_skills()
+-- matches on global nearest-neighbour ("order by embedding <=> ... limit
+-- 1"), so those 5000 synthetic vectors can silently outrank every real
+-- taxonomy entry for a genuine member's real skills — confirmed
+-- 2026-09-10: every skill on a real re-ingested CV matched skill_id=NULL
+-- while this cleanup step didn't exist yet. Removed by the same
+-- 'scale skill %' marker the seed script writes, never by member_id.
 --
 -- Idempotent: running it twice is a no-op the second time.
 -- ════════════════════════════════════════════════════════════════════
@@ -125,6 +134,13 @@ begin
 
   delete from public.member_skills         where member_id = any(v_ids);
   get diagnostics v_n = row_count; raise notice '  member_skills         %', v_n;
+
+  -- Not member-scoped like the rest of this block — cv_skills has no
+  -- member_id, it's the shared taxonomy every member's normalise_skills()
+  -- matches against. Marker-scoped instead, matching exactly what
+  -- seed_scale_corpus.sql writes.
+  delete from public.cv_skills             where canonical_name like 'scale skill %';
+  get diagnostics v_n = row_count; raise notice '  cv_skills (taxonomy)  %', v_n;
 
   delete from public.github_connections    where member_id = any(v_ids);
   get diagnostics v_n = row_count; raise notice '  github_connections    %', v_n;

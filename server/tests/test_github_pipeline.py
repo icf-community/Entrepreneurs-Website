@@ -220,17 +220,24 @@ def test_fetch_github_signal_empty_repos_is_not_an_error() -> None:
 
 def test_fetch_github_signal_raises_on_revoked_token() -> None:
     with _no_repo_judging(), patch("app.github_pipeline.requests.get", return_value=_fake_response(401, {})):
-        with pytest.raises(GithubScanError):
+        with pytest.raises(GithubScanError) as exc_info:
             fetch_github_signal("token", "octocat")
+    # A revoked token is not fixed by waiting — only the member
+    # reconnecting fixes it, so enqueue_github_rescans() must never
+    # auto-retry this one (20260911000001).
+    assert exc_info.value.retryable_by_rescan is False
 
 
 def test_fetch_github_signal_raises_scan_error_on_primary_rate_limit() -> None:
     """403/429 with no Retry-After header is the hourly-window primary
     rate limit — not worth the job queue's short backoff, so this is a
-    clean, immediate failure rather than a retryable exception."""
+    clean, immediate failure rather than a retryable exception. It IS
+    retryable by the already-hourly enqueue_github_rescans() cron
+    (20260911000001), which is a far better-matched timescale."""
     with _no_repo_judging(), patch("app.github_pipeline.requests.get", return_value=_fake_response(403, {})):
-        with pytest.raises(GithubScanError):
+        with pytest.raises(GithubScanError) as exc_info:
             fetch_github_signal("token", "octocat")
+    assert exc_info.value.retryable_by_rescan is True
 
 
 def test_fetch_github_signal_lets_secondary_rate_limit_propagate_for_retry() -> None:
@@ -792,9 +799,13 @@ def test_shortlist_call_sends_no_readmes() -> None:
 
 
 def test_guard_raises_a_legible_error_rather_than_a_provider_error() -> None:
-    """A scan that fails must explain itself in scan_failure_reason."""
-    with pytest.raises(GithubScanError, match="too large to analyse"):
+    """A scan that fails must explain itself in scan_failure_reason. Not
+    rescan-retryable (20260911000001) — an oversized account stays
+    oversized until B2.6's token-budget work ships, so retrying it on a
+    cron achieves nothing today."""
+    with pytest.raises(GithubScanError, match="too large to analyse") as exc_info:
         _guard_prompt_size("x" * (MAX_PROMPT_TOKENS * 5))
+    assert exc_info.value.retryable_by_rescan is False
 
 
 def test_three_hundred_repo_account_completes_a_full_scan() -> None:
