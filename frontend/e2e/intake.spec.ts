@@ -62,12 +62,17 @@ test.describe("post-approval intake", () => {
     await expect(page.getByText(/Good to have you,/)).toBeVisible();
   });
 
-  test("the rail lets you back to a visited screen but not ahead", async ({ page }) => {
+  // StepRail.tsx (a029642) deliberately made every non-current step
+  // pressable, forward or back — almost everything past screen 01 is
+  // optional, and the server enforces the few compulsory fields at
+  // Finish/Skip regardless of click order. This asserts that contract
+  // rather than a "visited only" gate the rail no longer has.
+  test("the rail lets you jump ahead to any screen, not just a visited one", async ({ page }) => {
     await page.goto("/intake");
 
     const rail = page.getByRole("navigation", { name: "Intake progress" });
-    // "Skills" is two screens ahead and must not be reachable yet.
-    await expect(rail.getByRole("button", { name: /Skills/ })).toHaveCount(0);
+    await rail.getByRole("button", { name: /Skills/ }).click();
+    await expect(page.getByRole("heading", { name: "What are you actually good at?" })).toBeVisible();
   });
 
   // A student's CV and LinkedIn are compulsory (20260901000013) — "Skip for
