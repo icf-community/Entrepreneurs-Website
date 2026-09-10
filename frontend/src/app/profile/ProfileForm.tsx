@@ -741,6 +741,7 @@ function GithubSection({
   );
 
   const [picks, setPicks] = useState<ShowcaseRepo[] | null>(null);
+  const [themes, setThemes] = useState<string[]>([]);
   const [needsReview, setNeedsReview] = useState(false);
   const [nudgesEnabled, setNudgesEnabled] = useState(true);
   const [dismissing, setDismissing] = useState(false);
@@ -754,7 +755,10 @@ function GithubSection({
       getMyGithubShowcase(),
       getMyGithubStatus(),
     ]);
-    if (showcase.ok && showcase.data) setPicks(showcase.data.showcaseRepos);
+    if (showcase.ok && showcase.data) {
+      setPicks(showcase.data.showcaseRepos);
+      setThemes(showcase.data.themes);
+    }
     if (statusResult.ok && statusResult.data) {
       setNeedsReview(statusResult.data.needsShowcaseReview);
       setStatus(statusResult.data.scanStatus);
@@ -921,6 +925,26 @@ function GithubSection({
                   You haven&apos;t chosen any yet. Until you do, we&apos;ll show the projects our scan
                   rated highest.
                 </p>
+              )}
+
+              {/* The written summary leads with one dominant thread and gives
+                  at most a brief mention to a second, so it stays skimmable —
+                  these tags are where the rest of what the scan found still
+                  shows up, rather than getting cut from the prose entirely. */}
+              {themes.length > 0 && (
+                <div className="mt-4">
+                  <p className="mb-1.5 text-[0.7rem] text-text-muted">What your code says about you</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {themes.map((theme) => (
+                      <span
+                        key={theme}
+                        className="rounded-full border border-border-strong bg-white/[0.03] px-2.5 py-1 text-[0.7rem] text-text-secondary"
+                      >
+                        {theme}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
 
               <label className="mt-4 flex cursor-pointer items-start gap-2 text-[0.75rem] text-text-muted">

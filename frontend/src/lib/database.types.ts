@@ -1880,6 +1880,7 @@ export type Database = {
           seen_repos: string[]
           showcase_repos: Json
           suggested_repos: Json
+          themes: Json
         }[]
       }
       get_my_github_status: {

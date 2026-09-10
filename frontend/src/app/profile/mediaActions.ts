@@ -479,6 +479,7 @@ export async function getMyGithubShowcase(): Promise<Result<GithubShowcase | nul
     showcaseRepos: (data.showcase_repos ?? null) as ShowcaseRepo[] | null,
     suggestedRepos: (data.suggested_repos ?? []) as AvailableRepo[],
     seenRepos: data.seen_repos ?? [],
+    themes: (data.themes ?? []) as string[],
   });
 }
 

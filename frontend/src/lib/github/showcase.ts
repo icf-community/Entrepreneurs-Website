@@ -29,6 +29,9 @@ export type GithubShowcase = {
   suggestedRepos: AvailableRepo[];
   /** Names already shown to this member; anything else gets a "New" chip. */
   seenRepos: string[];
+  /** Recurring technical themes the scan found, strongest-first. Shown as
+   *  tags — the breadth the shortened summary prose no longer has room for. */
+  themes: string[];
 };
 
 /** Client-side blurb cap. set_my_github_showcase truncates at the same
