@@ -148,6 +148,18 @@ export function GithubDialog({
     onSaved?.();
   }
 
+  // "saved" used to be a dead end — a static line with only the X to
+  // leave, so a member who'd just finished picking was stuck reading it
+  // until they noticed the close button. The regeneration itself is
+  // fire-and-forget (refresh_github_summary runs in the background, not
+  // polled here), so there's nothing to wait ON — closing on a timer
+  // reads as "done", not as abandoning an in-progress task.
+  useEffect(() => {
+    if (phase !== "saved") return;
+    const timeout = setTimeout(onClose, 2200);
+    return () => clearTimeout(timeout);
+  }, [phase, onClose]);
+
   return (
     <Dialog
       onClose={onClose}
@@ -207,10 +219,13 @@ export function GithubDialog({
       )}
 
       {phase === "saved" && (
-        <p className="text-[0.85rem] text-text-secondary">
-          Saved. These are what recruiters will see — we&apos;re updating your profile summary to
-          match, which takes a moment.
-        </p>
+        <div className="space-y-3">
+          <p className="text-[0.85rem] text-text-secondary">
+            Saved. These are what recruiters will see — updating your profile summary to match.
+          </p>
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-4/6" />
+        </div>
       )}
     </Dialog>
   );
