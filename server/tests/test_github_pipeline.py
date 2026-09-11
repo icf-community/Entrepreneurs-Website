@@ -211,6 +211,45 @@ def test_fetch_github_signal_candidate_order_favours_a_real_description_over_raw
     assert signal.top_repos[0]["name"] == "tiny-described-app"
 
 
+def test_fetch_github_signal_excludes_file_type_language_labels() -> None:
+    """Shell/YAML/Markdown/HCL are Linguist's primary-language guess for a
+    repo, not real skills — pushing them into member_skills(source='github')
+    just fails every match (C1 audit, 2026-09-11). Regression for the
+    _NON_SKILL_LANGUAGES filter in fetch_github_signal."""
+    repos = [
+        {
+            "name": "infra",
+            "full_name": "octocat/infra",
+            "description": "Terraform/HCL infra repo.",
+            "language": "HCL",
+            "stargazers_count": 0,
+            "fork": False,
+            "pushed_at": "2026-01-01T00:00:00Z",
+        },
+        {
+            "name": "dotfiles",
+            "full_name": "octocat/dotfiles",
+            "description": "Shell config.",
+            "language": "Shell",
+            "stargazers_count": 0,
+            "fork": False,
+            "pushed_at": "2025-01-01T00:00:00Z",
+        },
+        {
+            "name": "real-project",
+            "full_name": "octocat/real-project",
+            "description": "Actual code.",
+            "language": "Python",
+            "stargazers_count": 0,
+            "fork": False,
+            "pushed_at": "2024-01-01T00:00:00Z",
+        },
+    ]
+    with _no_repo_judging(), patch("app.github_pipeline.requests.get", return_value=_fake_response(200, repos)):
+        signal = fetch_github_signal("token", "octocat")
+    assert signal.languages == ["Python"]
+
+
 def test_fetch_github_signal_empty_repos_is_not_an_error() -> None:
     with _no_repo_judging(), patch("app.github_pipeline.requests.get", return_value=_fake_response(200, [])):
         signal = fetch_github_signal("token", "octocat")

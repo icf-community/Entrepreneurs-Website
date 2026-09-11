@@ -36,7 +36,7 @@ from .cv_pipeline import EXTRACTION_MODEL
 from .openai_client import client
 
 GITHUB_API = "https://api.github.com"
-SUMMARY_PROMPT_VERSION = "github-summary-v14"
+SUMMARY_PROMPT_VERSION = "github-summary-v15"
 PER_PAGE = 100
 # Hard cap, not a real pagination limit — a member with more than 300
 # owned repos is far outside what this feature needs to handle well, and
@@ -105,6 +105,15 @@ _CHARS_PER_TOKEN = 4
 # per USER TOKEN, so it is per-member and was never the constraint.
 _README_FETCH_WORKERS = 8
 _REQUEST_TIMEOUT_SECONDS = 15
+# GitHub's repo `language` field is Linguist's primary-language guess, which
+# includes file-type/markup labels alongside real programming languages.
+# These never belong in member_skills(source='github') — normalise_skills
+# matches them against cv_skills (a programming-skill taxonomy) and they
+# just fail every time (C1 audit, 2026-09-11: Shell x5, HCL, YAML, Markdown
+# all landed skill_id=NULL across the corpus). Filtered here, before
+# fetch_github_signal ever returns them, rather than seeded into the
+# taxonomy as if they were skills.
+_NON_SKILL_LANGUAGES = frozenset({"Shell", "YAML", "Markdown", "HCL"})
 
 
 class GithubScanError(Exception):
@@ -758,7 +767,7 @@ def fetch_github_signal(
     languages: list[str] = []
     for repo in sorted(repos, key=lambda r: r.get("pushed_at") or "", reverse=True):
         language = repo.get("language")
-        if language and language not in languages:
+        if language and language not in _NON_SKILL_LANGUAGES and language not in languages:
             languages.append(language)
 
     candidates = sorted(repos, key=_repo_impressiveness_score, reverse=True)[:REPO_CANDIDATE_LIMIT]
@@ -830,7 +839,9 @@ _SUMMARY_SCHEMA = {
             "description": (
                 "6-10 sentences, factual — no evaluative language, no ranking or "
                 "prestige comments about employers, no speculation about what roles "
-                "or jobs the person would be a good fit for. This text is embedded "
+                "or jobs the person would be a good fit for. Always write the "
+                "summary in English, regardless of what language the underlying CV "
+                "or profile data is in. This text is embedded "
                 "and used for semantic search/matching against job descriptions and "
                 "recruiter queries, so thoroughness and specificity matter: cover "
                 "the full breadth of what's evidenced across BOTH the CV and "

@@ -21,7 +21,7 @@ import psycopg
 from .openai_client import client
 
 EXTRACTION_MODEL = "gpt-5.4-mini"
-EXTRACTION_PROMPT_VERSION = "extract-v4"
+EXTRACTION_PROMPT_VERSION = "extract-v5"
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 # cv-matchmaker-spec.md, step 5: "accept above a cosine threshold (start
@@ -124,7 +124,9 @@ _PROFILE_SCHEMA = {
         "summary": {
             "type": "string",
             "description": (
-                "6-10 sentences, factual, no evaluative language. This text is "
+                "6-10 sentences, factual, no evaluative language. Always write "
+                "the summary in English, regardless of what language the CV "
+                "itself is written in — this text is "
                 "embedded and used for semantic search/matching against job "
                 "descriptions and recruiter queries, so thoroughness and "
                 "specificity matter: cover the full breadth of what's evidenced "
