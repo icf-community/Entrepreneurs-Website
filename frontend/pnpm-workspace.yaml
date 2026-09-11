@@ -27,9 +27,18 @@ overrides:
   postcss@<8.5.23: '^8.5.23'
   # Ships in production via next's image optimisation — the only entry here
   # not confined to build or test tooling. libvips CVE-2026-33327, -33328,
-  # -35590, -35591. ^0.35.0 pins to 0.35.x: a caret on a 0.x version bounds
-  # at the minor, which is the correct read for sharp's native bindings.
-  sharp@<0.35.0: '^0.35.0'
+  # -35590, -35591 (<0.35.0) plus the later libheif pair GHSA-g89c-p67h-r497
+  # / GHSA-2jg2-4ch7-h545 (<0.35.4). ^0.35.4 pins to 0.35.x: a caret on a
+  # 0.x version bounds at the minor, which is the correct read for sharp's
+  # native bindings.
+  sharp@<0.35.4: '^0.35.4'
+  # next@16.3.3 still declares baseline-browser-mapping as `^2.9.19`
+  # (unbumped upstream), so pnpm keeps resolving a second, vulnerable
+  # 2.10.x copy alongside browserslist's already-patched 2.11.19 rather
+  # than deduping to one. Process-termination DoS on invalid input
+  # (GHSA-w5vr-8v7q-w6rv, <2.11.0) — build-tool-only, never reaches the
+  # deployed app, but still worth collapsing to a single patched copy.
+  baseline-browser-mapping@<2.11.0: '^2.11.0'
   nanoid@<3.3.18: '^3.3.18'
   # Two majors of minimatch are in the tree and each needs its own line.
   # minimatch 3 cannot take brace-expansion 5 — different export shape.
@@ -60,18 +69,18 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
-  - '@next/env@16.2.12'
-  - '@next/eslint-plugin-next@16.2.12'
-  - '@next/swc-darwin-arm64@16.2.12'
-  - '@next/swc-darwin-x64@16.2.12'
-  - '@next/swc-linux-arm64-gnu@16.2.12'
-  - '@next/swc-linux-arm64-musl@16.2.12'
-  - '@next/swc-linux-x64-gnu@16.2.12'
-  - '@next/swc-linux-x64-musl@16.2.12'
-  - '@next/swc-win32-arm64-msvc@16.2.12'
-  - '@next/swc-win32-x64-msvc@16.2.12'
-  - eslint-config-next@16.2.12
-  - next@16.2.12
+  - '@next/env@16.3.3'
+  - '@next/eslint-plugin-next@16.3.3'
+  - '@next/swc-darwin-arm64@16.3.3'
+  - '@next/swc-darwin-x64@16.3.3'
+  - '@next/swc-linux-arm64-gnu@16.3.3'
+  - '@next/swc-linux-arm64-musl@16.3.3'
+  - '@next/swc-linux-x64-gnu@16.3.3'
+  - '@next/swc-linux-x64-musl@16.3.3'
+  - '@next/swc-win32-arm64-msvc@16.3.3'
+  - '@next/swc-win32-x64-msvc@16.3.3'
+  - eslint-config-next@16.3.3
+  - next@16.3.3
   - react-dom@19.2.7
   - react@19.2.7
   - '@posthog/browser-common@0.7.2'
