@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { storageStatePath } from "./fixtures";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { storageStatePath, USERS } from "./fixtures";
 
 // The full listing lifecycle through the real UI, against the ephemeral
 // Supabase: student submits -> it's pending in their submissions -> they edit
@@ -173,3 +174,142 @@ for (const kind of KINDS) {
     await expect(page.getByTestId("submission-row").filter({ hasText: revisedTitle })).toHaveCount(0);
   });
 }
+
+// ════════════════════════════════════════════════════════════════════
+// The two branches the happy path above doesn't reach: an admin
+// DECLINING a proposed revision, and a revision that changes nothing.
+// Seeds an already-approved event directly (same shape as admin.spec.ts's
+// bulk-listing fixture) rather than re-walking submit→approve, since that
+// round trip is already proven above.
+// ════════════════════════════════════════════════════════════════════
+
+const service = (): SupabaseClient =>
+  createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+test.describe("listing revision review · decline and no-op", () => {
+  let posterId = "";
+  let adminId = "";
+
+  test.beforeAll(async () => {
+    const admin = service();
+    const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    const poster = data.users.find((u) => u.email?.toLowerCase() === USERS.student.email.toLowerCase());
+    if (!poster) throw new Error("seeded e2e-student not found");
+    posterId = poster.id;
+    const adminUser = data.users.find((u) => u.email?.toLowerCase() === USERS.admin.email.toLowerCase());
+    if (!adminUser) throw new Error("seeded e2e-admin not found");
+    adminId = adminUser.id;
+  });
+
+  async function seedApprovedEvent(title: string): Promise<string> {
+    const admin = service();
+    const { data, error } = await admin
+      .from("events")
+      .insert({
+        status: "approved",
+        posted_by: posterId,
+        // events_approval_metadata requires both set whenever status is
+        // 'approved' — this bypasses the real approve_event RPC, so
+        // nothing else populates them.
+        approved_at: new Date().toISOString(),
+        approved_by: adminId,
+        title,
+        description: "Seeded directly for the revision-review decline/no-op test.",
+        luma_link: "https://lu.ma/e2e-revision-review",
+        // Floored to the minute: the edit form's datetime-local input has
+        // only minute precision, so a seed with seconds/ms would show as
+        // "changed" on a true no-op save purely from that round trip.
+        event_at: new Date(Math.floor((Date.now() + 45 * 86_400_000) / 60_000) * 60_000).toISOString(),
+        location: "South Kensington Campus",
+        organiser_name: "E2E Organiser",
+        contact_email: USERS.student.email,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`seed approved event failed: ${error.message}`);
+    return data!.id as string;
+  }
+
+  async function cleanup(eventId: string) {
+    const admin = service();
+    await admin.from("listing_edits").delete().eq("listing_id", eventId);
+    await admin.from("events").delete().eq("id", eventId);
+  }
+
+  test("declining a revision requires a reason, and leaves the live listing untouched", async ({ page, browser }) => {
+    test.setTimeout(60_000);
+    const title = `E2E Decline ${Date.now()}`;
+    const eventId = await seedApprovedEvent(title);
+
+    try {
+      await page.goto(`/events/${eventId}/edit`);
+      await page.getByLabel(/^Location/).fill("A venue that will be declined");
+      await page.getByRole("button", { name: "Submit changes for review" }).click();
+      await expect(page.getByText("Your changes are with an admin")).toBeVisible();
+
+      const adminCtx = await browser.newContext({ storageState: storageStatePath("admin") });
+      const adminPage = await adminCtx.newPage();
+      await adminPage.goto("/admin/edits");
+      // Exactly one revision is ever pending in this describe block (each
+      // test seeds, then cleans up, its own single event), so page-level
+      // locators are unambiguous without scoping through the card's div.
+      await expect(adminPage.getByText(title)).toBeVisible();
+      await expect(adminPage.getByText("Time / place changed")).toBeVisible();
+
+      // Empty reason: declineEdit's server-side guard rejects it — there is
+      // no client-side `required`, so the round trip itself is the check.
+      await adminPage.getByRole("button", { name: "Decline", exact: true }).click();
+      await expect(adminPage.getByRole("button", { name: "Decline changes" })).toBeVisible();
+      await adminPage.getByRole("button", { name: "Decline changes" }).click();
+      await expect(adminPage.getByText("A reason is required so the organiser knows what to change.")).toBeVisible();
+
+      const reason = "Please check with campus security about that venue first.";
+      await adminPage.getByLabel(/Why\?/).fill(reason);
+      await adminPage.getByRole("button", { name: "Decline changes" }).click();
+      await expect(adminPage.getByText(title)).toHaveCount(0);
+      await adminCtx.close();
+
+      const admin = service();
+      const { data: liveEvent } = await admin.from("events").select("location").eq("id", eventId).single();
+      expect(liveEvent?.location).toBe("South Kensington Campus");
+
+      const { data: editRow } = await admin
+        .from("listing_edits")
+        .select("status, reject_reason")
+        .eq("listing_id", eventId)
+        .single();
+      expect(editRow?.status).toBe("rejected");
+      expect(editRow?.reject_reason).toBe(reason);
+
+      await expect(page.getByText("changes pending review", { exact: false })).toHaveCount(0);
+    } finally {
+      await cleanup(eventId);
+    }
+  });
+
+  test("a revision that changes nothing is flagged as a no-op in the admin queue", async ({ page, browser }) => {
+    test.setTimeout(60_000);
+    const title = `E2E NoOp ${Date.now()}`;
+    const eventId = await seedApprovedEvent(title);
+
+    try {
+      // Save without touching any field.
+      await page.goto(`/events/${eventId}/edit`);
+      await page.getByRole("button", { name: "Submit changes for review" }).click();
+      await expect(page.getByText("Your changes are with an admin")).toBeVisible();
+
+      const adminCtx = await browser.newContext({ storageState: storageStatePath("admin") });
+      const adminPage = await adminCtx.newPage();
+      await adminPage.goto("/admin/edits");
+      await expect(adminPage.getByText(title)).toBeVisible();
+      await expect(
+        adminPage.getByText("Nothing differs from the published version. Approving is harmless; declining is tidier."),
+      ).toBeVisible();
+      await adminCtx.close();
+    } finally {
+      await cleanup(eventId);
+    }
+  });
+});
