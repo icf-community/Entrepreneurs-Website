@@ -58,6 +58,10 @@ export type ScreenProps = {
    *  confirming the same account, not a second thing being asked for. */
   existingGithubUrl: string | null;
   github: GithubScreenState;
+  /** Kill switch (20260911000003) — false pauses only the LLM/worker-job
+   *  side of CV upload and GitHub connect; file storage and OAuth
+   *  recording stay unaffected either way. */
+  ingestionEnabled: boolean;
 };
 
 /** Everything the GitHub screen needs, owned by IntakeFlow so screens.tsx
@@ -290,7 +294,7 @@ export function YoureInScreen({ s, firstName, matches }: ScreenProps & { matches
 
 // ─── 02 · CV ─────────────────────────────────────────────────────────
 
-export function CvScreen({ s, patch, existingCv, role, existingLinkedin }: ScreenProps) {
+export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingestionEnabled }: ScreenProps) {
   const linkedinId = useId();
   const consentId = useId();
   const alreadyUploaded = !s.cvFile && s.cvUploadedKey && s.cvOriginalFilename;
@@ -346,22 +350,29 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin }: Scree
       </Field>
 
       {s.cvFile && (
-        <label htmlFor={consentId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
-          <input
-            id={consentId}
-            type="checkbox"
-            checked={s.cvConsent}
-            onChange={(e) => patch({ cvConsent: e.target.checked })}
-            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
-          />
-          <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
-            Read my CV to suggest skills to add on the next screen and generate a summary
-            recruiters can search to find me. The extracted text and summary are stored and used
-            to help match me to relevant opportunities. You can leave this unticked and add
-            skills yourself instead — but recruiters won&apos;t be able to find you through CV
-            matching.
-          </span>
-        </label>
+        ingestionEnabled ? (
+          <label htmlFor={consentId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
+            <input
+              id={consentId}
+              type="checkbox"
+              checked={s.cvConsent}
+              onChange={(e) => patch({ cvConsent: e.target.checked })}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
+            />
+            <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
+              Read my CV to suggest skills to add on the next screen and generate a summary
+              recruiters can search to find me. The extracted text and summary are stored and used
+              to help match me to relevant opportunities. You can leave this unticked and add
+              skills yourself instead — but recruiters won&apos;t be able to find you through CV
+              matching.
+            </span>
+          </label>
+        ) : (
+          <p className="rounded-lg border border-border-strong bg-white/[0.03] p-4 text-[0.8rem] leading-[1.6] text-text-muted">
+            CV-based skill matching is temporarily paused — your file is still saved, and you can
+            add skills yourself on the next screen instead.
+          </p>
+        )
       )}
 
       <Field
@@ -404,7 +415,7 @@ function githubHandle(url: string | null): string | null {
   return match ? match[1] : null;
 }
 
-export function GithubScreen({ existingGithubUrl, github }: ScreenProps) {
+export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: ScreenProps) {
   const knownHandle = githubHandle(existingGithubUrl);
 
   if (github.connected && github.saved) {
@@ -446,6 +457,21 @@ export function GithubScreen({ existingGithubUrl, github }: ScreenProps) {
           saving={github.saving}
           onSave={github.onSave}
         />
+      </div>
+    );
+  }
+
+  if (!ingestionEnabled) {
+    return (
+      <div className="space-y-4">
+        <Lead>
+          Optional. If you write code, connecting GitHub lets recruiters see what you&apos;ve actually
+          built — not just what your CV says.
+        </Lead>
+        <p className="text-[0.85rem] text-text-muted">
+          GitHub connections are temporarily paused — check back soon, or connect any time later
+          from your profile.
+        </p>
       </div>
     );
   }

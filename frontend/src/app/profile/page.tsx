@@ -15,7 +15,7 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [profileRes, skillTaxonomy, sectors, selected, isAdminRes, cvInfoRes, githubStatusRes] = await Promise.all([
+  const [profileRes, skillTaxonomy, sectors, selected, isAdminRes, cvInfoRes, githubStatusRes, ingestionEnabledRes] = await Promise.all([
     supabase
       .from("profiles")
       .select(`
@@ -33,6 +33,10 @@ export default async function ProfilePage() {
     supabase.rpc("is_admin"),
     supabase.rpc("get_my_cv_info").maybeSingle(),
     supabase.rpc("get_my_github_status").maybeSingle(),
+    // Kill switch (20260911000003) — gates only the LLM/worker-job side of
+    // CV upload and GitHub connect, not the base file storage / OAuth
+    // recording, so those stay reachable even while this is false.
+    supabase.rpc("github_cv_ingestion_enabled"),
   ]);
 
   const profile = profileRes.data;
@@ -55,6 +59,7 @@ export default async function ProfilePage() {
   } | null;
 
   const githubStatus = githubStatusRes.data;
+  const ingestionEnabled = !!ingestionEnabledRes.data;
 
   return (
     <AppShell
@@ -100,6 +105,7 @@ export default async function ProfilePage() {
             githubUsername={githubStatus?.github_username ?? null}
             githubScanStatus={githubStatus?.scan_status ?? null}
             githubScanFailureReason={githubStatus?.scan_failure_reason ?? null}
+            ingestionEnabled={ingestionEnabled}
             currentFocus={profile.current_focus ?? ""}
             ventureStage={profile.venture_stage ?? ""}
             ventureName={profile.venture_name ?? ""}

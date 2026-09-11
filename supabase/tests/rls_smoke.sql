@@ -787,6 +787,10 @@ declare
     'listing_has_pending_edit','get_my_pending_listing_edit',
     'admin_list_listing_edits','admin_apply_listing_edit',
     'admin_reject_listing_edit','admin_update_listing',
+    -- ingestion kill switch (20260911000003) — read by the two RPCs above
+    -- and by the intake/profile server pages to decide whether to show the
+    -- GitHub-connect/CV-upload entry points at all.
+    'github_cv_ingestion_enabled',
     -- this test's OWN role-impersonation helper (created near the top of this
     -- file, dropped in cleanup below). Not an app RPC — it only exists during
     -- the test run, where Supabase default privileges make it anon-callable;
@@ -2552,6 +2556,126 @@ begin
     raise exception
       'FAIL: get_my_cv_profile returned % copies of a skill matched from two sources, want 1',
       v_match_count;
+  end if;
+end;
+$$;
+
+-- ─── 36. Ingestion kill switch: gates the job, not the storage ────────
+-- (20260911000003). Deliberately NOT posting_enabled's raise-an-exception
+-- shape: confirm_cv_upload/confirm_github_connected must still succeed and
+-- still do their storage/connection write while the switch is off — only
+-- the ingest_cv / scan_github job insert is suppressed. See that
+-- migration's header for why (raising would also roll back the unrelated,
+-- pre-existing storage write in the same transaction).
+do $$
+declare
+  v_m           uuid := gen_random_uuid();
+  v_key         text;
+  v_cv_count    int;
+  v_ingest_before int;
+  v_ingest_after  int;
+  v_scan_before   int;
+  v_scan_after    int;
+  v_cv_path     text;
+  v_gh_status   text;
+begin
+  set local role postgres;
+  -- The previous test block left request.jwt.claims set to a non-admin
+  -- member — tg_profiles_protect_status (20260531000003) rejects a
+  -- status-setting INSERT/UPDATE without service_role or is_admin(), so
+  -- this has to be explicit rather than assumed left over from above.
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_m, 'kill-switch@imperial.ac.uk',
+          '{"first_name":"K","surname":"Switch","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb)
+  on conflict do nothing;
+  insert into public.profiles (id, role, status, first_name, surname, course, grad_year)
+  values (v_m, 'student', 'approved', 'K', 'Switch', 'MEng Computing', 2027)
+  on conflict (id) do update set
+    status     = excluded.status,
+    course     = excluded.course,
+    grad_year  = excluded.grad_year;
+
+  update public.app_config set value = 'false' where key = 'github_cv_ingestion_enabled';
+
+  -- 36a. confirm_cv_upload: storage still happens, ingest job does not.
+  select count(*) into v_ingest_before from public.jobs where kind = 'ingest_cv';
+
+  perform _set_caller(v_m);
+  v_key := public.issue_upload_ticket('cv');
+  perform public.confirm_cv_upload(v_key, 'switch-test.pdf', true);
+  set local role postgres;
+
+  select cv_path into v_cv_path from public.profiles where id = v_m;
+  select count(*) into v_cv_count from public.cvs where member_id = v_m;
+  select count(*) into v_ingest_after from public.jobs where kind = 'ingest_cv';
+
+  if v_cv_path is distinct from v_key then
+    raise exception 'FAIL: confirm_cv_upload did not store cv_path while the kill switch was off';
+  end if;
+  if v_cv_count <> 0 then
+    raise exception 'FAIL: confirm_cv_upload opened a cvs row while the kill switch was off';
+  end if;
+  if v_ingest_after <> v_ingest_before then
+    raise exception 'FAIL: confirm_cv_upload enqueued an ingest_cv job while the kill switch was off';
+  end if;
+
+  -- 36b. confirm_github_connected: connection still recorded, scan job does not.
+  select count(*) into v_scan_before from public.jobs where kind = 'scan_github';
+
+  perform _set_caller(v_m);
+  perform public.confirm_github_connected(123456789, 'kill-switch-octocat', 'fake-token', 'test-encryption-key-not-real');
+  set local role postgres;
+
+  select scan_status into v_gh_status from public.github_connections where member_id = v_m;
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+
+  if v_gh_status is distinct from 'pending' then
+    raise exception 'FAIL: confirm_github_connected did not record the connection while the kill switch was off';
+  end if;
+  if v_scan_after <> v_scan_before then
+    raise exception 'FAIL: confirm_github_connected enqueued a scan_github job while the kill switch was off';
+  end if;
+
+  -- 36b2. enqueue_github_rescans (20260911000004) self-heals a connection
+  -- stranded 'pending' by the switch, but only once it's old enough —
+  -- immediately after connecting it must NOT be swept up (that would
+  -- double-enqueue a connection whose job is just about to land once the
+  -- switch flips back on for real usage, not this synthetic gap).
+  perform public.enqueue_github_rescans();
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+  if v_scan_after <> v_scan_before then
+    raise exception 'FAIL: enqueue_github_rescans swept up a freshly-stranded pending connection too early';
+  end if;
+
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  update public.github_connections
+     set connected_at = now() - interval '1 hour'
+   where member_id = v_m;
+  perform public.enqueue_github_rescans();
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+  if v_scan_after <> v_scan_before + 1 then
+    raise exception 'FAIL: enqueue_github_rescans did not self-heal a connection stranded % minutes ago',
+      extract(epoch from interval '1 hour') / 60;
+  end if;
+
+  -- 36c. Flip back on: the same two RPCs resume enqueuing, proving the
+  -- suppression above was the switch and not some other break.
+  update public.app_config set value = 'true' where key = 'github_cv_ingestion_enabled';
+
+  perform _set_caller(v_m);
+  v_key := public.issue_upload_ticket('cv');
+  perform public.confirm_cv_upload(v_key, 'switch-test-2.pdf', true);
+  set local role postgres;
+
+  select count(*) into v_cv_count from public.cvs where member_id = v_m;
+  select count(*) into v_ingest_after from public.jobs where kind = 'ingest_cv';
+  if v_cv_count <> 1 then
+    raise exception 'FAIL: confirm_cv_upload did not open a cvs row once the kill switch was back on';
+  end if;
+  if v_ingest_after <> v_ingest_before + 1 then
+    raise exception 'FAIL: confirm_cv_upload did not enqueue an ingest_cv job once the kill switch was back on';
   end if;
 end;
 $$;

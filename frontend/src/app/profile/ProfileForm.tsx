@@ -67,6 +67,10 @@ type Props = {
   githubUsername: string | null;
   githubScanStatus: string | null;
   githubScanFailureReason: string | null;
+  /** Kill switch (20260911000003) — false pauses only the LLM/worker-job
+   *  side of CV upload and GitHub connect; file storage and OAuth
+   *  recording stay unaffected either way. */
+  ingestionEnabled: boolean;
   currentFocus: string;
   ventureStage: string;
   ventureName: string;
@@ -277,12 +281,14 @@ export default function ProfileForm(props: Props) {
         uploadedAt={props.cvUploadedAt}
         hasCv={props.hasCv}
         onSuggested={(ids) => setSuggestedSkillIds((prev) => [...prev, ...ids])}
+        ingestionEnabled={props.ingestionEnabled}
       />
 
       <GithubSection
         username={props.githubUsername}
         scanStatus={props.githubScanStatus as GithubScanStatus | null}
         scanFailureReason={props.githubScanFailureReason}
+        ingestionEnabled={props.ingestionEnabled}
       />
 
       <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
@@ -564,12 +570,13 @@ async function pollForSuggestions(onSuggested: (ids: number[]) => void): Promise
 }
 
 function CvSection({
-  originalFilename, uploadedAt, hasCv, onSuggested,
+  originalFilename, uploadedAt, hasCv, onSuggested, ingestionEnabled,
 }: {
   originalFilename: string | null;
   uploadedAt: string | null;
   hasCv: boolean;
   onSuggested: (ids: number[]) => void;
+  ingestionEnabled: boolean;
 }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
@@ -691,20 +698,26 @@ function CvSection({
           />
           {file && (
             <>
-              <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
-                <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(e) => setConsent(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
-                />
-                <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
-                  Read my CV to suggest skills to add above and generate a
-                  searchable summary of my background. The extracted text
-                  and summary are stored and used to help match me to
-                  relevant opportunities.
-                </span>
-              </label>
+              {ingestionEnabled ? (
+                <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
+                  <input
+                    type="checkbox"
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
+                  />
+                  <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
+                    Read my CV to suggest skills to add above and generate a
+                    searchable summary of my background. The extracted text
+                    and summary are stored and used to help match me to
+                    relevant opportunities.
+                  </span>
+                </label>
+              ) : (
+                <p className="mt-3 rounded-lg border border-border-strong bg-white/[0.03] p-4 text-[0.8rem] leading-[1.6] text-text-muted">
+                  CV-based skill matching is temporarily paused — your file will still be saved.
+                </p>
+              )}
               <Button type="button" onClick={upload} loading={uploading} variant="primary" size="md" className="mt-3">
                 Upload CV
               </Button>
@@ -721,11 +734,12 @@ function CvSection({
 }
 
 function GithubSection({
-  username, scanStatus, scanFailureReason,
+  username, scanStatus, scanFailureReason, ingestionEnabled,
 }: {
   username: string | null;
   scanStatus: GithubScanStatus | null;
   scanFailureReason: string | null;
+  ingestionEnabled: boolean;
 }) {
   const searchParams = useSearchParams();
   const [connected, setConnected] = useState(!!username);
@@ -961,10 +975,14 @@ function GithubSection({
             </div>
           )}
         </div>
-      ) : (
+      ) : ingestionEnabled ? (
         <Button type="button" onClick={connect} loading={connecting} variant="primary" size="md">
           Connect GitHub
         </Button>
+      ) : (
+        <p className="text-[0.8rem] text-text-muted">
+          GitHub connections are temporarily paused — check back soon.
+        </p>
       )}
 
       {dialog && (

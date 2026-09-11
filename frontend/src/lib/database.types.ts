@@ -1956,6 +1956,7 @@ export type Database = {
           liked_by_me: boolean
         }[]
       }
+      github_cv_ingestion_enabled: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_approved: { Args: never; Returns: boolean }
       is_imperial_email: { Args: { p_email: string }; Returns: boolean }

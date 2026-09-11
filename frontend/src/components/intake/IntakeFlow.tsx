@@ -90,6 +90,7 @@ export default function IntakeFlow({
   existingCv,
   existingGithubUrl,
   githubConnected,
+  ingestionEnabled,
 }: {
   memberId: string;
   firstName: string;
@@ -102,6 +103,10 @@ export default function IntakeFlow({
   existingCv: ExistingCv | null;
   existingGithubUrl: string | null;
   githubConnected: boolean;
+  /** Kill switch (20260911000003) — false pauses only the LLM/worker-job
+   *  side of CV upload and GitHub connect; file storage and OAuth
+   *  recording stay unaffected either way. */
+  ingestionEnabled: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -644,7 +649,7 @@ export default function IntakeFlow({
     s, patch, firstName, skillTaxonomy, sectors,
     avatarUploading, avatarError, onCropAvatar, existingCv,
     role, existingLinkedin, suggestionsLoading, suggestionsGaveUp, rejectingCv, onRejectCv: rejectCv,
-    existingGithubUrl,
+    existingGithubUrl, ingestionEnabled,
     github: {
       connected: ghConnected,
       scanning: ghScanning,
