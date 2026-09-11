@@ -251,11 +251,17 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
             "update public.cvs set raw_text = %s, raw_text_hash = %s where id = %s",
             (sanitised.raw_text, sanitised.raw_text_hash, cv_id),
         )
+        # The exists() matters: a ready cv row can itself be a prior
+        # hash-match target with no cv_profiles of its own (currency was
+        # pointed at it, not created for it). Reactivating onto such a
+        # row leaves nothing for update_cv_currency to mark current,
+        # silently orphaning is_current on every cv_profiles row.
         cur.execute(
             """
-            select id from public.cvs
-             where member_id = %s and raw_text_hash = %s and status = 'ready' and id != %s
-             order by created_at desc
+            select c.id from public.cvs c
+             where c.member_id = %s and c.raw_text_hash = %s and c.status = 'ready' and c.id != %s
+               and exists (select 1 from public.cv_profiles cp where cp.cv_id = c.id)
+             order by c.created_at desc
              limit 1
             """,
             (member_id, sanitised.raw_text_hash, cv_id),

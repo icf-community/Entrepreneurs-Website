@@ -17,6 +17,8 @@ import pytest
 
 from app import worker
 from app.cv_pipeline import SkillMatch
+from app.cv_sanitise import SanitisedCv
+from app.documents import ValidatedDocument
 from app.github_pipeline import GithubScanError
 from app.worker import (
     _apply_effective_showcase,
@@ -150,6 +152,55 @@ def test_refresh_combined_summary_is_a_noop_when_profile_missing() -> None:
         _refresh_combined_summary(member_id, cv_id, {"languages": []})
 
     fake_synth.assert_not_called()
+
+
+# ─── process_ingest_cv hash-match reactivation ──────────────────────────
+# A re-uploaded, byte-identical CV must reactivate onto a ready cv row
+# that actually owns extraction data — not one that is itself an
+# orphaned hash-match target with no cv_profiles row of its own, which
+# would leave nothing for update_cv_currency to mark current and
+# silently break summary regeneration for every cv_profiles row.
+
+
+def test_process_ingest_cv_hash_match_query_excludes_orphaned_currency_targets() -> None:
+    cv_id = uuid.uuid4()
+    member_id = uuid.uuid4()
+    existing_cv_id = uuid.uuid4()
+
+    lookup_cur = _cursor_mock(fetchone_return=(member_id, "blob-key"))
+    mime_cur = _cursor_mock()
+    hash_cur = _cursor_mock(fetchone_return=(existing_cv_id,))
+
+    connections = [
+        _connection_cm(_conn_mock(lookup_cur)),  # select member_id, blob_key
+        _connection_cm(_conn_mock(MagicMock())),  # _set_cv_status("extracting")
+        _connection_cm(_conn_mock(mime_cur)),  # mime_type update inside _sanitise_cv
+        _connection_cm(_conn_mock(hash_cur)),  # raw_text update + hash-match select
+    ]
+
+    sanitised = SanitisedCv(raw_text="text", raw_text_hash="hash", flagged=False)
+    validated = ValidatedDocument(data=b"bytes", content_type="application/pdf", extension="pdf")
+
+    fake_settings = MagicMock()
+    fake_settings.containers = {"cv": "member-cvs"}
+
+    with (
+        patch("app.worker.connection", side_effect=connections),
+        patch("app.worker.settings", return_value=fake_settings),
+        patch("app.worker.get_blob", return_value=b"bytes"),
+        patch("app.worker.sanitise_document", return_value=validated),
+        patch("app.worker.sanitise_cv", return_value=sanitised),
+        patch("app.worker._reactivate_hash_match") as fake_reactivate,
+        patch("app.worker.moderate_cv") as fake_moderate,
+    ):
+        worker.process_ingest_cv(cv_id)
+
+    fake_reactivate.assert_called_once()
+    assert fake_reactivate.call_args.args[3] == existing_cv_id
+    fake_moderate.assert_not_called()
+
+    sql = hash_cur.execute.call_args_list[-1].args[0]
+    assert "exists (select 1 from public.cv_profiles cp where cp.cv_id = c.id)" in sql
 
 
 # ─── _revert_to_cv_only_summary ──────────────────────────────────────────
