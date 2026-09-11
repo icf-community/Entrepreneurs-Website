@@ -2492,6 +2492,70 @@ begin
 end;
 $$;
 
+-- ─── 35. get_my_cv_profile: skills are deduplicated across sources ────
+-- member_skills holds one row per (member, source, skill) — a skill
+-- found on both the CV and GitHub resolves to the same cv_skills row
+-- via two DIFFERENT member_skills rows (source='cv' and source='github').
+-- get_my_cv_profile's array_agg must still surface it once, not twice
+-- (20260911000002 — found as a duplicate-key React warning that was
+-- really a duplicate-data bug).
+do $$
+declare
+  v_m            uuid := gen_random_uuid();
+  v_cv           uuid := gen_random_uuid();
+  v_skill        uuid;
+  v_dummy        vector(1536) := (select ('[' || string_agg('0', ',') || ']')::vector
+                                     from generate_series(1, 1536));
+  v_skills       text[];
+  v_match_count  int;
+begin
+  set local role postgres;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_m, 'dedup-skills@imperial.ac.uk',
+          '{"first_name":"D","surname":"Skills","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb)
+  on conflict do nothing;
+  insert into public.profiles (id, role, status, first_name, surname, course, grad_year)
+  values (v_m, 'student', 'approved', 'D', 'Skills', 'MEng Computing', 2027)
+  on conflict (id) do update set
+    status     = excluded.status,
+    course     = excluded.course,
+    grad_year  = excluded.grad_year;
+
+  insert into public.cvs (id, member_id, blob_key, status, is_current)
+  values (v_cv, v_m, 'dedup-skills.pdf', 'ready', true);
+  insert into public.cv_profiles (cv_id, is_current, profile, summary, model_name, prompt_version)
+  values (v_cv, true, '{}'::jsonb, 'A summary.', 'test-model', 'test-v1');
+
+  insert into public.cv_skills (canonical_name, embedding)
+  values ('Python (rls_smoke dedup fixture)', v_dummy)
+  on conflict (canonical_name) do nothing
+  returning id into v_skill;
+  if v_skill is null then
+    select id into v_skill from public.cv_skills where canonical_name = 'Python (rls_smoke dedup fixture)';
+  end if;
+
+  -- Same canonical skill, reached from both signals — exactly what a
+  -- member with Python on their CV and among their GitHub languages
+  -- produces.
+  insert into public.member_skills (member_id, skill_id, raw_text, confidence, source)
+  values
+    (v_m, v_skill, 'Python', 1.0,  'cv'),
+    (v_m, v_skill, 'Python', 0.95, 'github');
+
+  perform _set_caller(v_m);
+  select skills into v_skills from public.get_my_cv_profile();
+  set local role none;
+
+  select count(*) into v_match_count
+    from unnest(v_skills) s where s = 'Python (rls_smoke dedup fixture)';
+  if v_match_count <> 1 then
+    raise exception
+      'FAIL: get_my_cv_profile returned % copies of a skill matched from two sources, want 1',
+      v_match_count;
+  end if;
+end;
+$$;
+
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
 -- above), so reset to the owner role before dropping the helper function.
