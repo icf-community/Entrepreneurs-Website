@@ -57,11 +57,15 @@ folded into the same CV skill/summary pipeline. It is a separate process from th
 purpose: a pathological CV must never be able to stall someone else's upload. Run it in a second
 terminal, alongside `uvicorn app.main:app --reload`, never instead of it.
 
-It needs everything the gateway needs (Azure storage config — it calls `storage.py`/`documents.py`/
-`cv_sanitise.py` unchanged) plus three worker-only vars, all fail-loud via `config.worker_settings()`:
+It does NOT need the gateway's full env — `UPLOAD_TICKET_SECRET`/`SERVICE_TOKEN`/`ALLOWED_ORIGINS` exist
+only to verify/serve HTTP requests, which this process never does. It does need `AZURE_STORAGE_ACCOUNT`
+(`config.storage_account()`, shared with the gateway — Storage access is via the VM's managed identity,
+so this is an identifier, not a secret) plus its own vars, all fail-loud via `config.worker_settings()`:
 
 | Variable | Notes |
 |---|---|
+| `AZURE_STORAGE_ACCOUNT` | Same value as the gateway's — not a secret, Storage access is via managed identity |
+| `AZURE_CV_CONTAINER` | The one blob container this process ever reads (member-uploaded CVs) — not a secret, just an identifier |
 | `DATABASE_URL` | Direct Postgres connection. Local Supabase: `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
 | `OPENAI_API_KEY` | Used for moderation, extraction, and embedding calls. Not `server/.env`'s key — see below |
 | `GITHUB_TOKEN_ENCRYPTION_KEY` | Decrypts `github_connections.access_token_encrypted` (pgcrypto `pgp_sym_decrypt`). Must be the exact same value as the Next.js app's `GITHUB_TOKEN_ENCRYPTION_KEY` (it's what encrypted the token in the first place) — never persisted in the database itself |

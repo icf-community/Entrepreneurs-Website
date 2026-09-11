@@ -21,7 +21,7 @@ from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, ContentSettings
 
-from .config import settings
+from .config import storage_account
 
 
 class BlobAlreadyExists(Exception):
@@ -30,9 +30,8 @@ class BlobAlreadyExists(Exception):
 
 @lru_cache(maxsize=1)
 def _service() -> BlobServiceClient:
-    cfg = settings()
     return BlobServiceClient(
-        f"https://{cfg.storage_account}.blob.core.windows.net",
+        f"https://{storage_account()}.blob.core.windows.net",
         credential=DefaultAzureCredential(),
         # The SDK default (20s) is unbounded enough to matter here: every
         # call through this client now runs inside asyncio.to_thread from

@@ -39,7 +39,19 @@ ExecStartPre=-/usr/bin/docker rm -f foundry-worker-%i
 # GITHUB_TOKEN_ENCRYPTION_KEY (see server/README.md and app/config.py's
 # WorkerSettings). SENTRY_DSN is optional — absent means errors are logged
 # only, never a placeholder DSN.
+#
+# --no-healthcheck: server/Dockerfile bakes in a HEALTHCHECK that polls
+# 127.0.0.1:8000/health — right for the gateway's gunicorn process, but
+# this container's CMD is overridden to `python -m app.worker`, which
+# binds no port at all. Without this flag `docker ps`/`docker inspect`
+# would show every worker instance stuck "unhealthy" forever (Docker
+# doesn't drop the image's HEALTHCHECK just because CMD is overridden),
+# which is noise at best and a false alarm for anything watching
+# container health at worst. systemd's own `Restart=always` plus
+# `foundry-worker-release.sh`'s `systemctl is-active` check are the real
+# liveness signals for this unit, same as they already were.
 ExecStart=/usr/bin/docker run --rm --name foundry-worker-%i \
+  --no-healthcheck \
   --env-file /etc/foundry/worker.env \
   --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   --cap-drop=ALL --security-opt=no-new-privileges \

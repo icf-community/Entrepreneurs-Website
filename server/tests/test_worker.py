@@ -182,11 +182,11 @@ def test_process_ingest_cv_hash_match_query_excludes_orphaned_currency_targets()
     validated = ValidatedDocument(data=b"bytes", content_type="application/pdf", extension="pdf")
 
     fake_settings = MagicMock()
-    fake_settings.containers = {"cv": "member-cvs"}
+    fake_settings.cv_container = "member-cvs"
 
     with (
         patch("app.worker.connection", side_effect=connections),
-        patch("app.worker.settings", return_value=fake_settings),
+        patch("app.worker.worker_settings", return_value=fake_settings),
         patch("app.worker.get_blob", return_value=b"bytes"),
         patch("app.worker.sanitise_document", return_value=validated),
         patch("app.worker.sanitise_cv", return_value=sanitised),

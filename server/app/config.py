@@ -30,7 +30,6 @@ def _required(name: str) -> str:
 class Settings:
     upload_ticket_secret: str
     service_token: str
-    storage_account: str
     # One container per upload purpose ("post_image" / "profile_picture" /
     # "cv" — see auth.TicketPurpose for the authoritative type). Not typed
     # against that Literal here: auth.py imports settings() from this
@@ -47,11 +46,21 @@ class Settings:
 
 
 @lru_cache(maxsize=1)
+def storage_account() -> str:
+    """The Azure Storage account name — not a secret (Storage access is via
+    the VM's managed identity, never a key), just an identifier, so it's
+    its own cached lookup rather than a `Settings`/`WorkerSettings` field.
+    Both the gateway (via storage.py) and the worker need it, and neither
+    needs the other's unrelated required config just to build this URL.
+    """
+    return _required("AZURE_STORAGE_ACCOUNT")
+
+
+@lru_cache(maxsize=1)
 def settings() -> Settings:
     return Settings(
         upload_ticket_secret=_required("UPLOAD_TICKET_SECRET"),
         service_token=_required("SERVICE_TOKEN"),
-        storage_account=_required("AZURE_STORAGE_ACCOUNT"),
         containers={
             "post_image": _required("AZURE_BLOB_CONTAINER"),
             "profile_picture": _required("AZURE_AVATAR_CONTAINER"),
@@ -87,6 +96,12 @@ class WorkerSettings:
     # encrypted there with pgcrypto's pgp_sym_encrypt. Never persisted in
     # the database itself. See 20260907000001_github_signal.sql.
     github_token_encryption_key: str
+    # The only blob container the worker ever touches (process_ingest_cv
+    # reads member-uploaded CVs via storage.get_blob). Not the full
+    # Settings.containers dict — that would also demand
+    # UPLOAD_TICKET_SECRET/SERVICE_TOKEN/ALLOWED_ORIGINS, none of which
+    # this process uses (it never verifies a ticket or serves a request).
+    cv_container: str
 
 
 @lru_cache(maxsize=1)
@@ -95,4 +110,5 @@ def worker_settings() -> WorkerSettings:
         openai_api_key=_required("OPENAI_API_KEY"),
         database_url=_required("DATABASE_URL"),
         github_token_encryption_key=_required("GITHUB_TOKEN_ENCRYPTION_KEY"),
+        cv_container=_required("AZURE_CV_CONTAINER"),
     )

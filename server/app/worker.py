@@ -8,10 +8,13 @@ stalling extraction must never be able to stall a request everyone else
 is waiting on, and a single polling process with a concurrency cap of one
 job at a time is the minimum acceptable shape for that.
 
-Needs both the gateway's existing env (Azure storage config — this module
-calls into storage.py/documents.py/cv_sanitise.py exactly as they already
-exist, unchanged) and the two worker-only vars added in config.py:
-OPENAI_API_KEY and DATABASE_URL. See server/README.md.
+Deliberately does NOT need the gateway's full env — see config.WorkerSettings'
+own docstring for why UPLOAD_TICKET_SECRET/SERVICE_TOKEN/ALLOWED_ORIGINS
+would be pointless here. It does need AZURE_STORAGE_ACCOUNT (config.storage_account,
+shared with the gateway — Storage access is via the VM's managed identity, so
+this is an identifier, not a secret) plus WorkerSettings' own vars
+(OPENAI_API_KEY, DATABASE_URL, GITHUB_TOKEN_ENCRYPTION_KEY, AZURE_CV_CONTAINER).
+See server/README.md.
 """
 
 from __future__ import annotations
@@ -27,7 +30,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from . import cv_pipeline, github_pipeline
-from .config import settings, worker_settings
+from .config import worker_settings
 from .cv_pipeline import SkillMatch
 from .cv_sanitise import ExtractionFailed, SanitisedCv, UnsupportedContentType, sanitise_cv
 from .db import connection
@@ -239,7 +242,7 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
         raise RuntimeError(f"cvs row {cv_id} not found")
     member_id, blob_key = row
 
-    cv_container = settings().containers["cv"]
+    cv_container = worker_settings().cv_container
 
     _set_cv_status(cv_id, "extracting")
     sanitised = _sanitise_cv(cv_id, cv_container, blob_key)

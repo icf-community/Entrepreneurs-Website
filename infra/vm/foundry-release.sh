@@ -9,6 +9,12 @@
 # call this rather than each carrying their own copy, so the two paths
 # cannot drift apart.
 #
+# Gateway-only. Until this session, the ingest worker instances also ran
+# on this VM and this script restarted them too — the worker now runs on
+# its own VM (foundry-worker), with its own release script
+# (foundry-worker-release.sh), so that logic moved rather than staying
+# here as dead weight restarting units that no longer exist on this host.
+#
 # Prints "FOUNDRY_DEPLOY_OK <ref>" on the last line ONLY when the gateway is
 # confirmed healthy afterwards. `az vm run-command invoke` reports success
 # as soon as the script is delivered — it does not surface the script's own
@@ -35,25 +41,6 @@ fi
 echo "==> restarting"
 systemctl restart foundry-gateway
 
-# The ingest worker instances share the gateway's image, so a deploy that
-# restarted only the gateway would leave them running the previous build
-# indefinitely. Each traps SIGTERM and finishes its current job first
-# (ExecStop uses `docker stop -t 90`), so this is a drain, not a cut.
-#
-# Enumerated from systemd rather than hardcoded, so changing the instance
-# count stays a `systemctl enable` away and never needs this script edited.
-WORKERS="$(systemctl list-units --plain --no-legend 'foundry-worker@*.service' | awk '{print $1}')"
-if [ -n "$WORKERS" ]; then
-  echo "==> restarting workers: $WORKERS"
-  # Sequential, not `systemctl restart $WORKERS`: one at a time keeps at
-  # least one worker draining the queue throughout the deploy.
-  for unit in $WORKERS; do
-    systemctl restart "$unit"
-  done
-else
-  echo "==> no worker instances enabled (systemctl enable --now foundry-worker@1)"
-fi
-
 echo "==> health check"
 for _ in $(seq 1 10); do
   if curl -fsS --max-time 5 localhost:8000/health 2>/dev/null | grep -q '"ok"'; then
@@ -66,8 +53,3 @@ done
 echo "gateway did not become healthy within 10s. Recent logs:" >&2
 journalctl -u foundry-gateway -n 40 --no-pager >&2
 exit 1
-
-# No HTTP health gate for the workers: they listen on nothing, so there is
-# no endpoint to poll. Their liveness check is `systemctl is-active
-# foundry-worker@N` plus "the queue is draining" — i.e. `jobs` not
-# accumulating rows stuck in 'pending'.
