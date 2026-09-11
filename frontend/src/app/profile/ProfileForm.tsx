@@ -622,7 +622,9 @@ function CvSection({
       // pipeline (moderation, extraction, skill normalisation,
       // chunk+embed — cv-matchmaker-spec.md) when consent is ticked, same
       // gate as the suggestion prefill above — see privacy policy section
-      // 2a. This dialog watches it finish and shows the generated summary.
+      // 2a. This dialog watches it finish and shows the matched skills
+      // (the generated summary itself is stored but never shown to the
+      // member — it's recruiter-facing only).
       if (consent) setShowProcessingDialog(true);
     } catch {
       setError("Couldn't reach the file service. Try again in a moment.");

@@ -150,10 +150,6 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
 
       {!loadFailed && status === "ready" && profile && (
         <div className="space-y-4">
-          <section>
-            <div className="mb-1.5 text-[0.7rem] uppercase tracking-wider text-text-muted">Summary</div>
-            <p className="whitespace-pre-wrap text-[0.85rem] leading-relaxed text-text-secondary">{profile.summary}</p>
-          </section>
           {profile.skills.length > 0 && (
             <section>
               <div className="mb-2 text-[0.7rem] uppercase tracking-wider text-text-muted">Skills detected</div>
