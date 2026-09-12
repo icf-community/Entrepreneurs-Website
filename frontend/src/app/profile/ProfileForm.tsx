@@ -277,6 +277,7 @@ export default function ProfileForm(props: Props) {
       <PhotoSection avatarUrl={props.avatarUrl} />
 
       <CvSection
+        role={props.role}
         originalFilename={props.cvOriginalFilename}
         uploadedAt={props.cvUploadedAt}
         hasCv={props.hasCv}
@@ -570,8 +571,9 @@ async function pollForSuggestions(onSuggested: (ids: number[]) => void): Promise
 }
 
 function CvSection({
-  originalFilename, uploadedAt, hasCv, onSuggested, ingestionEnabled,
+  role, originalFilename, uploadedAt, hasCv, onSuggested, ingestionEnabled,
 }: {
+  role: Affiliation;
   originalFilename: string | null;
   uploadedAt: string | null;
   hasCv: boolean;
@@ -586,6 +588,11 @@ function CvSection({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [showProcessingDialog, setShowProcessingDialog] = useState(false);
+  // A student's CV is compulsory (screens.tsx's cvRequired mirrors this) —
+  // they can replace it but never remove it down to nothing, so "change"
+  // and "remove" are two different actions only alumni ever see both of.
+  const [changing, setChanging] = useState(false);
+  const canRemove = role !== "student";
 
   const upload = async () => {
     if (!file) return;
@@ -617,6 +624,7 @@ function CvSection({
       setPresent(true);
       setFilename(file.name);
       setFile(null);
+      setChanging(false);
       router.refresh();
 
       // Extraction runs in the background (mediaActions.confirmCvUpload's
@@ -666,25 +674,44 @@ function CvSection({
       </p>
       {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
-      {present && !file ? (
-        <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
+      {present && !file && !changing ? (
+        <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
             CV
           </span>
-          <span className="min-w-0 flex-1">
+          {/* min-w-[9rem]: three buttons (alumni) previously squeezed this
+              column hard enough to truncate the filename to "My_…" and wrap
+              "Uploaded …" onto a colliding second line — found by actually
+              looking at a rendered screenshot, not from reading the JSX. */}
+          <span className="min-w-[9rem] flex-1">
             <span className="block truncate text-[0.85rem] text-text-primary">{filename ?? "Your CV"}</span>
             {uploadedAt && (
-              <span className="block text-[0.75rem] text-text-muted">
-                Uploaded {new Date(uploadedAt).toLocaleDateString()}
+              <span className="block truncate text-[0.75rem] text-text-muted">
+                Uploaded {new Date(uploadedAt).toLocaleDateString("en-GB", {
+                  day: "numeric", month: "short", year: "numeric",
+                })}
               </span>
             )}
           </span>
-          <button type="button" onClick={download} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
-            Download
-          </button>
-          <button type="button" onClick={remove} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080]">
-            Remove
-          </button>
+          {/* Grouped so the three buttons wrap onto their own line as a unit
+              on a narrow container, rather than each one individually
+              fighting the filename column for space. */}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={download} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
+              Download
+            </button>
+            <button type="button" onClick={() => setChanging(true)} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
+              Change CV
+            </button>
+            {/* Students' CVs are required (screens.tsx's cvRequired) — removing
+                down to nothing isn't offered to them at all, and the RPC itself
+                also refuses it, so this is UX clarity, not the enforcement. */}
+            {canRemove && (
+              <button type="button" onClick={remove} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080]">
+                Remove CV
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <>
@@ -696,6 +723,15 @@ function CvSection({
             onPick={setFile}
             onClear={() => setFile(null)}
           />
+          {changing && (
+            <button
+              type="button"
+              onClick={() => { setChanging(false); setFile(null); setError(""); }}
+              className="mt-2 cursor-pointer text-[0.775rem] text-text-muted underline decoration-dotted underline-offset-2 hover:text-text-secondary"
+            >
+              Cancel — keep my current CV
+            </button>
+          )}
           {file && (
             <>
               {ingestionEnabled ? (
