@@ -62,6 +62,7 @@ pre-*-schema.sql
 # history either. The scripts that do the actual work are tracked under
 # infra/ and server/ — this is just the narrative of where things ended up.
 production-runbook.md
+domain-change.md
 
 # `.local.` names a file as a personal/dev-only artifact by convention
 # (mirrors .env.local). scripts/seed-ux.local.mjs hardcodes Supabase's
