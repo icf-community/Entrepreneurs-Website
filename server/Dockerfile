@@ -11,7 +11,12 @@ FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+# upgrade, not just install: the base image's OS packages are whatever
+# the python:3.12-slim-bookworm snapshot shipped with, and Debian ships
+# CVE fixes as point-release package updates. Trivy scans this image in
+# CI (HIGH/CRITICAL fails the build) and has caught this gap before.
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
