@@ -27,6 +27,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 
@@ -35,7 +36,11 @@ import requests
 from .cv_pipeline import EXTRACTION_MODEL
 from .openai_client import client
 
-GITHUB_API = "https://api.github.com"
+# Overridable only for the B2.8 load-test harness (server/scripts/b28_load_test.py),
+# which points a real worker subprocess at a local mock server so it exercises the
+# real claim/dispatch path rather than an in-process monkeypatch. Default is
+# unchanged in every other context, including production.
+GITHUB_API = os.environ.get("GITHUB_API_BASE", "https://api.github.com")
 SUMMARY_PROMPT_VERSION = "github-summary-v15"
 PER_PAGE = 100
 # Hard cap, not a real pagination limit — a member with more than 300
