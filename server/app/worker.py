@@ -132,7 +132,60 @@ def _finish_job(job_id: uuid.UUID) -> None:
         cur.execute("update public.jobs set status = 'done' where id = %s", (job_id,))
 
 
-def _fail_job(job_id: uuid.UUID, attempts: int, max_attempts: int, error: str) -> None:
+def _backstop_dead_letter_status(kind: str, payload: dict, error: str) -> None:
+    """Last-resort safety net for exactly one failure shape: an EXPECTED,
+    named exception (ExtractionError, GithubScanError, ...) already sets a
+    clear member-visible terminal status at its own call site, immediately,
+    without waiting through 5 retries — this backstop is not that.
+
+    This exists for the UNNAMED case: any exception this worker doesn't
+    specifically recognise (a raw OpenAI SDK error, a network blip that
+    outlasts every retry, a future bug) currently propagates straight
+    through process_ingest_cv/process_scan_github uncaught. Before this,
+    that left cvs.status or github_connections.scan_status stuck at a
+    non-terminal value ('embedding'/'scanning') FOREVER once the job
+    dead-lettered — no terminal state was ever written, so
+    CvProcessingDialog.tsx's poll loop (no cutoff of its own) would show
+    "processing" to the member indefinitely, with the actual failure
+    visible only as a jobs.status='dead' row nothing surfaces to them.
+
+    Only fires once every retry is exhausted (called from the dead-letter
+    branch below), and only flips a status that is still non-terminal —
+    it must never overwrite a real, already-correct outcome (e.g. a
+    'ready'/'flagged' CV, or a 'ready' scan) that a benign race left
+    sitting alongside a job that failed for an unrelated reason."""
+    if kind == "ingest_cv":
+        cv_id = payload.get("cv_id")
+        if cv_id is None:
+            return
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                update public.cvs set status = 'failed', failure_reason = %s
+                 where id = %s and status not in ('ready', 'flagged', 'failed')
+                """,
+                (error[:2000], cv_id),
+            )
+    elif kind == "scan_github":
+        member_id = payload.get("member_id")
+        if member_id is None:
+            return
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                update public.github_connections
+                   set scan_status = 'failed', scan_failure_reason = %s, scan_failure_transient = false
+                 where member_id = %s and scan_status not in ('ready', 'failed')
+                """,
+                (error[:2000], member_id),
+            )
+    # refresh_github_summary has no in-progress marker of its own (nothing
+    # sets a "refreshing" status before it runs), so there is no stuck
+    # non-terminal state for it to strand — dead-lettering it just means
+    # the summary silently stays as it was, not a visible infinite wait.
+
+
+def _fail_job(job_id: uuid.UUID, kind: str, payload: dict, attempts: int, max_attempts: int, error: str) -> None:
     """Dead-letters after max_attempts — cv-matchmaker-spec.md's "dead-
     letter state after N failures", with an admin view left as a later,
     separate build (not needed to prove the pipeline itself works)."""
@@ -143,6 +196,7 @@ def _fail_job(job_id: uuid.UUID, attempts: int, max_attempts: int, error: str) -
                 "update public.jobs set status = 'dead', attempts = %s, last_error = %s where id = %s",
                 (next_attempts, error[:2000], job_id),
             )
+            _backstop_dead_letter_status(kind, payload, error)
         else:
             delay = BACKOFF_BASE_SECONDS**next_attempts
             cur.execute(
@@ -286,7 +340,23 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
         return
 
     _set_cv_status(cv_id, "embedding")
-    extraction = cv_pipeline.extract_profile(sanitised.raw_text)
+    # A schema-conformant response isn't guaranteed just because Structured
+    # Outputs was requested — an occasional malformed/incomplete response is
+    # a real, expected failure mode (cv_pipeline.ExtractionError), not a bug.
+    # Before this, an ExtractionError propagated uncaught: the job retried
+    # and eventually dead-lettered (admin-visible only), but `cvs.status`
+    # was left stuck at 'embedding' forever — no terminal state, so
+    # CvProcessingDialog.tsx (no poll-count cutoff of its own) would show
+    # "processing" to the member indefinitely, with zero indication
+    # anything had failed and zero path to recovery. Treated the same as a
+    # moderation/sanitisation failure: a clear, immediate, member-visible
+    # 'failed' status they can see and act on (re-upload) right away.
+    try:
+        extraction = cv_pipeline.extract_profile(sanitised.raw_text)
+    except cv_pipeline.ExtractionError as exc:
+        log.warning("cv %s extraction failed: %s", cv_id, exc)
+        _set_cv_status(cv_id, "failed", failure_reason=str(exc))
+        return
 
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
@@ -685,7 +755,7 @@ def run_once() -> bool:
     except Exception as exc:  # noqa: BLE001 — any failure here is a retryable job failure
         log.exception("job %s (%s) failed", job_id, kind)
         _capture(exc)
-        _fail_job(job_id, attempts, max_attempts, str(exc))
+        _fail_job(job_id, kind, payload, attempts, max_attempts, str(exc))
         return True
 
     _finish_job(job_id)
