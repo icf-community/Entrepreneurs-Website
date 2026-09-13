@@ -22,7 +22,7 @@
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "mammoth": "^1.11.0",
-    "next": "16.2.12",
+    "next": "16.3.3",
     "posthog-js": "^1.427.1",
     "react": "19.2.7",
     "react-dom": "19.2.7",
@@ -41,11 +41,11 @@
     "@types/three": "^0.185.4",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9.39.4",
-    "eslint-config-next": "16.2.12",
+    "eslint-config-next": "16.3.3",
     "supabase": "2.105.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   }
 }
