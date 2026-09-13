@@ -2648,6 +2648,11 @@ begin
     raise exception 'FAIL: enqueue_github_rescans swept up a freshly-stranded pending connection too early';
   end if;
 
+  -- 36b3. (20260913000001) Even once the connection IS old enough, the
+  -- self-heal must not fire while the switch is still off — that would
+  -- re-create the exact job the switch is suppressing. This is the
+  -- adversarial-audit finding: the pre-fix body swept this up regardless
+  -- of switch state.
   set local role postgres;
   perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
   update public.github_connections
@@ -2655,14 +2660,21 @@ begin
    where member_id = v_m;
   perform public.enqueue_github_rescans();
   select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
-  if v_scan_after <> v_scan_before + 1 then
-    raise exception 'FAIL: enqueue_github_rescans did not self-heal a connection stranded % minutes ago',
-      extract(epoch from interval '1 hour') / 60;
+  if v_scan_after <> v_scan_before then
+    raise exception 'FAIL: enqueue_github_rescans self-healed a stranded pending connection while the kill switch was still off';
   end if;
 
   -- 36c. Flip back on: the same two RPCs resume enqueuing, proving the
-  -- suppression above was the switch and not some other break.
+  -- suppression above was the switch and not some other break — and the
+  -- now-old-enough stranded connection from 36b3 finally heals on this
+  -- same tick, proving the switch being back on is what unblocks it.
   update public.app_config set value = 'true' where key = 'github_cv_ingestion_enabled';
+
+  perform public.enqueue_github_rescans();
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+  if v_scan_after <> v_scan_before + 1 then
+    raise exception 'FAIL: enqueue_github_rescans did not self-heal a stranded pending connection once the kill switch was back on';
+  end if;
 
   perform _set_caller(v_m);
   v_key := public.issue_upload_ticket('cv');
