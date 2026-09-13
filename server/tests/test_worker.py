@@ -489,6 +489,92 @@ def test_process_scan_github_does_not_mark_dead_token_as_retryable() -> None:
     )
 
 
+# ─── _refresh_combined_summary failures reached from process_scan_github /
+# process_ingest_cv ────────────────────────────────────────────────────
+# Both parent jobs already committed their own terminal state (scan_status /
+# cvs.status = 'ready') before calling _refresh_combined_summary, so a
+# summary-only failure must not fail the parent job — that would either be
+# wasted retries (process_ingest_cv) or, for process_scan_github specifically,
+# a retry that's silently a no-op once the fingerprint is unchanged. A
+# retryable failure instead falls back to a cheap refresh_github_summary job.
+
+
+def _fake_signal(**overrides):
+    signal = MagicMock()
+    signal.unchanged = False
+    signal.languages = []
+    signal.available_repos = []
+    signal.fingerprint = "fp"
+    signal.as_signal_dict.return_value = {}
+    for key, value in overrides.items():
+        setattr(signal, key, value)
+    return signal
+
+
+def test_process_scan_github_summary_refresh_failure_does_not_fail_the_scan_job() -> None:
+    member_id = uuid.uuid4()
+    cv_id = uuid.uuid4()
+    row_cur = _cursor_mock(fetchone_return=("token", "octocat", None, None))
+    block_cur = _cursor_mock(fetchone_return=(cv_id,))
+
+    with (
+        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(row_cur)), _connection_cm(_conn_mock(block_cur))]),
+        patch("app.worker.worker_settings") as fake_settings,
+        patch("app.worker._set_github_status"),
+        patch("app.worker.github_pipeline.fetch_github_signal", return_value=_fake_signal()),
+        patch("app.worker.cv_pipeline.normalise_skills", return_value=[]),
+        patch("app.worker._replace_member_skills"),
+        patch(
+            "app.worker._refresh_combined_summary",
+            side_effect=GithubScanError("OpenAI rate limit exceeded", retryable_by_rescan=True),
+        ),
+        patch("app.worker._enqueue_refresh_summary_retry") as fake_enqueue,
+    ):
+        fake_settings.return_value.github_token_encryption_key = "test-key"
+        process_scan_github(member_id)  # must not raise
+
+    fake_enqueue.assert_called_once_with(member_id)
+
+
+def test_process_scan_github_summary_refresh_failure_not_retryable_skips_enqueue() -> None:
+    member_id = uuid.uuid4()
+    cv_id = uuid.uuid4()
+    row_cur = _cursor_mock(fetchone_return=("token", "octocat", None, None))
+    block_cur = _cursor_mock(fetchone_return=(cv_id,))
+
+    with (
+        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(row_cur)), _connection_cm(_conn_mock(block_cur))]),
+        patch("app.worker.worker_settings") as fake_settings,
+        patch("app.worker._set_github_status"),
+        patch("app.worker.github_pipeline.fetch_github_signal", return_value=_fake_signal()),
+        patch("app.worker.cv_pipeline.normalise_skills", return_value=[]),
+        patch("app.worker._replace_member_skills"),
+        patch(
+            "app.worker._refresh_combined_summary",
+            side_effect=GithubScanError("Model returned no content"),
+        ),
+        patch("app.worker._enqueue_refresh_summary_retry") as fake_enqueue,
+    ):
+        fake_settings.return_value.github_token_encryption_key = "test-key"
+        process_scan_github(member_id)  # must not raise
+
+    fake_enqueue.assert_not_called()
+
+
+def test_enqueue_refresh_summary_retry_is_deduped_by_member_and_kind() -> None:
+    member_id = uuid.uuid4()
+    cur = _cursor_mock()
+
+    with patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(cur))]):
+        worker._enqueue_refresh_summary_retry(member_id)
+
+    sql, params = cur.execute.call_args.args
+    assert "insert into public.jobs" in sql
+    assert "'refresh_github_summary'" in sql
+    assert "not exists" in sql
+    assert params == (str(member_id), str(member_id))
+
+
 # ─── Loop-level failure handling ─────────────────────────────────────
 # A job failure is protected by _fail_job (backoff, then dead-letter). A
 # failure to reach the queue at all — DB down, pooler dropped, creds

@@ -406,7 +406,15 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
         github_row = cur.fetchone()
 
     if github_row is not None and github_row[0] is not None:
-        _refresh_combined_summary(member_id, cv_id, github_row[0])
+        try:
+            _refresh_combined_summary(member_id, cv_id, github_row[0])
+        except github_pipeline.GithubScanError as exc:
+            # cvs.status is already committed 'ready' above — don't let a
+            # summary-only failure retry/dead-letter the whole (expensive)
+            # ingest job over it. See _enqueue_refresh_summary_retry.
+            log.warning("combined summary refresh failed for member %s during cv ingest: %s", member_id, exc)
+            if exc.retryable_by_rescan:
+                _enqueue_refresh_summary_retry(member_id)
 
 
 def _set_github_status(
@@ -475,6 +483,34 @@ def _apply_effective_showcase(member_id: uuid.UUID, github_signal: dict) -> dict
             for pick in picks
         ],
     }
+
+
+def _enqueue_refresh_summary_retry(member_id: uuid.UUID) -> None:
+    """Cheap, deduped fallback for a transient _refresh_combined_summary
+    failure reached from process_ingest_cv/process_scan_github: those
+    jobs' own success (cvs.status / github_connections.scan_status) is
+    already durably committed by the time this runs, so retrying the
+    whole parent job would be wasted work at best — and for
+    process_scan_github specifically, an unchanged fingerprint on retry
+    means the summary refresh wouldn't even run again, silently losing
+    the retry entirely. Enqueuing the already-existing, much cheaper
+    refresh_github_summary job (no GitHub traffic, one LLM call) gives
+    this a real, self-healing retry path instead. Same dedup shape as
+    confirm_github_connected's own job insert."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            insert into public.jobs (kind, payload)
+            select 'refresh_github_summary', jsonb_build_object('member_id', %s::uuid)
+             where not exists (
+               select 1 from public.jobs j
+                where j.kind = 'refresh_github_summary'
+                  and j.status in ('pending', 'running')
+                  and (j.payload->>'member_id')::uuid = %s::uuid
+             )
+            """,
+            (str(member_id), str(member_id)),
+        )
 
 
 def _refresh_combined_summary(member_id: uuid.UUID, cv_id: uuid.UUID, github_signal: dict) -> None:
@@ -680,7 +716,17 @@ def process_scan_github(member_id: uuid.UUID) -> None:
     # closes the picker without choosing is never left without a summary,
     # and every state is self-healing on the next scan.
     if current_cv is not None:
-        _refresh_combined_summary(member_id, current_cv[0], signal.as_signal_dict())
+        try:
+            _refresh_combined_summary(member_id, current_cv[0], signal.as_signal_dict())
+        except github_pipeline.GithubScanError as exc:
+            # scan_status is already committed 'ready' above — don't let a
+            # summary-only failure retry/dead-letter the whole scan job over
+            # it (a retry here would also be a silent no-op once the
+            # fingerprint's unchanged, since the branch above short-circuits
+            # before ever reaching this call). See _enqueue_refresh_summary_retry.
+            log.warning("combined summary refresh failed for member %s during github scan: %s", member_id, exc)
+            if exc.retryable_by_rescan:
+                _enqueue_refresh_summary_retry(member_id)
 
 
 def process_refresh_github_summary(member_id: uuid.UUID) -> None:

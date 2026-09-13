@@ -11,9 +11,11 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import httpx2
 import pytest
 
 import requests
+from openai import RateLimitError
 
 from app.github_pipeline import (
     EXCLUSION_EXCERPT_CHARS,
@@ -409,6 +411,15 @@ def _fake_chat_response(content: str | None) -> SimpleNamespace:
     return SimpleNamespace(choices=[choice])
 
 
+def _fake_rate_limit_error() -> RateLimitError:
+    """A RateLimitError as the OpenAI SDK actually raises it — used to
+    test the same treatment GithubScanError already gives GitHub's own
+    primary rate limit (see _create_chat_completion)."""
+    request = httpx2.Request("POST", "https://api.openai.com/v1/chat/completions")
+    response = httpx2.Response(429, request=request, json={"error": {"message": "rate limited"}})
+    return RateLimitError("rate limited", response=response, body=None)
+
+
 # ─── _classify_exclusions ────────────────────────────────────────────────
 # Deliberately its own, narrow call (see the module comment above
 # _EXCLUSION_SCHEMA) — a single mega-prompt that tried to do exclusion AND
@@ -440,6 +451,21 @@ def test_classify_exclusions_fails_open_when_model_returns_no_content() -> None:
     with patch("app.github_pipeline.client", return_value=fake_client):
         excluded = _classify_exclusions(candidates)
     assert excluded == set()
+
+
+def test_classify_exclusions_converts_rate_limit_to_retryable_scan_error() -> None:
+    """A RateLimitError that survives the OpenAI SDK's own internal
+    retries must become a GithubScanError(retryable_by_rescan=True) —
+    same treatment GithubScanError already gives GitHub's own primary
+    rate limit — so the connection is picked back up by the hourly
+    enqueue_github_rescans() cron instead of dead-lettering permanently."""
+    candidates = [{"name": "a", "description": None, "readme_excerpt": None}]
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.side_effect = _fake_rate_limit_error()
+    with patch("app.github_pipeline.client", return_value=fake_client):
+        with pytest.raises(GithubScanError) as exc_info:
+            _classify_exclusions(candidates)
+    assert exc_info.value.retryable_by_rescan is True
 
 
 # ─── _select_impressive_repos ───────────────────────────────────────────
@@ -497,6 +523,21 @@ def test_select_impressive_repos_fails_open_when_model_returns_no_content() -> N
         judgment = _select_impressive_repos(candidates)
     assert judgment.selected == candidates
     assert judgment.themes == []
+
+
+def test_select_impressive_repos_converts_rate_limit_to_retryable_scan_error() -> None:
+    """Same guard as _classify_exclusions, for the depth-judgment call —
+    see test_classify_exclusions_converts_rate_limit_to_retryable_scan_error."""
+    candidates = [{"name": "a", "description": "A real project with substantive content.", "language": "Python", "stargazers_count": 0}]
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.side_effect = [
+        _fake_chat_response(json.dumps({"excluded": []})),
+        _fake_rate_limit_error(),
+    ]
+    with patch("app.github_pipeline.client", return_value=fake_client):
+        with pytest.raises(GithubScanError) as exc_info:
+            _select_impressive_repos(candidates)
+    assert exc_info.value.retryable_by_rescan is True
 
 
 def test_select_impressive_repos_respects_a_deliberate_empty_selection() -> None:

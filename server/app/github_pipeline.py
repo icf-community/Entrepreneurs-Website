@@ -32,6 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 
 import requests
+from openai import RateLimitError
 
 from .cv_pipeline import EXTRACTION_MODEL
 from .openai_client import client
@@ -389,6 +390,25 @@ _EXCLUSION_SCHEMA = {
 }
 
 
+def _create_chat_completion(**kwargs):
+    """Wraps client().chat.completions.create with the same treatment
+    GithubScanError already gives GitHub's own primary rate limit (see its
+    docstring) — the OpenAI SDK retries a 429 internally (default
+    max_retries=2) before ever raising, so a RateLimitError reaching here
+    means that already failed. Without this, it would fall through to the
+    job queue's own exponential backoff and, once max_attempts is
+    exhausted, dead-letter the scan permanently (scan_failure_transient
+    left false) — indistinguishable from a genuinely broken account and
+    requiring the member to manually reconnect for what was actually a
+    transient capacity issue. retryable_by_rescan=True instead lets the
+    already-hourly enqueue_github_rescans() cron pick it back up on its
+    own, exactly as it does for GitHub's rate limit."""
+    try:
+        return client().chat.completions.create(**kwargs)
+    except RateLimitError as exc:
+        raise GithubScanError(f"OpenAI rate limit exceeded: {exc}", retryable_by_rescan=True) from exc
+
+
 def _classify_exclusions(candidates: list[dict]) -> set[str]:
     """Stage 1 — see the module comment above for why this is separate from
     depth-judgment. Fails open (excludes nothing) on any parse issue, since
@@ -410,7 +430,7 @@ def _classify_exclusions(candidates: list[dict]) -> set[str]:
         }
         for repo in candidates
     ]
-    response = client().chat.completions.create(
+    response = _create_chat_completion(
         model=EXTRACTION_MODEL,
         messages=[
             {"role": "system", "content": _EXCLUSION_INSTRUCTIONS},
@@ -714,7 +734,7 @@ def _select_impressive_repos(candidates: list[dict], profile_readme: str | None 
 
     _guard_prompt_size(user_content)
 
-    response = client().chat.completions.create(
+    response = _create_chat_completion(
         model=EXTRACTION_MODEL,
         messages=[
             {"role": "system", "content": _REPO_SELECTION_INSTRUCTIONS},
@@ -918,7 +938,7 @@ def synthesize_combined_summary(profile: dict, github_signal: dict) -> str:
     job, this time with GitHub evidence folded in. Only the summary text
     is regenerated — education/roles/projects/skills_raw are untouched,
     so the caller only needs to re-embed the one 'summary' chunk."""
-    response = client().chat.completions.create(
+    response = _create_chat_completion(
         model=EXTRACTION_MODEL,
         messages=[
             {"role": "system", "content": _SUMMARY_INSTRUCTIONS},
