@@ -6,6 +6,7 @@ import { markedIds } from "@/lib/data/activity";
 import { approvedVc } from "@/lib/data/vcs";
 import { formatDate } from "@/lib/dates";
 import VcActions from "./VcActions";
+import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One VC or grant
@@ -43,7 +44,10 @@ export default async function VcPage({ params }: { params: Promise<Params> }) {
     );
   }
 
-  const appliedIds = await markedIds(supabase, "vc_grant", "applied");
+  const [appliedIds, revisionPending] = await Promise.all([
+    markedIds(supabase, "vc_grant", "applied"),
+    hasPendingRevision(supabase, "vc_grant", id),
+  ]);
 
   const kindLabel = v.kind === "vc" ? "VC" : "Grant";
   const posterName = `${v.postedBy.firstName} ${v.postedBy.surname}`.trim();
@@ -59,6 +63,8 @@ export default async function VcPage({ params }: { params: Promise<Params> }) {
       title={v.name}
       meta={[kindLabel, v.amount, v.stage, deadlineLabel].filter(Boolean).join(" · ")}
     >
+      {revisionPending && <PendingRevisionNotice noun="listing" />}
+
       <Description text={v.description} />
 
       <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2">

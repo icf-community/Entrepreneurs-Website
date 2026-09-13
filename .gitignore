@@ -62,6 +62,8 @@ pre-*-schema.sql
 # history either. The scripts that do the actual work are tracked under
 # infra/ and server/ — this is just the narrative of where things ended up.
 production-runbook.md
+domain-change.md
+Two-week-plan.md
 
 # `.local.` names a file as a personal/dev-only artifact by convention
 # (mirrors .env.local). scripts/seed-ux.local.mjs hardcodes Supabase's
@@ -71,5 +73,13 @@ production-runbook.md
 *.local.mjs
 *.local.js
 *.local.ts
+
+# Same convention, for SQL. supabase/snippets/reset_to_admin_only.local.sql
+# is the destructive prod clear-down with the real admin address filled in;
+# the tracked reset_to_admin_only.sql keeps REDACTED-ADMIN-EMAIL. This repo
+# is public, so a real address must never reach its history — and a wipe
+# script that already names the one account to spare is a loaded gun to
+# leave lying in a public repo besides.
+*.local.sql
 
 azure-clerk-migration-playbook.md

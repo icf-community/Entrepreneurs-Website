@@ -1,6 +1,6 @@
 import "server-only";
 import { rows, type Db } from "./query";
-import { withAvatarUrls, type DirectoryMember } from "./directory";
+import type { DirectoryMember } from "./directory";
 import type { Affiliation } from "@/lib/intake/steps";
 
 // ════════════════════════════════════════════════════════════════════
@@ -52,8 +52,22 @@ function toCommitteeMember(r: CommitteeRow): Omit<CommitteeMember, "avatarUrl"> 
   };
 }
 
+/**
+ * /committee is the one gallery visible to a signed-out visitor, so unlike
+ * the members-only directory (withAvatarUrls, an hourly-expiring Azure SAS
+ * minted per render) this points at the stable /api/img redirect
+ * (B3.4) — no Azure round trip here, and the URL itself is cacheable
+ * since it never changes for a given avatar.
+ */
+function withStableAvatarUrls(members: Omit<CommitteeMember, "avatarUrl">[]): CommitteeMember[] {
+  return members.map((m) => ({
+    ...m,
+    avatarUrl: m.avatarPath ? `/api/img/profile_picture/${encodeURIComponent(m.avatarPath)}` : null,
+  }));
+}
+
 /** Everyone currently on committee, for the /committee gallery. */
 export async function committeeMembers(db: Db): Promise<CommitteeMember[]> {
   const data = await rows("list_committee_cards", () => db.rpc("list_committee_cards"));
-  return withAvatarUrls(data.map(toCommitteeMember));
+  return withStableAvatarUrls(data.map(toCommitteeMember));
 }

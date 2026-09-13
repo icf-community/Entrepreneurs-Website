@@ -5,6 +5,7 @@ import { AddToCalendarMenu } from "@/components/AddToCalendarMenu";
 import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import type { FoundryEvent } from "@/lib/data/events";
+import { externalHref } from "@/lib/safeUrl";
 
 // The browser-side half of /events/[id]: the RSVP click-through, the
 // calendar menu, the going pill — and the mailto in the facts grid, which
@@ -29,7 +30,7 @@ export default function EventActions({
   return (
     <div className="flex flex-wrap items-start gap-2">
       <a
-        href={ev.lumaLink}
+        href={externalHref(ev.lumaLink)}
         target="_blank"
         rel="noreferrer noopener"
         onClick={() => recordListingEvent("event", ev.id, "external_click")}

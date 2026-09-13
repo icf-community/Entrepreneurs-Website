@@ -41,7 +41,7 @@ export default async function AdminPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-px border border-border bg-border md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-px border border-border bg-border md:grid-cols-2 lg:grid-cols-5">
           <QueueLink
             href="/admin/users"
             title="Pending alumni profiles"
@@ -65,6 +65,12 @@ export default async function AdminPage() {
             title="Pending VCs / grants"
             count={counts.vcs}
             hint="Review queue"
+          />
+          <QueueLink
+            href="/admin/edits"
+            title="Proposed changes"
+            count={counts.edits}
+            hint="Edits to live listings"
           />
         </div>
 

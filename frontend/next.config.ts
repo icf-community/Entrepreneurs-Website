@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
+import { STATIC_CSP_ROUTES, buildStaticCsp } from "./src/lib/csp";
 
 const securityHeaders = [
   {
@@ -57,6 +58,18 @@ const nextConfig: NextConfig = {
         source: `/${segment}`,
         headers: [{ key: "Cache-Control", value: "no-store" }],
       })),
+      // Pure-content public pages. proxy.ts's matcher skips these, so no
+      // middleware runs on them at all — which means no per-request nonce
+      // and, more to the point, no supabase.auth.getUser() round trip on
+      // every anonymous view. The CSP therefore has to come from here
+      // instead, or these pages would ship with no policy at all.
+      //
+      // See buildStaticCsp for exactly what is weaker about this policy
+      // and why it is confined to these three routes.
+      ...STATIC_CSP_ROUTES.map((route) => ({
+        source: route,
+        headers: [{ key: "Content-Security-Policy", value: buildStaticCsp() }],
+      })),
     ];
   },
 };
@@ -72,6 +85,8 @@ export default withSentryConfig(nextConfig, {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   silent: true,
   widenClientFileUpload: true,
-  disableLogger: true,
-  automaticVercelMonitors: true,
+  webpack: {
+    treeshake: { removeDebugLogging: true },
+    automaticVercelMonitors: true,
+  },
 });

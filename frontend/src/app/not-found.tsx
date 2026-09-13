@@ -3,6 +3,28 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/BrandLogo";
 import Starfield from "@/components/Starfield";
 
+// KNOWN CAVEAT (2026-09-08, C2 Finding 6) — read before "fixing" this.
+//
+// This page is prerendered, so it carries no CSP nonce, while the
+// middleware stamps every unmatched path with the STRICT nonce +
+// strict-dynamic policy (a 404 can be any URL, so it cannot be listed in
+// csp.ts's STATIC_CSP_ROUTES). Under strict-dynamic our own
+// /_next/static bundle has no nonce and is blocked, so on a 404 the
+// markup paints and every link works — they are real anchors — but the
+// starfield does not animate and the console shows CSP violations.
+//
+// Making it dynamic was tried and REVERTED. `not-found.tsx` is a special
+// file so `export const dynamic` does not apply; the only lever is
+// reading a request-scoped API, and because Next renders the root
+// not-found inside every route's tree, doing so drags the entire app
+// back to dynamic — including "/", which is the whole point of the
+// change and the app's slowest measured route. Trading the homepage's
+// static render for an animation on the error page is a bad deal.
+//
+// The clean fix, if this ever matters: teach proxy.ts a list of known
+// route prefixes and serve the nonce-free policy to anything outside it.
+// Deliberately not done here — that list is a new thing to keep in sync,
+// and the symptom is cosmetic.
 export default function NotFound() {
   return (
     <div className="relative min-h-screen bg-bg-primary flex flex-col overflow-hidden">

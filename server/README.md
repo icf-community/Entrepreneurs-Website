@@ -38,14 +38,78 @@ whole membership. Do not relax these without reading the tests that pin them:
 # Testing on a newer interpreter than production is how a Pillow or PyJWT
 # behaviour difference reaches the box unnoticed.
 python3.12 -m venv venv && source venv/bin/activate
-pip install -e '.[dev]'
-pytest                       # 51 tests; no Azure needed
+pip install -r requirements-dev.txt
+pip install -e . --no-deps   # the app itself; deps already came from requirements-dev.txt
+pytest                       # no Azure needed
 uvicorn app.main:app --reload
 ```
 
 `tests/` covers the sanitisation boundary and the auth surface directly. Storage is stubbed, so the
 suite runs anywhere. This venv + pytest loop is still the fastest way to iterate — it's not being
 replaced by Docker.
+
+### CV ingest worker (Phase 1 of the CV matchmaker)
+
+`app/worker.py` processes uploaded CVs — moderation, structured extraction, skill normalisation,
+chunk+embed — per `cv-matchmaker-spec.md`. It also processes `scan_github` jobs (a member connecting
+their GitHub account, `app/github_pipeline.py`) — a second, independent, optional signal that gets
+folded into the same CV skill/summary pipeline. It is a separate process from the gateway above, on
+purpose: a pathological CV must never be able to stall someone else's upload. Run it in a second
+terminal, alongside `uvicorn app.main:app --reload`, never instead of it.
+
+It does NOT need the gateway's full env — `UPLOAD_TICKET_SECRET`/`SERVICE_TOKEN`/`ALLOWED_ORIGINS` exist
+only to verify/serve HTTP requests, which this process never does. It does need `AZURE_STORAGE_ACCOUNT`
+(`config.storage_account()`, shared with the gateway — Storage access is via the VM's managed identity,
+so this is an identifier, not a secret) plus its own vars, all fail-loud via `config.worker_settings()`:
+
+| Variable | Notes |
+|---|---|
+| `AZURE_STORAGE_ACCOUNT` | Same value as the gateway's — not a secret, Storage access is via managed identity |
+| `AZURE_CV_CONTAINER` | The one blob container this process ever reads (member-uploaded CVs) — not a secret, just an identifier |
+| `DATABASE_URL` | Direct Postgres connection. Local Supabase: `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+| `OPENAI_API_KEY` | Used for moderation, extraction, and embedding calls. Not `server/.env`'s key — see below |
+| `GITHUB_TOKEN_ENCRYPTION_KEY` | Decrypts `github_connections.access_token_encrypted` (pgcrypto `pgp_sym_decrypt`). Must be the exact same value as the Next.js app's `GITHUB_TOKEN_ENCRYPTION_KEY` (it's what encrypted the token in the first place) — never persisted in the database itself |
+
+```bash
+# one-time, after `supabase start` + `supabase db reset` have applied the
+# CV matchmaker migration, and with DATABASE_URL/OPENAI_API_KEY exported:
+python scripts/seed_skills.py
+
+# then, in its own terminal, alongside uvicorn:
+python -m app.worker
+```
+
+`scripts/seed_skills.py` loads `scripts/skills_seed.csv` — a small hand-picked ~180-skill list for
+local testing, not the full ESCO taxonomy the spec describes for production. Swapping in the real
+ESCO download later needs no code change: point the script at a different CSV with the same
+`canonical_name` column.
+
+`server/.env`'s `OPENAI_API_KEY` is flagged elsewhere in this file as an unrelated leftover — for
+local worker testing, put a real key in `.env.gateway.local` instead (loaded the same way the
+gateway's other local env vars are), or export both `DATABASE_URL` and `OPENAI_API_KEY` directly
+in the shell running `python -m app.worker`.
+
+### Adding or upgrading a dependency
+
+Dependencies are pinned in `requirements.txt` (runtime) and `requirements-dev.txt` (adds
+test-only packages on top). There is no dependency list in `pyproject.toml` — that file now
+holds only build/packaging metadata and the pytest config.
+
+To add or upgrade one, regenerate the full pinned closure rather than hand-editing transitive
+versions:
+
+```bash
+python3.12 -m venv /tmp/freeze-venv
+/tmp/freeze-venv/bin/pip install --upgrade pip
+/tmp/freeze-venv/bin/pip install .                 # add the new package to setup below first
+/tmp/freeze-venv/bin/pip freeze --exclude-editable | grep -v '^foundry-gateway' > requirements.txt
+```
+
+Since dependencies no longer live in `pyproject.toml`, "installing the package" to pick up a new
+one means installing it directly into the throwaway venv (`pip install . new-package==x.y.z`)
+before freezing. Then re-derive `requirements-dev.txt`'s dev-only lines (`pytest`, `httpx2`, and
+whatever they pull in) the same way, on top of that same venv. Review the resulting diff — a
+version bump you didn't ask for anywhere in the closure is worth understanding before committing.
 
 **Running the built image locally**, to check the actual artifact `infra/deploy.sh` ships (not just
 the source): `docker compose up gateway` runs it as production does; `docker compose --profile dev
@@ -123,7 +187,9 @@ size the gateway is configured to accept.
 
 ## Not in scope here
 
-`server/server.py` holds unimplemented CV stubs (`/cv-store`, `/cv-retrieve`) belonging to the CV
-matchmaker, and `server/ai-agent/` is empty. Neither is part of this service; see
-`cv-matchmaker-spec.md`. When they are built, they reuse this gateway by adding a `purpose` to the
-ticket rather than opening a second upload path.
+`server/server.py` holds unimplemented CV stubs (`/cv-store`, `/cv-retrieve`) left over from before
+the CV matchmaker's real ingest pipeline (`app/worker.py`, `app/cv_pipeline.py`) was built — it is
+still dead code, not part of this service. `server/ai-agent/` (Phase 2 of `cv-matchmaker-spec.md`,
+the conversational agent) is still empty and deliberately untouched by the Phase 1 ingest work
+above — Phase 2 is a separate, later build with its own, stricter isolation requirements (its own
+service/VM, no Blob credential — see the spec).

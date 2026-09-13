@@ -1,6 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { isCloudflareIp } from "@/lib/cloudflareIps";
+import * as Sentry from "@sentry/nextjs";
 
 // ════════════════════════════════════════════════════════════════════
 // Upstash rate limiting — app layer (precision). Cloudflare's edge is
@@ -34,7 +35,35 @@ export type RateBucket =
   | "postReport"
   | "avatarUpload"
   | "cvUpload"
+  | "githubConnect"
+  | "githubShowcase"
   | "otpVerify";
+
+// ─── Key namespace ──────────────────────────────────────────────────
+//
+// UPSTASH_REDIS_REST_URL/TOKEN are scoped to Production AND Preview in
+// Vercel, so both environments limit against ONE database, and a bucket
+// key is prefix + identifier (a user id, usually). Without a namespace a
+// preview deploy writes into production's counters for the same person:
+// connect GitHub three times on a preview and the 3-per-24h githubConnect
+// budget is spent on the real site too.
+//
+// It fails STRICT rather than loose — sharing a counter can only exhaust
+// an allowance sooner, never grant more — which is why this is a
+// papercut and not a hole. It stops being a papercut the moment a
+// preview URL is handed to members for feedback, because then their
+// production budgets are what preview traffic is spending, otpVerify
+// (fail-closed, the sign-in path) included.
+//
+// Production deliberately keeps the BARE prefix it has always used, so
+// adding this cannot reset a live counter. Only non-production
+// deployments gain a segment. VERCEL_ENV is set by Vercel itself and is
+// already load-bearing in instrumentation.ts; nothing new to configure.
+const NS = process.env.VERCEL_ENV === "production" ? "" : `${process.env.VERCEL_ENV ?? "dev"}:`;
+
+/** Bucket key prefix. Always build prefixes through this — two buckets
+ *  sharing a literal silently merge their limits. */
+const p = (name: string) => `rl:${NS}${name}`;
 
 // Factory per bucket. slidingWindow chosen for smooth limiting; analytics
 // off to keep the command count (and cost) down.
@@ -43,18 +72,52 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // 60/min is far more than one person generates by hand, and because the
   // key is an account it no longer collides with everyone else on campus.
   mutations: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(60, "1 m"), prefix: "rl:mut", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(60, "1 m"), prefix: p("mut"), analytics: false }),
   // Anonymous non-GET traffic, keyed on IP because there is no better
   // identity. One key can stand for the whole campus — a signup wave after
   // an announcement is the case that matters — so the ceiling is a flood
   // guard, not a per-person limit. Cloudflare absorbs real floods at the
   // edge; Turnstile and Supabase's own auth limits are the precise controls
   // on the sensitive anonymous endpoints.
+  //
+  // RAISED 300 → 1200 (2026-09-08). Imperial's campus NAT means every
+  // student on college wifi shares ONE public IP, so this single bucket is
+  // the whole university's budget, and 300/min could not survive the event
+  // this app exists for. Onboarding is a multi-step server action at ~5
+  // POSTs per signup; a launch talk realistically spikes at 200–400
+  // signups in the first ten minutes, so 100–200/min sustained with bursts
+  // to roughly double. At 300 the site would 429 partway through the
+  // announcement, telling students to "slow down" while the room is being
+  // told to sign up — indistinguishable from the site falling over.
+  //
+  // 1200 is ~4× that worst case, and caps a single host at 20 requests a
+  // second. 3000 was tried first and rejected as unnecessary: it is ~10×
+  // what the event needs, and a host sustaining it costs 4.3M Vercel
+  // invocations a day. Headroom the traffic never uses is only exposure.
+  //
+  // What this bucket is NOT: DDoS protection. It runs in Next.js
+  // middleware (supabase/proxy.ts), so the request has already consumed a
+  // Vercel invocation before it is counted — a 429 saves the route render,
+  // not the invocation — and each check costs an Upstash round trip, so
+  // under a flood it adds load rather than shedding it. A real attacker
+  // also has thousands of source IPs, which leaves every per-IP bucket
+  // empty. Edge defence is Cloudflare's job (rate-limiting rules, bot
+  // fight mode, under-attack mode) and must not be assumed to live here.
+  //
+  // Nor is it the abuse control for the endpoints behind it: signup is
+  // gated by Turnstile, Supabase Auth's per-email limits, and the
+  // @imperial.ac.uk domain trigger; the contact form by Turnstile. Those
+  // are precise and per-person. This is a coarse single-host flood guard,
+  // and that is all it should be relied on to be.
+  //
+  // GET/HEAD never reach this code at all, so the bulk of event traffic —
+  // people reading pages — is not rate limited on any key. Only mutations
+  // are. If reads need shedding, that is Cloudflare and B3.1, not this.
   anonMutations: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(300, "1 m"), prefix: "rl:mut:anon", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(1200, "1 m"), prefix: p("mut:anon"), analytics: false }),
   // Precise per-user limit on listing/contact submissions.
   submit: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 h"), prefix: "rl:sub", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 h"), prefix: p("sub"), analytics: false }),
   // Community posts. Its own bucket rather than sharing `submit`, because
   // posting to the feed should not consume the quota for posting a job.
   //
@@ -67,13 +130,13 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // budget shared with the response cache on the free tier) to re-enforce
   // something already enforced.
   communityPost: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: "rl:post", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("post"), analytics: false }),
   // Report-bombing — one member mass-reporting someone they dislike — is a
   // real abuse vector, and a lower ceiling than posting because a member
   // with more than a handful of genuine reports in a day is an outlier
   // worth an admin noticing.
   postReport: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: "rl:rep", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: p("rep"), analytics: false }),
   // Uploads get their own allowance rather than drawing on `communityPost`.
   // Sharing looked tidy and was wrong: a post with two images spent three
   // tokens, so the real ceiling for anyone who posts pictures was three a
@@ -83,7 +146,7 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // and the ceiling that actually matters (how much reaches the feed) is
   // still `communityPost`.
   communityUpload: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(40, "24 h"), prefix: "rl:upl", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(40, "24 h"), prefix: p("upl"), analytics: false }),
   // Avatar and CV uploads each get their own allowance rather than sharing
   // communityUpload — posting pictures to the feed and setting a profile
   // photo are unrelated activities, and lumping them would let a member
@@ -97,9 +160,39 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // ticket at a time, so it cannot be approached by traffic through
   // these two buckets alone.
   avatarUpload: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: "rl:ava", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("ava"), analytics: false }),
   cvUpload: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: "rl:cv", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("cv"), analytics: false }),
+  // The two GitHub buckets exist because both actions behind them spend
+  // money and worker time on someone else's behalf, which none of the
+  // buckets above do. 20260908000002 stops the *duplicate* job — a second
+  // press while one is already queued collapses into the first — but a
+  // member who waits for each job to be claimed and then presses again
+  // gets a fresh one every time, and that loop is unbounded without a
+  // limit here. The database guard and this are guarding different things:
+  // one stops accidental duplicates, this stops deliberate repetition.
+  //
+  // githubConnect is the tighter of the two because a scan is the more
+  // expensive job (GitHub API pagination + a README fetch per repo + up to
+  // three LLM calls) and because the worker runs ONE job at a time, so
+  // repeated scans queue ahead of every other member's CV ingest. 5/day is
+  // far above real use — connecting is a once-ever action for almost
+  // everyone, and the ceiling only needs to leave room for a genuine
+  // retry after a failure, plus switching accounts once or twice.
+  githubConnect: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(3, "24 h"), prefix: p("ghc"), analytics: false }),
+  // Editing your showcase must not feel rationed — the plan's standing
+  // decision is that prompting is throttled and editing never is, and the
+  // on-screen copy promises exactly that ("change them any time"). So this
+  // is set where a member cannot notice it and a script cannot ignore it:
+  // 20/hour is more saves in an hour than anyone makes deliberately, while
+  // still capping a runaway client at 20 LLM calls instead of thousands.
+  // Per hour rather than per day on purpose — a daily cap that a stuck
+  // client burned through at 3am would lock the member out of their own
+  // profile until midnight, which is the failure this bucket is supposed
+  // to prevent, not cause.
+  githubShowcase: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 h"), prefix: p("ghs"), analytics: false }),
   // verifyOtp (student/alum login-signup codes, email-change confirmation)
   // runs on the browser Supabase client, straight to Supabase's REST
   // endpoint — it never passes through proxy.ts's `mutations` backstop and,
@@ -109,7 +202,7 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // (see verifyOtpGate.ts), not the caller, and generous enough for a
   // typo-prone human: 10 tries in 10 minutes.
   otpVerify: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: "rl:otp", analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: p("otp"), analytics: false }),
 };
 
 const instances = new Map<RateBucket, Ratelimit>();
@@ -135,8 +228,22 @@ function instance(bucket: RateBucket): Ratelimit | null {
 // a Redis outage becoming an unlimited-posting window is the one outcome
 // worth refusing traffic to avoid. NOTE: this is a list, not a default —
 // a new bucket added without being named here silently fails OPEN.
+// (steps.test-style guard: ratelimit.test.ts asserts every bucket is
+// classified deliberately, so adding one forces that decision.)
+//
+// Since the in-process fallback landed (see checkLocal), being on this
+// list no longer means "refuse on an outage" — it means "keep limiting,
+// with a weaker per-instance limiter, rather than letting the ceiling
+// disappear". The security property is unchanged; the member-facing
+// failure mode is not.
+// githubConnect and githubShowcase are on this list because what they
+// guard is spend, and an Upstash outage is not a reason to hand out
+// unmetered LLM calls. The in-process fallback below keeps them limited
+// (loosely, per instance) rather than refusing, so no member is locked
+// out of their own profile by a Redis blip.
 const FAIL_CLOSED: readonly RateBucket[] = [
-  "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload", "otpVerify",
+  "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload",
+  "githubConnect", "githubShowcase", "otpVerify",
 ];
 
 export function failOpen(bucket: RateBucket): boolean {
@@ -159,6 +266,80 @@ export function failOpen(bucket: RateBucket): boolean {
  */
 export type RateDecision = "allowed" | "limited" | "unavailable";
 
+// ─── In-process fallback ────────────────────────────────────────────
+//
+// When Upstash is unreachable, every FAIL_CLOSED bucket refuses — and
+// `otpVerify` is on that list, which means a Redis blip stops members
+// SIGNING IN, with a message that wrongly blames them for going too fast.
+// During the exact traffic spike this is all meant to survive, that is the
+// worst possible failure: everyone is funnelled through /login.
+//
+// Flipping those buckets open is not the answer — an outage must not
+// become an abuse window, which is precisely what the list is for. The
+// answer is to stop "refuse" being the only alternative: fall back to a
+// per-instance in-memory limiter with the same window. That is weaker
+// than the shared one (a serverless deploy has N instances, so the real
+// ceiling is up to N× the configured limit) but it is bounded, and
+// bounded-but-loose beats locking out every legitimate member.
+//
+// Deliberately NOT a replacement for Upstash: memory is per-instance and
+// dies with it, so this only ever runs on the error path.
+const WINDOW_MS: Record<RateBucket, number> = {
+  mutations: 60_000,
+  anonMutations: 60_000,
+  submit: 3_600_000,
+  communityPost: 86_400_000,
+  communityUpload: 86_400_000,
+  postReport: 86_400_000,
+  avatarUpload: 86_400_000,
+  cvUpload: 86_400_000,
+  githubConnect: 86_400_000,
+  githubShowcase: 3_600_000,
+  otpVerify: 600_000,
+};
+
+const LIMIT: Record<RateBucket, number> = {
+  mutations: 60,
+  anonMutations: 1200,
+  submit: 10,
+  communityPost: 10,
+  communityUpload: 40,
+  postReport: 5,
+  avatarUpload: 10,
+  cvUpload: 10,
+  githubConnect: 3,
+  githubShowcase: 10,
+  otpVerify: 10,
+};
+
+type LocalEntry = { count: number; resetAt: number };
+const localBuckets = new Map<string, LocalEntry>();
+// Hard ceiling on the map so a flood of distinct identifiers during an
+// outage cannot grow it without bound. Evicting the whole map is crude
+// and correct here: it resets every window early, which errs toward
+// allowing traffic, and this path only runs while Upstash is down.
+const LOCAL_MAX_KEYS = 10_000;
+
+export function checkLocal(bucket: RateBucket, identifier: string): RateDecision {
+  const key = `${bucket}:${identifier}`;
+  const now = Date.now();
+  if (localBuckets.size > LOCAL_MAX_KEYS) localBuckets.clear();
+
+  const entry = localBuckets.get(key);
+  if (!entry || entry.resetAt <= now) {
+    localBuckets.set(key, { count: 1, resetAt: now + WINDOW_MS[bucket] });
+    return "allowed";
+  }
+  entry.count += 1;
+  return entry.count > LIMIT[bucket] ? "limited" : "allowed";
+}
+
+/** Test-only: the fallback map is module state and would otherwise leak
+ *  counts between cases. */
+export function __resetLocalBuckets(): void {
+  localBuckets.clear();
+}
+
 // Allows everything when rate limiting is disabled (no Upstash env) — the
 // documented local/CI behaviour.
 export async function check(bucket: RateBucket, identifier: string): Promise<RateDecision> {
@@ -172,7 +353,17 @@ export async function check(bucket: RateBucket, identifier: string): Promise<Rat
     // rate limit. It is logged here for every bucket; the callers that fail
     // closed also report it, because for them it is an outage.
     console.error(`ratelimit: the "${bucket}" bucket is unreachable`, e);
-    return "unavailable";
+    Sentry.captureException(e, {
+      level: "error",
+      tags: { surface: "ratelimit", bucket },
+      extra: { note: "Upstash unreachable — falling back to the in-process limiter" },
+    });
+
+    // Fail-open buckets never needed a decision here; the caller already
+    // treats "unavailable" as allowed. Only the fail-closed ones benefit
+    // from a weaker-but-real limit instead of a hard refusal.
+    if (failOpen(bucket)) return "unavailable";
+    return checkLocal(bucket, identifier);
   }
 }
 

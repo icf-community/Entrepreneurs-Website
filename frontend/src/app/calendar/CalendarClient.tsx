@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { externalHref } from "@/lib/safeUrl";
 import {
   dayKey,
   londonDayKey,
@@ -340,7 +341,7 @@ function DetailDialog({ item, onClose }: { item: CalItem; onClose: () => void })
               <dt className="shrink-0 w-28 text-text-muted">{m.label}</dt>
               <dd className="min-w-0 flex-1 text-text-secondary break-words">
                 {m.href ? (
-                  <a href={m.href} target="_blank" rel="noopener noreferrer" className="text-accent-light hover:underline break-all">{m.value}</a>
+                  <a href={externalHref(m.href)} target="_blank" rel="noopener noreferrer" className="text-accent-light hover:underline break-all">{m.value}</a>
                 ) : (
                   m.value
                 )}

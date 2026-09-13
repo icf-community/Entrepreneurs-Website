@@ -24,30 +24,35 @@ import * as Sentry from "@sentry/nextjs";
 //
 // QUOTA COUPLING — READ THIS BEFORE ADDING CACHE TRAFFIC.
 //
-// By default this shares the rate limiter's Upstash database, because
-// that is the instance the project already has. The two then draw on one
-// command quota, and the `submit` rate-limit bucket fails CLOSED — so
-// spending the quota on cache traffic starts refusing listing
-// submissions and contact-form messages. A cache problem becomes a
-// submissions outage.
+// This runs in one of two configurations, and which one is live is a
+// deployment fact, not something this file can assert. `cacheSharesRateLimitDb`
+// below is the runtime answer; instrumentation.ts prints it at boot.
 //
-// Setting UPSTASH_CACHE_REDIS_REST_URL/TOKEN points the cache at a
-// separate database and removes the coupling entirely. That is the right
-// production setup and it is NOT available on Upstash's free tier, which
-// allows one database and 500K commands a month. Splitting means moving
-// to pay-as-you-go ($0.20 per 100K commands; the extra database itself is
-// free up to ten). Until then the coupling is real and the three things
-// standing in for the split are:
+//   SPLIT (UPSTASH_CACHE_REDIS_REST_URL/TOKEN set) — the cache has its
+//   own database. There is no quota coupling, and the residual risk is
+//   spend, not lockout. This is the correct production setup.
+//
+//   SHARED (those unset) — the cache falls back to the rate limiter's
+//   instance, because that is the one the project is guaranteed to have.
+//   The two then draw on one command quota, and the `submit` bucket
+//   fails CLOSED, so spending the quota on cache traffic starts refusing
+//   listing submissions and contact-form messages. A cache problem
+//   becomes a submissions outage.
+//
+// Splitting needs a second Upstash database, which the free tier does not
+// allow (one database, 500K commands a month); it means pay-as-you-go
+// ($0.20 per 100K commands — the extra database itself is free up to ten).
+//
+// The three mitigations below exist for the SHARED case and are load-bearing
+// only there. They are not a substitute for a second database — they make
+// the failure survivable and audible, which is a different claim:
 //
 //   * the breaker below, which stops calling Redis after repeated
 //     failures so a spent quota leaves what's left to the limiter;
 //   * the boot warning in instrumentation.ts;
-//   * lib/ratelimit.ts's `unavailable` decision, so that if the quota
-//     does go, the refusal says so instead of telling members they are
-//     posting too fast.
-//
-// None of those is a substitute for a second database. They make the
-// failure survivable and audible, which is a different claim.
+//   * lib/ratelimit.ts's `unavailable` decision and in-process fallback,
+//     so that if the quota does go, the refusal says so instead of
+//     telling members they are posting too fast.
 //
 // LATENCY. A cache only helps if it answers faster than the query it is
 // standing in front of, and the directory query is ~22ms at 1,200
@@ -82,11 +87,11 @@ const READ_TIMEOUT_MS = 100;
 
 /**
  * After this many consecutive failures the cache stops calling Redis for
- * a cooldown. Two reasons, and the first is the important one: while
- * this shares the rate limiter's Upstash database — which on the free
- * tier it must — the `submit` bucket fails CLOSED, so cache traffic
- * burning through a command quota would start refusing submissions.
- * Backing off leaves the remaining budget to the limiter. The second is plain latency: there is
+ * a cooldown. Two reasons. The first applies only in the SHARED
+ * configuration (see the header): there the `submit` bucket fails CLOSED
+ * on the same database, so cache traffic burning through the command
+ * quota would start refusing submissions, and backing off leaves the
+ * remaining budget to the limiter. The second applies always — there is
  * no sense paying the timeout on every render while Redis is unhealthy.
  */
 const BREAKER_THRESHOLD = 3;
@@ -109,10 +114,11 @@ function noteFailure(what: string, e: unknown): void {
         `${BREAKER_COOLDOWN_MS / 1000}s so the rate limiter keeps its quota`,
     );
     // Only on the trip itself (once per cooldown window, not per failed
-    // call) — this shares the rate limiter's Upstash database, so a
-    // sustained outage here is the leading indicator of the `submit`
-    // bucket's own fail-closed refusals about to start. console.warn alone
-    // is invisible outside Vercel's own logs.
+    // call). In the SHARED configuration a sustained outage here is the
+    // leading indicator of the `submit` bucket's own fail-closed refusals
+    // about to start; in the SPLIT one it is "the cache is down, renders
+    // got slower". Either way console.warn alone is invisible outside
+    // Vercel's own logs.
     Sentry.captureMessage("cache: circuit breaker tripped — pausing Redis reads/writes", {
       level: "warning", tags: { surface: "cache" },
     });

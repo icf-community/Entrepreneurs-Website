@@ -9,6 +9,12 @@
 # call this rather than each carrying their own copy, so the two paths
 # cannot drift apart.
 #
+# Gateway-only. Until this session, the ingest worker instances also ran
+# on this VM and this script restarted them too — the worker now runs on
+# its own VM (foundry-worker), with its own release script
+# (foundry-worker-release.sh), so that logic moved rather than staying
+# here as dead weight restarting units that no longer exist on this host.
+#
 # Prints "FOUNDRY_DEPLOY_OK <ref>" on the last line ONLY when the gateway is
 # confirmed healthy afterwards. `az vm run-command invoke` reports success
 # as soon as the script is delivered — it does not surface the script's own

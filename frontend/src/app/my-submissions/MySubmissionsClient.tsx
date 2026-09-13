@@ -160,12 +160,12 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
         </div>
         {!confirming ? (
           <div className="shrink-0 flex gap-1.5">
-            {item.status === "pending" && (
+            {(item.status === "pending" || item.status === "approved") && (
               <Link
                 href={EDIT_HREF[type](item.id)}
                 className="inline-flex items-center px-3 py-1.5 rounded-lg bg-transparent border border-border text-text-secondary text-[0.75rem] no-underline transition-colors hover:border-accent hover:text-accent-light"
               >
-                Edit
+                {item.status === "approved" ? "Propose a change" : "Edit"}
               </Link>
             )}
             <button

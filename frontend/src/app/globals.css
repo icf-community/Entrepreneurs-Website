@@ -94,6 +94,33 @@ html {
      scrollbars, <select> option lists, date pickers and autofill backgrounds,
      which otherwise paint light-on-light (worst on Windows). */
   color-scheme: dark;
+
+  /* GLOBAL TYPE SCALE. 125% = a 20px root instead of the browser's 16px,
+     so every rem in the app grows by a quarter.
+
+     This is the only lever that actually works here, and the reason is
+     worth writing down: the app sets type with 784 arbitrary values
+     (`text-[0.8rem]` and friends) against just 11 uses of Tailwind's named
+     scale, so redefining --text-sm / --text-base in @theme above would move
+     almost nothing. Every one of those 784 is in rem and none are in px, so
+     they all scale from here, and so do the rem halves of the 56 clamp()
+     headings.
+
+     Body text was the problem: the two most common sizes in the app are
+     0.8rem and 0.75rem, which on a 16px root render at 12.8px and 12px —
+     below what a long page of text should ask of anyone. At a 20px root
+     they are 16px and 15px, which is ordinary web body text.
+
+     Went 112.5% first and it was still too small in use, which is the
+     honest reason this is 125% and not a rounder-looking number: the app's
+     base size was far enough below comfortable that an eighth did not
+     close the gap.
+
+     Spacing is rem-based too, so it grows with the text. That is deliberate:
+     it keeps the proportions the design was drawn at rather than cramming
+     bigger text into the old gaps. To dial the whole app up or down, change
+     this one number — 118.75% for a step back, 131.25% for one further. */
+  font-size: 125%;
 }
 
 body {

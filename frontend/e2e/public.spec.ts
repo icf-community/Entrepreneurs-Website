@@ -38,11 +38,21 @@ test("public contact form submits anonymously and confirms success", async ({ pa
   await expect(page.getByText(/we[’']ve received your message/i)).toBeVisible();
 });
 
-// ─── CSP: the header is present with a nonce, and the app hydrates clean ───
+// ─── CSP: both policies are served, and the app hydrates clean under each ──
 // This is the pre-deploy gate for enforce-mode CSP: if a directive were too
 // strict, Next's inline hydration scripts would be refused and we'd see a
 // "Content Security Policy" console violation here before it ever ships.
-test("home page carries a nonce-based CSP and hydrates with zero violations", async ({ page }) => {
+//
+// There are TWO policies, and which one a route gets is a security decision,
+// so both are asserted rather than whichever one happens to be easier to
+// satisfy. lib/csp.ts's STATIC_CSP_ROUTES get the nonce-free policy so they
+// can be statically rendered; everything else keeps 'nonce-…'
+// 'strict-dynamic'. The pairing is not cosmetic — a static page cannot carry
+// a per-request nonce, and under strict-dynamic a script without one is
+// blocked even when it is our own bundle. So a route is either
+// dynamic-with-strict-CSP or static-with-unsafe-inline, and the test that
+// only checked "/" was silently checking the weaker half after "/" moved.
+function watchForCspViolations(page: import("@playwright/test").Page): string[] {
   const violations: string[] = [];
   const isCspViolation = (text: string) =>
     /content security policy|refused to (execute|load|connect|apply|create)/i.test(text);
@@ -52,14 +62,51 @@ test("home page carries a nonce-based CSP and hydrates with zero violations", as
   page.on("pageerror", (err) => {
     if (isCspViolation(err.message)) violations.push(err.message);
   });
+  return violations;
+}
+
+test("home page carries the static CSP and hydrates with zero violations", async ({ page }) => {
+  // "/" is the app's single heaviest route by measurement (C2 Finding 6:
+  // 12.3s p95, all render cost — Hero/WhoWeAre/Community/Opportunities/
+  // Events/Apply/Footer all in one tree) and the only page.goto in this
+  // file that flaked on the default 30s budget under CI runner
+  // contention — confirmed by rerunning with zero code changes and
+  // getting a clean pass. /login uses the identical `networkidle` wait
+  // and has never flaked, so the fix is this route's own timeout
+  // headroom, not the wait strategy.
+  test.setTimeout(60_000);
+
+  const violations = watchForCspViolations(page);
 
   const res = await page.goto("/", { waitUntil: "networkidle" });
+  const csp = res?.headers()["content-security-policy"];
+  expect(csp, "CSP header present").toBeTruthy();
+  // "/" is on STATIC_CSP_ROUTES, so it is prerendered and has no nonce.
+  expect(csp!, "static route carries no nonce").not.toMatch(/'nonce-/);
+  expect(csp!, "static route falls back to unsafe-inline").toContain("'unsafe-inline'");
+  // Every non-script protection must be identical to the strict policy —
+  // that is the whole basis on which the weaker script-src was accepted.
+  expect(csp!).toContain("object-src 'none'");
+  expect(csp!).toContain("base-uri 'self'");
+  expect(csp!).toContain("form-action 'self'");
+  expect(csp!).toContain("frame-ancestors 'none'");
+
+  expect(violations, `CSP violations on /: ${violations.join(" | ")}`).toEqual([]);
+});
+
+test("a dynamic public route carries a nonce-based CSP and hydrates clean", async ({ page }) => {
+  const violations = watchForCspViolations(page);
+
+  // /login is deliberately NOT on STATIC_CSP_ROUTES: it takes user input and
+  // is the highest-value phishing target in the app, so it keeps the strict
+  // policy. That makes it the right route to prove the nonce path still works.
+  const res = await page.goto("/login", { waitUntil: "networkidle" });
   const csp = res?.headers()["content-security-policy"];
   expect(csp, "CSP header present").toBeTruthy();
   expect(csp!, "CSP carries a per-request nonce").toMatch(/'nonce-[A-Za-z0-9+/=]+'/);
   expect(csp!).toContain("'strict-dynamic'");
 
-  expect(violations, `CSP violations on /: ${violations.join(" | ")}`).toEqual([]);
+  expect(violations, `CSP violations on /login: ${violations.join(" | ")}`).toEqual([]);
 });
 
 // ─── Access control: gated routes bounce logged-out visitors to /login ─────

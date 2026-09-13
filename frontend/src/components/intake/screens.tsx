@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { inputCls } from "@/components/forms/styles";
 import { ChipGroup, type ChipItem } from "@/components/forms/ChipGroup";
+import { ErrorBanner } from "@/components/forms/Banners";
 import { AvatarCropper } from "@/components/media/AvatarCropper";
 import { MemberDialog, memberSubtitle } from "@/components/members/MemberDialog";
 import type { DirectoryMember } from "@/lib/data/directory";
@@ -21,6 +22,10 @@ import {
   type IntakeState,
 } from "@/lib/intake/state";
 import { Field, ChoiceCards, PillChoice, TagInput, FilePicker, RankPicker, SkillPicker, type SkillOption } from "./controls";
+import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { RepoPicker } from "@/components/github/RepoPicker";
+import type { AvailableRepo, ShowcaseRepo } from "@/lib/github/showcase";
 import type { Affiliation } from "@/lib/intake/steps";
 import { MAX_NAME_LENGTH } from "@/lib/text";
 
@@ -39,6 +44,43 @@ export type ScreenProps = {
   role: Affiliation;
   existingLinkedin: string | null;
   suggestionsLoading: boolean;
+  /** True once the bounded poll for CV skill suggestions has given up
+   *  without finding any — the document is treated as unreadable/wrong
+   *  rather than "still working", and the member is asked to re-upload. */
+  suggestionsGaveUp: boolean;
+  /** True while onRejectCv's removeCv() round trip is in flight. */
+  rejectingCv: boolean;
+  /** Clears the stored CV (profile row + its blob) and returns the
+   *  member to the CV screen to upload a different document. */
+  onRejectCv: () => void;
+  /** profiles.github_url, collected at /onboarding before verification.
+   *  Used to NAME the handle already on file so connecting reads as
+   *  confirming the same account, not a second thing being asked for. */
+  existingGithubUrl: string | null;
+  github: GithubScreenState;
+  /** Kill switch (20260911000003) — false pauses only the LLM/worker-job
+   *  side of CV upload and GitHub connect; file storage and OAuth
+   *  recording stay unaffected either way. */
+  ingestionEnabled: boolean;
+};
+
+/** Everything the GitHub screen needs, owned by IntakeFlow so screens.tsx
+ *  stays pure UI — same split as the avatar/CV upload handlers. */
+export type GithubScreenState = {
+  connected: boolean;
+  scanning: boolean;
+  connecting: boolean;
+  error: string;
+  showcase: {
+    availableRepos: AvailableRepo[];
+    showcaseRepos: ShowcaseRepo[] | null;
+    suggestedRepos: AvailableRepo[];
+    seenRepos: string[];
+  } | null;
+  saving: boolean;
+  saved: boolean;
+  onConnect: () => void;
+  onSave: (picks: { name: string; blurb: string }[]) => void;
 };
 
 /** A previously-confirmed CV: its blob key (so a Back→Continue doesn't
@@ -252,7 +294,7 @@ export function YoureInScreen({ s, firstName, matches }: ScreenProps & { matches
 
 // ─── 02 · CV ─────────────────────────────────────────────────────────
 
-export function CvScreen({ s, patch, existingCv, role, existingLinkedin }: ScreenProps) {
+export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingestionEnabled }: ScreenProps) {
   const linkedinId = useId();
   const consentId = useId();
   const alreadyUploaded = !s.cvFile && s.cvUploadedKey && s.cvOriginalFilename;
@@ -308,21 +350,29 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin }: Scree
       </Field>
 
       {s.cvFile && (
-        <label htmlFor={consentId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
-          <input
-            id={consentId}
-            type="checkbox"
-            checked={s.cvConsent}
-            onChange={(e) => patch({ cvConsent: e.target.checked })}
-            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
-          />
-          <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
-            Read the skills section of my CV once, to suggest skills to add on
-            the next screen. We never add anything without you confirming it,
-            and the text itself is never stored — only the matched skills. You
-            can leave this unticked and add skills yourself instead.
-          </span>
-        </label>
+        ingestionEnabled ? (
+          <label htmlFor={consentId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
+            <input
+              id={consentId}
+              type="checkbox"
+              checked={s.cvConsent}
+              onChange={(e) => patch({ cvConsent: e.target.checked })}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
+            />
+            <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
+              Read my CV to suggest skills to add on the next screen and generate a summary
+              recruiters can search to find me. The extracted text and summary are stored and used
+              to help match me to relevant opportunities. You can leave this unticked and add
+              skills yourself instead — but recruiters won&apos;t be able to find you through CV
+              matching.
+            </span>
+          </label>
+        ) : (
+          <p className="rounded-lg border border-border-strong bg-white/[0.03] p-4 text-[0.8rem] leading-[1.6] text-text-muted">
+            CV-based skill matching is temporarily paused — your file is still saved, and you can
+            add skills yourself on the next screen instead.
+          </p>
+        )
       )}
 
       <Field
@@ -347,17 +397,141 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin }: Scree
   );
 }
 
-// ─── 03 · Skills ─────────────────────────────────────────────────────
+// ─── 03 · GitHub ─────────────────────────────────────────────────────
+//
+// Optional for every affiliation — validate("github") always passes and
+// this never enters compulsoryDone. Its own screen rather than a block on
+// the CV screen because connecting navigates out to github.com and back,
+// and cvFile is deliberately excluded from the localStorage draft.
+//
+// "Prefilling" here can't mean prefilling OAuth — the account is whatever
+// the member authorises. It means naming the handle we already have from
+// /onboarding, so this reads as confirming a known account rather than
+// being asked for GitHub a second time.
 
-export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading }: ScreenProps) {
+function githubHandle(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/github\.com\/([A-Za-z0-9-]+)/);
+  return match ? match[1] : null;
+}
+
+export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: ScreenProps) {
+  const knownHandle = githubHandle(existingGithubUrl);
+
+  if (github.connected && github.saved) {
+    return (
+      <div className="space-y-4">
+        <Lead>Saved — these are the projects recruiters will see first.</Lead>
+        <p className="text-[0.85rem] text-text-muted">
+          You can change them any time from your profile.
+        </p>
+      </div>
+    );
+  }
+
+  if (github.connected && github.scanning) {
+    return (
+      <div className="space-y-4">
+        <Lead>Reading your public repositories…</Lead>
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-5/6" />
+        <Skeleton className="h-3 w-2/3" />
+        <p className="text-[0.8rem] text-text-muted">
+          This usually takes a few seconds. You can keep going and choose your projects later from
+          your profile.
+        </p>
+      </div>
+    );
+  }
+
+  if (github.connected && github.showcase) {
+    return (
+      <div className="space-y-6">
+        <Lead>Pick the projects you&apos;d actually want a recruiter to look at.</Lead>
+        {github.error && <ErrorBanner>{github.error}</ErrorBanner>}
+        <RepoPicker
+          availableRepos={github.showcase.availableRepos}
+          showcaseRepos={github.showcase.showcaseRepos}
+          suggestedRepos={github.showcase.suggestedRepos}
+          seenRepos={github.showcase.seenRepos}
+          saving={github.saving}
+          onSave={github.onSave}
+        />
+      </div>
+    );
+  }
+
+  if (!ingestionEnabled) {
+    return (
+      <div className="space-y-4">
+        <Lead>
+          Optional. If you write code, connecting GitHub lets recruiters see what you&apos;ve actually
+          built — not just what your CV says.
+        </Lead>
+        <p className="text-[0.85rem] text-text-muted">
+          GitHub connections are temporarily paused — check back soon, or connect any time later
+          from your profile.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Lead>
+        Optional. If you write code, connecting GitHub lets recruiters see what you&apos;ve actually
+        built — not just what your CV says. You&apos;ll pick which projects to spotlight, and nothing
+        private is ever read.
+      </Lead>
+
+      {knownHandle && (
+        <p className="text-[0.85rem] text-text-secondary">
+          We&apos;ve got <span className="text-text-primary">@{knownHandle}</span> from when you
+          signed up — connect it to spotlight your projects.
+        </p>
+      )}
+
+      {github.error && <ErrorBanner>{github.error}</ErrorBanner>}
+
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        loading={github.connecting}
+        onClick={github.onConnect}
+      >
+        Connect GitHub
+      </Button>
+
+      <p className="text-[0.8rem] text-text-muted">
+        You&apos;ll see GitHub&apos;s own authorisation screen — there&apos;s nothing to generate or
+        paste in yourself. We only read public repository information.
+      </p>
+    </div>
+  );
+}
+
+// ─── 04 · Skills ─────────────────────────────────────────────────────
+
+export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading, suggestionsGaveUp, rejectingCv, onRejectCv }: ScreenProps) {
   const suggested = s.suggestedSkillIds
     .filter((id) => !s.skillIds.includes(id))
     .map((id) => skillTaxonomy.find((t) => t.id === id))
     .filter((t): t is SkillOption => !!t);
 
   const add = (id: number) => patch({ skillIds: [...s.skillIds, id] });
+  // Same effect as add, plus tagging the id as CV-sourced — see
+  // IntakeState.cvSkillIds — so "Upload a different CV" below knows to
+  // drop it once a replacement CV is actually confirmed, without
+  // touching anything the member searched for and added themselves.
+  const acceptSuggestion = (id: number) =>
+    patch({ skillIds: [...s.skillIds, id], cvSkillIds: [...s.cvSkillIds, id] });
   const remove = (id: number) =>
-    patch({ skillIds: s.skillIds.filter((x) => x !== id), coreSkillIds: s.coreSkillIds.filter((x) => x !== id) });
+    patch({
+      skillIds: s.skillIds.filter((x) => x !== id),
+      coreSkillIds: s.coreSkillIds.filter((x) => x !== id),
+      cvSkillIds: s.cvSkillIds.filter((x) => x !== id),
+    });
   const toggleCore = (id: number) =>
     patch({
       coreSkillIds: s.coreSkillIds.includes(id)
@@ -385,12 +559,37 @@ export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading }: Sc
             </div>
           </div>
         )}
+        {/* Available any time a CV is on file — not just when nothing
+            matched — because a member who already accepted CV-sourced
+            skills may still realise it's the wrong document. The old
+            CV's skills aren't touched here; they're only dropped once a
+            replacement is actually confirmed uploaded (IntakeFlow's
+            uploadCv), so clicking this and then changing your mind
+            leaves everything exactly as it was. */}
+        {s.cvConsent && (s.cvFile || s.cvUploadedKey) && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border-strong bg-white/[0.03] p-3">
+            <p className="text-[0.7rem] text-text-secondary">
+              {suggestionsGaveUp && suggested.length === 0
+                ? "We couldn't find any matching skills in that document. You can still search for skills below in the meantime."
+                : "Not the right document? Uploading a different CV swaps out whatever it found — anything you've added yourself stays."}
+            </p>
+            <button
+              type="button"
+              onClick={onRejectCv}
+              disabled={rejectingCv}
+              className="shrink-0 cursor-pointer rounded-lg border border-border-strong px-3 py-1.5 text-[0.7rem] font-medium text-text-primary hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {rejectingCv ? "Removing…" : "Upload a different CV"}
+            </button>
+          </div>
+        )}
         <SkillPicker
           taxonomy={skillTaxonomy}
           selectedIds={s.skillIds}
           coreIds={s.coreSkillIds}
           suggested={suggested}
           onAdd={add}
+          onAcceptSuggestion={acceptSuggestion}
           onRemove={remove}
           onToggleCore={toggleCore}
           maxCore={MAX_CORE_SKILLS}
@@ -400,7 +599,7 @@ export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading }: Sc
   );
 }
 
-// ─── 04 · Interests ──────────────────────────────────────────────────
+// ─── 05 · Interests ──────────────────────────────────────────────────
 
 export function InterestsScreen({ s, patch, sectors }: ScreenProps) {
   const toggleSector = (id: number) =>
@@ -450,7 +649,7 @@ export function InterestsScreen({ s, patch, sectors }: ScreenProps) {
   );
 }
 
-// ─── 05 · Where you're at ────────────────────────────────────────────
+// ─── 06 · Where you're at ────────────────────────────────────────────
 
 export function WhereScreen({ s, patch }: ScreenProps) {
   const nameId = useId();
@@ -533,7 +732,7 @@ export function WhereScreen({ s, patch }: ScreenProps) {
   );
 }
 
-// ─── 06 · What you want ──────────────────────────────────────────────
+// ─── 07 · What you want ──────────────────────────────────────────────
 
 export function WantScreen({ s, patch }: ScreenProps) {
   const toggle = (v: string) =>

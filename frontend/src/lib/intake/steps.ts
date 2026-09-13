@@ -10,7 +10,14 @@
 // Most of it is skippable, but the CV screen isn't unconditionally so:
 // a student must provide a CV and everyone must provide LinkedIn before
 // "Skip for now" (or Finish) becomes available at all — see
-// 20260901000013's header comment. Every other screen stays optional.
+// 20260901000013's header comment. Every other screen stays optional,
+// GitHub included.
+//
+// GitHub gets its OWN screen, after the CV rather than on it: connecting
+// navigates out to github.com and back, and useIntakeDraft deliberately
+// excludes cvFile (a File) from the localStorage draft, so a member who
+// chose a CV and then hit Connect would silently lose it. By the time
+// this screen is reached the CV is already uploaded.
 //
 // "You're in" is a result screen, not a question — it carries no field
 // and does not advance completeness. Termly refresh (screen 08 of the
@@ -18,7 +25,7 @@
 // screens.tsx's RefreshScreen for why.
 // ════════════════════════════════════════════════════════════════════
 
-export type StepId = "face" | "youre-in" | "cv" | "skills" | "interests" | "where" | "want";
+export type StepId = "face" | "youre-in" | "cv" | "github" | "skills" | "interests" | "where" | "want";
 
 export type Step = {
   id: StepId;
@@ -61,30 +68,37 @@ export const STEPS: Record<StepId, Step> = {
     eyebrow: "Unlock your matches",
     title: "Your CV, if you have one",
   },
+  github: {
+    id: "github",
+    num: "03",
+    label: "GitHub",
+    eyebrow: "Unlock your matches",
+    title: "Your code, if you write any",
+  },
   skills: {
     id: "skills",
-    num: "03",
+    num: "04",
     label: "Skills",
     eyebrow: "Unlock your matches",
     title: "What are you actually good at?",
   },
   interests: {
     id: "interests",
-    num: "04",
+    num: "05",
     label: "Interests",
     eyebrow: "Unlock your matches",
     title: "What you're into",
   },
   where: {
     id: "where",
-    num: "05",
+    num: "06",
     label: "Where you're at",
     eyebrow: "Where you're at",
     title: "Where are you at?",
   },
   want: {
     id: "want",
-    num: "06",
+    num: "07",
     label: "What you want",
     eyebrow: "Where you're at",
     title: "What do you want from this?",
@@ -93,7 +107,7 @@ export const STEPS: Record<StepId, Step> = {
 
 export const GROUPS: Group[] = [
   { label: "Who you are", note: "A face and a couple of lines.", steps: ["face", "youre-in"] },
-  { label: "Unlock your matches", note: "Skip the whole thing if you're not ready yet.", steps: ["cv", "skills", "interests"] },
+  { label: "Unlock your matches", note: "Skip the whole thing if you're not ready yet.", steps: ["cv", "github", "skills", "interests"] },
   { label: "Where you're at", note: "Changes often — you can always update it.", steps: ["where", "want"] },
 ];
 
@@ -104,13 +118,14 @@ export const TOTAL_SCREENS = ORDER.length;
 
 export const indexOf = (id: StepId): number => ORDER.indexOf(id);
 
-/** The six real questions — "You're in" is a result, and doesn't advance this. */
-const QUESTION_ORDER: StepId[] = ["face", "cv", "skills", "interests", "where", "want"];
+/** The real questions — "You're in" is a result, and doesn't advance this. */
+const QUESTION_ORDER: StepId[] = ["face", "cv", "github", "skills", "interests", "where", "want"];
 
 /**
- * Profile completeness, as a percentage, spread evenly over the six
+ * Profile completeness, as a percentage, spread evenly over the
  * question screens. "You're in" reports the same value as "face" — it
- * hasn't asked anything new yet.
+ * hasn't asked anything new yet. Derived from QUESTION_ORDER.length, so
+ * inserting a screen rescales it rather than needing a constant edited.
  */
 export function completeness(id: StepId): number {
   const base = id === "youre-in" ? "face" : id;

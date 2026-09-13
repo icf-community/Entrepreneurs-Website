@@ -21,7 +21,7 @@ from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, ContentSettings
 
-from .config import settings
+from .config import storage_account
 
 
 class BlobAlreadyExists(Exception):
@@ -30,9 +30,8 @@ class BlobAlreadyExists(Exception):
 
 @lru_cache(maxsize=1)
 def _service() -> BlobServiceClient:
-    cfg = settings()
     return BlobServiceClient(
-        f"https://{cfg.storage_account}.blob.core.windows.net",
+        f"https://{storage_account()}.blob.core.windows.net",
         credential=DefaultAzureCredential(),
         # The SDK default (20s) is unbounded enough to matter here: every
         # call through this client now runs inside asyncio.to_thread from
@@ -78,6 +77,19 @@ def put_blob(
         )
     except ResourceExistsError as exc:
         raise BlobAlreadyExists(key) from exc
+
+
+def get_blob(container: str, key: str) -> bytes:
+    """Read a blob back. Used by the ingest worker to re-fetch a member's CV
+    for (re)processing — never by the gateway's own request handlers, which
+    only ever write.
+
+    No ResourceNotFoundError handling here: a caller asking for a key it
+    doesn't already have on record (from a `cvs` row) is a bug in the
+    caller, not an expected outcome to swallow.
+    """
+    blob = _service().get_blob_client(container, key)
+    return blob.download_blob().readall()
 
 
 def delete_blob(container: str, key: str) -> bool:

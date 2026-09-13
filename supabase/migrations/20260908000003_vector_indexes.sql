@@ -1,0 +1,84 @@
+-- ════════════════════════════════════════════════════════════════════
+-- Foundry · HNSW indexes on the two pgvector columns
+--
+-- C2 Finding 3 recommended this for `cv_chunks` before Phase 2. Writing
+-- it surfaced a second, more urgent one on `cv_skills` that the audit
+-- did not measure because nothing in the load test exercised CV ingest.
+--
+-- Both columns are searched with `<=>` (cosine distance), so both get
+-- `vector_cosine_ops`. Using the wrong opclass does not error — it
+-- silently fails to serve the ORDER BY and you keep the sequential scan
+-- while believing you fixed it.
+--
+-- ──────────────────────────────────────────────────────────────────────
+-- 1. cv_skills — a live hot path TODAY, not a Phase 2 concern
+-- ──────────────────────────────────────────────────────────────────────
+-- normalise_skills (server/app/cv_pipeline.py:259) runs, per extracted
+-- skill, one at a time in a Python loop:
+--
+--     select id, canonical_name, 1 - (embedding <=> $1::vector)
+--       from public.cv_skills
+--      order by embedding <=> $1::vector
+--      limit 1
+--
+-- `cv_skills` had NO index on `embedding` — only the pkey and the
+-- canonical_name unique constraint — so every one of those was a full
+-- sequential scan over a table the C2 audit measured at 43 MB. A CV
+-- yielding 25 skills therefore did 25 full scans of 43 MB, serially, on
+-- the single-lane worker, for every ingest. The taxonomy also only grows,
+-- so this gets worse rather than settling.
+--
+-- This is the one place in the pipeline where an ANN index changes
+-- present-day behaviour rather than preparing for future behaviour.
+--
+-- Measured on a 3,000-row taxonomy (below today's real size), same query,
+-- index on vs forced off:
+--
+--     seq scan   18.43 ms   18,097 shared buffers
+--     HNSW        0.43 ms       54 shared buffers
+--
+-- 43× on time, 335× on buffers — and that is PER SKILL. A CV yielding 25
+-- skills went from ~460 ms of scanning to ~11 ms. The plan was confirmed
+-- to read `Index Scan using cv_skills_embedding_hnsw_idx` rather than
+-- assumed: with the wrong opclass it would still have said Seq Scan while
+-- the index sat there unused.
+--
+-- ──────────────────────────────────────────────────────────────────────
+-- 2. cv_chunks — the Phase 2 prerequisite, as the audit called it
+-- ──────────────────────────────────────────────────────────────────────
+-- 20260906000001:95 deferred this deliberately and said why: at a few
+-- thousand vectors a brute-force scan is genuinely fine. The corpus run
+-- retired that assumption — 140 ms and ~59k buffers per search at 9,600
+-- chunks, which is roughly HALF the 2,000-member target, and the agent
+-- issues several searches per conversational turn. Left alone it is
+-- ~0.3 s of pure scan per turn before the model is even called.
+--
+-- Partial, `where is_current`: superseded chunks from a member's previous
+-- CV stay in the table and are never searched. Indexing them would cost
+-- build time and memory to no purpose, and on a 500 MB free tier
+-- (Finding 4 — the database is already projected at ~270 MB before this)
+-- index size is not a rounding error. The predicate must appear in the
+-- query for the index to be used.
+--
+-- ──────────────────────────────────────────────────────────────────────
+-- ON `if not exists` AND BUILD COST
+-- ──────────────────────────────────────────────────────────────────────
+-- Both are plain (non-CONCURRENT) builds, which take an ACCESS EXCLUSIVE
+-- lock. That is correct here and would not be on a busy table: CREATE
+-- INDEX CONCURRENTLY cannot run inside a transaction block, and the
+-- Supabase migration runner wraps each file in one. At today's row counts
+-- both build in well under a second. If either table is ever large when
+-- this first runs, build it by hand with CONCURRENTLY outside a
+-- transaction and let this statement no-op.
+--
+-- m/ef_construction are left at pgvector's defaults (16/64). Tuning them
+-- without a recall measurement is guessing, and the honest position is
+-- that nobody has measured recall on this corpus yet.
+-- ════════════════════════════════════════════════════════════════════
+
+create index if not exists cv_skills_embedding_hnsw_idx
+  on public.cv_skills using hnsw (embedding vector_cosine_ops);
+
+create index if not exists cv_chunks_embedding_hnsw_idx
+  on public.cv_chunks using hnsw (embedding vector_cosine_ops)
+  where is_current;

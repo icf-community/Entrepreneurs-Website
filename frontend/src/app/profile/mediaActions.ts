@@ -1,5 +1,7 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
+import { cookies } from "next/headers";
 import { after } from "next/server";
 import { getActionAuth } from "@/lib/auth/actionAuth";
 import { check } from "@/lib/ratelimit";
@@ -15,6 +17,19 @@ import { blobsExist, downloadCvBytes, signedCvUrl } from "@/lib/storage/blobRead
 import { extractCvText } from "@/lib/cv/extractText";
 import { matchSkillsInText } from "@/lib/cv/matchSkills";
 import { listSkillsDetailed } from "@/lib/data/taxonomy";
+import { emailBaseUrl } from "@/lib/siteUrl";
+import {
+  GITHUB_OAUTH_RETURN_COOKIE,
+  GITHUB_OAUTH_STATE_COOKIE,
+  type GithubConnectReturnTo,
+} from "@/lib/github/oauthState";
+import {
+  SHOWCASE_BLURB_MAX,
+  SHOWCASE_MAX_PICKS,
+  type AvailableRepo,
+  type GithubShowcase,
+  type ShowcaseRepo,
+} from "@/lib/github/showcase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.overrides";
 import * as Sentry from "@sentry/nextjs";
@@ -45,7 +60,11 @@ async function guardApprovedMember(noun: string) {
   return ok({ supabase, user });
 }
 
-async function guardRate(bucket: "avatarUpload" | "cvUpload", userId: string, limitedMessage: string) {
+async function guardRate(
+  bucket: "avatarUpload" | "cvUpload" | "githubConnect" | "githubShowcase",
+  userId: string,
+  limitedMessage: string,
+) {
   const decision = await check(bucket, userId);
   if (decision === "limited") return err(limitedMessage);
   if (decision === "unavailable") {
@@ -277,6 +296,257 @@ export async function getMySuggestedCvSkillIds(): Promise<Result<number[]>> {
   const { data, error } = await supabase.rpc("get_my_cv_info").maybeSingle();
   if (error) return err(describeSupabaseError(error));
   return ok(data?.cv_suggested_skill_ids ?? []);
+}
+
+// ─── CV matchmaker ingest pipeline (cv-matchmaker-spec.md, Phase 1) ────
+//
+// Separate from the consent-gated skill-prefill flow above: every CV
+// upload now also opens a row in `cvs` and enqueues a job for the ingest
+// worker (server/app/worker.py), regardless of the parse-consent
+// checkbox — see confirm_cv_upload
+// (20260906000001_cv_matchmaker_pipeline.sql). These two read-only RPCs
+// back the processing dialog that watches it finish.
+
+export type CvIngestStatus = "pending" | "extracting" | "embedding" | "ready" | "failed" | "flagged";
+
+/**
+ * The most recently uploaded CV's processing status — not necessarily
+ * the CURRENT one, since a CV only becomes current once it reaches
+ * `ready`. This is what the processing dialog polls.
+ */
+export async function getMyCvStatus(): Promise<Result<{ status: CvIngestStatus; failureReason: string | null } | null>> {
+  const guard = await guardApprovedMember("view your CV");
+  if (!guard.ok) return guard;
+  const { supabase } = guard.data;
+
+  const { data, error } = await supabase.rpc("get_my_cv_status").maybeSingle();
+  if (error) return err(describeSupabaseError(error));
+  if (!data) return ok(null);
+  return ok({ status: data.status as CvIngestStatus, failureReason: data.failure_reason });
+}
+
+/**
+ * The generated summary and matched skills, once get_my_cv_status
+ * reports "ready". Returns null if there's no current, fully-processed
+ * CV yet.
+ */
+export async function getMyCvProfile(): Promise<Result<{ summary: string; skills: string[] } | null>> {
+  const guard = await guardApprovedMember("view your CV");
+  if (!guard.ok) return guard;
+  const { supabase } = guard.data;
+
+  const { data, error } = await supabase.rpc("get_my_cv_profile").maybeSingle();
+  if (error) return err(describeSupabaseError(error));
+  if (!data) return ok(null);
+  return ok({ summary: data.summary, skills: data.skills ?? [] });
+}
+
+// ─── GitHub signal (optional, separate from CV upload) ─────────────────
+//
+// A standalone GitHub OAuth App flow (github.com/login/oauth/authorize),
+// deliberately NOT Supabase Auth's GitHub provider — enabling that would
+// also let strangers sign UP via GitHub, bypassing whatever gates Google/
+// Imperial signups today. The member never handles a token themselves;
+// they see GitHub's own "Authorize this app" consent screen. See
+// /auth/github-connect/callback/route.ts for the other half of this flow,
+// and 20260907000001_github_signal.sql for confirm_github_connected /
+// get_my_github_status / disconnect_github.
+
+/**
+ * Generates a CSRF state value, stashes it in a short-lived httpOnly
+ * cookie, and returns the GitHub authorize URL to redirect the browser
+ * to. redirect_uri is built from emailBaseUrl() (fixed config), not
+ * request headers — same reasoning as email links: an attacker-
+ * controlled Host header must not be able to steer where GitHub sends
+ * the OAuth code.
+ */
+export async function requestGithubConnectUrl(
+  returnTo: GithubConnectReturnTo = "profile",
+): Promise<Result<string>> {
+  const guard = await guardApprovedMember("connect your GitHub account");
+  if (!guard.ok) return guard;
+
+  // Throttled here rather than in the callback, because this is the only
+  // door: the callback refuses anything without the state cookie minted
+  // below, so capping the mint caps the round trips. Doing it in the
+  // callback instead would mean failing a member halfway through GitHub's
+  // consent screen, which is a worse place to be told no.
+  //
+  // A completed round trip enqueues a scan_github job, and the worker
+  // handles one job at a time — so repeated reconnects do not merely
+  // spend the member's own budget, they queue in front of everyone
+  // else's CV ingest. 20260908000002 stops a second job stacking while
+  // one is still pending; this stops the serial version of the same
+  // thing. Connecting is a once-ever action for nearly everyone, so 5/day
+  // is generous: it leaves room for a genuine retry after a failure and
+  // for switching between two accounts.
+  const rate = await guardRate(
+    "githubConnect",
+    guard.data.user.id,
+    "You've tried connecting GitHub several times today. Please try again tomorrow.",
+  );
+  if (!rate.ok) return rate;
+
+  const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
+  if (!clientId) return err("GitHub connect is unavailable right now.");
+
+  const state = randomBytes(32).toString("hex");
+  const cookieStore = await cookies();
+  const cookieOptions = {
+    httpOnly: true,
+    secure: emailBaseUrl().startsWith("https"),
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 600, // 10 minutes
+  };
+  cookieStore.set(GITHUB_OAUTH_STATE_COOKIE, state, cookieOptions);
+  // Which of the two entry points started this. The callback maps it
+  // through a fixed allow-list — see githubConnectReturnPath — so even a
+  // tampered cookie can only ever select between /profile and /intake.
+  cookieStore.set(GITHUB_OAUTH_RETURN_COOKIE, returnTo, cookieOptions);
+
+  const url = new URL("https://github.com/login/oauth/authorize");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", `${emailBaseUrl()}/auth/github-connect/callback`);
+  url.searchParams.set("scope", "read:user");
+  url.searchParams.set("state", state);
+  url.searchParams.set("allow_signup", "false");
+
+  return ok(url.toString());
+}
+
+export type GithubScanStatus = "pending" | "scanning" | "ready" | "failed";
+
+/** Backs the profile page's GitHub section. Null = not connected. */
+export async function getMyGithubStatus(): Promise<
+  Result<{
+    username: string;
+    scanStatus: GithubScanStatus;
+    scanFailureReason: string | null;
+    hasSignal: boolean;
+    /** Has chosen at least one showcase repo. */
+    hasShowcase: boolean;
+    /** A repo exists that this member has never been shown — drives the
+     *  in-app banner and the monthly email nudge. */
+    needsShowcaseReview: boolean;
+  } | null>
+> {
+  const guard = await guardApprovedMember("view your GitHub connection");
+  if (!guard.ok) return guard;
+  const { supabase } = guard.data;
+
+  const { data, error } = await supabase.rpc("get_my_github_status").maybeSingle();
+  if (error) return err(describeSupabaseError(error));
+  if (!data) return ok(null);
+  return ok({
+    username: data.github_username,
+    scanStatus: data.scan_status as GithubScanStatus,
+    scanFailureReason: data.scan_failure_reason,
+    hasSignal: data.has_signal,
+    hasShowcase: data.has_showcase,
+    needsShowcaseReview: data.needs_showcase_review,
+  });
+}
+
+export async function disconnectGithub(): Promise<Result> {
+  const guard = await guardApprovedMember("disconnect GitHub");
+  if (!guard.ok) return guard;
+  const { supabase } = guard.data;
+
+  const { error } = await supabase.rpc("disconnect_github");
+  if (error) return err(describeSupabaseError(error));
+  return ok();
+}
+
+// ─── Showcase repos (member-chosen, sticky) ────────────────────────────
+//
+// The LLM is good at "does this repo contain real engineering?" and has no
+// way at all to answer "which of my projects best represents me?" — so
+// the member picks, and no scan ever overwrites that choice. See
+// 20260907000004_github_showcase.sql.
+
+export async function getMyGithubShowcase(): Promise<Result<GithubShowcase | null>> {
+  const guard = await guardApprovedMember("view your GitHub projects");
+  if (!guard.ok) return guard;
+  const { supabase } = guard.data;
+
+  const { data, error } = await supabase.rpc("get_my_github_showcase").maybeSingle();
+  if (error) return err(describeSupabaseError(error));
+  if (!data) return ok(null);
+
+  return ok({
+    availableRepos: (data.available_repos ?? []) as AvailableRepo[],
+    showcaseRepos: (data.showcase_repos ?? null) as ShowcaseRepo[] | null,
+    suggestedRepos: (data.suggested_repos ?? []) as AvailableRepo[],
+    seenRepos: data.seen_repos ?? [],
+    themes: (data.themes ?? []) as string[],
+  });
+}
+
+/**
+ * Saves the member's picks, in the order they chose them.
+ *
+ * Sends NAMES and BLURBS only. Every other stored field is looked up
+ * server-side out of available_repos, which only the worker writes —
+ * accepting a client-supplied repo object here would let anyone put an
+ * arbitrary URL into a recruiter-facing link list.
+ */
+export async function setMyGithubShowcase(
+  picks: { name: string; blurb: string }[],
+): Promise<Result> {
+  const guard = await guardApprovedMember("choose your GitHub projects");
+  if (!guard.ok) return guard;
+  const { supabase, user } = guard.data;
+
+  if (picks.length > SHOWCASE_MAX_PICKS) {
+    return err(`You can spotlight at most ${SHOWCASE_MAX_PICKS} projects.`);
+  }
+
+  // Each save can queue an LLM completion plus an embedding. 20260908000002
+  // collapses a duplicate save into the job already waiting; this bounds
+  // the case that guard cannot see — saves spaced far enough apart that
+  // each one legitimately queues fresh work. Deliberately loose (20/hour):
+  // the standing product decision is that editing your own showcase is
+  // never rationed, so this has to sit above anything a person does by
+  // hand and below anything a runaway client does.
+  const rate = await guardRate(
+    "githubShowcase",
+    user.id,
+    "You've changed your projects a lot in the last hour. Try again shortly.",
+  );
+  if (!rate.ok) return rate;
+
+  const { error } = await supabase.rpc("set_my_github_showcase", {
+    p_picks: picks.map((pick) => ({
+      name: pick.name,
+      blurb: pick.blurb.trim().slice(0, SHOWCASE_BLURB_MAX) || null,
+    })),
+  });
+  if (error) return err(describeSupabaseError(error));
+  return ok();
+}
+
+/** "Not now" — marks everything currently visible as seen without
+ * touching picks, so the banner returns only when something newer shows
+ * up rather than on the next page load. */
+export async function dismissGithubShowcasePrompt(): Promise<Result> {
+  const guard = await guardApprovedMember("dismiss this");
+  if (!guard.ok) return guard;
+  const { supabase } = guard.data;
+
+  const { error } = await supabase.rpc("dismiss_my_github_showcase_prompt");
+  if (error) return err(describeSupabaseError(error));
+  return ok();
+}
+
+export async function setGithubNudges(enabled: boolean): Promise<Result> {
+  const guard = await guardApprovedMember("change your email settings");
+  if (!guard.ok) return guard;
+  const { supabase } = guard.data;
+
+  const { error } = await supabase.rpc("set_my_github_nudges", { p_enabled: enabled });
+  if (error) return err(describeSupabaseError(error));
+  return ok();
 }
 
 /**

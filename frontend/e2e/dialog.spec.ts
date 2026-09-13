@@ -92,7 +92,38 @@ test("the dialog loads the full profile the list deliberately doesn't carry", as
   // bargain actually happens.
   const long = `Bio ${Date.now()} ` + "z".repeat(400);
   await page.goto("/profile");
-  await page.getByLabel(/^What are you working on, or into\?/).fill(long);
+  const bio = page.getByLabel(/^What are you working on, or into\?/);
+  await bio.waitFor();
+
+  // Wait for REACT to own the field before typing the value under test.
+  //
+  // /profile is server-rendered, so the textarea is present and fillable
+  // before React attaches its onChange. A fill inside that window moves the
+  // DOM node and nothing else: `bioFocus` state keeps the previous bio, the
+  // save below writes THAT, and the router.refresh() afterwards re-renders
+  // the field back to it. The failure then reads as the *previous run's*
+  // bio sitting in the box, which is exactly how this surfaced — and it is
+  // the same hydration race openDialog() above exists for, except a fill is
+  // not idempotent the way a click is, so it cannot simply be replayed.
+  //
+  // The label's "N/500" counter is rendered from the same state as the
+  // textarea's value, so it is the one on-screen signal that separates
+  // "React took it" from "the DOM took it". A short sentinel is used rather
+  // than `long` because both bios are 418 characters: the counter can only
+  // discriminate at a length the field is not already showing.
+  //
+  // clear() before each fill is load-bearing for the same reason it is in
+  // urlfilters.spec.ts — React initialises its _valueTracker from whatever
+  // is in the box when it attaches, so re-filling an identical string
+  // fires no change event and no amount of retrying would move the state.
+  await expect(async () => {
+    await bio.clear();
+    await bio.fill("x");
+    await expect(page.getByLabel(/^What are you working on, or into\? 1\/500/)).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+
+  await bio.fill(long);
+  await expect(bio).toHaveValue(long);
   await page.getByRole("button", { name: "Save changes" }).click();
   // The save is a client-side RPC followed by a router.refresh(), so wait for
   // the value to have actually round-tripped rather than for a banner.

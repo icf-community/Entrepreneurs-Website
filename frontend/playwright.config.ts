@@ -42,7 +42,7 @@ export default defineConfig({
     // Approved student session (from global-setup).
     {
       name: "member",
-      testMatch: /member\.spec\.ts|workflow\.spec\.ts|dialog\.spec\.ts|a11y\.spec\.ts|validation\.spec\.ts|urlfilters\.spec\.ts|home\.spec\.ts|community\.spec\.ts/,
+      testMatch: /member\.spec\.ts|workflow\.spec\.ts|dialog\.spec\.ts|a11y\.spec\.ts|validation\.spec\.ts|urlfilters\.spec\.ts|home\.spec\.ts|community\.spec\.ts|github-showcase\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: storageStatePath("student") },
     },
     // Admin session.
@@ -72,7 +72,22 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm start",
+    // `-p ${PORT}` is not decoration: without it E2E_PORT moved only the URL
+    // Playwright polled, while `next start` kept binding 3000 — so the one
+    // documented escape hatch for "a dev server already holds 3000" failed
+    // with EADDRINUSE and looked like the escape hatch not existing.
+    // `pnpm exec next start`, not `pnpm start`: pnpm swallows `-p` as its own
+    // flag and `--` reaches next as a positional argument it reads as a
+    // project directory. Either way the port never arrives.
+    //
+    // The env guard runs first, in PRODUCTION mode — `next start` reads
+    // .env.production.local and .env.local, never .env.development.local, so
+    // `pnpm dev`'s guard says nothing about what this server will connect to.
+    // Without this line a local E2E run silently inherited .env.local's
+    // PRODUCTION Upstash credentials and read and wrote the live cache; the
+    // Supabase half was safe only because CI and the local runner both export
+    // NEXT_PUBLIC_SUPABASE_URL into the process env, which outranks every file.
+    command: `node scripts/assert-local-env.mjs --mode production && pnpm exec next start -p ${PORT}`,
     url: BASE_URL,
     // Never reuse. `reuseExistingServer: !CI` looks like a local convenience
     // and is a trap: a server already on this port was built against whatever

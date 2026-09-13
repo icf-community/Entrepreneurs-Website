@@ -395,10 +395,16 @@ test.describe("bulk review acts on every selected listing", () => {
       .in("id", [eventIds[2], eventIds[3]]);
     expect(rows?.map((r) => r.status).sort()).toEqual(["rejected", "rejected"]);
 
+    // Scoped to this batch's own rejections, not to "everything ever queued
+    // for this address". The poster fixture is shared with workflow.spec.ts,
+    // which now also queues revision-decision mail to the same inbox — so an
+    // unfiltered count here asserts on other tests' side effects and breaks
+    // the moment any of them sends anything.
     const { data: mail } = await admin
       .from("outbound_email")
       .select("to_address, subject, text_body")
-      .eq("to_address", posterEmail);
+      .eq("to_address", posterEmail)
+      .like("text_body", `%${reason}%`);
     expect(mail, "both rejections must be queued, not just the last").toHaveLength(2);
     for (const m of mail ?? []) {
       expect(m.subject).toContain("wasn't approved");

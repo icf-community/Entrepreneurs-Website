@@ -677,3 +677,179 @@ function escapeName(raw: string): string {
     .trim();
   return cleaned.length > 64 ? `${cleaned.slice(0, 64)}…` : cleaned;
 }
+
+// ─── GitHub showcase nudge ──────────────────────────────────────────
+// The one piece of LIFECYCLE mail in this file — everything else here is
+// transactional (you did a thing; here is the outcome). That difference
+// is why it carries an unsubscribe pointer the others don't need, and
+// why due_github_showcase_nudges enforces a 30-day floor and a per-member
+// opt-out before a row ever reaches this renderer.
+//
+// Event-driven, never a timer: a member only hears from us when a scan
+// has actually turned up a repo they have never been shown. Rendered
+// separately from sending so the cron route can build a batch and hand
+// it to enqueueEmailsBulk in one round trip.
+export function renderShowcaseNudgeEmail(opts: {
+  firstName: string | null;
+  newRepoNames: string[];
+  appUrl: string;
+}): { subject: string; text: string; html: string } {
+  const greeting = opts.firstName ? `Hi ${escapeName(opts.firstName)},` : "Hi,";
+  const count = opts.newRepoNames.length;
+  // Naming them is the whole point — "you have new activity" is spam,
+  // "we noticed foo and bar" is a reason to click. Capped so a member who
+  // pushed thirty repos doesn't get a wall of text.
+  const named = opts.newRepoNames.slice(0, 3).join(", ");
+  const extra = count > 3 ? ` and ${count - 3} more` : "";
+
+  const subject =
+    count === 1
+      ? `New on your GitHub: ${opts.newRepoNames[0]}`
+      : `${count} new projects on your GitHub`;
+
+  const text = [
+    greeting,
+    "",
+    `We spotted something new on your GitHub — ${named}${extra}.`,
+    "",
+    "You choose which three projects recruiters see first on your Foundry profile, along with a line describing each one in your own words. If any of this new work is stronger than what's there now, it's worth swapping in:",
+    "",
+    opts.appUrl,
+    "",
+    "If you'd rather not hear about this, you can turn these emails off from the GitHub section of your profile.",
+    "",
+    "— The Foundry team",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; line-height: 1.6;">
+      <p>${escapeHtml(greeting)}</p>
+      <p>We spotted something new on your GitHub — ${escapeHtml(named)}${escapeHtml(extra)}.</p>
+      <p>You choose which three projects recruiters see first on your Foundry profile, along with a line describing each one in your own words. If any of this new work is stronger than what's there now, it's worth swapping in.</p>
+      <p style="margin: 16px 0;">
+        <a href="${escapeHtml(opts.appUrl)}" style="display: inline-block; padding: 10px 18px; border-radius: 8px; background: #c9a84c; color: #0c0c0b; text-decoration: none; font-weight: 500;">Review your projects →</a>
+      </p>
+      <p style="color: #5a5855; font-size: 0.9em;">If you'd rather not hear about this, you can turn these emails off from the GitHub section of your profile.</p>
+      <p style="color: #5a5855; margin-top: 32px;">— The Foundry team</p>
+    </div>
+  `;
+
+  return { subject, text, html };
+}
+
+// ─── Post-approval listing revisions ────────────────────────────────
+// Three messages, one per hop of the revision path added by
+// 20260907000005: the organiser proposes, an admin reviews, the
+// organiser hears the outcome.
+//
+// The Luma line in the applied/proposed copy is the whole point of D3
+// and is not decoration. Foundry has no attendee list — registration
+// happens entirely on Luma (events.luma_link is `not null`), so nobody
+// on Foundry's side can email the people who already signed up. An
+// organiser who changes a time here and assumes attendees were told is
+// the actual failure mode this feature can create, so every message
+// that touches a live event says plainly where the notification has to
+// come from.
+
+/** Sent to the moderation inbox the moment a revision is proposed. */
+export async function sendListingEditProposalEmail(opts: {
+  listingKind: ListingKind;
+  listingTitle: string;
+  proposerName: string | null;
+  changedFields: string[];
+  siteUrl: string;
+}): Promise<void> {
+  const queue = `${opts.siteUrl.replace(/\/$/, "")}/admin/edits`;
+  const who = opts.proposerName ? escapeName(opts.proposerName) : "A member";
+  const fields = opts.changedFields.length ? opts.changedFields.join(", ") : "—";
+  const subject = `[Foundry] Proposed change to a live ${opts.listingKind}`;
+
+  const text = [
+    `${who} proposed a change to the published ${opts.listingKind} "${opts.listingTitle}".`,
+    "",
+    `Fields changed: ${fields}`,
+    "",
+    "The published version is unchanged and still live. Review the proposal here:",
+    queue,
+    "",
+    "— Foundry",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; line-height: 1.6;">
+      <p>${escapeHtml(who)} proposed a change to the published ${escapeHtml(opts.listingKind)} <strong>&ldquo;${escapeHtml(opts.listingTitle)}&rdquo;</strong>.</p>
+      <p style="margin-bottom: 4px;">Fields changed:</p>
+      <p style="margin-top: 0;"><strong>${escapeHtml(fields)}</strong></p>
+      <p>The published version is unchanged and still live.</p>
+      <p><a href="${escapeHtml(queue)}" style="color: #1a1a1a;">Review it in the admin queue</a></p>
+    </div>`;
+
+  await enqueueEmail({ to: moderationInbox(), subject, text, html });
+}
+
+/**
+ * Sent to the organiser once an admin has reviewed their revision.
+ * Rendered separately from sending so both outcomes share one renderer
+ * and the copy cannot drift between them.
+ */
+export function renderListingEditDecisionEmail(opts: {
+  firstName: string | null;
+  listingKind: ListingKind;
+  listingTitle: string;
+  decision: "applied" | "rejected";
+  reason: string | null;
+  /** True when the revision moved an event's date/time or location. */
+  remindAboutLuma: boolean;
+}): { subject: string; text: string; html: string } {
+  const greeting = opts.firstName ? `Hi ${escapeName(opts.firstName)},` : "Hi,";
+  const applied = opts.decision === "applied";
+  const subject = applied
+    ? `Your changes to "${opts.listingTitle}" are live`
+    : `Your changes to "${opts.listingTitle}" weren't approved`;
+
+  const lumaLine =
+    "Important: this doesn't notify anyone who already registered. Registration lives on Luma, so update your Luma event too — that's what reaches the people who signed up.";
+
+  const text = [
+    greeting,
+    "",
+    applied
+      ? `An admin approved your changes to the ${opts.listingKind} "${opts.listingTitle}". They're now live on Foundry.`
+      : `An admin reviewed your proposed changes to the ${opts.listingKind} "${opts.listingTitle}" and didn't approve them. The published version is unchanged and still live.`,
+    ...(opts.reason ? ["", "The reviewer's notes:", "", opts.reason] : []),
+    ...(applied && opts.remindAboutLuma ? ["", lumaLine] : []),
+    "",
+    applied
+      ? "— The Foundry team"
+      : "You can edit and propose again from your submissions page, or reply to this email to discuss it.\n\n— The Foundry team",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; line-height: 1.6;">
+      <p>${escapeHtml(greeting)}</p>
+      <p>${
+        applied
+          ? `An admin approved your changes to the ${escapeHtml(opts.listingKind)} <strong>&ldquo;${escapeHtml(opts.listingTitle)}&rdquo;</strong>. They&rsquo;re now live on Foundry.`
+          : `An admin reviewed your proposed changes to the ${escapeHtml(opts.listingKind)} <strong>&ldquo;${escapeHtml(opts.listingTitle)}&rdquo;</strong> and didn&rsquo;t approve them. The published version is unchanged and still live.`
+      }</p>
+      ${opts.reason ? `<blockquote style="margin: 16px 0; padding: 12px 16px; background: #f6f5f1; border-left: 3px solid #c9a84c; white-space: pre-wrap;">${escapeHtml(opts.reason)}</blockquote>` : ""}
+      ${applied && opts.remindAboutLuma ? `<p style="padding: 12px 16px; background: #f6f5f1; border-left: 3px solid #c9a84c;">${escapeHtml(lumaLine)}</p>` : ""}
+      ${applied ? "" : "<p>You can edit and propose again from your submissions page, or reply to this email to discuss it.</p>"}
+      <p style="color: #5a5855; margin-top: 32px;">— The Foundry team</p>
+    </div>`;
+
+  return { subject, text, html };
+}
+
+export async function sendListingEditDecisionEmail(opts: {
+  to: string;
+  firstName: string | null;
+  listingKind: ListingKind;
+  listingTitle: string;
+  decision: "applied" | "rejected";
+  reason: string | null;
+  remindAboutLuma: boolean;
+}): Promise<void> {
+  const { subject, text, html } = renderListingEditDecisionEmail(opts);
+  await enqueueEmail({ to: opts.to, subject, text, html, replyTo: appealsInbox() });
+}

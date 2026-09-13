@@ -769,6 +769,28 @@ declare
     'get_post_like_counts',
     -- community posts (admin)
     'admin_delete_post','admin_resolve_post_report','admin_list_post_reports',
+    -- CV + GitHub matchmaker (20260906000001 / 20260907000001 /
+    -- 20260907000004). Every one self-defends on auth.uid() and reads or
+    -- writes only the caller's own row; the pipeline-internal functions
+    -- (enqueue_*, due_*, mark_*, reap_stalled_jobs) are deliberately
+    -- absent and stay service-role only.
+    'get_my_cv_status','get_my_cv_profile',
+    'get_my_github_status','confirm_github_connected','disconnect_github',
+    'get_my_github_showcase','set_my_github_showcase',
+    'dismiss_my_github_showcase_prompt','set_my_github_nudges',
+    -- post-approval listing revisions (20260907000005). The member pair
+    -- self-defends on auth.uid() + ownership of the *listing*, not of the
+    -- revision row; the admin four on is_admin(). stage_listing_edit,
+    -- apply_listing_edit_payload, listing_snapshot and listing_table_name
+    -- are deliberately absent — they are internal, and section 34 asserts
+    -- a member cannot reach them.
+    'listing_has_pending_edit','get_my_pending_listing_edit',
+    'admin_list_listing_edits','admin_apply_listing_edit',
+    'admin_reject_listing_edit','admin_update_listing',
+    -- ingestion kill switch (20260911000003) — read by the two RPCs above
+    -- and by the intake/profile server pages to decide whether to show the
+    -- GitHub-connect/CV-upload entry points at all.
+    'github_cv_ingestion_enabled',
     -- this test's OWN role-impersonation helper (created near the top of this
     -- file, dropped in cleanup below). Not an app RPC — it only exists during
     -- the test run, where Supabase default privileges make it anon-callable;
@@ -1067,22 +1089,41 @@ begin
   if v_title <> 'Edited via RPC' then raise exception 'FAIL: update_event did not apply the edit (got %)', v_title; end if;
   if v_name  <> 'Edited via RPC' then raise exception 'FAIL: update_vc_grant did not apply the edit (got %)', v_name; end if;
 
-  -- (c) once approved, the same call is refused
+  -- (c) once approved, the same call no longer writes through. Changed
+  --     deliberately by 20260907000005: it used to raise, which left a
+  --     wrong room number on a live event unfixable by anyone including
+  --     an admin. It now stages a revision for review. The property that
+  --     actually matters is unchanged and is what is asserted here —
+  --     nothing a member types reaches the published row without a human
+  --     approving it. Section 34 covers the rest of that path.
   perform _set_caller(v_adm);
   perform public.approve_event(v_ev, null);
   perform public.approve_vc_grant(v_vc, null);
 
   perform _set_caller(v_a);
-  v_passed := false;
-  begin
-    perform public.update_event(v_ev, 'TOO LATE',
-      'Description that is at least twenty chars long.', 'https://lu.ma/g',
-      now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false);
-    v_passed := true;
-  exception when others then null;
-  end;
-  if v_passed then raise exception 'FAIL: update_event edited an approved event'; end if;
+  perform public.update_event(v_ev, 'TOO LATE',
+    'Description that is at least twenty chars long.', 'https://lu.ma/g',
+    now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false);
+  perform public.update_vc_grant(v_vc, 'vc', 'TOO LATE',
+    'Description that is at least twenty chars long.', 'https://example.com/g',
+    null, null, null);
 
+  set local role none;
+  select title into v_title from public.events     where id = v_ev;
+  select name  into v_name  from public.vcs_grants where id = v_vc;
+  if v_title = 'TOO LATE' then raise exception 'FAIL: update_event published an edit to an approved event'; end if;
+  if v_name  = 'TOO LATE' then raise exception 'FAIL: update_vc_grant published an edit to an approved listing'; end if;
+  if (select count(*) from public.listing_edits
+       where listing_id in (v_ev, v_vc) and status = 'pending') <> 2 then
+    raise exception 'FAIL: the approved edits were neither published nor queued for review';
+  end if;
+
+  -- A rejected listing still refuses outright: there is nothing
+  -- published to revise, so there is nothing to review.
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  set local role none;
+  update public.vcs_grants set status = 'rejected', rejected_reason = 'test' where id = v_vc;
+  perform _set_caller(v_a);
   v_passed := false;
   begin
     perform public.update_vc_grant(v_vc, 'vc', 'TOO LATE',
@@ -1091,9 +1132,10 @@ begin
     v_passed := true;
   exception when others then null;
   end;
-  if v_passed then raise exception 'FAIL: update_vc_grant edited an approved listing'; end if;
+  if v_passed then raise exception 'FAIL: update_vc_grant edited a rejected listing'; end if;
 
-  -- (d) an event cannot be edited into the past
+  -- (d) an event cannot be edited into the past — on either path, which
+  --     is why the guard sits above the pending/approved branch.
   perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
   set local role none;
   update public.events set status = 'pending', approved_at = null, approved_by = null where id = v_ev;
@@ -2293,6 +2335,359 @@ begin
   --      test and must still be admin throughout.
   if not exists (select 1 from public.admins where user_id = v_admin) then
     raise exception 'FAIL: an unrelated admin lost admin access during this test';
+  end if;
+end;
+$$;
+
+-- ─── 34. Post-approval listing revisions ────────────────────────────
+-- 20260907000005 is the first migration that lets a member's write touch
+-- a *published* row's future, so the interesting assertions are about
+-- what it cannot do: publish without review, read somebody else's
+-- proposal, reach the internal appliers, or survive the listing being
+-- unpublished. Section 26(c) proves the routing; this proves the rest.
+set local role postgres;
+do $$
+declare
+  v_a      uuid := (select v from _test_ctx where k='user_a');
+  v_b      uuid := (select v from _test_ctx where k='user_b');
+  v_adm    uuid := (select v from _test_ctx where k='admin');
+  v_ev     uuid := gen_random_uuid();
+  v_edit   uuid;
+  v_txt    text;
+  v_n      int;
+  v_passed boolean;
+begin
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into public.events (
+    id, posted_by, status, title, description, luma_link, event_at,
+    location, organiser_name, contact_email, approved_at, approved_by
+  ) values (v_ev, v_a, 'approved', 'Revision fixture',
+            'Description that is at least twenty chars long.', 'https://lu.ma/r',
+            now() + interval '30 days', 'Huxley 340', 'A User', 'a@imperial.ac.uk',
+            now(), v_adm);
+
+  -- (a) the owner's edit stages a revision and leaves the live row alone
+  perform _set_caller(v_a);
+  perform public.update_event(v_ev, 'Revision fixture',
+    'Description that is at least twenty chars long.', 'https://lu.ma/r',
+    now() + interval '30 days', 'Blackett 202', 'A User', 'a@imperial.ac.uk', false);
+
+  set local role none;
+  select location into v_txt from public.events where id = v_ev;
+  if v_txt <> 'Huxley 340' then
+    raise exception 'FAIL: a proposed revision changed the published event (%)', v_txt;
+  end if;
+
+  -- (b) a listing has at most one open revision, enforced by the index
+  perform _set_caller(v_a);
+  perform public.update_event(v_ev, 'Revision fixture',
+    'Description that is at least twenty chars long.', 'https://lu.ma/r',
+    now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false);
+  set local role none;
+  select count(*) into v_n from public.listing_edits where listing_id = v_ev and status = 'pending';
+  if v_n <> 1 then raise exception 'FAIL: % open revisions on one listing', v_n; end if;
+
+  -- (c) a payload that violates the table's own CHECK constraints is
+  --     refused at proposal time, not left to blow up in the reviewer's
+  --     face — and the dry run that proves it must not leak onto the row
+  perform _set_caller(v_a);
+  v_passed := false;
+  begin
+    perform public.update_event(v_ev, 'x',
+      'Description that is at least twenty chars long.', 'https://lu.ma/r',
+      now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false);
+    v_passed := true;
+  exception when others then null;
+  end;
+  if v_passed then raise exception 'FAIL: staged a revision violating events_title_len'; end if;
+  set local role none;
+  select title into v_txt from public.events where id = v_ev;
+  if v_txt <> 'Revision fixture' then
+    raise exception 'FAIL: the validation dry run leaked onto the live row (%)', v_txt;
+  end if;
+
+  -- (d) the table is unreachable directly. Stricter than the other
+  --     deny-all tables here, which keep the SELECT grant and rely on
+  --     having no policies (so a read returns 0 rows): this one has the
+  --     grant revoked as well, so a direct read is a hard permission
+  --     error. Asserted as an error, not as an empty result.
+  perform _set_caller(v_b);
+  v_passed := false;
+  begin
+    select count(*) into v_n from public.listing_edits;
+    v_passed := true;
+  exception when others then null;
+  end;
+  if v_passed then raise exception 'FAIL: a member selected from listing_edits directly'; end if;
+
+  -- (e) another member cannot read the owner's proposal through the RPC
+  select count(*) into v_n from public.get_my_pending_listing_edit('event', v_ev);
+  if v_n <> 0 then raise exception 'FAIL: a non-owner read a queued revision'; end if;
+
+  -- (f) …nor reach the internal appliers that publish one.
+  --
+  --     Asserted through has_function_privilege rather than by calling
+  --     them and catching the refusal, which is how the other "a member
+  --     cannot call this" checks in this file are written. Two reasons,
+  --     and the first is enough on its own:
+  --
+  --     1. The local Postgres image (public.ecr.aws/supabase/postgres
+  --        17.6.1.105, shipped by Supabase CLI 2.116.0) SEGFAULTS the
+  --        backend when a role without EXECUTE calls a plpgsql SECURITY
+  --        DEFINER function under `set local role`. Not specific to
+  --        these functions — public.expire_events() and
+  --        public.rls_auto_enable(), both years old, crash it too. CI
+  --        pins the CLI to 2.105.0, so this is a local-only regression,
+  --        but a test that takes the server down on a developer's
+  --        machine is not a test anyone will keep running.
+  --     2. has_function_privilege is the stronger assertion anyway: it
+  --        is what section 21 uses, and it accounts for direct grants,
+  --        the PUBLIC grant and role membership at once.
+  if has_function_privilege('authenticated',
+       'public.apply_listing_edit_payload(public.listing_event_kind, uuid, jsonb)', 'EXECUTE')
+     or has_function_privilege('authenticated',
+       'public.stage_listing_edit(public.listing_event_kind, uuid, jsonb)', 'EXECUTE')
+     or has_function_privilege('authenticated',
+       'public.listing_snapshot(public.listing_event_kind, uuid)', 'EXECUTE')
+  then
+    raise exception 'FAIL: a member can execute one of the internal listing-edit appliers';
+  end if;
+
+  perform _set_caller(v_b);
+  v_passed := false;
+  begin
+    perform public.admin_update_listing('event', v_ev, jsonb_build_object('title', 'HIJACKED'));
+    v_passed := true;
+  exception when others then null;
+  end;
+  if v_passed then raise exception 'FAIL: a member called admin_update_listing'; end if;
+
+  -- (g) an admin applying it publishes the change and never moves status
+  perform _set_caller(v_adm);
+  select id into v_edit from public.admin_list_listing_edits() where listing_id = v_ev;
+  if v_edit is null then raise exception 'FAIL: the revision is missing from the admin queue'; end if;
+  perform public.admin_apply_listing_edit(v_edit);
+
+  set local role none;
+  select location into v_txt from public.events where id = v_ev;
+  if v_txt <> 'Blackett 999' then raise exception 'FAIL: apply did not publish (%)', v_txt; end if;
+  select status::text into v_txt from public.events where id = v_ev;
+  if v_txt <> 'approved' then
+    raise exception 'FAIL: applying a revision moved the listing to %', v_txt;
+  end if;
+  select previous->>'location' into v_txt from public.listing_edits where id = v_edit;
+  if v_txt <> 'Huxley 340' then raise exception 'FAIL: no before-snapshot recorded (%)', v_txt; end if;
+
+  -- (h) unpublishing the listing discards whatever was queued against it
+  perform _set_caller(v_a);
+  perform public.update_event(v_ev, 'Revision fixture',
+    'Description that is at least twenty chars long.', 'https://lu.ma/r',
+    now() + interval '30 days', 'Doomed room', 'A User', 'a@imperial.ac.uk', false);
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  set local role none;
+  update public.events set status = 'expired' where id = v_ev;
+  select count(*) into v_n from public.listing_edits where listing_id = v_ev and status = 'pending';
+  if v_n <> 0 then raise exception 'FAIL: % revisions survived the listing being unpublished', v_n; end if;
+
+  -- (i) deleting the listing takes its revision history with it
+  delete from public.events where id = v_ev;
+  select count(*) into v_n from public.listing_edits where listing_id = v_ev;
+  if v_n <> 0 then raise exception 'FAIL: % orphaned listing_edits rows after delete', v_n; end if;
+end;
+$$;
+
+-- ─── 35. get_my_cv_profile: skills are deduplicated across sources ────
+-- member_skills holds one row per (member, source, skill) — a skill
+-- found on both the CV and GitHub resolves to the same cv_skills row
+-- via two DIFFERENT member_skills rows (source='cv' and source='github').
+-- get_my_cv_profile's array_agg must still surface it once, not twice
+-- (20260911000002 — found as a duplicate-key React warning that was
+-- really a duplicate-data bug).
+do $$
+declare
+  v_m            uuid := gen_random_uuid();
+  v_cv           uuid := gen_random_uuid();
+  v_skill        uuid;
+  v_dummy        vector(1536) := (select ('[' || string_agg('0', ',') || ']')::vector
+                                     from generate_series(1, 1536));
+  v_skills       text[];
+  v_match_count  int;
+begin
+  set local role postgres;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_m, 'dedup-skills@imperial.ac.uk',
+          '{"first_name":"D","surname":"Skills","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb)
+  on conflict do nothing;
+  insert into public.profiles (id, role, status, first_name, surname, course, grad_year)
+  values (v_m, 'student', 'approved', 'D', 'Skills', 'MEng Computing', 2027)
+  on conflict (id) do update set
+    status     = excluded.status,
+    course     = excluded.course,
+    grad_year  = excluded.grad_year;
+
+  insert into public.cvs (id, member_id, blob_key, status, is_current)
+  values (v_cv, v_m, 'dedup-skills.pdf', 'ready', true);
+  insert into public.cv_profiles (cv_id, is_current, profile, summary, model_name, prompt_version)
+  values (v_cv, true, '{}'::jsonb, 'A summary.', 'test-model', 'test-v1');
+
+  insert into public.cv_skills (canonical_name, embedding)
+  values ('Python (rls_smoke dedup fixture)', v_dummy)
+  on conflict (canonical_name) do nothing
+  returning id into v_skill;
+  if v_skill is null then
+    select id into v_skill from public.cv_skills where canonical_name = 'Python (rls_smoke dedup fixture)';
+  end if;
+
+  -- Same canonical skill, reached from both signals — exactly what a
+  -- member with Python on their CV and among their GitHub languages
+  -- produces.
+  insert into public.member_skills (member_id, skill_id, raw_text, confidence, source)
+  values
+    (v_m, v_skill, 'Python', 1.0,  'cv'),
+    (v_m, v_skill, 'Python', 0.95, 'github');
+
+  perform _set_caller(v_m);
+  select skills into v_skills from public.get_my_cv_profile();
+  set local role none;
+
+  select count(*) into v_match_count
+    from unnest(v_skills) s where s = 'Python (rls_smoke dedup fixture)';
+  if v_match_count <> 1 then
+    raise exception
+      'FAIL: get_my_cv_profile returned % copies of a skill matched from two sources, want 1',
+      v_match_count;
+  end if;
+end;
+$$;
+
+-- ─── 36. Ingestion kill switch: gates the job, not the storage ────────
+-- (20260911000003). Deliberately NOT posting_enabled's raise-an-exception
+-- shape: confirm_cv_upload/confirm_github_connected must still succeed and
+-- still do their storage/connection write while the switch is off — only
+-- the ingest_cv / scan_github job insert is suppressed. See that
+-- migration's header for why (raising would also roll back the unrelated,
+-- pre-existing storage write in the same transaction).
+do $$
+declare
+  v_m           uuid := gen_random_uuid();
+  v_key         text;
+  v_cv_count    int;
+  v_ingest_before int;
+  v_ingest_after  int;
+  v_scan_before   int;
+  v_scan_after    int;
+  v_cv_path     text;
+  v_gh_status   text;
+begin
+  set local role postgres;
+  -- The previous test block left request.jwt.claims set to a non-admin
+  -- member — tg_profiles_protect_status (20260531000003) rejects a
+  -- status-setting INSERT/UPDATE without service_role or is_admin(), so
+  -- this has to be explicit rather than assumed left over from above.
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_m, 'kill-switch@imperial.ac.uk',
+          '{"first_name":"K","surname":"Switch","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb)
+  on conflict do nothing;
+  insert into public.profiles (id, role, status, first_name, surname, course, grad_year)
+  values (v_m, 'student', 'approved', 'K', 'Switch', 'MEng Computing', 2027)
+  on conflict (id) do update set
+    status     = excluded.status,
+    course     = excluded.course,
+    grad_year  = excluded.grad_year;
+
+  update public.app_config set value = 'false' where key = 'github_cv_ingestion_enabled';
+
+  -- 36a. confirm_cv_upload: storage still happens, ingest job does not.
+  select count(*) into v_ingest_before from public.jobs where kind = 'ingest_cv';
+
+  perform _set_caller(v_m);
+  v_key := public.issue_upload_ticket('cv');
+  perform public.confirm_cv_upload(v_key, 'switch-test.pdf', true);
+  set local role postgres;
+
+  select cv_path into v_cv_path from public.profiles where id = v_m;
+  select count(*) into v_cv_count from public.cvs where member_id = v_m;
+  select count(*) into v_ingest_after from public.jobs where kind = 'ingest_cv';
+
+  if v_cv_path is distinct from v_key then
+    raise exception 'FAIL: confirm_cv_upload did not store cv_path while the kill switch was off';
+  end if;
+  if v_cv_count <> 0 then
+    raise exception 'FAIL: confirm_cv_upload opened a cvs row while the kill switch was off';
+  end if;
+  if v_ingest_after <> v_ingest_before then
+    raise exception 'FAIL: confirm_cv_upload enqueued an ingest_cv job while the kill switch was off';
+  end if;
+
+  -- 36b. confirm_github_connected: connection still recorded, scan job does not.
+  select count(*) into v_scan_before from public.jobs where kind = 'scan_github';
+
+  perform _set_caller(v_m);
+  perform public.confirm_github_connected(123456789, 'kill-switch-octocat', 'fake-token', 'test-encryption-key-not-real');
+  set local role postgres;
+
+  select scan_status into v_gh_status from public.github_connections where member_id = v_m;
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+
+  if v_gh_status is distinct from 'pending' then
+    raise exception 'FAIL: confirm_github_connected did not record the connection while the kill switch was off';
+  end if;
+  if v_scan_after <> v_scan_before then
+    raise exception 'FAIL: confirm_github_connected enqueued a scan_github job while the kill switch was off';
+  end if;
+
+  -- 36b2. enqueue_github_rescans (20260911000004) self-heals a connection
+  -- stranded 'pending' by the switch, but only once it's old enough —
+  -- immediately after connecting it must NOT be swept up (that would
+  -- double-enqueue a connection whose job is just about to land once the
+  -- switch flips back on for real usage, not this synthetic gap).
+  perform public.enqueue_github_rescans();
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+  if v_scan_after <> v_scan_before then
+    raise exception 'FAIL: enqueue_github_rescans swept up a freshly-stranded pending connection too early';
+  end if;
+
+  -- 36b3. (20260913000001) Even once the connection IS old enough, the
+  -- self-heal must not fire while the switch is still off — that would
+  -- re-create the exact job the switch is suppressing. This is the
+  -- adversarial-audit finding: the pre-fix body swept this up regardless
+  -- of switch state.
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  update public.github_connections
+     set connected_at = now() - interval '1 hour'
+   where member_id = v_m;
+  perform public.enqueue_github_rescans();
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+  if v_scan_after <> v_scan_before then
+    raise exception 'FAIL: enqueue_github_rescans self-healed a stranded pending connection while the kill switch was still off';
+  end if;
+
+  -- 36c. Flip back on: the same two RPCs resume enqueuing, proving the
+  -- suppression above was the switch and not some other break — and the
+  -- now-old-enough stranded connection from 36b3 finally heals on this
+  -- same tick, proving the switch being back on is what unblocks it.
+  update public.app_config set value = 'true' where key = 'github_cv_ingestion_enabled';
+
+  perform public.enqueue_github_rescans();
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+  if v_scan_after <> v_scan_before + 1 then
+    raise exception 'FAIL: enqueue_github_rescans did not self-heal a stranded pending connection once the kill switch was back on';
+  end if;
+
+  perform _set_caller(v_m);
+  v_key := public.issue_upload_ticket('cv');
+  perform public.confirm_cv_upload(v_key, 'switch-test-2.pdf', true);
+  set local role postgres;
+
+  select count(*) into v_cv_count from public.cvs where member_id = v_m;
+  select count(*) into v_ingest_after from public.jobs where kind = 'ingest_cv';
+  if v_cv_count <> 1 then
+    raise exception 'FAIL: confirm_cv_upload did not open a cvs row once the kill switch was back on';
+  end if;
+  if v_ingest_after <> v_ingest_before + 1 then
+    raise exception 'FAIL: confirm_cv_upload did not enqueue an ingest_cv job once the kill switch was back on';
   end if;
 end;
 $$;

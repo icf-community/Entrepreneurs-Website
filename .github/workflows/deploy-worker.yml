@@ -1,0 +1,122 @@
+name: Deploy worker
+
+# Ships server/ to the ingestion worker's VM when it changes on main.
+# Sibling to deploy-gateway.yml, not a parameterised copy — see that
+# file's own header for why this doesn't use SSH (identical reasoning:
+# foundry-worker has no port-22 NSG rule at all, same as the gateway has
+# none reachable from GitHub's runner pool).
+#
+# Reuses the SAME OIDC identity as deploy-gateway.yml (foundry-gateway-deploy)
+# rather than provisioning a second federated credential — that setup has
+# real documented gotchas (production-runbook.md's CI gotcha #2, the OIDC
+# subject-claim mismatch) not worth re-hitting for administrative
+# separation alone. What stays tightly scoped is the ROLE, not the
+# identity: a new custom role ("Foundry Worker Deployer", read +
+# runCommand/action only, assignableScopes limited to exactly the
+# foundry-worker VM) was created and granted to this same identity
+# alongside its existing gateway-scoped role — so this identity's total
+# reach is still exactly "read + run a command" on two named VMs, nothing
+# broader, even though it's one federated credential rather than two.
+
+on:
+  push:
+    branches: [main]
+    # The worker is one small service that changes rarely. Without this
+    # filter every frontend commit would rebuild and restart it for nothing.
+    paths:
+      - 'server/**'
+      - 'infra/vm/foundry-worker@.service'
+      - 'infra/vm/foundry-worker-release.sh'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch:
+
+# Never let two deploys race each other on the VM; never cancel one that's
+# already touching running instances mid-flight.
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write    # push the image to GHCR
+  id-token: write    # federated (passwordless) Azure login
+
+jobs:
+  # Same suite as deploy-gateway.yml's `test` job, run again here rather
+  # than trusted from another workflow's result — this is the one place
+  # both deploy paths independently confirm the shared image is sound
+  # before anything ships from it.
+  test:
+    name: Server tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/pyproject.toml
+      - run: pip install -e '.[dev]'
+      - run: pytest -q
+
+  build-and-push:
+    name: Build and push image
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # Same image, same registry entry as the gateway — one build serves
+      # both roles, only the systemd ExecStart differs. SHA-tagged for the
+      # same reason deploy-gateway.yml's does: foundry-worker-release.sh
+      # retags :latest only once it's about to restart, so a second push
+      # landing mid-deploy can never make this deploy the wrong commit.
+      - id: tag
+        run: echo "image=ghcr.io/icf-community/foundry-gateway:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - run: docker build --platform linux/amd64 -t "${{ steps.tag.outputs.image }}" server
+
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - run: docker push "${{ steps.tag.outputs.image }}"
+
+  deploy:
+    name: Release to the VM
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Same trap as deploy-gateway.yml: `az vm run-command invoke` reports
+      # success as long as the command was DELIVERED, not on its exit
+      # code — foundry-worker-release.sh prints a sentinel only when every
+      # enabled instance is confirmed active, and we grep for it.
+      - name: Run foundry-worker-release on the VM
+        run: |
+          set -euo pipefail
+          OUT=$(az vm run-command invoke \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_WORKER_VM_NAME }}" \
+            --command-id RunShellScript \
+            --scripts "/usr/local/sbin/foundry-worker-release '${{ needs.build-and-push.outputs.image }}'" \
+            --query "value[0].message" -o tsv)
+          echo "$OUT"
+          if ! grep -q "FOUNDRY_DEPLOY_OK ${{ needs.build-and-push.outputs.image }}" <<<"$OUT"; then
+            echo "::error::foundry-worker-release did not report success — see the log above."
+            exit 1
+          fi
+
+      # No public-hostname verification step, unlike the gateway — this
+      # VM has no public endpoint at all. foundry-worker-release.sh's own
+      # `systemctl is-active` check above is the only health signal that
+      # exists for a process that listens on nothing.

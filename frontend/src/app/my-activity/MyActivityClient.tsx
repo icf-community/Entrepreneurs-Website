@@ -6,6 +6,7 @@ import { unmarkAction, type ListingKind } from "@/lib/listingActions";
 import { formatDate, formatDateTime } from "@/lib/dates";
 // Type-only, so the server-only module is erased rather than imported.
 import type { ActivityItem } from "@/lib/data/activity";
+import { externalHref } from "@/lib/safeUrl";
 
 type Tab = "all" | "opportunity" | "event" | "vc_grant";
 
@@ -144,7 +145,7 @@ function Row({ item, onUnmark }: { item: ActivityItem; onUnmark: () => void }) {
         <div className="shrink-0 flex items-start gap-1.5">
           {item.url && (
             <a
-              href={item.url}
+              href={externalHref(item.url)}
               target="_blank"
               rel="noreferrer noopener"
               className="inline-flex items-center px-3 py-1.5 rounded-lg bg-transparent border border-border text-text-secondary text-[0.75rem] no-underline transition-colors hover:border-accent hover:text-accent-light"

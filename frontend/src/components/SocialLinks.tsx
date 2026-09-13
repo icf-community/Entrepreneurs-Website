@@ -1,3 +1,5 @@
+import { externalHref } from "@/lib/safeUrl";
+
 type Props = {
   linkedinUrl: string | null;
   githubUrl: string | null;
@@ -10,7 +12,7 @@ export default function SocialLinks({ linkedinUrl, githubUrl, portfolioUrl }: Pr
     <div className="flex flex-wrap items-center gap-2">
       {linkedinUrl && (
         <a
-          href={linkedinUrl}
+          href={externalHref(linkedinUrl)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="LinkedIn profile"
@@ -22,7 +24,7 @@ export default function SocialLinks({ linkedinUrl, githubUrl, portfolioUrl }: Pr
       )}
       {githubUrl && (
         <a
-          href={githubUrl}
+          href={externalHref(githubUrl)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="GitHub profile"
@@ -34,7 +36,7 @@ export default function SocialLinks({ linkedinUrl, githubUrl, portfolioUrl }: Pr
       )}
       {portfolioUrl && (
         <a
-          href={portfolioUrl}
+          href={externalHref(portfolioUrl)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Portfolio site"

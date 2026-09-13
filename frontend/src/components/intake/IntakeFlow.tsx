@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/Button";
 import { ErrorBanner } from "@/components/forms/Banners";
@@ -16,6 +16,11 @@ import {
   confirmAvatarUpload,
   requestCvTicket,
   confirmCvUpload,
+  removeCv,
+  requestGithubConnectUrl,
+  getMyGithubStatus,
+  getMyGithubShowcase,
+  setMyGithubShowcase,
 } from "@/app/profile/mediaActions";
 import {
   GROUPS,
@@ -31,15 +36,19 @@ import { track } from "@/components/analytics/PostHogProvider";
 import { MIN_SKILLS, initialState, type IntakeState } from "@/lib/intake/state";
 import { useIntakeDraft } from "@/lib/intake/useIntakeDraft";
 import StepRail from "./StepRail";
+import { SkipWarningDialog } from "./SkipWarningDialog";
+import { ConsentWarningDialog } from "./ConsentWarningDialog";
 import {
   CvScreen,
   FaceScreen,
+  GithubScreen,
   InterestsScreen,
   SkillsScreen,
   WantScreen,
   WhereScreen,
   YoureInScreen,
   type ExistingCv,
+  type GithubScreenState,
   type ScreenProps,
 } from "./screens";
 
@@ -79,6 +88,9 @@ export default function IntakeFlow({
   role,
   existingLinkedin,
   existingCv,
+  existingGithubUrl,
+  githubConnected,
+  ingestionEnabled,
 }: {
   memberId: string;
   firstName: string;
@@ -89,8 +101,15 @@ export default function IntakeFlow({
   role: Affiliation;
   existingLinkedin: string | null;
   existingCv: ExistingCv | null;
+  existingGithubUrl: string | null;
+  githubConnected: boolean;
+  /** Kill switch (20260911000003) — false pauses only the LLM/worker-job
+   *  side of CV upload and GitHub connect; file storage and OAuth
+   *  recording stay unaffected either way. */
+  ingestionEnabled: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const [s, setS] = useState<IntakeState>(() => initialState({
@@ -101,7 +120,15 @@ export default function IntakeFlow({
     linkedin: existingLinkedin,
   }));
   const clearDraft = useIntakeDraft(memberId, s, setS);
-  const [step, setStep] = useState<StepId>("face");
+  // The OAuth return lands on /intake?github=connected|error. Reading it
+  // here rather than setting `step` from an effect is not a lint dodge:
+  // an effect would render the face screen for one frame and then jump,
+  // which reads as the flow restarting after a member has just come back
+  // from github.com.
+  const githubReturn = searchParams.get("github");
+  const [step, setStep] = useState<StepId>(
+    githubReturn === "connected" || githubReturn === "error" ? "github" : "face",
+  );
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -118,6 +145,40 @@ export default function IntakeFlow({
   // whole gate exists for — 20260901000013's header comment).
   const [linkedinSaved, setLinkedinSaved] = useState(!!existingLinkedin);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  // Set only when the bounded poll below exhausts its attempts with
+  // nothing found. We can't distinguish "slow extraction" from "this
+  // wasn't a CV we could read" from here, and the product call is to
+  // treat it as the latter: ask for the right document back rather than
+  // leave someone polling indefinitely on a maybe-bad upload.
+  const [suggestionsGaveUp, setSuggestionsGaveUp] = useState(false);
+  // True while rejectCv's removeCv() round trip is in flight — disables
+  // the reject button so a slow connection can't fire it twice.
+  const [rejectingCv, setRejectingCv] = useState(false);
+
+  // ─── GitHub (optional, screen 03) ─────────────────────────────────
+  // Owned here rather than in screens.tsx for the same reason the avatar
+  // and CV uploads are: screens.tsx stays pure UI, and every round trip
+  // lives in one file.
+  const [ghConnected, setGhConnected] = useState(githubConnected);
+  const [ghScanning, setGhScanning] = useState(false);
+  const [ghConnecting, setGhConnecting] = useState(false);
+  const [ghError, setGhError] = useState(
+    githubReturn === "error" ? "We couldn't connect your GitHub account. Please try again." : "",
+  );
+  const [ghShowcase, setGhShowcase] = useState<GithubScreenState["showcase"]>(null);
+  const [ghSaving, setGhSaving] = useState(false);
+  const [ghSaved, setGhSaved] = useState(false);
+
+  // Shown once per screen per session. A member who presses Continue a
+  // second time has read it and decided; nagging again is just friction.
+  const [skipWarningFor, setSkipWarningFor] = useState<StepId | null>(null);
+  const [skipWarned, setSkipWarned] = useState<Set<StepId>>(() => new Set());
+  // Separate from skipWarned/skipWarningFor: this one fires for a CV
+  // that IS attached but unconsented, including for a student, where
+  // shouldWarnAboutSkipping deliberately never fires (see its own
+  // comment) — a different problem needs a different warning.
+  const [consentWarningFor, setConsentWarningFor] = useState<StepId | null>(null);
+  const [consentWarned, setConsentWarned] = useState(false);
 
   /** Every compulsory item for this role is already saved on the profile
    *  row — the gate for showing "Skip for now" at all. */
@@ -169,10 +230,12 @@ export default function IntakeFlow({
       if (ids && ids.length > 0) {
         patch({ suggestedSkillIds: ids });
         setSuggestionsLoading(false);
+        setSuggestionsGaveUp(false);
         return;
       }
       if (attempts >= MAX_ATTEMPTS) {
         setSuggestionsLoading(false);
+        setSuggestionsGaveUp(true);
         return;
       }
       timer = setTimeout(poll, INTERVAL_MS);
@@ -185,6 +248,77 @@ export default function IntakeFlow({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- poll while go() has flagged loading for this arrival at "skills"
   }, [step, suggestionsLoading]);
+
+  /**
+   * Polls the scan the way the profile dialog does, then loads the
+   * picker. Bounded: a scan that hasn't finished within ~40s leaves the
+   * screen saying so and lets the member move on — an optional screen
+   * must never be able to trap someone mid-signup.
+   */
+  const loadGithub = useCallback(async () => {
+    setGhScanning(true);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const status = await getMyGithubStatus();
+      if (!status.ok || !status.data) break;
+      setGhConnected(true);
+      if (status.data.scanStatus === "failed") {
+        setGhError(status.data.scanFailureReason ?? "We couldn't read your repositories.");
+        setGhScanning(false);
+        return;
+      }
+      if (status.data.scanStatus === "ready") {
+        const showcase = await getMyGithubShowcase();
+        if (showcase.ok && showcase.data) setGhShowcase(showcase.data);
+        setGhScanning(false);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    setGhScanning(false);
+  }, []);
+
+  /**
+   * The OAuth round trip leaves the flow entirely and comes back to
+   * /intake?github=connected. The draft in localStorage restores every
+   * answer, but `step` is deliberately NOT drafted — which is exactly
+   * why the query param has to carry it. Cleared with router.replace so
+   * a later refresh doesn't re-trigger this.
+   */
+  useEffect(() => {
+    if (githubReturn !== "connected" && githubReturn !== "error") return;
+    // Clear the param so a refresh doesn't re-enter this branch. The step
+    // and the error message are already in the initial state above.
+    router.replace("/intake");
+    // Genuinely does set state synchronously: loadGithub's first line is
+    // setGhScanning(true), before it polls. That is the point — the
+    // screen must already read as scanning when the member lands back
+    // from github.com, not one poll later. The cost is one extra render
+    // on a mount that is navigating anyway.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (githubReturn === "connected") void loadGithub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on the OAuth return
+  }, []);
+
+  const connectGithub = async () => {
+    setGhError("");
+    setGhConnecting(true);
+    try {
+      const result = await requestGithubConnectUrl("intake");
+      if (!result.ok) { setGhError(result.error); return; }
+      window.location.href = result.data;
+    } finally {
+      setGhConnecting(false);
+    }
+  };
+
+  const saveGithubPicks = async (picks: { name: string; blurb: string }[]) => {
+    setGhError("");
+    setGhSaving(true);
+    const result = await setMyGithubShowcase(picks);
+    setGhSaving(false);
+    if (!result.ok) { setGhError(result.error); return; }
+    setGhSaved(true);
+  };
 
   const onCropAvatar = async (blob: Blob) => {
     setAvatarError("");
@@ -258,10 +392,22 @@ export default function IntakeFlow({
       // parses the CV in the background and persists the result, so a
       // fresh upload clears whatever the previous CV suggested until the
       // effect below picks up the new value once the Skills screen mounts.
+      //
+      // This is also the one point that "a replacement CV is actually
+      // uploaded" (as opposed to just clicking "Upload a different CV"
+      // and reconsidering) — so it's where stale CV-sourced skills from
+      // whatever CV was on file before get dropped. cvSkillIds only ever
+      // contains ids added via acceptSuggestion (screens.tsx), never
+      // ones the member searched for and added themselves, so this never
+      // touches a manually-added skill. On a first-ever upload
+      // cvSkillIds is already empty, so the filter is a no-op there.
       patch({
         cvUploadedKey: stored.key,
         cvOriginalFilename: s.cvFile.name,
         suggestedSkillIds: [],
+        skillIds: s.skillIds.filter((id) => !s.cvSkillIds.includes(id)),
+        coreSkillIds: s.coreSkillIds.filter((id) => !s.cvSkillIds.includes(id)),
+        cvSkillIds: [],
       });
       return null;
     } catch {
@@ -323,7 +469,55 @@ export default function IntakeFlow({
     setError("");
     setDir(direction);
     setStep(to);
+    // Arms the same bounded poll the CV-upload branch of advance() starts
+    // — but also covers arriving here any other way (the rail lets you
+    // jump to any screen, visited or not; so does Back). Without this, a
+    // member who left "skills" mid-poll (or before ever polling) and
+    // came back via the rail saw a permanently empty box even once
+    // cv_suggested_skill_ids was sitting on the row. Only the first visit
+    // auto-fetches — !suggestionsGaveUp keeps this from re-arming itself
+    // on every rail click after a member has already used the manual
+    // "Check again" retry once.
+    if (
+      to === "skills" &&
+      s.suggestedSkillIds.length === 0 &&
+      s.cvConsent && (s.cvFile || s.cvUploadedKey) &&
+      !suggestionsLoading && !suggestionsGaveUp
+    ) {
+      setSuggestionsLoading(true);
+    }
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "auto" });
+  };
+
+  /**
+   * "We couldn't find any matching skills in that document" — offered
+   * once the poll above gives up. Rather than an indefinite "check
+   * again" loop, this removes the stored CV outright (removeCv() clears
+   * profiles.cv_path and enqueues the blob for deletion — see
+   * tg_enqueue_profile_media_deletion, 20260901000002) and sends the
+   * member back to the CV screen to pick the right file. We only ever
+   * store one CV per member, so freeing that slot is required before a
+   * fresh upload can take its place.
+   */
+  const rejectCv = async () => {
+    if (rejectingCv) return;
+    setRejectingCv(true);
+    const removed = await removeCv();
+    setRejectingCv(false);
+    if (!removed.ok) {
+      setError(removed.error);
+      return;
+    }
+    setSuggestionsGaveUp(false);
+    setSuggestionsLoading(false);
+    patch({
+      cvFile: null,
+      cvUploadedKey: null,
+      cvOriginalFilename: null,
+      suggestedSkillIds: [],
+    });
+    go("cv", "back");
+    setError("That didn't look like a CV we could read — please upload a different document.");
   };
 
   const finish = async () => {
@@ -355,10 +549,58 @@ export default function IntakeFlow({
     setDone(true);
   };
 
+  /**
+   * True when the member is about to leave the CV or GitHub screen
+   * having supplied NEITHER, and both are genuinely optional for them.
+   *
+   * Never fires for a student on the CV screen: their CV is compulsory
+   * (20260901000013), so a missing one hits validate()'s hard error and
+   * a dismissible "are you sure?" would imply a choice that isn't there.
+   */
+  const shouldWarnAboutSkipping = (id: StepId): boolean => {
+    if (id !== "cv" && id !== "github") return false;
+    if (skipWarned.has(id)) return false;
+    if (id === "cv" && role === "student") return false;
+    const hasCv = !!s.cvFile || !!s.cvUploadedKey;
+    return !hasCv && !ghConnected;
+  };
+
+  /**
+   * True when leaving the CV screen with a file attached but
+   * cvConsent unticked — confirm_cv_upload (20260906000001) only opens
+   * a cvs row, and so only runs any of the recruiter-matching pipeline,
+   * when that box is ticked. This satisfies validate()'s "a CV is
+   * present" check for a compulsory student CV while doing nothing the
+   * requirement exists for, and nothing else would ever say so — unlike
+   * shouldWarnAboutSkipping, this fires for students too.
+   */
+  const shouldWarnAboutConsent = (id: StepId): boolean => {
+    if (id !== "cv") return false;
+    if (consentWarned) return false;
+    const hasCv = !!s.cvFile || !!s.cvUploadedKey;
+    return hasCv && !s.cvConsent;
+  };
+
   const next = async () => {
     const validationError = validate(step);
     if (validationError) { setError(validationError); return; }
 
+    if (shouldWarnAboutConsent(step)) {
+      setConsentWarned(true);
+      setConsentWarningFor(step);
+      return;
+    }
+
+    if (shouldWarnAboutSkipping(step)) {
+      setSkipWarned((prev) => new Set(prev).add(step));
+      setSkipWarningFor(step);
+      return;
+    }
+
+    await advance();
+  };
+
+  const advance = async () => {
     if (step === "cv") {
       setBusy(true);
       const uploadError = await uploadCv();
@@ -406,7 +648,19 @@ export default function IntakeFlow({
   const screenProps: ScreenProps = {
     s, patch, firstName, skillTaxonomy, sectors,
     avatarUploading, avatarError, onCropAvatar, existingCv,
-    role, existingLinkedin, suggestionsLoading,
+    role, existingLinkedin, suggestionsLoading, suggestionsGaveUp, rejectingCv, onRejectCv: rejectCv,
+    existingGithubUrl, ingestionEnabled,
+    github: {
+      connected: ghConnected,
+      scanning: ghScanning,
+      connecting: ghConnecting,
+      error: ghError,
+      showcase: ghShowcase,
+      saving: ghSaving,
+      saved: ghSaved,
+      onConnect: connectGithub,
+      onSave: saveGithubPicks,
+    },
   };
 
   const body = (() => {
@@ -417,6 +671,8 @@ export default function IntakeFlow({
         return <YoureInScreen {...screenProps} matches={matches} />;
       case "cv":
         return <CvScreen {...screenProps} />;
+      case "github":
+        return <GithubScreen {...screenProps} />;
       case "skills":
         return <SkillsScreen {...screenProps} />;
       case "interests":
@@ -509,6 +765,20 @@ export default function IntakeFlow({
                 )}
 
                 <div className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">{body}</div>
+
+                {skipWarningFor && (
+                  <SkipWarningDialog
+                    onAddNow={() => setSkipWarningFor(null)}
+                    onSkip={() => { setSkipWarningFor(null); void advance(); }}
+                  />
+                )}
+
+                {consentWarningFor && (
+                  <ConsentWarningDialog
+                    onTickNow={() => setConsentWarningFor(null)}
+                    onContinueAnyway={() => { setConsentWarningFor(null); void advance(); }}
+                  />
+                )}
               </div>
 
               <div className="mt-8 flex items-center gap-3 border-t border-border-subtle pt-6">
