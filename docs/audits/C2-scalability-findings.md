@@ -427,6 +427,63 @@ dashboard queries.
 
 ---
 
+## Finding 9 — Deployed-infrastructure re-measurement (2026-09-13): the edge blocked the tool, not the app
+
+**Severity: informational — a positive finding, and a tooling limitation, not a defect.**
+
+Phase 6 attempted the re-measurement this document's own "Not measured here"
+section calls for: `BASE=https://www.imperialentrepreneurs.com STAGE=100 k6
+run scripts/loadtest.js`, `MODE=anon`, from one machine.
+
+**Pre-flight, before running anything**: production held 13 real profile
+rows (10 `approved`, 3 `pending_onboarding`) at run time — far below the
+2,000-member corpus this whole document is calibrated against, and the
+2026-08-28 "cleared to admin-only" state hadn't meaningfully changed.
+Confirmed by a direct read against prod (`profiles?select=status` via
+PostgREST with the service key), not assumed from a two-week-old memory
+note. Run during a Sunday midday with negligible real traffic to collide
+with.
+
+**Result: 97.6% error rate, and it is not the app.** 143,091 of 146,682
+requests came back `429`; a plain `200` and the app's rate limiter
+(`src/lib/ratelimit.ts`) never enters the picture — that limiter
+explicitly skips GET/HEAD entirely ("GET/HEAD never reach this code at
+all... only mutations are [limited]"), and this run was `MODE=anon`,
+GET-only. The `429`s are Cloudflare or Vercel's own edge-level abuse
+protection, confirmed two ways:
+
+- A single ordinary request immediately after the run returned a clean
+  `200` with `server: cloudflare` in the headers — no lingering block.
+- 20 sequential, human-paced requests sent right after also came back
+  `200` every time — the block is not a low per-request threshold, it is
+  specifically reacting to the *shape* of a k6 burst: ~1,600 req/s
+  sustained from one source IP, which is a flood signature no real
+  browser (or even a whole lecture hall on shared campus NAT, each device
+  making human-paced requests) produces.
+
+**What this means for this document's own numbers**: the "Not measured
+here" gap this finding was meant to close is still open, but for a
+different reason than before — it is not that no one ran the tool against
+Vercel, it is that the tool's request pattern gets caught by the exact
+edge defense `anonMutations`' own comment already named as the intended
+first line of defense ("Edge defence is Cloudflare's job... and must not
+be assumed to live here" — `ratelimit.ts:104`). That defense is doing its
+job. Closing this gap for real needs either a temporary, narrowly-scoped
+allowlist during a controlled test window, or a distributed load
+generator that produces a traffic shape resembling real dispersed users
+rather than one host at full throttle — both real tradeoffs, deliberately
+not taken unilaterally here.
+
+**Decision made this session**: stop here rather than force a number.
+With only 13 real accounts in production and the edge layer demonstrably
+not blocking ordinary-paced traffic, the local laptop numbers throughout
+this document remain the best available shape data, and this finding is
+recorded as a positive result (edge protection works, is not
+over-aggressive against real traffic) rather than pursued further before
+there is an actual reason to weaken production's defenses for a test.
+
+---
+
 ## Ranked recommendations
 
 1. **B3.1 — decouple the CSP nonce from rendering** and let public routes
@@ -450,9 +507,14 @@ dashboard queries.
 
 ## Not measured here
 
-- Deployed-infrastructure latency. Everything above is laptop-relative.
-  Re-run `frontend/scripts/loadtest.js` against Vercel with
-  `BASE=https://…` before the numbers are quoted anywhere externally.
+- **Deployed-infrastructure latency under real burst concurrency.**
+  Attempted 2026-09-13 — see Finding 9. Everything above remains
+  laptop-relative; the Vercel/Supabase origin's actual behavior under 100+
+  concurrent requests is still unmeasured, because the attempt hit
+  Cloudflare/Vercel edge protection before reaching the origin at all,
+  which is itself the finding. Real deployed latency stays open until a
+  test is run either through a temporary edge allowlist or a distributed
+  generator — not attempted again without an explicit decision to do so.
 - ~~Authenticated burst load.~~ **Measured — see Finding 8.** The reason
   given here for skipping it (500 sign-ins would measure the OTP limiter)
   confused minting a session with using one; 20 sessions minted out of

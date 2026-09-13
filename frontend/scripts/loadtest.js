@@ -145,6 +145,16 @@ const routeLatency = {
 const errors = new Rate("route_errors");
 const expectedRedirect = new Counter("expected_redirect");
 const authRedirect = new Counter("auth_redirect");
+// Diagnostic only: a high error rate could mean the app is actually
+// failing, or it could mean an edge layer (Vercel attack-challenge mode,
+// Cloudflare) is fast-rejecting requests before they reach the app at
+// all — those look identical in the error-rate number but need opposite
+// fixes, so the raw status codes are broken out to tell them apart.
+const statusCodes = {};
+for (const code of [200, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
+  statusCodes[code] = new Counter(`status_${code}`);
+}
+const statusOther = new Counter("status_other");
 
 // Ramp-and-hold at each level rather than a single ramp to 500: a
 // sustained plateau is where connection pools and event loops actually
@@ -193,6 +203,7 @@ function hit(name, path, session) {
 
   const res = http.get(`${BASE}${path}`, { tags: { route: name }, headers });
   routeLatency[name].add(res.timings.duration);
+  (statusCodes[res.status] || statusOther).add(1);
 
   const redirected = res.status >= 300 && res.status < 400;
   const served = res.status >= 200 && res.status < 300;
@@ -304,6 +315,14 @@ export function handleSummary(data) {
   out += `\nrequests: ${m.http_reqs ? m.http_reqs.values.count : 0}`;
   out += `   error rate: ${errRate}%`;
   out += `   expected redirects: ${m.expected_redirect ? m.expected_redirect.values.count : 0}\n`;
+
+  out += `\n── status code breakdown ──\n`;
+  for (const code of [200, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
+    const n = m[`status_${code}`] ? m[`status_${code}`].values.count : 0;
+    if (n > 0) out += `  ${code === 0 ? "conn error/timeout" : code}: ${n}\n`;
+  }
+  const otherN = m.status_other ? m.status_other.values.count : 0;
+  if (otherN > 0) out += `  other: ${otherN}\n`;
 
   if (authRedirects > 0) {
     out += `\n!! ${authRedirects} signed-in requests were REDIRECTED, not rendered.\n`;
