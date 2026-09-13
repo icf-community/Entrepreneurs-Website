@@ -183,7 +183,10 @@ export default function MembersAdminClient({
                     <td className="px-4 py-3 text-text-muted">{m.gradYear ?? "—"}</td>
                     <td className="px-4 py-3">
                       {m.isCommittee ? (
-                        <span className="rounded-lg border border-signal/40 bg-signal-muted px-2 py-1 text-[0.7rem] font-medium text-signal">
+                        <span
+                          title={m.committeeRole ?? undefined}
+                          className="inline-block rounded-lg border border-signal/40 bg-signal-muted px-2 py-1 text-[0.7rem] font-medium text-signal truncate max-w-[220px] align-bottom"
+                        >
                           {m.committeeRole}
                         </span>
                       ) : (
