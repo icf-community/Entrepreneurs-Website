@@ -66,6 +66,16 @@ function watchForCspViolations(page: import("@playwright/test").Page): string[] 
 }
 
 test("home page carries the static CSP and hydrates with zero violations", async ({ page }) => {
+  // "/" is the app's single heaviest route by measurement (C2 Finding 6:
+  // 12.3s p95, all render cost — Hero/WhoWeAre/Community/Opportunities/
+  // Events/Apply/Footer all in one tree) and the only page.goto in this
+  // file that flaked on the default 30s budget under CI runner
+  // contention — confirmed by rerunning with zero code changes and
+  // getting a clean pass. /login uses the identical `networkidle` wait
+  // and has never flaked, so the fix is this route's own timeout
+  // headroom, not the wait strategy.
+  test.setTimeout(60_000);
+
   const violations = watchForCspViolations(page);
 
   const res = await page.goto("/", { waitUntil: "networkidle" });
