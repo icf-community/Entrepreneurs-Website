@@ -63,6 +63,7 @@ pre-*-schema.sql
 # infra/ and server/ — this is just the narrative of where things ended up.
 production-runbook.md
 domain-change.md
+Two-week-plan.md
 
 # `.local.` names a file as a personal/dev-only artifact by convention
 # (mirrors .env.local). scripts/seed-ux.local.mjs hardcodes Supabase's

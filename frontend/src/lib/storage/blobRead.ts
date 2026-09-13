@@ -93,8 +93,11 @@ function config(): Config | null {
   };
 }
 
-/** True when blob reads are configured. Unset in local dev and CI, where
- *  the feed still works and image slots render a placeholder. */
+/** True when blob reads are configured. Unset in CI, where the feed still
+ *  works and image slots render a placeholder. Local dev is NOT unset —
+ *  .env.development.local carries real credentials for the same Azure
+ *  storage account production uses (there's no local storage sandbox), so
+ *  a local run mints real SAS URLs against real blobs. */
 export function blobReadEnabled(): boolean {
   return config() !== null;
 }
