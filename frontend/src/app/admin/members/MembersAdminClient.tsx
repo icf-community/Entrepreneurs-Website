@@ -159,6 +159,12 @@ export default function MembersAdminClient({
           </div>
         ) : (
           <div className="rounded-2xl bg-bg-card border border-border overflow-hidden">
+            {/* The table's natural content width (7 columns plus two
+                action buttons) can exceed the page's max-w container on
+                real viewports — this scrolls the table alone rather than
+                letting the outer overflow-hidden (there for the rounded
+                corners) silently clip the rightmost column off-screen. */}
+            <div className="overflow-x-auto">
             <table className="w-full text-[0.825rem]">
               <thead>
                 <tr className="border-b border-border-subtle text-[0.7rem] text-text-muted uppercase tracking-wider">
@@ -183,10 +189,7 @@ export default function MembersAdminClient({
                     <td className="px-4 py-3 text-text-muted">{m.gradYear ?? "—"}</td>
                     <td className="px-4 py-3">
                       {m.isCommittee ? (
-                        <span
-                          title={m.committeeRole ?? undefined}
-                          className="inline-block rounded-lg border border-signal/40 bg-signal-muted px-2 py-1 text-[0.7rem] font-medium text-signal truncate max-w-[220px] align-bottom"
-                        >
+                        <span className="inline-block rounded-lg border border-signal/40 bg-signal-muted px-2 py-1 text-[0.7rem] font-medium text-signal align-bottom">
                           {m.committeeRole}
                         </span>
                       ) : (
@@ -215,6 +218,7 @@ export default function MembersAdminClient({
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
