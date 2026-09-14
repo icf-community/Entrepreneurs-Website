@@ -65,15 +65,23 @@ export default async function IntakePage() {
   // rest of the intake is submitted. Signing them here lets the flow open
   // already showing "uploaded" instead of blank, with no client-side cache
   // of the bytes needed at all.
-  const [skillTaxonomy, sectors, matches, existingAvatarUrl, existingCvUrl] = await Promise.all([
+  const [skillTaxonomy, sectors, newest, existingAvatarUrl, existingCvUrl] = await Promise.all([
     listSkillsDetailed(supabase),
     listSectors(supabase),
-    newestMembers(supabase, 3),
+    // +1 and filtered below rather than a plain limit of 3: in a small (or
+    // brand-new) community the member going through intake right now can
+    // genuinely be among the newest themselves, and showing them their own
+    // card here is worse than just showing one fewer — it's a preview of
+    // *other* people, and their own copy is stale anyway (this whole flow
+    // is one server-rendered load; an avatar uploaded two screens later on
+    // Face & bio was never re-fetched into this list).
+    newestMembers(supabase, 4),
     profile.avatar_path
       ? signedImageUrls([profile.avatar_path], "profile_picture").then((urls) => urls[0] ?? null)
       : null,
     cvInfo?.cv_path ? signedCvUrl(cvInfo.cv_path) : null,
   ]);
+  const matches = newest.filter((m) => m.id !== user.id).slice(0, 3);
 
   return (
     <IntakeFlow
