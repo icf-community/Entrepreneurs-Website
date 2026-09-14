@@ -17,7 +17,6 @@ import {
   requestCvTicket,
   confirmCvUpload,
   removeCv,
-  requestGithubConnectUrl,
   getMyGithubStatus,
   getMyGithubShowcase,
   setMyGithubShowcase,
@@ -299,18 +298,18 @@ export default function IntakeFlow({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on the OAuth return
   }, []);
 
-  const connectGithub = async () => {
-    setGhError("");
+  // A plain navigation to a Route Handler, not a Server Action call —
+  // see auth/github-connect/start/route.ts's header comment for why:
+  // a Server Action here raced Next's own RSC reconciliation and
+  // flashed error.tsx before the real redirect completed. Failure
+  // comes back as ?github=error, read by the effect above (githubReturn).
+  const connectGithub = () => {
     setGhConnecting(true);
-    try {
-      // Only ever returns on failure — a success redirects server-side
-      // (see requestGithubConnectUrl's own header comment for why that's
-      // not a window.location.href here anymore).
-      const result = await requestGithubConnectUrl("intake");
-      if (!result.ok) setGhError(result.error);
-    } finally {
-      setGhConnecting(false);
-    }
+    // A hard navigation on purpose — router.push() would soft-navigate
+    // within the SPA instead of making the real GET request this Route
+    // Handler needs to run its guards and set-then-redirect.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/auth/github-connect/start?returnTo=intake";
   };
 
   const saveGithubPicks = async (picks: { name: string; blurb: string }[]) => {

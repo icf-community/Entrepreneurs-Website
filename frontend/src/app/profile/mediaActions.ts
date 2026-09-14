@@ -1,8 +1,5 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { getActionAuth } from "@/lib/auth/actionAuth";
 import { check } from "@/lib/ratelimit";
@@ -18,12 +15,6 @@ import { blobsExist, downloadCvBytes, signedCvUrl } from "@/lib/storage/blobRead
 import { extractCvText } from "@/lib/cv/extractText";
 import { matchSkillsInText } from "@/lib/cv/matchSkills";
 import { listSkillsDetailed } from "@/lib/data/taxonomy";
-import { emailBaseUrl } from "@/lib/siteUrl";
-import {
-  GITHUB_OAUTH_RETURN_COOKIE,
-  GITHUB_OAUTH_STATE_COOKIE,
-  type GithubConnectReturnTo,
-} from "@/lib/github/oauthState";
 import {
   SHOWCASE_BLURB_MAX,
   SHOWCASE_MAX_PICKS,
@@ -62,7 +53,7 @@ async function guardApprovedMember(noun: string) {
 }
 
 async function guardRate(
-  bucket: "avatarUpload" | "cvUpload" | "githubConnect" | "githubShowcase",
+  bucket: "avatarUpload" | "cvUpload" | "githubShowcase",
   userId: string,
   limitedMessage: string,
 ) {
@@ -353,83 +344,15 @@ export async function getMyCvProfile(): Promise<Result<{ summary: string; skills
 // and 20260907000001_github_signal.sql for confirm_github_connected /
 // get_my_github_status / disconnect_github.
 
-/**
- * Generates a CSRF state value, stashes it in a short-lived httpOnly
- * cookie, and redirects the browser straight to the GitHub authorize
- * URL — server-side, via next/navigation's redirect(), rather than
- * returning the URL for the client to window.location.href to.
- *
- * That used to be the shape here, and it raced Next's own client
- * runtime: setting a cookie in a Server Action marks the current route
- * dirty, so the response carries a revalidated RSC payload alongside
- * the return value — but the caller's very next line was already
- * navigating the whole page away to github.com. The client tried to
- * reconcile that payload into a page mid-teardown and threw "An
- * unexpected response was received from the server" into error.tsx,
- * even though the actual redirect completed fine a moment later
- * (confirmed 2026-09-14: a live prod repro showed the flash, but every
- * network request involved came back a clean 200 — this was a client-
- * side reconciliation race, not a failed request). redirect() is the
- * framework's own mechanism for exactly this handoff and doesn't hit
- * it. redirect_uri is built from emailBaseUrl() (fixed config), not
- * request headers — same reasoning as email links: an attacker-
- * controlled Host header must not be able to steer where GitHub sends
- * the OAuth code.
- */
-export async function requestGithubConnectUrl(
-  returnTo: GithubConnectReturnTo = "profile",
-): Promise<Result<void>> {
-  const guard = await guardApprovedMember("connect your GitHub account");
-  if (!guard.ok) return guard;
-
-  // Throttled here rather than in the callback, because this is the only
-  // door: the callback refuses anything without the state cookie minted
-  // below, so capping the mint caps the round trips. Doing it in the
-  // callback instead would mean failing a member halfway through GitHub's
-  // consent screen, which is a worse place to be told no.
-  //
-  // A completed round trip enqueues a scan_github job, and the worker
-  // handles one job at a time — so repeated reconnects do not merely
-  // spend the member's own budget, they queue in front of everyone
-  // else's CV ingest. 20260908000002 stops a second job stacking while
-  // one is still pending; this stops the serial version of the same
-  // thing. Connecting is a once-ever action for nearly everyone, so 5/day
-  // is generous: it leaves room for a genuine retry after a failure and
-  // for switching between two accounts.
-  const rate = await guardRate(
-    "githubConnect",
-    guard.data.user.id,
-    "You've tried connecting GitHub several times today. Please try again tomorrow.",
-  );
-  if (!rate.ok) return rate;
-
-  const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
-  if (!clientId) return err("GitHub connect is unavailable right now.");
-
-  const state = randomBytes(32).toString("hex");
-  const cookieStore = await cookies();
-  const cookieOptions = {
-    httpOnly: true,
-    secure: emailBaseUrl().startsWith("https"),
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: 600, // 10 minutes
-  };
-  cookieStore.set(GITHUB_OAUTH_STATE_COOKIE, state, cookieOptions);
-  // Which of the two entry points started this. The callback maps it
-  // through a fixed allow-list — see githubConnectReturnPath — so even a
-  // tampered cookie can only ever select between /profile and /intake.
-  cookieStore.set(GITHUB_OAUTH_RETURN_COOKIE, returnTo, cookieOptions);
-
-  const url = new URL("https://github.com/login/oauth/authorize");
-  url.searchParams.set("client_id", clientId);
-  url.searchParams.set("redirect_uri", `${emailBaseUrl()}/auth/github-connect/callback`);
-  url.searchParams.set("scope", "read:user");
-  url.searchParams.set("state", state);
-  url.searchParams.set("allow_signup", "false");
-
-  redirect(url.toString());
-}
+// Starting the OAuth handshake itself (generating the CSRF state,
+// setting cookies, redirecting to github.com) moved out of this file
+// to a plain Route Handler — see auth/github-connect/start/route.ts's
+// header comment for why a Server Action here raced Next's own RSC
+// reconciliation and flashed error.tsx before the real redirect
+// completed (confirmed 2026-09-14 via a live prod repro). The rest of
+// the GitHub signal flow — reading status, disconnecting, managing the
+// showcase — stays here; only the "kick off the redirect to GitHub"
+// step needed to move.
 
 export type GithubScanStatus = "pending" | "scanning" | "ready" | "failed";
 
