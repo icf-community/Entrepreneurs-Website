@@ -19,7 +19,7 @@ import {
   requestAvatarTicket, confirmAvatarUpload, removeAvatar,
   requestCvTicket, confirmCvUpload, removeCv, getMyCvDownloadUrl,
   getMySuggestedCvSkillIds, getMyCvStatus, type CvIngestStatus,
-  requestGithubConnectUrl, disconnectGithub, type GithubScanStatus,
+  disconnectGithub, type GithubScanStatus,
   getMyGithubShowcase, getMyGithubStatus, dismissGithubShowcasePrompt, setGithubNudges,
 } from "@/app/profile/mediaActions";
 import { CvProcessingDialog } from "@/app/profile/CvProcessingDialog";
@@ -890,18 +890,20 @@ function GithubSection({
     if (connected) void refreshShowcase();
   }, [connected, refreshShowcase]);
 
-  const connect = async () => {
-    setError("");
+  // A plain navigation to a Route Handler, not a Server Action call —
+  // see auth/github-connect/start/route.ts's header comment for why:
+  // a Server Action here raced Next's own RSC reconciliation and
+  // flashed error.tsx before the real redirect completed. Failure
+  // comes back as ?github=error on this same page (read below), the
+  // same convention the OAuth callback already uses for its own
+  // failure paths.
+  const connect = () => {
     setConnecting(true);
-    try {
-      // Only ever returns on failure — a success redirects server-side
-      // (see requestGithubConnectUrl's own header comment for why that's
-      // not a window.location.href here anymore).
-      const result = await requestGithubConnectUrl("profile");
-      if (!result.ok) setError(result.error);
-    } finally {
-      setConnecting(false);
-    }
+    // A hard navigation on purpose — router.push() would soft-navigate
+    // within the SPA instead of making the real GET request this Route
+    // Handler needs to run its guards and set-then-redirect.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/auth/github-connect/start?returnTo=profile";
   };
 
   const disconnect = async () => {
