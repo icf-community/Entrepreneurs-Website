@@ -791,6 +791,11 @@ declare
     -- and by the intake/profile server pages to decide whether to show the
     -- GitHub-connect/CV-upload entry points at all.
     'github_cv_ingestion_enabled',
+    -- admin UI toggle for the same switch (20260914000002): granted to
+    -- authenticated same as every other admin_* RPC in this list, guarded
+    -- by is_admin() inside the function body rather than at the grant —
+    -- see section 38's non-admin-forbidden check.
+    'admin_get_ingestion_status','admin_set_ingestion_enabled',
     -- this test's OWN role-impersonation helper (created near the top of this
     -- file, dropped in cleanup below). Not an app RPC — it only exists during
     -- the test run, where Supabase default privileges make it anon-callable;
@@ -2740,6 +2745,74 @@ begin
   select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
   if v_scan_after <> v_scan_before + 1 then
     raise exception 'FAIL: enqueue_github_rescans did not resume the weekly rescan once the kill switch was back on';
+  end if;
+end;
+$$;
+
+-- 38. (20260914000002) The admin UI toggle for the kill switch: both RPCs
+-- reject a non-admin, and an admin's calls actually flip app_config,
+-- write an admin_actions row, and are reflected back by the status read.
+do $$
+declare
+  v_admin    uuid := gen_random_uuid();
+  v_nonadmin uuid := gen_random_uuid();
+  v_value    text;
+  v_row      record;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values
+    (v_admin, 'ingestion-toggle-admin@imperial.ac.uk',
+     '{"first_name":"Toggle","surname":"Admin","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_nonadmin, 'ingestion-toggle-nonadmin@imperial.ac.uk',
+     '{"first_name":"Toggle","surname":"NonAdmin","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb)
+  on conflict do nothing;
+  update public.profiles set status = 'approved', course = 'MEng Computing', grad_year = 2027
+   where id in (v_admin, v_nonadmin);
+  insert into public.admins (user_id) values (v_admin) on conflict do nothing;
+
+  perform _set_caller(v_nonadmin);
+
+  begin
+    perform public.admin_set_ingestion_enabled(false);
+    raise exception 'FAIL: non-admin called admin_set_ingestion_enabled without being blocked';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    perform * from public.admin_get_ingestion_status();
+    raise exception 'FAIL: non-admin called admin_get_ingestion_status without being blocked';
+  exception when sqlstate '42501' then null;
+  end;
+
+  perform _set_caller(v_admin);
+
+  perform public.admin_set_ingestion_enabled(false);
+  set local role postgres;
+  select value into v_value from public.app_config where key = 'github_cv_ingestion_enabled';
+  if v_value <> 'false' then
+    raise exception 'FAIL: admin_set_ingestion_enabled(false) did not flip app_config';
+  end if;
+  if not exists (
+    select 1 from public.admin_actions
+     where admin_id = v_admin and action = 'pause_github_ingestion' and target_table = 'app_config'
+  ) then
+    raise exception 'FAIL: admin_set_ingestion_enabled(false) did not log to admin_actions';
+  end if;
+
+  perform _set_caller(v_admin);
+  select * into v_row from public.admin_get_ingestion_status();
+  if v_row.enabled <> false or v_row.last_changed_by <> 'Toggle Admin' then
+    raise exception 'FAIL: admin_get_ingestion_status did not reflect the pause (enabled=%, by=%)',
+      v_row.enabled, v_row.last_changed_by;
+  end if;
+
+  perform public.admin_set_ingestion_enabled(true);
+  set local role postgres;
+  select value into v_value from public.app_config where key = 'github_cv_ingestion_enabled';
+  if v_value <> 'true' then
+    raise exception 'FAIL: admin_set_ingestion_enabled(true) did not flip app_config back';
   end if;
 end;
 $$;

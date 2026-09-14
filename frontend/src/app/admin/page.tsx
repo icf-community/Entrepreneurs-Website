@@ -2,11 +2,16 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { pendingCounts } from "@/lib/data/admin";
 import SignOutButton from "./SignOutButton";
+import IngestionToggle from "./IngestionToggle";
+import { getIngestionStatus } from "./actions";
 
 export default async function AdminPage() {
   const supabase = await createClient();
 
-  const counts = await pendingCounts(supabase);
+  const [counts, ingestionStatus] = await Promise.all([
+    pendingCounts(supabase),
+    getIngestionStatus(),
+  ]);
   const totalPending = counts.total;
 
   return (
@@ -73,6 +78,14 @@ export default async function AdminPage() {
             hint="Edits to live listings"
           />
         </div>
+
+        <IngestionToggle
+          initial={
+            ingestionStatus.ok
+              ? ingestionStatus.data
+              : { enabled: true, lastChangedAt: null, lastChangedBy: null }
+          }
+        />
 
         <div className="mt-12 rule-draw pt-6">
           <p className="label-wide text-text-secondary mb-3">Quick create</p>
