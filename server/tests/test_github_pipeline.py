@@ -38,6 +38,7 @@ from app.github_pipeline import (
     _selection_payload,
     _shortlist_by_metadata,
     fetch_github_signal,
+    revoke_github_token,
     synthesize_combined_summary,
 )
 
@@ -931,3 +932,32 @@ def test_every_candidate_still_gets_a_readme_and_order_is_preserved() -> None:
 
 def test_attach_readme_excerpts_handles_an_empty_candidate_list() -> None:
     _attach_readme_excerpts("token", [])  # must not raise or open a pool
+
+
+# ─── revoke_github_token (20260914000003) ────────────────────────────────
+
+
+def test_revoke_github_token_calls_the_grant_endpoint_with_app_credentials() -> None:
+    with patch(
+        "app.github_pipeline.requests.delete", return_value=_fake_response(204, None)
+    ) as fake_delete:
+        revoke_github_token("member-token", "client-id", "client-secret")
+
+    fake_delete.assert_called_once()
+    args, kwargs = fake_delete.call_args
+    assert args[0] == "https://api.github.com/applications/client-id/grant"
+    assert kwargs["auth"] == ("client-id", "client-secret")
+    assert kwargs["json"] == {"access_token": "member-token"}
+
+
+def test_revoke_github_token_treats_404_as_already_revoked() -> None:
+    """GitHub already considers the grant gone — not something to retry,
+    same reasoning the blob-deletion drain uses for its own 404s."""
+    with patch("app.github_pipeline.requests.delete", return_value=_fake_response(404, {})):
+        revoke_github_token("member-token", "client-id", "client-secret")  # must not raise
+
+
+def test_revoke_github_token_raises_on_a_real_failure() -> None:
+    with patch("app.github_pipeline.requests.delete", return_value=_fake_response(500, {})):
+        with pytest.raises(requests.HTTPError):
+            revoke_github_token("member-token", "client-id", "client-secret")

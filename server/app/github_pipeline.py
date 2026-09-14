@@ -212,6 +212,30 @@ def _check_response(response: requests.Response) -> None:
     response.raise_for_status()
 
 
+def revoke_github_token(access_token: str, client_id: str, client_secret: str) -> None:
+    """Tear down the OAuth grant on GitHub's side, not just our own copy
+    of the token (20260914000003).
+
+    DELETE /applications/{client_id}/grant, Basic-authed as the OAuth
+    app itself — the one endpoint that needs the *app's* credentials
+    rather than the member's token. 404 means GitHub already considers
+    the grant gone (revoked by the member already, or never fully
+    completed) — that is success here, not a failure to retry, same
+    reasoning as the blob-deletion drain treating "already gone" as
+    done rather than broken.
+    """
+    response = requests.delete(
+        f"{GITHUB_API}/applications/{client_id}/grant",
+        auth=(client_id, client_secret),
+        json={"access_token": access_token},
+        headers={"Accept": "application/vnd.github+json"},
+        timeout=_REQUEST_TIMEOUT_SECONDS,
+    )
+    if response.status_code == 404:
+        return
+    response.raise_for_status()
+
+
 def _list_owned_repos(access_token: str) -> list[dict]:
     """Paginates through the member's owned repos, up to MAX_REPO_PAGES
     pages. One request per page rather than one big request, so a

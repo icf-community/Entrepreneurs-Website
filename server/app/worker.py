@@ -183,6 +183,12 @@ def _backstop_dead_letter_status(kind: str, payload: dict, error: str) -> None:
     # sets a "refreshing" status before it runs), so there is no stuck
     # non-terminal state for it to strand — dead-lettering it just means
     # the summary silently stays as it was, not a visible infinite wait.
+    #
+    # revoke_github_token is the same: the connection row (and any status
+    # on it) is already gone by the time this job runs, so dead-lettering
+    # just leaves a dead-status row in the queue for manual follow-up —
+    # nothing user-visible is left stuck, same reasoning blob_deletion_queue
+    # already relies on for its own buried rows.
 
 
 def _fail_job(job_id: uuid.UUID, kind: str, payload: dict, attempts: int, max_attempts: int, error: str) -> None:
@@ -776,6 +782,31 @@ def process_refresh_github_summary(member_id: uuid.UUID) -> None:
     _refresh_combined_summary(member_id, current_cv[0], connection_row[0])
 
 
+def process_revoke_github_token(payload: dict) -> None:
+    """Enqueued by the github_connections_enqueue_revocation trigger
+    (20260914000003) the moment a connection row is deleted — by
+    disconnect_github, or by the cascade from any account-deletion path.
+
+    The row is already gone by the time this runs, so the still-encrypted
+    token travels in the job payload itself (captured by the trigger from
+    OLD before the delete), not re-read from a row that no longer exists.
+    Decrypted here, in the worker, the same trusted place every scan job
+    already decrypts a token — never exposed over PostgREST.
+    """
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "select pgp_sym_decrypt(decode(%s, 'hex'), %s)",
+            (payload["access_token_encrypted_hex"], worker_settings().github_token_encryption_key),
+        )
+        (access_token,) = cur.fetchone()
+
+    github_pipeline.revoke_github_token(
+        access_token,
+        worker_settings().github_oauth_client_id,
+        worker_settings().github_oauth_client_secret,
+    )
+
+
 def _process_job(kind: str, payload: dict) -> None:
     if kind == "ingest_cv":
         process_ingest_cv(uuid.UUID(payload["cv_id"]))
@@ -783,6 +814,8 @@ def _process_job(kind: str, payload: dict) -> None:
         process_scan_github(uuid.UUID(payload["member_id"]))
     elif kind == "refresh_github_summary":
         process_refresh_github_summary(uuid.UUID(payload["member_id"]))
+    elif kind == "revoke_github_token":
+        process_revoke_github_token(payload)
     else:
         raise ValueError(f"Unknown job kind: {kind}")
 
