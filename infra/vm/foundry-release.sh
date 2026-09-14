@@ -30,14 +30,6 @@ echo "==> pulling $REF"
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 docker pull "$REF"
 
-# systemd's unit always runs $IMAGE_BASE:latest. When we were handed a
-# SHA-pinned ref instead (CI does this so a deploy can't race a second push
-# that moves :latest mid-flight), point :latest at exactly what we just
-# pulled so the restart below picks up this specific build.
-if [ "$REF" != "$IMAGE_BASE:latest" ]; then
-  docker tag "$REF" "$IMAGE_BASE:latest"
-fi
-
 echo "==> restarting"
 systemctl restart foundry-gateway
 
