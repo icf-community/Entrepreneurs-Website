@@ -85,6 +85,7 @@ export default function IntakeFlow({
   matches,
   existingAvatarUrl,
   role,
+  gradYear,
   existingLinkedin,
   existingCv,
   existingGithubUrl,
@@ -98,6 +99,7 @@ export default function IntakeFlow({
   matches: DirectoryMember[];
   existingAvatarUrl: string | null;
   role: Affiliation;
+  gradYear: number | null;
   existingLinkedin: string | null;
   existingCv: ExistingCv | null;
   existingGithubUrl: string | null;
@@ -649,7 +651,7 @@ export default function IntakeFlow({
   const screenProps: ScreenProps = {
     s, patch, firstName, skillTaxonomy, sectors,
     avatarUploading, avatarError, onCropAvatar, existingCv,
-    role, existingLinkedin, suggestionsLoading, suggestionsGaveUp, rejectingCv, onRejectCv: rejectCv,
+    role, gradYear, existingLinkedin, suggestionsLoading, suggestionsGaveUp, rejectingCv, onRejectCv: rejectCv,
     existingGithubUrl, ingestionEnabled,
     github: {
       connected: ghConnected,
