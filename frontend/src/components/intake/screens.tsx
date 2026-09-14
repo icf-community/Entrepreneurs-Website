@@ -42,6 +42,7 @@ export type ScreenProps = {
   onCropAvatar: (blob: Blob) => Promise<void>;
   existingCv: ExistingCv | null;
   role: Affiliation;
+  gradYear: number | null;
   existingLinkedin: string | null;
   suggestionsLoading: boolean;
   /** True once the bounded poll for CV skill suggestions has given up
@@ -218,9 +219,20 @@ function becauseLine(m: DirectoryMember): string {
   return "Recently joined";
 }
 
+/** Shared shape/sizing between the self card and every MatchCard, so the
+ *  row of "most recent members" (self, then matches — matches already
+ *  arrive newest-first from newestMembers()) reads as one continuous
+ *  strip rather than a mismatched pair of layouts. */
+const CARD_WIDTH = "w-[220px] shrink-0";
+
+function roleSubtitle(role: Affiliation, gradYear: number | null): string {
+  if (role === "alum") return `Alum · ${gradYear ?? "—"}`;
+  return gradYear ? `Student · class of ${gradYear}` : "Imperial student";
+}
+
 function MatchCard({ member: m, onOpen }: { member: DirectoryMember; onOpen: () => void }) {
   return (
-    <li>
+    <li className={CARD_WIDTH}>
       <button
         type="button"
         onClick={onOpen}
@@ -250,7 +262,43 @@ function MatchCard({ member: m, onOpen }: { member: DirectoryMember; onOpen: () 
   );
 }
 
-export function YoureInScreen({ s, firstName, matches }: ScreenProps & { matches: DirectoryMember[] }) {
+/** Read from local intake state, not a server-fetched member row — the
+ *  row backing `matches` is fetched once when this page first loads,
+ *  well before a photo cropped a screen earlier could exist, so it can
+ *  never show it. `s.photoPreview` is set the moment the crop/upload
+ *  round trip finishes and stays right for the rest of this session,
+ *  regardless of the server data. Always the leftmost/newest card —
+ *  the member going through intake right now is definitionally the
+ *  newest member there is. */
+function SelfCard({ name, photoPreview, role, gradYear }: {
+  name: string;
+  photoPreview: string | null;
+  role: Affiliation;
+  gradYear: number | null;
+}) {
+  return (
+    <li className={CARD_WIDTH}>
+      <div className="overflow-hidden rounded-lg border border-signal/50 bg-white/[0.03] text-left">
+        {photoPreview ? (
+          // eslint-disable-next-line @next/next/no-img-element -- local object URL, not a static asset
+          <img src={photoPreview} alt="" className="h-28 w-full object-cover" />
+        ) : (
+          <div className="flex h-28 w-full items-center justify-center bg-white/[0.06] font-display text-[1.5rem] text-text-secondary">
+            {name[0]?.toUpperCase() ?? "?"}
+          </div>
+        )}
+        <div className="p-4">
+          <span className="block text-[0.875rem] font-medium text-text-primary">{name}</span>
+          <span className="mt-0.5 block text-[0.775rem] leading-[1.5] text-text-muted">
+            {roleSubtitle(role, gradYear)}
+          </span>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+export function YoureInScreen({ s, firstName, role, gradYear, matches }: ScreenProps & { matches: DirectoryMember[] }) {
   const name = addressAs(s.preferredName, firstName);
   const [openMember, setOpenMember] = useState<DirectoryMember | null>(null);
 
@@ -271,39 +319,18 @@ export function YoureInScreen({ s, firstName, matches }: ScreenProps & { matches
         not just a name in a list.
       </p>
 
-      {/* Read from local intake state, not a server-fetched member row —
-       *  the row backing `matches` is fetched once when this page first
-       *  loads, well before a photo cropped a screen earlier could exist,
-       *  so it can never show it. `s.photoPreview` is set the moment the
-       *  crop/upload round trip finishes and stays right for the rest of
-       *  this session, regardless of the server data. */}
-      <div className="mx-auto mb-8 max-w-[220px] overflow-hidden rounded-lg border border-signal/50 bg-white/[0.03] text-left">
-        {s.photoPreview ? (
-          // eslint-disable-next-line @next/next/no-img-element -- local object URL, not a static asset
-          <img src={s.photoPreview} alt="" className="h-28 w-full object-cover" />
-        ) : (
-          <div className="flex h-28 w-full items-center justify-center bg-white/[0.06] font-display text-[1.5rem] text-text-secondary">
-            {name[0]?.toUpperCase() ?? "?"}
-          </div>
-        )}
-        <div className="p-3">
-          <span className="block text-[0.8rem] font-medium text-text-primary">{name}</span>
-          <span className="block text-[0.7rem] text-text-muted">This is you</span>
-        </div>
-      </div>
-
-      {matches.length > 0 ? (
-        <ul className="grid gap-3 text-left sm:grid-cols-3">
-          {matches.map((m) => (
-            <MatchCard key={m.id} member={m} onOpen={() => setOpenMember(m)} />
-          ))}
-        </ul>
-      ) : (
-        <div className="rounded-lg border border-border bg-white/[0.03] p-6 text-left">
+      <ul className="flex gap-3 overflow-x-auto pb-1 text-left">
+        <SelfCard name={name} photoPreview={s.photoPreview} role={role} gradYear={gradYear} />
+        {matches.map((m) => (
+          <MatchCard key={m.id} member={m} onOpen={() => setOpenMember(m)} />
+        ))}
+      </ul>
+      {matches.length === 0 && (
+        <div className="mt-3 rounded-lg border border-border bg-white/[0.03] p-6 text-left">
           <p className="text-[0.875rem] leading-[1.65] text-text-secondary">
-            No one to show yet — you are early, and the directory is still
-            filling up. Adding your skills and interests on the next screens
-            is what makes you findable when the next person joins.
+            No one else to show yet — you are early, and the directory is
+            still filling up. Adding your skills and interests on the next
+            screens is what makes you findable when the next person joins.
           </p>
         </div>
       )}

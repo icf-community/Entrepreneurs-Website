@@ -36,7 +36,7 @@ export default async function IntakePage() {
       // github_url is not one of the locked CV columns (20260901000009), so
       // it can be selected directly. It is what the GitHub screen names
       // back to the member ("we've got @handle from when you signed up").
-      .select("status, profile_version, first_name, avatar_path, role, linkedin_url, github_url")
+      .select("status, profile_version, first_name, avatar_path, role, grad_year, linkedin_url, github_url")
       .eq("id", user.id)
       .single(),
     supabase.rpc("is_admin"),
@@ -92,6 +92,7 @@ export default async function IntakePage() {
       matches={matches}
       existingAvatarUrl={existingAvatarUrl}
       role={profile.role}
+      gradYear={profile.grad_year}
       existingLinkedin={profile.linkedin_url}
       existingCv={
         cvInfo?.cv_path
