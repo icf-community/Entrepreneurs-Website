@@ -887,6 +887,13 @@ function GithubSection({
 
       {connected ? (
         <div className="space-y-4">
+          {!ingestionEnabled && (
+            <p className="text-[0.8rem] text-text-muted">
+              GitHub rescans are paused right now — your existing projects and picks are unaffected,
+              and you can still choose from what&apos;s already been found, but nothing new will show
+              up until this is back on.
+            </p>
+          )}
           <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
               GH

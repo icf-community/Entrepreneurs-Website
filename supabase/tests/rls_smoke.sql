@@ -2692,6 +2692,58 @@ begin
 end;
 $$;
 
+-- 37. (20260914000001) The weekly staleness rescan is now ALSO paused by
+-- the switch — a reversal of 20260911000003/20260913000001's explicit
+-- "the weekly rescan is not what this switch controls" stance. Uses its
+-- own member with an already-'ready', already-stale connection, so this
+-- is independent of block 36's v_m (which never reaches 'ready' in this
+-- SQL-only test — no worker runs here to complete a scan).
+do $$
+declare
+  v_m2          uuid := gen_random_uuid();
+  v_scan_before int;
+  v_scan_after  int;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_m2, 'kill-switch-weekly@imperial.ac.uk',
+          '{"first_name":"K2","surname":"Switch","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb)
+  on conflict do nothing;
+  insert into public.profiles (id, role, status, first_name, surname, course, grad_year)
+  values (v_m2, 'student', 'approved', 'K2', 'Switch', 'MEng Computing', 2027)
+  on conflict (id) do update set
+    status     = excluded.status,
+    course     = excluded.course,
+    grad_year  = excluded.grad_year;
+
+  insert into public.github_connections
+    (member_id, github_user_id, github_username, access_token_encrypted, scan_status, last_scanned_at)
+  values
+    (v_m2, 987654321, 'weekly-rescan-octocat', '\x00'::bytea, 'ready', now() - interval '8 days')
+  on conflict (member_id) do update set
+    scan_status     = excluded.scan_status,
+    last_scanned_at = excluded.last_scanned_at;
+
+  update public.app_config set value = 'false' where key = 'github_cv_ingestion_enabled';
+
+  select count(*) into v_scan_before from public.jobs where kind = 'scan_github';
+  perform public.enqueue_github_rescans();
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+  if v_scan_after <> v_scan_before then
+    raise exception 'FAIL: enqueue_github_rescans rescanned an already-ready, stale connection while the kill switch was off';
+  end if;
+
+  update public.app_config set value = 'true' where key = 'github_cv_ingestion_enabled';
+
+  perform public.enqueue_github_rescans();
+  select count(*) into v_scan_after from public.jobs where kind = 'scan_github';
+  if v_scan_after <> v_scan_before + 1 then
+    raise exception 'FAIL: enqueue_github_rescans did not resume the weekly rescan once the kill switch was back on';
+  end if;
+end;
+$$;
+
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
 -- above), so reset to the owner role before dropping the helper function.
