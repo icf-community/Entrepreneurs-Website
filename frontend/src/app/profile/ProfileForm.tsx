@@ -894,9 +894,11 @@ function GithubSection({
     setError("");
     setConnecting(true);
     try {
+      // Only ever returns on failure — a success redirects server-side
+      // (see requestGithubConnectUrl's own header comment for why that's
+      // not a window.location.href here anymore).
       const result = await requestGithubConnectUrl("profile");
-      if (!result.ok) { setError(result.error); return; }
-      window.location.href = result.data;
+      if (!result.ok) setError(result.error);
     } finally {
       setConnecting(false);
     }
