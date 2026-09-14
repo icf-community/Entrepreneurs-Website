@@ -303,9 +303,11 @@ export default function IntakeFlow({
     setGhError("");
     setGhConnecting(true);
     try {
+      // Only ever returns on failure — a success redirects server-side
+      // (see requestGithubConnectUrl's own header comment for why that's
+      // not a window.location.href here anymore).
       const result = await requestGithubConnectUrl("intake");
-      if (!result.ok) { setGhError(result.error); return; }
-      window.location.href = result.data;
+      if (!result.ok) setGhError(result.error);
     } finally {
       setGhConnecting(false);
     }

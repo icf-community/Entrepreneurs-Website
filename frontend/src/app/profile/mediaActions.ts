@@ -2,6 +2,7 @@
 
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { getActionAuth } from "@/lib/auth/actionAuth";
 import { check } from "@/lib/ratelimit";
@@ -354,15 +355,30 @@ export async function getMyCvProfile(): Promise<Result<{ summary: string; skills
 
 /**
  * Generates a CSRF state value, stashes it in a short-lived httpOnly
- * cookie, and returns the GitHub authorize URL to redirect the browser
- * to. redirect_uri is built from emailBaseUrl() (fixed config), not
+ * cookie, and redirects the browser straight to the GitHub authorize
+ * URL — server-side, via next/navigation's redirect(), rather than
+ * returning the URL for the client to window.location.href to.
+ *
+ * That used to be the shape here, and it raced Next's own client
+ * runtime: setting a cookie in a Server Action marks the current route
+ * dirty, so the response carries a revalidated RSC payload alongside
+ * the return value — but the caller's very next line was already
+ * navigating the whole page away to github.com. The client tried to
+ * reconcile that payload into a page mid-teardown and threw "An
+ * unexpected response was received from the server" into error.tsx,
+ * even though the actual redirect completed fine a moment later
+ * (confirmed 2026-09-14: a live prod repro showed the flash, but every
+ * network request involved came back a clean 200 — this was a client-
+ * side reconciliation race, not a failed request). redirect() is the
+ * framework's own mechanism for exactly this handoff and doesn't hit
+ * it. redirect_uri is built from emailBaseUrl() (fixed config), not
  * request headers — same reasoning as email links: an attacker-
  * controlled Host header must not be able to steer where GitHub sends
  * the OAuth code.
  */
 export async function requestGithubConnectUrl(
   returnTo: GithubConnectReturnTo = "profile",
-): Promise<Result<string>> {
+): Promise<Result<void>> {
   const guard = await guardApprovedMember("connect your GitHub account");
   if (!guard.ok) return guard;
 
@@ -412,7 +428,7 @@ export async function requestGithubConnectUrl(
   url.searchParams.set("state", state);
   url.searchParams.set("allow_signup", "false");
 
-  return ok(url.toString());
+  redirect(url.toString());
 }
 
 export type GithubScanStatus = "pending" | "scanning" | "ready" | "failed";
