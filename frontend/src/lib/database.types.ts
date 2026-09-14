@@ -1553,6 +1553,14 @@ export type Database = {
           cv_uploaded_at: string
         }[]
       }
+      admin_get_ingestion_status: {
+        Args: never
+        Returns: {
+          enabled: boolean
+          last_changed_at: string
+          last_changed_by: string
+        }[]
+      }
       admin_get_signup_emails: {
         Args: { p_user_ids: string[] }
         Returns: {
@@ -1692,6 +1700,10 @@ export type Database = {
           p_is_committee: boolean
           p_member_id: string
         }
+        Returns: undefined
+      }
+      admin_set_ingestion_enabled: {
+        Args: { p_enabled: boolean }
         Returns: undefined
       }
       admin_update_listing: {
