@@ -21,7 +21,7 @@ import psycopg
 from .openai_client import client
 
 EXTRACTION_MODEL = "gpt-5.4-mini"
-EXTRACTION_PROMPT_VERSION = "extract-v5"
+EXTRACTION_PROMPT_VERSION = "extract-v6"
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 # cv-matchmaker-spec.md, step 5: "accept above a cosine threshold (start
@@ -96,7 +96,21 @@ _PROFILE_SCHEMA = {
                 },
             },
         },
-        "skills_raw": {"type": "array", "items": {"type": "string"}},
+        "skills_raw": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                "Every specific tool, framework, language, library, platform, or technical "
+                "method evidenced anywhere in the CV — one atomic skill per entry (e.g. "
+                "'FastAPI', 'PostgreSQL', 'pgvector', 'React', 'Docker'), never a grouped or "
+                "generalised phrase (not 'backend development', not 'web technologies', not "
+                "'various frameworks'). If the CV lists several technologies together (e.g. "
+                "'backend development using Python, FastAPI and PostgreSQL'), split them into "
+                "separate entries rather than keeping the grouping or the category label. Skip "
+                "the category label entirely unless it is itself a named skill with no more "
+                "specific technology attached to it in the text."
+            ),
+        },
         "languages": {
             "type": "array",
             "items": {
