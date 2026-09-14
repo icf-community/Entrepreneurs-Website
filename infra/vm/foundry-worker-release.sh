@@ -23,10 +23,6 @@ echo "==> pulling $REF"
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 docker pull "$REF"
 
-if [ "$REF" != "$IMAGE_BASE:latest" ]; then
-  docker tag "$REF" "$IMAGE_BASE:latest"
-fi
-
 WORKERS="$(systemctl list-units --plain --no-legend 'foundry-worker@*.service' | awk '{print $1}')"
 if [ -z "$WORKERS" ]; then
   echo "==> no worker instances enabled (systemctl enable --now foundry-worker@1)" >&2

@@ -83,11 +83,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # SHA-tagged, not :latest. A push here doesn't touch :latest at all —
-      # foundry-release.sh retags :latest to this exact ref only after it
-      # has pulled and is about to restart, so a second push landing while
-      # this deploy is still in flight can never make it deploy the wrong
-      # commit.
       - id: tag
         run: echo "image=ghcr.io/icf-community/foundry-gateway:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
@@ -96,6 +91,21 @@ jobs:
       - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - run: docker push "${{ steps.tag.outputs.image }}"
+
+      # The VM's systemd unit pulls :latest from the registry on every
+      # restart — not only a CI-triggered one, but any organic one too (a
+      # crash, a reboot). `docker pull` on a tag always re-fetches from the
+      # registry no matter what a prior local retag set it to, so this push
+      # is what actually keeps that pull correct. (This pipeline used to
+      # instead have foundry-release.sh locally re-tag :latest right before
+      # restarting — that never worked: systemd's own ExecStartPre pull
+      # runs straight after it and unconditionally overwrites the tag from
+      # the registry, silently discarding the local retag every single
+      # time. Confirmed 2026-09-14 on the sibling worker VM: it had been
+      # running a build from 2026-09-11 despite every deploy since
+      # reporting success — this VM shares the identical mechanism.)
+      - run: docker tag "${{ steps.tag.outputs.image }}" ghcr.io/icf-community/foundry-gateway:latest
+      - run: docker push ghcr.io/icf-community/foundry-gateway:latest
 
   deploy:
     name: Release to the VM
