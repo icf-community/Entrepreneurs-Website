@@ -18,7 +18,7 @@ import { invalidateDirectoryCache } from "@/app/profile/actions";
 import {
   requestAvatarTicket, confirmAvatarUpload, removeAvatar,
   requestCvTicket, confirmCvUpload, removeCv, getMyCvDownloadUrl,
-  getMySuggestedCvSkillIds,
+  getMySuggestedCvSkillIds, getMyCvStatus, type CvIngestStatus,
   requestGithubConnectUrl, disconnectGithub, type GithubScanStatus,
   getMyGithubShowcase, getMyGithubStatus, dismissGithubShowcasePrompt, setGithubNudges,
 } from "@/app/profile/mediaActions";
@@ -570,6 +570,31 @@ async function pollForSuggestions(onSuggested: (ids: number[]) => void): Promise
   }
 }
 
+const CV_INGEST_PROCESSING: CvIngestStatus[] = ["pending", "extracting", "embedding"];
+
+/**
+ * Drives the inline "Processing your CV…" badge, independent of
+ * CvProcessingDialog's own polling — that dialog now only opens on
+ * request (a member clicking "View details"), not automatically on
+ * upload, so it can't be the thing tracking whether processing is still
+ * in flight. Stops on unmount via the cancelled flag, same guard the
+ * dialog's own poll effect uses.
+ */
+async function pollIngestStatus(
+  setStatus: (status: CvIngestStatus | null) => void,
+  isCancelled: () => boolean,
+): Promise<void> {
+  for (;;) {
+    if (isCancelled()) return;
+    const result = await getMyCvStatus();
+    if (isCancelled()) return;
+    if (!result.ok || !result.data) return;
+    setStatus(result.data.status);
+    if (!CV_INGEST_PROCESSING.includes(result.data.status)) return;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+}
+
 function CvSection({
   role, originalFilename, uploadedAt, hasCv, onSuggested, ingestionEnabled,
 }: {
@@ -588,6 +613,14 @@ function CvSection({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [showProcessingDialog, setShowProcessingDialog] = useState(false);
+  // Drives the inline badge below — set once a fresh upload starts
+  // pollIngestStatus, null again once nothing has been tracked this visit
+  // (an existing CV from a prior visit isn't polled; this only ever
+  // reflects processing started in THIS session, same scope the dialog
+  // used to have).
+  const [ingestStatus, setIngestStatus] = useState<CvIngestStatus | null>(null);
+  const ingestCancelledRef = useRef(false);
+  useEffect(() => () => { ingestCancelledRef.current = true; }, []);
   // A student's CV is compulsory (screens.tsx's cvRequired mirrors this) —
   // they can replace it but never remove it down to nothing, so "change"
   // and "remove" are two different actions only alumni ever see both of.
@@ -637,10 +670,14 @@ function CvSection({
       // pipeline (moderation, extraction, skill normalisation,
       // chunk+embed — cv-matchmaker-spec.md) when consent is ticked, same
       // gate as the suggestion prefill above — see privacy policy section
-      // 2a. This dialog watches it finish and shows the matched skills
-      // (the generated summary itself is stored but never shown to the
-      // member — it's recruiter-facing only).
-      if (consent) setShowProcessingDialog(true);
+      // 2a. Tracked here as an inline badge, not a forced dialog — this
+      // used to auto-open CvProcessingDialog as a blocking modal the
+      // moment upload confirmed, which made the rest of the page
+      // (Connect GitHub included) unclickable until a member noticed the
+      // dialog's close button. The badge below is the non-blocking
+      // equivalent; CvProcessingDialog is still there, just opened on
+      // request via "View details" once there's something to show.
+      if (consent) void pollIngestStatus(setIngestStatus, () => ingestCancelledRef.current);
     } catch {
       setError("Couldn't reach the file service. Try again in a moment.");
     } finally {
@@ -690,6 +727,34 @@ function CvSection({
                 Uploaded {new Date(uploadedAt).toLocaleDateString("en-GB", {
                   day: "numeric", month: "short", year: "numeric",
                 })}
+              </span>
+            )}
+            {/* Only ever set by a fresh upload this visit (see
+                pollIngestStatus above) — an existing CV from before this
+                page load shows no badge, matching what the dialog it
+                replaced also never did on a plain page load. */}
+            {ingestStatus && (
+              <span className="mt-1 flex items-center gap-1.5 text-[0.75rem] text-text-muted">
+                {CV_INGEST_PROCESSING.includes(ingestStatus) && (
+                  <span
+                    aria-hidden
+                    className="h-3 w-3 shrink-0 rounded-full border-2 border-current/30 border-t-current animate-spin"
+                  />
+                )}
+                {CV_INGEST_PROCESSING.includes(ingestStatus)
+                  ? "Processing your CV…"
+                  : ingestStatus === "ready"
+                    ? "Processed"
+                    : ingestStatus === "flagged"
+                      ? "Needs a quick check"
+                      : "Couldn't be processed"}
+                <button
+                  type="button"
+                  onClick={() => setShowProcessingDialog(true)}
+                  className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-text-secondary"
+                >
+                  View details
+                </button>
               </span>
             )}
           </span>
