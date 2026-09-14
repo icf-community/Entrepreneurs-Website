@@ -102,6 +102,12 @@ class WorkerSettings:
     # UPLOAD_TICKET_SECRET/SERVICE_TOKEN/ALLOWED_ORIGINS, none of which
     # this process uses (it never verifies a ticket or serves a request).
     cv_container: str
+    # Same OAuth app the Next.js connect flow uses (GITHUB_OAUTH_CLIENT_ID/
+    # _SECRET on that side) — needed here only to call GitHub's grant-revoke
+    # endpoint (Basic Auth) when a connection is deleted. See
+    # 20260914000003_github_revoke_on_disconnect.sql.
+    github_oauth_client_id: str
+    github_oauth_client_secret: str
 
 
 @lru_cache(maxsize=1)
@@ -111,4 +117,6 @@ def worker_settings() -> WorkerSettings:
         database_url=_required("DATABASE_URL"),
         github_token_encryption_key=_required("GITHUB_TOKEN_ENCRYPTION_KEY"),
         cv_container=_required("AZURE_CV_CONTAINER"),
+        github_oauth_client_id=_required("GITHUB_OAUTH_CLIENT_ID"),
+        github_oauth_client_secret=_required("GITHUB_OAUTH_CLIENT_SECRET"),
     )

@@ -29,6 +29,7 @@ from app.worker import (
     _revert_to_cv_only_summary,
     _set_github_status,
     process_refresh_github_summary,
+    process_revoke_github_token,
     process_scan_github,
 )
 
@@ -573,6 +574,37 @@ def test_enqueue_refresh_summary_retry_is_deduped_by_member_and_kind() -> None:
     assert "'refresh_github_summary'" in sql
     assert "not exists" in sql
     assert params == (str(member_id), str(member_id))
+
+
+# ─── revoke_github_token job kind (20260914000003) ──────────────────────
+
+
+def test_process_revoke_github_token_decrypts_and_revokes() -> None:
+    cur = _cursor_mock(fetchone_return=("decrypted-token",))
+    payload = {"access_token_encrypted_hex": "deadbeef", "github_user_id": 123456}
+
+    with (
+        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(cur))]),
+        patch("app.worker.worker_settings") as fake_settings,
+        patch("app.worker.github_pipeline.revoke_github_token") as fake_revoke,
+    ):
+        fake_settings.return_value.github_token_encryption_key = "test-key"
+        fake_settings.return_value.github_oauth_client_id = "client-id"
+        fake_settings.return_value.github_oauth_client_secret = "client-secret"
+        process_revoke_github_token(payload)
+
+    sql, params = cur.execute.call_args.args
+    assert "pgp_sym_decrypt" in sql
+    assert "decode(%s, 'hex')" in sql
+    assert params == ("deadbeef", "test-key")
+    fake_revoke.assert_called_once_with("decrypted-token", "client-id", "client-secret")
+
+
+def test_process_job_dispatches_revoke_github_token() -> None:
+    payload = {"access_token_encrypted_hex": "ab", "github_user_id": 1}
+    with patch("app.worker.process_revoke_github_token") as fake_revoke:
+        _process_job("revoke_github_token", payload)
+    fake_revoke.assert_called_once_with(payload)
 
 
 # ─── Loop-level failure handling ─────────────────────────────────────
