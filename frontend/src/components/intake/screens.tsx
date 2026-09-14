@@ -271,6 +271,27 @@ export function YoureInScreen({ s, firstName, matches }: ScreenProps & { matches
         not just a name in a list.
       </p>
 
+      {/* Read from local intake state, not a server-fetched member row —
+       *  the row backing `matches` is fetched once when this page first
+       *  loads, well before a photo cropped a screen earlier could exist,
+       *  so it can never show it. `s.photoPreview` is set the moment the
+       *  crop/upload round trip finishes and stays right for the rest of
+       *  this session, regardless of the server data. */}
+      <div className="mx-auto mb-8 max-w-[220px] overflow-hidden rounded-lg border border-signal/50 bg-white/[0.03] text-left">
+        {s.photoPreview ? (
+          // eslint-disable-next-line @next/next/no-img-element -- local object URL, not a static asset
+          <img src={s.photoPreview} alt="" className="h-28 w-full object-cover" />
+        ) : (
+          <div className="flex h-28 w-full items-center justify-center bg-white/[0.06] font-display text-[1.5rem] text-text-secondary">
+            {name[0]?.toUpperCase() ?? "?"}
+          </div>
+        )}
+        <div className="p-3">
+          <span className="block text-[0.8rem] font-medium text-text-primary">{name}</span>
+          <span className="block text-[0.7rem] text-text-muted">This is you</span>
+        </div>
+      </div>
+
       {matches.length > 0 ? (
         <ul className="grid gap-3 text-left sm:grid-cols-3">
           {matches.map((m) => (
