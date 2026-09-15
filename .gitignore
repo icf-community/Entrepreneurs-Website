@@ -83,3 +83,8 @@ Two-week-plan.md
 *.local.sql
 
 azure-clerk-migration-playbook.md
+
+# Transient plaintext secret drop file used during the 2026-09-14 key
+# rotation. Delete it once the rotation is done — this entry is a safety
+# net for the window it exists in, not permission to keep it around.
+envs.txt
