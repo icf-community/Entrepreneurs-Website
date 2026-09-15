@@ -120,12 +120,17 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
     // the same rule, through destinationForStatus rather than a second
     // hardcoded path — an approved student lands on /home, which then
     // bounces them into /intake for the rest of their profile.
+    // The RPC above ran client-side, so nothing on the server knows the
+    // directory changed. Tell it, and let that Server Action resolve,
+    // before starting the route transition below — calling it after
+    // router.replace() races the action's RSC response against a route
+    // tree that's already being torn down, which is what produced this
+    // form's own "An unexpected response was received from the server"
+    // error in production.
+    await invalidateDirectoryCache();
     router.replace(
       destinationForStatus(role === "student" ? "approved" : "pending_review"),
     );
-    // The RPC above ran client-side, so nothing on the server knows the
-    // directory changed. Tell it before refreshing.
-    await invalidateDirectoryCache();
     router.refresh();
   };
 
