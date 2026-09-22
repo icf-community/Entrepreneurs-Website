@@ -40,19 +40,32 @@ async function idFor(email: string): Promise<string> {
 }
 
 /**
- * Delete every connection row between the pair, plus its events.
+ * Delete every connection row between two emails, plus their events.
  *
  * Not `remove_connection`: that leaves a `removed` row carrying a 21-day
  * cooldown, which is correct product behaviour and exactly wrong for a
- * fixture — the second test in the file would be refused. This is the
- * service role reaching past the RPC on purpose.
+ * fixture — the second test on the same pair would be refused. This is
+ * the service role reaching past the RPC on purpose.
  */
-async function resetPair(): Promise<void> {
+async function resetBetween(emailX: string, emailY: string): Promise<void> {
   const db = service();
-  const [a, b] = await Promise.all([idFor(A.email), idFor(B.email)]);
-  await db.from("connections").delete().in("requester_id", [a, b]).in("addressee_id", [a, b]);
-  await db.from("connection_events").delete().in("actor_id", [a, b]);
-  await db.from("connection_events").delete().in("subject_id", [a, b]);
+  const [x, y] = await Promise.all([idFor(emailX), idFor(emailY)]);
+  await db.from("connections").delete().in("requester_id", [x, y]).in("addressee_id", [x, y]);
+  await db.from("connection_events").delete().in("actor_id", [x, y]);
+  await db.from("connection_events").delete().in("subject_id", [x, y]);
+}
+
+async function resetPair(): Promise<void> {
+  await resetBetween(A.email, B.email);
+}
+
+/** Both default true — force them back rather than assume the ambient state. */
+async function resetMemberSettings(email: string): Promise<void> {
+  const id = await idFor(email);
+  await service()
+    .from("profiles")
+    .update({ open_to_connections: true, connection_emails_enabled: true })
+    .eq("id", id);
 }
 
 async function setEnabled(enabled: boolean): Promise<void> {
@@ -558,6 +571,135 @@ test("a report reaches the admin queue, and resolving it emails the reporter", a
 
   await service().from("connection_reports").delete().eq("reason", "e2e report round trip");
   await clearQueuedMail(B.email);
+});
+
+test("an admin who is a party to a report sees the conflict-of-interest notice", async ({ browser }) => {
+  // Admin + connector (pageA, already logged in for the whole file) — not
+  // a fresh session for reauth or emailchange. Both of those accounts get
+  // their seeded session invalidated by other specs earlier in a full
+  // regression run (member.spec.ts's password-change test explicitly
+  // revokes reauth's session; its email-change test rotates emailchange's
+  // address mid-run), so a new browser context built from either
+  // storageState file is already dead by the time the connections
+  // project runs — confirmed by this test failing with a bounce to
+  // /login when it first used reauth that way, despite passing in
+  // isolation. connector/admin have no such lifecycle elsewhere.
+  //
+  // adversarial_edges.sql (F9) already proves admin_list_connection_reports
+  // flags a report where the resolving admin is a party — what only a
+  // browser shows is that the admin queue actually renders the notice,
+  // not just that the RPC returns the flag.
+  const admin = USERS.admin;
+  const adminCtx = await browser.newContext({ storageState: storageStatePath("admin") });
+  const adminPage = await adminCtx.newPage();
+
+  try {
+    await resetBetween(admin.email, A.email);
+    await service().from("connection_reports").delete().eq("reason", "e2e conflict of interest");
+
+    await openMemberDialog(pageA, admin.surname);
+    await pageA.getByRole("button", { name: "Connect", exact: true }).click();
+    await pageA.getByRole("button", { name: /send request/i }).click();
+    await expect(pageA.getByText(/request sent/i)).toBeVisible();
+
+    await adminPage.goto("/connections?tab=pending");
+    await adminPage.getByRole("button", { name: acceptFrom(A) }).first().click();
+    const accept = adminPage.getByRole("dialog");
+    await accept.getByRole("button", { name: /accept and share/i }).click();
+    await expect(accept).toBeHidden();
+
+    await pageA.goto("/connections");
+    await pageA.getByRole("button", { name: reportOf(admin) }).first().click();
+    const report = pageA.getByRole("dialog");
+    await expect(report).toBeVisible();
+    await report.getByLabel(/reason/i).selectOption({ index: 1 });
+    await report.getByLabel(/what happened/i).fill("e2e conflict of interest");
+    await report.getByRole("button", { name: /send report/i }).click();
+    await expect(report.getByText(/that.s with us/i)).toBeVisible();
+    await report.getByRole("button", { name: /close/i }).click();
+
+    // The admin's own queue names the connection they are one half of.
+    await adminPage.goto("/admin/connections");
+    const card = adminPage.locator("li", { hasText: "e2e conflict of interest" }).first();
+    await expect(card).toBeVisible();
+    await expect(card.getByText(/one of the people involved in this report/i)).toBeVisible();
+  } finally {
+    await service().from("connection_reports").delete().eq("reason", "e2e conflict of interest");
+    await resetBetween(admin.email, A.email);
+    await adminCtx.close();
+  }
+});
+
+test("the pause switch and the digest opt-out actually round-trip, and pausing takes effect for someone else", async ({ browser }) => {
+  // Admin again, for the same reason as the conflict-of-interest test
+  // above: its session survives untouched across a full regression run,
+  // where `student`'s does not collide (its surname IS the literal
+  // string "Student", also the role text on every card — "Student ·
+  // class of 2027" — so openMemberDialog's regex below would match the
+  // first card in the whole directory) and `emailchange`/`reauth` are
+  // mutated or session-revoked by other specs earlier in the same run.
+  const target = USERS.admin;
+  const ctx = await browser.newContext({ storageState: storageStatePath("admin") });
+  const page = await ctx.newPage();
+  const openSwitch = () => page.getByRole("switch", { name: /accept new connection requests/i });
+  const emailSwitch = () => page.getByRole("switch", { name: /email me about pending requests/i });
+
+  try {
+    // Force the known starting state rather than assume the ambient
+    // default — a prior failed run of this exact test is the one way
+    // that assumption breaks, and it would otherwise fail every run
+    // after until someone notices.
+    await resetMemberSettings(target.email);
+    await page.goto("/settings");
+    await expect(openSwitch()).toBeChecked();
+    await expect(emailSwitch()).toBeChecked();
+
+    // Each switch disables itself for the length of its own round trip
+    // (`busy` in ConnectionSettings.tsx) — waited out before the next
+    // click so two overlapping in-flight requests can't have one's
+    // reload race the other's still-pending write.
+    await openSwitch().click();
+    await expect(openSwitch()).not.toBeChecked();
+    await expect(openSwitch()).toBeEnabled();
+    await emailSwitch().click();
+    await expect(emailSwitch()).not.toBeChecked();
+    await expect(emailSwitch()).toBeEnabled();
+
+    // Reload to prove the RPC actually persisted it, not just that the
+    // optimistic UI moved and would revert on a real failure.
+    await page.reload();
+    await expect(openSwitch()).not.toBeChecked();
+    await expect(emailSwitch()).not.toBeChecked();
+
+    // Paused takes effect immediately for someone else trying to connect
+    // — the same generic refusal a block or cooldown gives, so pausing
+    // can't be used to work out why a request was refused.
+    await openMemberDialog(pageA, target.surname);
+    await expect(
+      pageA.getByText(/can.t send a request to this member right now/i),
+    ).toBeVisible();
+    await pageA.getByRole("button", { name: "Close" }).click();
+
+    // Turn both back on and confirm the round trip works the other way.
+    await openSwitch().click();
+    await expect(openSwitch()).toBeEnabled();
+    await emailSwitch().click();
+    await expect(emailSwitch()).toBeEnabled();
+    await page.reload();
+    await expect(openSwitch()).toBeChecked();
+    await expect(emailSwitch()).toBeChecked();
+
+    await openMemberDialog(pageA, target.surname);
+    await expect(pageA.getByRole("button", { name: "Connect", exact: true })).toBeVisible();
+    await pageA.getByRole("button", { name: "Close" }).click();
+  } finally {
+    // Belt and braces: if an assertion above throws mid-test, this still
+    // runs, so a failure here can't leave this account paused for
+    // whatever the next run of this test — or any other spec reusing
+    // it — expects to find.
+    await resetMemberSettings(target.email);
+    await ctx.close();
+  }
 });
 
 test("cold start: every tab has an empty state that points at the directory", async ({ browser }) => {

@@ -1,12 +1,16 @@
 # 05 · Data Breach Incident Response Plan
 
-DRAFT for Imperial DPO review. Defines how a suspected personal-data breach is detected,
+DRAFT for the controller's review. Defines how a suspected personal-data breach is detected,
 contained, assessed, reported and recovered from.
+**Controller:** IC Founders Ltd (Companies House 17171277) — see `02-ropa.md` §1.
 
-> **Imperial reports first, internally.** Any suspected breach of personal data **must be
-> reported to Imperial College London's Data Protection Office without delay**, because the
-> statutory 72-hour clock for notifying the ICO runs against the **Controller**. This plan
-> sits *under* Imperial's institutional breach procedure — Imperial's process takes precedence.
+> **The controller owns the notification clock.** The statutory 72-hour clock for notifying
+> the ICO runs against the **Controller**, which is IC Founders Ltd — not Imperial College
+> London, which is not a joint controller of this service (see `02-ropa.md` §1). Any
+> suspected breach of personal data **must be reported to the controller's data protection
+> contact without delay**; that person owns the ICO and data-subject notification decisions.
+> Imperial may be told as a courtesy, given the platform's affiliation with the College, but
+> that notice does not substitute for or delay the controller's own 72-hour obligation.
 
 ---
 
@@ -15,7 +19,7 @@ contained, assessed, reported and recovered from.
 | Role | Responsibility | Holder |
 |------|----------------|--------|
 | Incident Lead | Coordinates response, owns the timeline log | IAA — ⚠ CONFIRM |
-| Escalation | Notifies Imperial DPO; owns ICO decision | IAO / Imperial DPO — ⚠ CONFIRM |
+| Escalation | Notifies the controller's data protection contact; owns ICO decision | IAO / controller's data protection contact — ⚠ CONFIRM |
 | Technical responder | Executes containment & rotation | Project owner |
 
 ## 2. Detection sources
@@ -30,8 +34,8 @@ contained, assessed, reported and recovered from.
 
 | Level | Example | Action |
 |-------|---------|--------|
-| **P1 — confirmed personal-data exposure** | Service-role key leaked; database read by an unauthorised party; bulk member data exfiltrated | Full response §4–§7; notify Imperial DPO **immediately** |
-| **P2 — credible risk, unconfirmed** | Suspicious access pattern; a secret possibly exposed | Contain & investigate §4–§5; brief Imperial DPO |
+| **P1 — confirmed personal-data exposure** | Service-role key leaked; database read by an unauthorised party; bulk member data exfiltrated | Full response §4–§7; notify the controller's data protection contact **immediately** |
+| **P2 — credible risk, unconfirmed** | Suspicious access pattern; a secret possibly exposed | Contain & investigate §4–§5; brief the controller's data protection contact |
 | **P3 — no personal data at risk** | Rate-limit abuse; bot spam blocked by Turnstile | Log, monitor, harden; no notification required |
 
 ## 4. Containment — credential rotation runbook
@@ -62,11 +66,13 @@ old credentials are dead.
 
 ## 6. Notify
 
-- **Imperial DPO: immediately** on any P1/P2 — they decide on ICO and data-subject notification.
+- **Controller's data protection contact: immediately** on any P1/P2 — they decide on ICO and
+  data-subject notification. Imperial may be told as a courtesy given the platform's
+  affiliation with the College, but this does not substitute for that decision.
 - **ICO (by the Controller): within 72 hours** of becoming aware, if the breach is likely to
   risk individuals' rights and freedoms.
 - **Affected data subjects: without undue delay** if the breach is likely to result in a **high**
-  risk to them (decision owned by Imperial DPO).
+  risk to them (decision owned by the controller's data protection contact).
 - **Sub-processor / vendor** if the breach originates with or involves them.
 
 ## 7. Recover & learn
