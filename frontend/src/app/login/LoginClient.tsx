@@ -10,6 +10,7 @@ import { TurnstileWidget, turnstileConfigured } from "@/components/forms/Turnsti
 import { BrandLogo } from "@/components/BrandLogo";
 import Starfield from "@/components/Starfield";
 import { destinationForStatus } from "@/lib/auth/status";
+import { safeNextPath } from "@/lib/auth/safeNextPath";
 import { Button } from "@/components/ui/Button";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { AFFILIATIONS, NON_STUDENT_AFFILIATIONS, type Affiliation } from "@/lib/intake/steps";
@@ -137,19 +138,6 @@ export default function LoginClient() {
     window.history.replaceState({}, "", url.toString());
   }, []);
 
-  // guard.ts sends a bounced-to-login member here with ?next=<path they
-  // were on>, built server-side from the request URL — never from
-  // anything a client sent. This is nonetheless the side that has to
-  // validate it: only a same-site relative path is honoured, so a
-  // crafted "?next=https://evil.example" or "?next=//evil.example"
-  // (protocol-relative — same open-redirect trick with a different
-  // spelling) can't send a freshly authenticated member off-site.
-  const safeNextPath = (raw: string | null): string | null => {
-    if (!raw) return null;
-    if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("://")) return null;
-    return raw;
-  };
-
   // Sign-in successful — route by admin status + profile state. Shares the
   // status mapping with /auth/callback and /auth/confirm so email and OAuth
   // paths can't drift apart. Fail-closed: any RPC/lookup failure sends them
@@ -165,7 +153,7 @@ export default function LoginClient() {
     // back, so an approved-only or admin-only "next" that this member
     // shouldn't see re-redirects them correctly from there. This is just
     // "try to go back", not a second copy of the access decision.
-    const next = safeNextPath(searchParams.get("next"));
+    const next = safeNextPath(searchParams.get("next"), window.location.origin);
     if (next) {
       router.replace(next);
       router.refresh();
