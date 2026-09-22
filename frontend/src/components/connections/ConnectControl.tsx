@@ -47,14 +47,22 @@ export function ConnectControl({
 }) {
   const [state, setState] = useState<State>("loading");
   const [consentVersion, setConsentVersion] = useState<string | null>(null);
+  // Read alongside the two calls below. `connection_state_with` answers
+  // per-pair state and knows nothing about the kill switch — send_connection_
+  // request is the only RPC it gates — so without this a `none` pair still
+  // rendered a live, clickable Connect button while requests were paused,
+  // and the member only found out when the send itself failed. Existing
+  // connections/pending requests are unaffected either way: this only
+  // changes what a *fresh* `none` state renders.
+  const [enabled, setEnabled] = useState(true);
   const [composing, setComposing] = useState(false);
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Both reads on open, in one round. connection_state_with is
+  // All three reads on open, in one round. connection_state_with is
   // sub-millisecond (it is one lookup on the canonical-pair index); the
-  // consent version is a single app_config row.
+  // consent version and the kill switch are each a single app_config row.
   useEffect(() => {
     let cancelled = false;
     const db = browserClient();
@@ -62,8 +70,9 @@ export function ConnectControl({
     Promise.all([
       db.rpc("connection_state_with", { p_member: memberId }),
       db.rpc("connection_consent_version"),
+      db.rpc("connections_enabled"),
     ]).then(
-      ([stateRes, versionRes]) => {
+      ([stateRes, versionRes, enabledRes]) => {
         if (cancelled) return;
         if (stateRes.error || versionRes.error) {
           console.error("Failed to load connection state:", stateRes.error ?? versionRes.error);
@@ -73,6 +82,10 @@ export function ConnectControl({
         const row = Array.isArray(stateRes.data) ? stateRes.data[0] : stateRes.data;
         setState((row?.state as State) ?? "error");
         setConsentVersion(typeof versionRes.data === "string" ? versionRes.data : null);
+        // Fail open on this one read only: a failed kill-switch check must
+        // not itself hide the Connect button — the RPC's own gate is still
+        // the enforcement, this is only what the button says beforehand.
+        setEnabled(enabledRes.error ? true : enabledRes.data !== false);
       },
       (e: unknown) => {
         if (cancelled) return;
@@ -209,7 +222,12 @@ export function ConnectControl({
 
   // `unavailable` is the one message four different situations share, and
   // it says nothing about which. That is the point.
-  if (state === "unavailable") {
+  //
+  // A paused kill switch joins the same message rather than getting its
+  // own: `send_connection_request` refuses on it just like block/cooldown/
+  // paused-recipient do, so a `none` pair under a paused switch is really a
+  // fifth case of the same thing, not a new one that needs distinguishing.
+  if (state === "unavailable" || (state === "none" && !enabled)) {
     return (
       <Footer>
         <p className="text-[0.8rem] text-text-muted">

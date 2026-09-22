@@ -59,11 +59,16 @@ echo "▸ Supabase: ${NEXT_PUBLIC_SUPABASE_URL}"
 
 pnpm lint
 pnpm typecheck
-# Vitest, with the CACHE vars UNSET rather than blank. lib/cache.ts reads
-# them with `??`, so an empty string is a configured value to it — the
-# module then runs with a Redis URL of "" and cache.test.ts's first case
-# sees its loader called twice. lib/ratelimit.ts uses `Boolean(url &&
-# token)`, which is why blanking is right there and wrong here.
+# Vitest, with the CACHE vars UNSET rather than blank.
+#
+# lib/cache.ts now normalises an empty string to "not configured" (`||`,
+# not `??`) the same way lib/ratelimit.ts's `Boolean(url && token)` already
+# did, so blank and unset behave identically there too — this used not to
+# be true (an empty UPSTASH_CACHE_REDIS_REST_URL used to short-circuit past
+# the fallback to the real UPSTASH_REDIS_REST_URL a test had set, leaving
+# cache.test.ts's first case seeing its loader called twice) and unsetting
+# was the workaround. Kept as unset anyway — it's still correct and is one
+# less thing to re-verify if that normalisation ever moves.
 #
 # Unsetting is safe for this phase specifically: vitest does not read
 # .env.local, so there is no production value underneath to fall through

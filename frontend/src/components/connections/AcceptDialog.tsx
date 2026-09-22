@@ -23,7 +23,18 @@ import { respondToConnectionRequest } from "@/app/connections/actions";
 // The other party's address is NOT shown here, because it is not known
 // here — accepting is what discloses it. It appears on the card the
 // moment this returns, which is the honest ordering.
+//
+// STALE REQUESTS. respond_to_connection_request's `WHERE status =
+// 'pending'` can match nothing by the time Accept is actually pressed —
+// withdrawn, or already answered from another tab or device — and the
+// action layer turns that into the same "no longer pending" sentence
+// decline/withdraw/remove use. onStale, not onAccepted, handles it: the
+// card still has to leave the list (it can't be acted on again either
+// way), but nothing here actually connected the two of you, so the
+// "you're connected" banner onAccepted triggers would be a false claim.
 // ════════════════════════════════════════════════════════════════════
+
+const STALE_REQUEST_ERROR = "That request is no longer pending.";
 
 export function AcceptDialog({
   connectionId,
@@ -32,6 +43,7 @@ export function AcceptDialog({
   consentVersion,
   onClose,
   onAccepted,
+  onStale,
 }: {
   connectionId: string;
   theirName: string;
@@ -39,6 +51,7 @@ export function AcceptDialog({
   consentVersion: string;
   onClose: () => void;
   onAccepted: () => void;
+  onStale: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +70,11 @@ export function AcceptDialog({
     });
     setBusy(false);
     if (!res.ok) {
+      if (res.error === STALE_REQUEST_ERROR) {
+        onStale();
+        close();
+        return;
+      }
       setError(res.error);
       return;
     }

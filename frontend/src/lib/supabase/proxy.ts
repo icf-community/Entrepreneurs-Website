@@ -4,7 +4,7 @@ import { allow, clientIp } from "@/lib/ratelimit";
 import { buildCsp, generateNonce } from "@/lib/csp";
 import type { Database } from "@/lib/database.overrides";
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest, pathname?: string) {
   // Per-request CSP nonce. Carried on the *request* headers so Next.js stamps
   // it onto its own inline scripts, and echoed on the *response* so the
   // browser enforces the policy. Built before createServerClient so nothing
@@ -14,6 +14,11 @@ export async function updateSession(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
+  // Read by guard.ts to send a member bounced to /login back to the page
+  // they were on. Only ever set from request.nextUrl here, server-side —
+  // never take this value from anything a client could pass in, or a
+  // "?next=" open-redirect becomes a header-smuggling one instead.
+  if (pathname) requestHeaders.set("x-pathname", pathname);
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
 

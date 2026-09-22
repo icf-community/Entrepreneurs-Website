@@ -18,6 +18,19 @@ import { Button } from "@/components/ui/Button";
 // address somebody already has.
 // ════════════════════════════════════════════════════════════════════
 
+// The exact sentences withdraw_connection_request and remove_connection
+// raise (via describeSupabaseError's 22023 passthrough) when the row this
+// dialog is acting on already moved under it — accepted, declined,
+// withdrawn or removed from another tab, another device, or the other
+// party, between the card rendering and the confirm click landing. That
+// state is not a failure to retry: the row is already gone in the way the
+// member wanted, and re-showing the same stale card after "Cancel" would
+// just repeat the same error on the next click.
+const STALE_CONNECTION_ERRORS = new Set([
+  "That request is no longer pending.",
+  "That connection no longer exists.",
+]);
+
 export function ConfirmDialog({
   title,
   body,
@@ -54,6 +67,15 @@ export function ConfirmDialog({
     const res = await onConfirm();
     setBusy(false);
     if (!res.ok) {
+      // The row is already stale — dropping it (onSuccess, same as a real
+      // success) is more honest than leaving a dead card on screen that
+      // will just raise the same error on every future click, in this tab,
+      // until a reload finally refetches the list.
+      if (STALE_CONNECTION_ERRORS.has(res.error)) {
+        onSuccess?.();
+        close();
+        return;
+      }
       setError(res.error);
       return;
     }

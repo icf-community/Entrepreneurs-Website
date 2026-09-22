@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.overrides";
@@ -50,6 +51,23 @@ export type GateResult = {
  * ever reached when there is no profile row at all (requireSignedInUser,
  * pre-onboarding).
  */
+/**
+ * Where to send a signed-out visitor. Appends the page they were trying
+ * to reach (from the x-pathname header set in lib/supabase/proxy.ts) as
+ * ?next=, so a session that expired mid-visit — or a cold deep link —
+ * lands back where it was after signing in, instead of always /home.
+ *
+ * The header is only ever set server-side from request.nextUrl, never
+ * from anything a client sends, so there is nothing here for an attacker
+ * to control; LoginClient.tsx still validates it again before using it,
+ * since that is the side an open redirect would actually be exploited
+ * from.
+ */
+async function loginRedirectPath(): Promise<string> {
+  const path = (await headers()).get("x-pathname");
+  return path ? `/login?next=${encodeURIComponent(path)}` : "/login";
+}
+
 export function computeDisplayName(
   profile: { first_name?: string | null; surname?: string | null; preferred_name?: string | null } | null,
 ): string {
@@ -71,7 +89,7 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) redirect(await loginRedirectPath());
 
   const [{ data: isAdminData }, { data: profile }] = await Promise.all([
     supabase.rpc("is_admin"),
@@ -84,7 +102,7 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
 
   const isAdmin = !!isAdminData;
 
-  if (!profile) redirect("/login");
+  if (!profile) redirect(await loginRedirectPath());
 
   if (!opts.passthrough && !isAdmin && profile.status !== "approved") {
     redirect(destinationForStatus(profile.status));
@@ -116,7 +134,7 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
 export async function requireSignedInUser(): Promise<GateResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) redirect(await loginRedirectPath());
 
   const [{ data: isAdminData }, { data: profile }] = await Promise.all([
     supabase.rpc("is_admin"),

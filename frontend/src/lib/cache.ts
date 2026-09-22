@@ -65,16 +65,22 @@ import * as Sentry from "@sentry/nextjs";
 // slows the app down; it never breaks or falsifies it.
 // ════════════════════════════════════════════════════════════════════
 
-const url =
-  process.env.UPSTASH_CACHE_REDIS_REST_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-const token =
-  process.env.UPSTASH_CACHE_REDIS_REST_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+// `||`, not `??`: an empty string set for either var must fall through to
+// the shared one exactly like unset does, or `??` would treat "" as
+// "present", hand Redis an empty URL/token, and fail every call — a
+// misconfiguration that should degrade to SHARED instead reads as the
+// cache being down. `cacheDedicatedUrl` is kept as its own value (not
+// re-derived from `url` below) so cacheSharesRateLimitDb reads the exact
+// thing that decided the fallback, rather than a second env lookup that
+// could drift from it.
+const cacheDedicatedUrl = process.env.UPSTASH_CACHE_REDIS_REST_URL || undefined;
+const url = cacheDedicatedUrl ?? process.env.UPSTASH_REDIS_REST_URL;
+const token = process.env.UPSTASH_CACHE_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
 export const cacheEnabled = Boolean(url && token);
 
 /** True when the cache is sharing the rate limiter's database. */
-export const cacheSharesRateLimitDb =
-  cacheEnabled && !process.env.UPSTASH_CACHE_REDIS_REST_URL;
+export const cacheSharesRateLimitDb = cacheEnabled && !cacheDedicatedUrl;
 
 const redis = cacheEnabled ? new Redis({ url: url!, token: token! }) : null;
 

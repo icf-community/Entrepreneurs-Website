@@ -612,6 +612,10 @@ function PendingTab({
             setJustAccepted(`${accepting.firstName} ${accepting.surname}`);
             drop(accepting.connectionId);
           }}
+          // Withdrawn, or already answered elsewhere, between the card
+          // rendering and Accept landing — just drop it, no "connected"
+          // banner: nothing here actually connected the two of you.
+          onStale={() => drop(accepting.connectionId)}
           onClose={() => setAccepting(null)}
         />
       )}
