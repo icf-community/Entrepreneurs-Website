@@ -5,6 +5,7 @@ import { IntakePromptCard } from "@/components/app/IntakePromptCard";
 import NewestMembers from "@/components/members/NewestMembers";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { requireApprovedUser } from "@/lib/auth/guard";
+import { myPendingConnectionCount } from "@/lib/data/connections";
 import { newestMembers } from "@/lib/data/directory";
 import { listApprovedEvents } from "@/lib/data/events";
 import { listApprovedOpportunities } from "@/lib/data/opportunities";
@@ -31,10 +32,13 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 // in place. The param survives as a redirect to these routes, so links
 // shared during that window still land in the right place.
 //
-// The prototype also shows a "Connection requests" block. There is no
-// connections table, so it is not here: a card that renders nothing, or
-// worse renders a placeholder, teaches members that this screen is
-// decoration. It goes in when intro_requests does.
+// The prototype's "Connection requests" block is now here, and it
+// follows the same rule as everything else on this screen: it renders
+// only when it has something to say. Zero pending requests is the normal
+// state for most members most of the time, and a permanent empty card
+// teaches people that this screen is decoration. The table it reads is
+// `connections` (20260917000001), not the `intro_requests` this comment
+// used to name.
 // ════════════════════════════════════════════════════════════════════
 
 /** Most recently added first. Ties keep their incoming order. */
@@ -68,6 +72,11 @@ export default async function HomePage() {
   const events = listApprovedEvents(supabase);
   const opps = listApprovedOpportunities(supabase);
   const vcs = newestVcs(supabase);
+  // One index-only scan on the partial pending index. Awaited rather than
+  // streamed because it decides whether a whole section exists, and a
+  // section that pops in after the page has settled is worse than one
+  // that costs a sub-millisecond query to place correctly.
+  const pendingConnections = await myPendingConnectionCount(supabase);
 
   return (
     <AppShell active="home" name={fullName || name}>
@@ -80,6 +89,8 @@ export default async function HomePage() {
         </header>
 
         {showIntakePrompt && <IntakePromptCard />}
+
+        {pendingConnections > 0 && <ConnectionRequestsCard count={pendingConnections} />}
 
         <Suspense fallback={<StripSkeleton />}>
           <Newest data={members} />
@@ -110,6 +121,40 @@ export default async function HomePage() {
         </Section>
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * The one thing on this page that is waiting on the member personally.
+ *
+ * It says nothing about who is waiting. The names are one click away on
+ * /connections, and putting them here would spread a private, one-to-one
+ * interaction onto the screen a member might open with somebody looking
+ * over their shoulder.
+ */
+function ConnectionRequestsCard({ count }: { count: number }) {
+  return (
+    <section className="mb-10 rounded-lg border border-border-strong bg-white/[0.04] px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[0.95rem] text-text-primary">
+            {count === 1
+              ? "Someone wants to connect with you"
+              : `${count} people want to connect with you`}
+          </p>
+          <p className="mt-0.5 text-[0.8rem] text-text-muted">
+            Accepting means you each see the other&apos;s email address.
+          </p>
+        </div>
+        <Link
+          href="/connections?tab=pending"
+          className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.05] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
+        >
+          Review {count === 1 ? "it" : "them"}
+          <span aria-hidden>→</span>
+        </Link>
+      </div>
+    </section>
   );
 }
 

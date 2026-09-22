@@ -6,6 +6,7 @@ import SocialLinks from "@/components/SocialLinks";
 import { Dialog, closeDialog } from "@/components/ui/Dialog";
 import { browserClient } from "@/lib/supabase/browser";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ConnectControl } from "@/components/connections/ConnectControl";
 import { MemberPhoto } from "./MemberPhoto";
 import type { DirectoryMember } from "@/lib/data/directory";
 
@@ -180,6 +181,13 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
             />
           </section>
         )}
+
+        {/* The dialog's one mutating control, and the only place a
+            connection request starts. It takes no session props — it asks
+            connection_state_with, which answers `self` for your own
+            profile — so every call site that opens this dialog is
+            unchanged. */}
+        <ConnectControl memberId={m.id} firstName={m.firstName} />
 
         {/* Only claim the profile is empty once we know: the links and the
             full text arrive after the dialog opens. */}

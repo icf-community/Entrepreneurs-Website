@@ -141,6 +141,15 @@ const routeLatency = {
   opportunities_auth: new Trend("route_opportunities_auth", true),
   members_auth: new Trend("route_members_auth", true),
   vcs_auth: new Trend("route_vcs_auth", true),
+  // Connections. Three separate series because they are three different
+  // queries behind one path: the card list (list_my_connections, a keyset
+  // page joined to profiles), the inbox (list_my_pending_requests, which
+  // is also what the digest email links straight at), and the ego-graph
+  // payload (list_my_connection_graph, up to 500 nodes in one shot).
+  // Averaging them would hide whichever one is slow.
+  connections_auth: new Trend("route_connections_auth", true),
+  connections_pending_auth: new Trend("route_connections_pending_auth", true),
+  connections_graph_auth: new Trend("route_connections_graph_auth", true),
 };
 const errors = new Rate("route_errors");
 const expectedRedirect = new Counter("expected_redirect");
@@ -263,8 +272,32 @@ function signedInBurst(session) {
     hit("events_auth", "/events", session);
     hit("members_auth", "/members", session);
     hit("vcs_auth", "/vcs", session);
+    // Every authenticated page also renders the sidebar badge
+    // (my_pending_connection_count), so that query is already under load
+    // on all six hits above. These three add the feature's own reads.
+    hit("connections_auth", "/connections", session);
+    hit("connections_pending_auth", "/connections?tab=pending", session);
+    hit("connections_graph_auth", "/connections?view=graph", session);
   });
 }
+
+// ─── Why send_connection_request is NOT in this harness ─────────────
+// The plan asks for it and it is deliberately left out, which is worth
+// stating rather than leaving as an omission someone re-raises later.
+//
+// It is a POST server action behind a CSRF-protected form, so driving it
+// from k6 means forging the action payload — but the real objection is
+// that it CANNOT be load-tested honestly here. It is capped at 10 per
+// member per day in the database and 15 per day in Upstash, by design:
+// the eleventh call from a VU measures the refusal path, not the send
+// path, and every call that does succeed writes a permanent row plus an
+// event into whatever database the run points at.
+//
+// Its cost is measured instead where that cost actually lives:
+// `supabase/tests/scale_query_plans.sql` §8g runs the real RPC, with
+// every gate, against 5,000 members and 247k edges, and reads the plan
+// shape rather than a laptop millisecond. A concurrency number for it
+// would have to come from a staging database that can be thrown away.
 
 export default function () {
   // Spread VUs across the minted members rather than reusing one: a

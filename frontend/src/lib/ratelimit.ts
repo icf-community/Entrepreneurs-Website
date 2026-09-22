@@ -37,6 +37,8 @@ export type RateBucket =
   | "cvUpload"
   | "githubConnect"
   | "githubShowcase"
+  | "connectionRequest"
+  | "connectionRespond"
   | "otpVerify";
 
 // ─── Key namespace ──────────────────────────────────────────────────
@@ -193,6 +195,39 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // to prevent, not cause.
   githubShowcase: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 h"), prefix: p("ghs"), analytics: false }),
+  // Connection requests. The AUTHORITATIVE cap is in the database —
+  // connection_limits() gives send_connection_request 10/day, 25/week and
+  // 30 outstanding, counted in the same transaction as the insert, so a
+  // direct PostgREST call cannot bypass it. This bucket is the coarse
+  // outer guard, and it is deliberately set ABOVE the configured daily
+  // cap (15 vs 10) so the member always meets the RPC's specific, honest
+  // message ("you've reached your daily limit of 10") rather than the
+  // generic rate-limiter one. The gap is small enough that it is still a
+  // real ceiling if the DB check is ever removed or bypassed: 15 requests
+  // a day is nowhere near a harvesting rate.
+  //
+  // Per 24h rather than per hour, matching the DB window it shadows — an
+  // hourly bucket would refuse a member who legitimately sends their
+  // whole daily allowance after a careers evening.
+  connectionRequest: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(15, "24 h"), prefix: p("conn:req"), analytics: false }),
+  // Accept / decline / withdraw / remove / block / unblock. For all of
+  // these but block, the ceiling is the size of your own inbox: they act
+  // on a row the caller is already party to, so volume is not the abuse
+  // surface and the bucket is only there to stop a runaway client.
+  //
+  // BLOCK IS THE EXCEPTION, and an earlier version of this comment was
+  // wrong to lump it in. It takes an arbitrary member id and CREATES a
+  // row from nothing, which is the same write-amplifier shape as send, so
+  // it has its own authoritative database cap (`block_daily_cap`, 20/day,
+  // in connection_limits()). This bucket sits deliberately above it for
+  // the same reason connectionRequest sits above the send cap: the member
+  // should meet the RPC's specific message, not the generic one.
+  //
+  // 100/day — far more than anyone clears by hand, and nothing near
+  // enough to matter as a cost.
+  connectionRespond: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(100, "24 h"), prefix: p("conn:res"), analytics: false }),
   // verifyOtp (student/alum login-signup codes, email-change confirmation)
   // runs on the browser Supabase client, straight to Supabase's REST
   // endpoint — it never passes through proxy.ts's `mutations` backstop and,
@@ -241,9 +276,18 @@ function instance(bucket: RateBucket): Ratelimit | null {
 // unmetered LLM calls. The in-process fallback below keeps them limited
 // (loosely, per instance) rather than refusing, so no member is locked
 // out of their own profile by a Redis blip.
+// Both connection buckets fail CLOSED. What connectionRequest guards is
+// email harvesting — the entire threat model of the connections feature —
+// so an Upstash outage becoming an unmetered send window is precisely the
+// outcome the list exists to prevent. connectionRespond joins it for a
+// different reason: it is the one connections bucket with no database
+// backstop underneath it, so if it fails open during an outage there is
+// no ceiling at all. Neither can lock a member out the way otpVerify
+// could: the in-process fallback keeps limiting at 15/day and 100/day per
+// instance, both far above real use.
 const FAIL_CLOSED: readonly RateBucket[] = [
   "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload",
-  "githubConnect", "githubShowcase", "otpVerify",
+  "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "otpVerify",
 ];
 
 export function failOpen(bucket: RateBucket): boolean {
@@ -295,6 +339,8 @@ const WINDOW_MS: Record<RateBucket, number> = {
   cvUpload: 86_400_000,
   githubConnect: 86_400_000,
   githubShowcase: 3_600_000,
+  connectionRequest: 86_400_000,
+  connectionRespond: 86_400_000,
   otpVerify: 600_000,
 };
 
@@ -309,6 +355,8 @@ const LIMIT: Record<RateBucket, number> = {
   cvUpload: 10,
   githubConnect: 3,
   githubShowcase: 10,
+  connectionRequest: 15,
+  connectionRespond: 100,
   otpVerify: 10,
 };
 

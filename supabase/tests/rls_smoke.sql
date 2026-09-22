@@ -796,6 +796,46 @@ declare
     -- by is_admin() inside the function body rather than at the grant —
     -- see section 38's non-admin-forbidden check.
     'admin_get_ingestion_status','admin_set_ingestion_enabled',
+    -- Connections (20260917000001-4). Config readers first: the UI needs
+    -- connections_enabled to decide whether to render a Connect control
+    -- at all, connection_consent_version to render the copy the accept
+    -- will be stamped against, and connection_limit(s) to tell a member
+    -- what their cap actually is rather than only telling them when they
+    -- hit it.
+    'connections_enabled','connection_limits','connection_limit',
+    'connection_consent_version',
+    -- member write path. Every one self-defends on auth.uid() plus
+    -- is_approved()/is_admin(); the caps, the cooldowns and the
+    -- reputation throttle are enforced INSIDE send_connection_request,
+    -- not by the grant.
+    'send_connection_request','respond_to_connection_request',
+    'withdraw_connection_request','remove_connection',
+    'block_member','unblock_member','report_connection',
+    -- member read path. Each scopes to auth.uid()'s own edges; the email
+    -- address is joined live from auth.users and only ever for a pair
+    -- where BOTH sides are still approved.
+    'list_my_connections','list_my_pending_requests','list_my_sent_requests',
+    'connection_state_with','my_pending_connection_count',
+    'list_my_connection_facets','list_my_connection_graph',
+    'my_connection_settings','set_connection_settings',
+    -- 20260917000007. Scoped to rows the caller BLOCKED (blocked_by =
+    -- caller), never rows where they were blocked — there is deliberately
+    -- no counterpart RPC, because a member must not be able to learn they
+    -- have been blocked.
+    'list_my_blocked_members',
+    -- admin surface, guarded by is_admin() in-body like every other
+    -- admin_* RPC in this list.
+    'admin_list_connection_reports','admin_reveal_connection_note',
+    'admin_resolve_connection_report','admin_list_flagged_senders',
+    'admin_clear_sender_throttle','admin_set_connections_enabled',
+    'admin_get_connections_status','admin_connection_stats',
+    -- Deliberately ABSENT, and section 37 asserts a member cannot reach
+    -- any of them: connection_refusal_message, connection_log_event,
+    -- connection_assert_can_send, connection_sender_throttled,
+    -- connection_clean_note, connection_limit_defaults,
+    -- expire_connection_requests, purge_removed_connections,
+    -- purge_connection_records, cron_connection_digest,
+    -- claim_connection_digests, purge_sent_outbound_email.
     -- this test's OWN role-impersonation helper (created near the top of this
     -- file, dropped in cleanup below). Not an app RPC — it only exists during
     -- the test run, where Supabase default privileges make it anon-callable;
@@ -2816,6 +2856,1405 @@ begin
   end if;
 end;
 $$;
+
+
+
+-- ─── 37. Connections: disclosure, state machine, caps, and the graph ──
+-- The feature's whole purpose is to release an email address, and
+-- `profiles` has no email column — the address lives only in
+-- auth.users.email. So every assertion here is ultimately one question:
+-- can anyone reach an address they were not individually given?
+--
+-- Fixtures are local to this section rather than reusing _test_ctx,
+-- because the connections battery needs members with completed intake
+-- (profile_version >= 2, required to send) and a clean edge set that no
+-- earlier section has written to.
+set local role postgres;
+
+do $$
+declare
+  -- THREE SEPARATE MEMBER SETS, one per battery below, and this is not
+  -- tidiness. The write battery deliberately leaves its members blocked,
+  -- on cooldown and mid-decline; the read battery needs a clean pair to
+  -- hand an address to. Sharing fixtures between them would make each
+  -- battery's setup depend on the previous one's final state, which is
+  -- how a test suite starts failing in an order-dependent way that looks
+  -- like a product bug.
+  v_ids uuid[] := array(select gen_random_uuid() from generate_series(1,9));
+  v_keys  text[] := array['wa','wb','wc','ra','rb','rc','ma','mb','madm'];
+  -- Addresses and names are explicit, not derived from the key, because
+  -- the assertions below check the exact string an RPC hands back — that
+  -- IS the test in several cases (the whole feature exists to release an
+  -- address, so "which address" is the assertion).
+  v_mail  text[] := array['ca','cb','cc','ra','rb','rc','aa','ab','aadm'];
+  v_first text[] := array['Ann','Ben','Cal','Ann','Ben','Cal','Ann','Ben','Ad'];
+  v_last  text[] := array['A','B','C','A','B','C','A','B','Min'];
+  v_i int;
+begin
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+
+  for v_i in 1..9 loop
+    insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+    values (v_ids[v_i], v_mail[v_i] || '@imperial.ac.uk',
+            json_build_object('first_name', v_first[v_i], 'surname', v_last[v_i], 'role', 'student')::jsonb,
+            '{"provider":"email"}'::jsonb)
+    on conflict do nothing;
+
+    -- profile_version 2 throughout: send_connection_request requires a
+    -- completed intake, so a fixture left at the default 1 cannot send.
+    insert into public.profiles (id, role, status, first_name, surname, course, grad_year, profile_version)
+    values (v_ids[v_i], 'student', 'approved', v_first[v_i], v_last[v_i],
+            (array['MEng Computing','BSc Maths','MSc Physics'])[1 + (v_i % 3)],
+            2025 + (v_i % 3), 2)
+    on conflict (id) do update set
+      status = excluded.status, profile_version = excluded.profile_version,
+      course = excluded.course, grad_year = excluded.grad_year,
+      first_name = excluded.first_name, surname = excluded.surname;
+  end loop;
+
+  -- The admin battery's own admin. Granted here rather than reusing the
+  -- suite's earlier admin so this section's admin_actions assertions
+  -- count only their own rows.
+  insert into public.admins (user_id)
+  values (v_ids[array_position(v_keys, 'madm')]) on conflict do nothing;
+
+  create temporary table _conn_ctx (k text, v uuid);
+  insert into _conn_ctx (k, v)
+    select v_keys[i], v_ids[i] from generate_series(1,9) i;
+  grant select on _conn_ctx to authenticated;
+end;
+$$;
+
+
+-- 1. Happy path: A → B, then B accepts.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='wa');
+  v_b uuid := (select v from _conn_ctx where k='wb');
+  v_v text := public.connection_consent_version();
+  v_id uuid; v_id2 uuid; r record;
+begin
+  perform _set_caller(v_a);
+  v_id := public.send_connection_request(v_b, v_v, '  Hello   there' || chr(9) || 'Ben  ');
+
+  -- idempotent re-send
+  v_id2 := public.send_connection_request(v_b, v_v, 'different note');
+  if v_id2 <> v_id then raise exception 'FAIL: re-send created a second row'; end if;
+
+  set local role none;
+  if (select note from public.connections where id = v_id) <> 'Hello there Ben' then
+    raise exception 'FAIL: note not normalised, got %', (select note from public.connections where id=v_id);
+  end if;
+  if (select count(*) from public.connection_events where connection_id=v_id and event='requested') <> 1 then
+    raise exception 'FAIL: duplicate requested event logged';
+  end if;
+
+  perform _set_caller(v_b);
+  select * into r from public.respond_to_connection_request(v_id, true, v_v);
+  if not r.accepted then raise exception 'FAIL: accept did not report accepted'; end if;
+  if r.requester_email <> 'ca@imperial.ac.uk' then raise exception 'FAIL: wrong requester email %', r.requester_email; end if;
+  if r.requester_first_name <> 'Ann' or r.accepter_first_name <> 'Ben' then raise exception 'FAIL: wrong names'; end if;
+
+  set local role none;
+  if (select status from public.connections where id=v_id) <> 'accepted' then raise exception 'FAIL: not accepted'; end if;
+  if (select consent_version from public.connections where id=v_id) is null then raise exception 'FAIL: no consent_version'; end if;
+end; $$;
+
+-- 2. Already connected refuses; remove sets cooldown; re-request refused.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='wa');
+  v_b uuid := (select v from _conn_ctx where k='wb');
+  v_v text := public.connection_consent_version();
+  v_id uuid; v_msg text;
+begin
+  perform _set_caller(v_a);
+  begin
+    perform public.send_connection_request(v_b, v_v);
+    raise exception 'FAIL: send to existing connection succeeded';
+  exception when sqlstate '22023' then null;
+  end;
+
+  set local role none;
+  select id into v_id from public.connections
+   where least(requester_id,addressee_id)=least(v_a,v_b) and greatest(requester_id,addressee_id)=greatest(v_a,v_b);
+
+  perform _set_caller(v_a);
+  perform public.remove_connection(v_id);
+  -- double remove is a no-op, not an error
+  perform public.remove_connection(v_id);
+
+  set local role none;
+  if (select status from public.connections where id=v_id) <> 'removed' then raise exception 'FAIL: not removed'; end if;
+  if (select cooldown_until from public.connections where id=v_id) is null then raise exception 'FAIL: remove set no cooldown'; end if;
+
+  perform _set_caller(v_a);
+  begin
+    perform public.send_connection_request(v_b, v_v);
+    raise exception 'FAIL: re-request during cooldown succeeded';
+  exception when sqlstate '42501' then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg <> 'You can''t send a request to this member right now.' then
+      raise exception 'FAIL: cooldown message not generic: %', v_msg;
+    end if;
+  end;
+end; $$;
+
+-- 3. Generic refusals are byte-identical across blocked / paused / nonexistent.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='wa');
+  v_c uuid := (select v from _conn_ctx where k='wc');
+  v_v text := public.connection_consent_version();
+  v_ghost uuid := gen_random_uuid();
+  m_ghost text; m_paused text; m_blocked text;
+begin
+  perform _set_caller(v_a);
+  begin perform public.send_connection_request(v_ghost, v_v);
+  exception when others then get stacked diagnostics m_ghost = message_text; end;
+
+  set local role none;
+  update public.profiles set open_to_connections = false where id = v_c;
+  perform _set_caller(v_a);
+  begin perform public.send_connection_request(v_c, v_v);
+  exception when others then get stacked diagnostics m_paused = message_text; end;
+
+  set local role none;
+  update public.profiles set open_to_connections = true where id = v_c;
+  perform _set_caller(v_c);
+  perform public.block_member(v_a);
+  perform _set_caller(v_a);
+  begin perform public.send_connection_request(v_c, v_v);
+  exception when others then get stacked diagnostics m_blocked = message_text; end;
+
+  if m_ghost is distinct from m_paused or m_paused is distinct from m_blocked then
+    raise exception 'FAIL: refusals differ — ghost=[%] paused=[%] blocked=[%]', m_ghost, m_paused, m_blocked;
+  end if;
+end; $$;
+
+-- 4. Unblock is blocker-only and silent, and list_my_blocked_members
+--    (20260917000007) shows the row to the blocker ONLY. The blocked party
+--    seeing their own row would disclose the block, which is the single
+--    thing every refusal message in this feature is written to hide.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='wa');
+  v_c uuid := (select v from _conn_ctx where k='wc');
+  v_n  int;
+begin
+  perform _set_caller(v_c);            -- C is the blocker (section 3)
+  select count(*) into v_n from public.list_my_blocked_members() b
+   where b.member_id = v_a;
+  set local role none;
+  if v_n <> 1 then
+    raise exception 'FAIL: blocker cannot see their own block (got % rows)', v_n;
+  end if;
+
+  perform _set_caller(v_a);            -- A is the blocked party
+  select count(*) into v_n from public.list_my_blocked_members();
+  set local role none;
+  if v_n <> 0 then
+    raise exception 'FAIL: blocked party can enumerate the block against them';
+  end if;
+
+  perform _set_caller(v_a);
+  perform public.unblock_member(v_c);   -- A is NOT the blocker: silent no-op
+  set local role none;
+  if not exists (select 1 from public.connections
+                  where least(requester_id,addressee_id)=least(v_a,v_c)
+                    and greatest(requester_id,addressee_id)=greatest(v_a,v_c)
+                    and status='blocked') then
+    raise exception 'FAIL: blocked party unblocked themselves';
+  end if;
+
+  perform _set_caller(v_c);
+  perform public.unblock_member(v_a);
+  set local role none;
+  if exists (select 1 from public.connections
+              where least(requester_id,addressee_id)=least(v_a,v_c)
+                and greatest(requester_id,addressee_id)=greatest(v_a,v_c)) then
+    raise exception 'FAIL: blocker could not unblock';
+  end if;
+
+  perform _set_caller(v_c);
+  select count(*) into v_n from public.list_my_blocked_members();
+  set local role none;
+  if v_n <> 0 then
+    raise exception 'FAIL: unblocked member still listed as blocked';
+  end if;
+end; $$;
+
+-- 5. Mutual simultaneous request resolves to an accept, charging no cap.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='wa');
+  v_c uuid := (select v from _conn_ctx where k='wc');
+  v_v text := public.connection_consent_version();
+  v_id uuid; v_before int; v_after int;
+begin
+  perform _set_caller(v_c);
+  v_id := public.send_connection_request(v_a, v_v, 'lets talk');
+
+  set local role none;
+  select count(*) into v_before from public.connection_events
+   where actor_id = v_a and event = 'requested' and created_at > now() - interval '24 hours';
+
+  perform _set_caller(v_a);
+  if public.send_connection_request(v_c, v_v) <> v_id then raise exception 'FAIL: mutual send made a new row'; end if;
+
+  set local role none;
+  if (select status from public.connections where id=v_id) <> 'accepted' then
+    raise exception 'FAIL: mutual request did not accept';
+  end if;
+  select count(*) into v_after from public.connection_events
+   where actor_id = v_a and event = 'requested' and created_at > now() - interval '24 hours';
+  if v_after <> v_before then raise exception 'FAIL: mutual accept charged the daily cap'; end if;
+end; $$;
+
+-- 6. Stale consent version refused; note over limit refused.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='wa');
+  v_b uuid := (select v from _conn_ctx where k='wb');
+  v_v text := public.connection_consent_version();
+begin
+  perform _set_caller(v_a);
+  begin
+    perform public.send_connection_request(v_b, '1999-01-01');
+    raise exception 'FAIL: stale consent version accepted';
+  exception when sqlstate '22023' then null;
+  end;
+  begin
+    perform public.send_connection_request(v_b, v_v, repeat('x', 301));
+    raise exception 'FAIL: 301-char note accepted';
+  exception when sqlstate '22001' then null;
+  end;
+end; $$;
+
+-- 7. Caps are enforced in the DB. Drop daily_cap to 2 and try three sends.
+do $$
+declare
+  v_a uuid := gen_random_uuid();
+  v_v text := public.connection_consent_version();
+  v_t uuid; v_n int := 0; v_msg text;
+begin
+  set local role none;
+  update public.app_config set value = jsonb_build_object('daily_cap',2)::text where key='connection_limits';
+
+  -- A fresh sender with no prior 'requested' events, so the arithmetic
+  -- below is about the cap and not about earlier tests.
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id,email,raw_user_meta_data,raw_app_meta_data)
+    values (v_a, 'capsender@imperial.ac.uk','{"first_name":"Cap","surname":"S","role":"student"}'::jsonb,'{"provider":"email"}'::jsonb);
+  insert into public.profiles (id,role,status,first_name,surname,course,grad_year,profile_version)
+    values (v_a,'student','approved','Cap','S','MEng',2027,2)
+    on conflict (id) do update set status='approved', profile_version=2, course='MEng', grad_year=2027;
+
+  for v_n in 1..3 loop
+    v_t := gen_random_uuid();
+    perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+    insert into auth.users (id,email,raw_user_meta_data,raw_app_meta_data)
+      values (v_t, 'conn-cap'||v_n||'@imperial.ac.uk','{"first_name":"T","surname":"T","role":"student"}'::jsonb,'{"provider":"email"}'::jsonb);
+    insert into public.profiles (id,role,status,first_name,surname,course,grad_year,profile_version)
+      values (v_t,'student','approved','T','T','MEng',2027,2)
+      on conflict (id) do update set status='approved', profile_version=2,
+        course='MEng', grad_year=2027;
+
+    perform _set_caller(v_a);
+    begin
+      perform public.send_connection_request(v_t, v_v);
+      if v_n = 3 then raise exception 'FAIL: third send passed a daily cap of 2'; end if;
+    exception when sqlstate '42501' then
+      get stacked diagnostics v_msg = message_text;
+      if v_n < 3 then raise exception 'FAIL: send % refused early: %', v_n, v_msg; end if;
+      if v_msg not like 'You%reached your daily limit of 2%' then
+        raise exception 'FAIL: wrong cap message: %', v_msg;
+      end if;
+    end;
+    set local role none;
+  end loop;
+end; $$;
+
+-- 8. Throttle: 5 distinct blockers drop the daily cap; a clear event lifts it.
+do $$
+declare
+  -- Fresh subjects. connection_sender_throttled joins no other table, so
+  -- these need not be real members — and isolating them keeps the counts
+  -- about the throttle rather than about whatever earlier tests did.
+  v_a uuid := gen_random_uuid();
+  v_s uuid := gen_random_uuid();
+  v_i int; v_x uuid;
+begin
+  set local role none;
+  update public.app_config set value = jsonb_build_object('daily_cap',10)::text where key='connection_limits';
+  if public.connection_sender_throttled(v_a) then raise exception 'FAIL: throttled with no signals'; end if;
+
+  for v_i in 1..4 loop
+    insert into public.connection_events (connection_id, actor_id, subject_id, event)
+    values (gen_random_uuid(), gen_random_uuid(), v_a, 'blocked');
+  end loop;
+  if public.connection_sender_throttled(v_a) then raise exception 'FAIL: throttled at 4 distinct signals'; end if;
+
+  v_x := gen_random_uuid();
+  insert into public.connection_events (connection_id, actor_id, subject_id, event)
+  values (gen_random_uuid(), v_x, v_a, 'blocked');
+  if not public.connection_sender_throttled(v_a) then raise exception 'FAIL: not throttled at 5 distinct signals'; end if;
+
+  -- One actor blocking five times is still one signal.
+  insert into public.connection_events (connection_id, actor_id, subject_id, event)
+  values (gen_random_uuid(), v_x, v_a, 'blocked'), (gen_random_uuid(), v_x, v_a, 'report_upheld');
+
+  -- Admin clear wipes everything older than it.
+  insert into public.connection_events (connection_id, actor_id, subject_id, event)
+  values (gen_random_uuid(), null, v_a, 'throttle_cleared');
+  if public.connection_sender_throttled(v_a) then raise exception 'FAIL: throttle survived a clear event'; end if;
+
+  -- Signals older than the lookback window do not count. Separate
+  -- subject, so this tests decay and not the clear event above.
+  insert into public.connection_events (connection_id, actor_id, subject_id, event, created_at)
+  select gen_random_uuid(), gen_random_uuid(), v_s, 'blocked', now() - interval '200 days' from generate_series(1,6);
+  if public.connection_sender_throttled(v_s) then raise exception 'FAIL: signals outside the lookback window counted'; end if;
+
+  -- Six signals inside the lookback window but all older than the
+  -- 30-day throttle duration: the count is met, the recency is not.
+  insert into public.connection_events (connection_id, actor_id, subject_id, event, created_at)
+  select gen_random_uuid(), gen_random_uuid(), v_s, 'blocked', now() - interval '60 days' from generate_series(1,6);
+  if public.connection_sender_throttled(v_s) then raise exception 'FAIL: throttle did not decay after 30 days'; end if;
+end; $$;
+
+-- 9. Withdraw + decline set cooldowns; reversed re-request reuses the row.
+do $$
+declare
+  v_b uuid := (select v from _conn_ctx where k='wb');
+  v_c uuid := (select v from _conn_ctx where k='wc');
+  v_v text := public.connection_consent_version();
+  v_id uuid; r record;
+begin
+  perform _set_caller(v_b);
+  v_id := public.send_connection_request(v_c, v_v, 'hi');
+  perform public.withdraw_connection_request(v_id);
+  set local role none;
+  if (select cooldown_until from public.connections where id=v_id) is null then raise exception 'FAIL: withdraw set no cooldown'; end if;
+
+  -- Expire the cooldown, then re-request in the REVERSED direction.
+  update public.connections set cooldown_until = now() - interval '1 day' where id = v_id;
+
+  perform _set_caller(v_c);
+  if public.send_connection_request(v_b, v_v, 'my turn') <> v_id then raise exception 'FAIL: reversed re-request made a new row'; end if;
+  set local role none;
+  if (select requester_id from public.connections where id=v_id) <> v_c
+     or (select addressee_id from public.connections where id=v_id) <> v_b then
+    raise exception 'FAIL: reversed re-request did not swap both id columns';
+  end if;
+  if (select note from public.connections where id=v_id) <> 'my turn' then raise exception 'FAIL: note not reset'; end if;
+
+  perform _set_caller(v_b);
+  select * into r from public.respond_to_connection_request(v_id, false, null);
+  if r.accepted then raise exception 'FAIL: decline reported accepted'; end if;
+  if r.requester_email is not null then raise exception 'FAIL: decline leaked an email'; end if;
+  set local role none;
+  if (select status from public.connections where id=v_id) <> 'declined' then raise exception 'FAIL: not declined'; end if;
+  if (select note from public.connections where id=v_id) is null then raise exception 'FAIL: decline cleared the note'; end if;
+end; $$;
+
+-- 10. Report snapshots the note and survives deletion of the connection.
+do $$
+declare
+  v_b uuid := (select v from _conn_ctx where k='wb');
+  v_c uuid := (select v from _conn_ctx where k='wc');
+  v_id uuid;
+begin
+  set local role none;
+  select id into v_id from public.connections
+   where least(requester_id,addressee_id)=least(v_b,v_c) and greatest(requester_id,addressee_id)=greatest(v_b,v_c);
+
+  perform _set_caller(v_b);
+  perform public.report_connection(v_id, 'harassment', 'Unpleasant note.');
+  perform public.report_connection(v_id, 'harassment', 'Again.');  -- idempotent
+
+  set local role none;
+  if (select count(*) from public.connection_reports where connection_id=v_id) <> 1 then
+    raise exception 'FAIL: duplicate report stored';
+  end if;
+  if (select note_snapshot from public.connection_reports where connection_id=v_id) <> 'my turn' then
+    raise exception 'FAIL: note not snapshotted';
+  end if;
+
+  delete from public.connections where id = v_id;
+  if (select count(*) from public.connection_reports where connection_id=v_id) <> 1 then
+    raise exception 'FAIL: report did not survive connection deletion';
+  end if;
+  if (select count(*) from public.connection_events where connection_id=v_id) = 0 then
+    raise exception 'FAIL: events did not survive connection deletion';
+  end if;
+end; $$;
+
+-- 11. Direct table access is denied; internal helpers are not grantable.
+do $$
+declare v_a uuid := (select v from _conn_ctx where k='wa'); v_n int; v_tbl text;
+begin
+  perform _set_caller(v_a);
+
+  -- TWO independent denials, and the test accepts either: the tables
+  -- have RLS on with zero policies AND the default table grants are
+  -- revoked (20260917000001 §4b). With the grant gone the read raises
+  -- insufficient_privilege rather than returning zero rows, so asserting
+  -- only "returns 0" would start failing the moment the stronger control
+  -- was added — which is exactly what happened when it was. What must
+  -- hold is that a member cannot read these tables, by whichever
+  -- mechanism gets there first.
+  foreach v_tbl in array array['connections', 'connection_events', 'connection_reports'] loop
+    begin
+      execute format('select count(*) from public.%I', v_tbl) into v_n;
+      if v_n <> 0 then
+        raise exception 'FAIL: authenticated read % rows directly from %', v_n, v_tbl;
+      end if;
+    exception when insufficient_privilege then
+      null;  -- the stronger outcome
+    end;
+
+    if has_table_privilege('authenticated', 'public.' || v_tbl, 'SELECT')
+    or has_table_privilege('anon',          'public.' || v_tbl, 'SELECT') then
+      raise exception 'FAIL: a client role still holds SELECT on %', v_tbl;
+    end if;
+  end loop;
+
+  if has_function_privilege('authenticated', 'public.connection_log_event(uuid,uuid,uuid,text)', 'execute')
+  then raise exception 'FAIL: connection_log_event executable by authenticated'; end if;
+  if has_function_privilege('authenticated', 'public.connection_assert_can_send(uuid)', 'execute')
+  then raise exception 'FAIL: connection_assert_can_send executable by authenticated'; end if;
+  if has_function_privilege('authenticated', 'public.connection_sender_throttled(uuid)', 'execute')
+  then raise exception 'FAIL: connection_sender_throttled executable by authenticated'; end if;
+  if has_function_privilege('authenticated', 'public.connection_refusal_message()', 'execute')
+  then raise exception 'FAIL: connection_refusal_message executable by authenticated'; end if;
+  if has_function_privilege('anon', 'public.send_connection_request(uuid,text,text)', 'execute')
+  then raise exception 'FAIL: send_connection_request executable by anon'; end if;
+  if not has_function_privilege('authenticated', 'public.send_connection_request(uuid,text,text)', 'execute')
+  then raise exception 'FAIL: send_connection_request NOT executable by authenticated'; end if;
+end; $$;
+
+-- R1. Before accept: pending shows the note, carries NO email, badge agrees.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ra');
+  v_b uuid := (select v from _conn_ctx where k='rb');
+  v_v text := public.connection_consent_version();
+  v_id uuid; r record; v_n int;
+begin
+  perform _set_caller(v_a);
+  v_id := public.send_connection_request(v_b, v_v, 'Saw your fintech work.');
+
+  -- A sees it in Sent, not in Pending.
+  if (select count(*) from public.list_my_sent_requests()) <> 1 then raise exception 'FAIL: sent list empty'; end if;
+  if (select count(*) from public.list_my_pending_requests()) <> 0 then raise exception 'FAIL: sender sees own request as pending'; end if;
+  if public.my_pending_connection_count() <> 0 then raise exception 'FAIL: sender badge non-zero'; end if;
+  if (select state from public.connection_state_with(v_b)) <> 'pending_outgoing' then raise exception 'FAIL: wrong sender state'; end if;
+
+  -- B sees it in Pending, with the note.
+  perform _set_caller(v_b);
+  select * into r from public.list_my_pending_requests();
+  if r.note <> 'Saw your fintech work.' then raise exception 'FAIL: note missing from inbox'; end if;
+  if r.first_name <> 'Ann' then raise exception 'FAIL: wrong requester card'; end if;
+  if public.my_pending_connection_count() <> 1 then raise exception 'FAIL: badge disagrees with inbox'; end if;
+  if (select state from public.connection_state_with(v_a)) <> 'pending_incoming' then raise exception 'FAIL: wrong recipient state'; end if;
+
+  -- Nobody has an email yet — the connections list is empty on both sides.
+  if (select count(*) from public.list_my_connections()) <> 0 then raise exception 'FAIL: B has a connection before accepting'; end if;
+  perform _set_caller(v_a);
+  if (select count(*) from public.list_my_connections()) <> 0 then raise exception 'FAIL: A has a connection before accepting'; end if;
+end; $$;
+
+-- R2. list_my_pending_requests structurally cannot return an address.
+do $$
+declare v_n int;
+begin
+  select count(*) into v_n
+    from pg_proc p, unnest(p.proargnames) as n
+   where p.proname in ('list_my_pending_requests','list_my_sent_requests','list_my_connection_graph','list_my_connection_facets')
+     and n ilike '%email%';
+  if v_n <> 0 then raise exception 'FAIL: % email-shaped output columns on the no-address RPCs', v_n; end if;
+end; $$;
+
+-- R3. Accept: both sides see the other's live address; a third party sees neither.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ra');
+  v_b uuid := (select v from _conn_ctx where k='rb');
+  v_c uuid := (select v from _conn_ctx where k='rc');
+  v_v text := public.connection_consent_version();
+  v_id uuid; r record;
+begin
+  set local role none;
+  select id into v_id from public.connections
+   where least(requester_id,addressee_id)=least(v_a,v_b) and greatest(requester_id,addressee_id)=greatest(v_a,v_b);
+
+  perform _set_caller(v_b);
+  perform public.respond_to_connection_request(v_id, true, v_v);
+
+  select * into r from public.list_my_connections();
+  if r.email <> 'ra@imperial.ac.uk' then raise exception 'FAIL: B does not see A''s address, got %', r.email; end if;
+  if r.total_count <> 1 then raise exception 'FAIL: total_count wrong on first page'; end if;
+  if public.my_pending_connection_count() <> 0 then raise exception 'FAIL: badge still counts an accepted request'; end if;
+  if (select state from public.connection_state_with(v_a)) <> 'connected' then raise exception 'FAIL: not connected state'; end if;
+
+  perform _set_caller(v_a);
+  select * into r from public.list_my_connections();
+  if r.email <> 'rb@imperial.ac.uk' then raise exception 'FAIL: A does not see B''s address'; end if;
+
+  perform _set_caller(v_c);
+  if (select count(*) from public.list_my_connections()) <> 0 then raise exception 'FAIL: third party sees the connection'; end if;
+  if (select state from public.connection_state_with(v_a)) <> 'none' then raise exception 'FAIL: third party state not none'; end if;
+
+end; $$;
+
+-- R4. The address is read LIVE — changing it in auth.users changes what is returned.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ra');
+  v_b uuid := (select v from _conn_ctx where k='rb');
+begin
+  set local role none;
+  update auth.users set email = 'ann.newaddress@ic.ac.uk' where id = v_a;
+  perform _set_caller(v_b);
+  if (select email from public.list_my_connections()) <> 'ann.newaddress@ic.ac.uk' then
+    raise exception 'FAIL: address was snapshotted somewhere';
+  end if;
+end; $$;
+
+-- R5. A ban after the handshake withdraws the address and the row.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ra');
+  v_b uuid := (select v from _conn_ctx where k='rb');
+begin
+  set local role none;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  update public.profiles set status = 'rejected' where id = v_a;
+
+  perform _set_caller(v_b);
+  if (select count(*) from public.list_my_connections()) <> 0 then
+    raise exception 'FAIL: banned member still discloses their address';
+  end if;
+  if (select state from public.connection_state_with(v_a)) <> 'unavailable' then
+    raise exception 'FAIL: banned member not unavailable';
+  end if;
+  if (select count(*) from public.list_my_connection_graph()) <> 0 then
+    raise exception 'FAIL: banned member still in the graph payload';
+  end if;
+
+  set local role none;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  update public.profiles set status = 'approved' where id = v_a;
+  perform _set_caller(v_b);
+  if (select count(*) from public.list_my_connections()) <> 1 then raise exception 'FAIL: unban did not restore'; end if;
+end; $$;
+
+-- R6. Removal takes the address back on both sides.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ra');
+  v_b uuid := (select v from _conn_ctx where k='rb');
+  v_id uuid;
+begin
+  set local role none;
+  select id into v_id from public.connections
+   where least(requester_id,addressee_id)=least(v_a,v_b) and greatest(requester_id,addressee_id)=greatest(v_a,v_b);
+
+  perform _set_caller(v_b);
+  perform public.remove_connection(v_id);
+  if (select count(*) from public.list_my_connections()) <> 0 then raise exception 'FAIL: remover still sees the address'; end if;
+  perform _set_caller(v_a);
+  if (select count(*) from public.list_my_connections()) <> 0 then raise exception 'FAIL: other side still sees the address'; end if;
+  if (select state from public.connection_state_with(v_b)) <> 'unavailable' then
+    raise exception 'FAIL: post-removal cooldown is not unavailable';
+  end if;
+end; $$;
+
+-- R7. blocked_by_me is visible to the blocker only; the blocked party sees unavailable.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ra');
+  v_c uuid := (select v from _conn_ctx where k='rc');
+begin
+  perform _set_caller(v_a);
+  perform public.block_member(v_c);
+  if (select state from public.connection_state_with(v_c)) <> 'blocked_by_me' then
+    raise exception 'FAIL: blocker cannot see their own block';
+  end if;
+  perform _set_caller(v_c);
+  if (select state from public.connection_state_with(v_a)) <> 'unavailable' then
+    raise exception 'FAIL: blocked party can tell they were blocked';
+  end if;
+end; $$;
+
+-- R8. Paused members are unavailable, but self is self.
+do $$
+declare
+  v_b uuid := (select v from _conn_ctx where k='rb');
+  v_c uuid := (select v from _conn_ctx where k='rc');
+begin
+  perform _set_caller(v_b);
+  perform public.set_connection_settings(p_open => false);
+  if (select open_to_connections from public.my_connection_settings()) then
+    raise exception 'FAIL: pause switch did not stick';
+  end if;
+  perform _set_caller(v_c);
+  if (select state from public.connection_state_with(v_b)) <> 'unavailable' then
+    raise exception 'FAIL: paused member is not unavailable';
+  end if;
+  perform _set_caller(v_b);
+  if (select state from public.connection_state_with(v_b)) <> 'self' then raise exception 'FAIL: self state wrong'; end if;
+  -- The other switch is untouched by a single-field update.
+  if not (select connection_emails_enabled from public.my_connection_settings()) then
+    raise exception 'FAIL: null argument overwrote the other switch';
+  end if;
+end; $$;
+
+-- R9. Keyset pagination is stable and total_count is first-page only.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ra');
+  v_v text := public.connection_consent_version();
+  v_i int; v_t uuid; v_id uuid;
+  v_cur_at timestamptz; v_cur_id uuid; v_seen uuid[] := '{}'; r record; v_n int;
+begin
+  set local role none;
+  update public.app_config set value = jsonb_build_object('daily_cap',50,'weekly_cap',50)::text where key='connection_limits';
+
+  for v_i in 1..7 loop
+    v_t := gen_random_uuid();
+    perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+    insert into auth.users (id,email,raw_user_meta_data,raw_app_meta_data)
+      values (v_t,'conn-page'||v_i||'@imperial.ac.uk','{"first_name":"P","surname":"G","role":"student"}'::jsonb,'{"provider":"email"}'::jsonb);
+    insert into public.profiles (id,role,status,first_name,surname,course,grad_year,profile_version)
+      values (v_t,'student','approved','P','G','MEng',2027,2)
+      on conflict (id) do update set status='approved', profile_version=2, course='MEng', grad_year=2027;
+
+    perform _set_caller(v_a);
+    v_id := public.send_connection_request(v_t, v_v);
+    perform _set_caller(v_t);
+    perform public.respond_to_connection_request(v_id, true, v_v);
+    set local role none;
+  end loop;
+
+  perform _set_caller(v_a);
+  select count(*) into v_n from public.list_my_connections();
+  if v_n <> 7 then raise exception 'FAIL: expected 7 connections, got %', v_n; end if;
+
+  -- Page 1 of 3.
+  for r in select * from public.list_my_connections(p_limit => 3) loop
+    if r.total_count <> 7 then raise exception 'FAIL: first page total_count %, want 7', r.total_count; end if;
+    v_seen := v_seen || r.id;
+    v_cur_at := r.connected_at; v_cur_id := r.connection_id;
+  end loop;
+  if array_length(v_seen,1) <> 3 then raise exception 'FAIL: page 1 returned %', array_length(v_seen,1); end if;
+
+  -- Walk the rest by cursor.
+  loop
+    v_n := 0;
+    for r in select * from public.list_my_connections(
+               p_limit => 3, p_cursor_decided_at => v_cur_at, p_cursor_id => v_cur_id) loop
+      if r.total_count <> 0 then raise exception 'FAIL: later page returned total_count %', r.total_count; end if;
+      if r.id = any(v_seen) then raise exception 'FAIL: keyset returned a duplicate row'; end if;
+      v_seen := v_seen || r.id;
+      v_cur_at := r.connected_at; v_cur_id := r.connection_id;
+      v_n := v_n + 1;
+    end loop;
+    exit when v_n = 0;
+  end loop;
+
+  if array_length(v_seen,1) <> 7 then
+    raise exception 'FAIL: keyset walk saw % rows, want 7', array_length(v_seen,1);
+  end if;
+end; $$;
+
+-- R9b. THE TWO BRANCHES AGREE. list_my_connections is one function with
+-- two query bodies — a windowed first page and a keyset-pushdown cursor
+-- page (20260917000005) — and the filter predicates are written out in
+-- BOTH. That duplication is the maintenance hazard the migration header
+-- admits to, and this is the assertion that guards it: walk every page
+-- of a FILTERED list and require the set collected to be identical to
+-- what a single oversized page returns. Drift in either branch fails
+-- here.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ra');
+  v_walked uuid[] := '{}';
+  v_oneshot uuid[];
+  v_cur_at timestamptz; v_cur_id uuid; r record; v_n int;
+  v_filter text[] := array['MEng'];
+begin
+  perform _set_caller(v_a);
+
+  select array_agg(x.id order by x.id) into v_oneshot
+    from public.list_my_connections(
+      p_courses => v_filter, p_limit => 100) x;
+
+  -- Page 1 (branch A), then every cursor page (branch B), at a limit of
+  -- 2 so the walk crosses the branch boundary repeatedly.
+  for r in select * from public.list_my_connections(p_courses => v_filter, p_limit => 2) loop
+    v_walked := v_walked || r.id;
+    v_cur_at := r.connected_at; v_cur_id := r.connection_id;
+  end loop;
+
+  loop
+    v_n := 0;
+    for r in select * from public.list_my_connections(
+               p_courses => v_filter, p_limit => 2,
+               p_cursor_decided_at => v_cur_at, p_cursor_id => v_cur_id) loop
+      if r.id = any(v_walked) then raise exception 'FAIL: branch B returned a row branch A already gave'; end if;
+      v_walked := v_walked || r.id;
+      v_cur_at := r.connected_at; v_cur_id := r.connection_id;
+      v_n := v_n + 1;
+    end loop;
+    exit when v_n = 0;
+  end loop;
+
+  select array_agg(y order by y) into v_walked from unnest(v_walked) y;
+
+  if v_walked is distinct from v_oneshot then
+    raise exception 'FAIL: branches disagree under a filter — walked % vs one-shot %',
+      coalesce(array_length(v_walked,1),0), coalesce(array_length(v_oneshot,1),0);
+  end if;
+end; $$;
+
+-- R10. Filters and facets agree, and the graph agrees with the card view.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ra');
+  v_n int; f record;
+begin
+  perform _set_caller(v_a);
+  select * into f from public.list_my_connection_facets();
+  if f.total <> 7 then raise exception 'FAIL: facets total %, want 7', f.total; end if;
+  if not ('MEng' = any(f.courses)) then raise exception 'FAIL: facet courses missing MEng'; end if;
+
+  select count(*) into v_n from public.list_my_connections(p_courses => array['MEng']);
+  if v_n <> 7 then raise exception 'FAIL: course filter returned %', v_n; end if;
+  select count(*) into v_n from public.list_my_connections(p_courses => array['Nonexistent']);
+  if v_n <> 0 then raise exception 'FAIL: bogus course filter returned %', v_n; end if;
+  select count(*) into v_n from public.list_my_connections(p_query => 'P');
+  if v_n <> 7 then raise exception 'FAIL: name query returned %', v_n; end if;
+
+  select count(*) into v_n from public.list_my_connection_graph();
+  if v_n <> 7 then raise exception 'FAIL: graph has % nodes, card view has 7', v_n; end if;
+
+  -- THE TWO VIEWS MUST AGREE UNDER EVERY FILTER (20260917000010). They
+  -- are one list behind a toggle with one filter panel above both, so a
+  -- disagreement would silently change the membership of the set being
+  -- looked at — a bug nobody reports, because it looks like the graph
+  -- simply showing something else.
+  --
+  -- The free-text case is the one that matters. The graph payload carries
+  -- no bio or working-on text, so a browser-side filter would have agreed
+  -- on every chip and diverged on every search; sharing the SQL predicate
+  -- is what makes this a property rather than a coincidence, and this
+  -- asserts the copy has not drifted.
+  if (select count(*) from public.list_my_connection_graph(p_courses => array['MEng']))
+     is distinct from
+     (select count(*) from public.list_my_connections(p_courses => array['MEng'])) then
+    raise exception 'FAIL: graph and card views disagree under a course filter';
+  end if;
+
+  if (select count(*) from public.list_my_connection_graph(p_courses => array['Nonexistent']))
+     is distinct from
+     (select count(*) from public.list_my_connections(p_courses => array['Nonexistent'])) then
+    raise exception 'FAIL: graph and card views disagree under a bogus course filter';
+  end if;
+
+  if (select count(*) from public.list_my_connection_graph(p_query => 'P'))
+     is distinct from
+     (select count(*) from public.list_my_connections(p_query => 'P')) then
+    raise exception 'FAIL: graph and card views disagree under a free-text query';
+  end if;
+
+  -- Still no email address, under filters as well as without them. The
+  -- OUT parameter names are the payload's shape, so this catches somebody
+  -- adding an address column however helpfully it is meant.
+  if exists (
+    select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public'
+     where p.proname = 'list_my_connection_graph'
+       and 'email' = any (p.proargnames)
+  ) then
+    raise exception 'FAIL: list_my_connection_graph now returns an email address';
+  end if;
+end; $$;
+
+-- R11. Read RPCs are granted to authenticated only, and refuse an unapproved caller.
+do $$
+declare
+  v_x uuid := gen_random_uuid();
+  fn text;
+begin
+  foreach fn in array array[
+    'public.list_my_connections(text,text[],text[],text[],text[],int,int,int,timestamptz,uuid)',
+    'public.list_my_pending_requests(int,timestamptz,uuid)',
+    'public.list_my_sent_requests(int,timestamptz,uuid)',
+    'public.connection_state_with(uuid)',
+    'public.my_pending_connection_count()',
+    'public.list_my_connection_facets()',
+    'public.list_my_connection_graph(text,text[],text[],text[],text[],int,int)',
+    'public.my_connection_settings()',
+    'public.set_connection_settings(boolean,boolean)'
+  ] loop
+    if has_function_privilege('anon', fn, 'execute') then
+      raise exception 'FAIL: % executable by anon', fn;
+    end if;
+    if not has_function_privilege('authenticated', fn, 'execute') then
+      raise exception 'FAIL: % NOT executable by authenticated', fn;
+    end if;
+  end loop;
+
+  -- A caller with a valid JWT but no approved profile gets nothing.
+  perform _set_caller(v_x);
+  if (select count(*) from public.list_my_connections()) <> 0 then raise exception 'FAIL: unapproved caller read connections'; end if;
+  if public.my_pending_connection_count() <> 0 then raise exception 'FAIL: unapproved caller got a badge count'; end if;
+  begin
+    perform public.connection_state_with(gen_random_uuid());
+    raise exception 'FAIL: unapproved caller reached connection_state_with';
+  exception when sqlstate '42501' then null;
+  end;
+end; $$;
+
+-- A1. Every admin RPC is forbidden to a non-admin member.
+do $$
+declare v_a uuid := (select v from _conn_ctx where k='ma'); v_ok int := 0;
+begin
+  perform _set_caller(v_a);
+  begin perform public.admin_list_connection_reports();       raise exception 'FAIL: list_reports'; exception when sqlstate '42501' then v_ok := v_ok+1; end;
+  begin perform public.admin_reveal_connection_note(gen_random_uuid()); raise exception 'FAIL: reveal'; exception when sqlstate '42501' then v_ok := v_ok+1; end;
+  begin perform public.admin_resolve_connection_report(gen_random_uuid(),'actioned'); raise exception 'FAIL: resolve'; exception when sqlstate '42501' then v_ok := v_ok+1; end;
+  begin perform public.admin_list_flagged_senders();          raise exception 'FAIL: flagged'; exception when sqlstate '42501' then v_ok := v_ok+1; end;
+  begin perform public.admin_clear_sender_throttle(v_a);      raise exception 'FAIL: clear'; exception when sqlstate '42501' then v_ok := v_ok+1; end;
+  begin perform public.admin_set_connections_enabled(false);  raise exception 'FAIL: set_enabled'; exception when sqlstate '42501' then v_ok := v_ok+1; end;
+  begin perform public.admin_get_connections_status();        raise exception 'FAIL: get_status'; exception when sqlstate '42501' then v_ok := v_ok+1; end;
+  begin perform public.admin_connection_stats();              raise exception 'FAIL: stats'; exception when sqlstate '42501' then v_ok := v_ok+1; end;
+  if v_ok <> 8 then raise exception 'FAIL: only % of 8 admin RPCs refused a member', v_ok; end if;
+end; $$;
+
+-- A2. Kill switch gates NEW REQUESTS ONLY; everything else keeps working.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ma');
+  v_b uuid := (select v from _conn_ctx where k='mb');
+  v_adm uuid := (select v from _conn_ctx where k='madm');
+  v_v text := public.connection_consent_version();
+  v_id uuid; s record;
+begin
+  perform _set_caller(v_a);
+  v_id := public.send_connection_request(v_b, v_v, 'Rude words here.');
+
+  perform _set_caller(v_adm);
+  perform public.admin_set_connections_enabled(false);
+  select * into s from public.admin_get_connections_status();
+  if s.enabled then raise exception 'FAIL: kill switch did not flip'; end if;
+  if s.last_changed_by <> 'Ad Min' then raise exception 'FAIL: toggle not attributed, got %', s.last_changed_by; end if;
+
+  perform _set_caller(v_a);
+  begin
+    perform public.send_connection_request(v_adm, v_v);
+    raise exception 'FAIL: kill switch did not stop new requests';
+  exception when sqlstate '42501' then null;
+  end;
+
+  -- The already-pending handshake must still be completable.
+  perform _set_caller(v_b);
+  perform public.report_connection(v_id, 'harassment', 'This was unpleasant.');
+  perform public.respond_to_connection_request(v_id, true, v_v);
+  if (select count(*) from public.list_my_connections()) <> 1 then
+    raise exception 'FAIL: kill switch stranded a mid-handshake pair';
+  end if;
+
+  perform _set_caller(v_adm);
+  perform public.admin_set_connections_enabled(true);
+end; $$;
+
+-- A3. Report queue hides the note; revealing it writes an audit row first.
+do $$
+declare
+  v_adm uuid := (select v from _conn_ctx where k='madm');
+  v_a uuid := (select v from _conn_ctx where k='ma');
+  v_b uuid := (select v from _conn_ctx where k='mb');
+  r record; v_rid uuid; v_note text; v_audit int;
+begin
+  perform _set_caller(v_adm);
+  -- Scoped to THIS battery's report. The queue is global and the write
+  -- battery above files one of its own, so an unscoped `select into`
+  -- picks an arbitrary row and total_count counts both.
+  select * into r from public.admin_list_connection_reports('open') q
+   where q.reported_member_id = v_a;
+  if r.category <> 'harassment' then raise exception 'FAIL: report not in queue'; end if;
+  if not r.has_note then raise exception 'FAIL: has_note false on a report with a note'; end if;
+  if r.reporter_name <> 'Ben B' or r.reported_name <> 'Ann A' then
+    raise exception 'FAIL: wrong names — reporter=[%] reported=[%]', r.reporter_name, r.reported_name;
+  end if;
+  if r.admin_is_party then raise exception 'FAIL: uninvolved admin flagged as a party'; end if;
+  if r.total_count < 1 then raise exception 'FAIL: total_count %', r.total_count; end if;
+  v_rid := r.id;
+
+  -- The queue row itself must not be a route to the text.
+  begin
+    perform 1 from public.admin_list_connection_reports('open') q where q.reason is not null;
+  exception when undefined_column then null;
+  end;
+
+  set local role none;
+  select count(*) into v_audit from public.admin_actions where action='reveal_connection_note';
+  perform _set_caller(v_adm);
+  v_note := public.admin_reveal_connection_note(v_rid);
+  if v_note <> 'Rude words here.' then raise exception 'FAIL: wrong note revealed [%]', v_note; end if;
+  set local role none;
+  if (select count(*) from public.admin_actions where action='reveal_connection_note') <> v_audit + 1 then
+    raise exception 'FAIL: reveal wrote no audit row';
+  end if;
+end; $$;
+
+-- A4. Resolving is once-only, writes the reputation signal to the REPORTER.
+do $$
+declare
+  v_adm uuid := (select v from _conn_ctx where k='madm');
+  v_a uuid := (select v from _conn_ctx where k='ma');
+  v_b uuid := (select v from _conn_ctx where k='mb');
+  v_rid uuid; r record; v_actor uuid;
+begin
+  set local role none;
+  select id into v_rid from public.connection_reports
+   where status='open' and reported_member_id = v_a limit 1;
+
+  perform _set_caller(v_adm);
+  select * into r from public.admin_resolve_connection_report(v_rid, 'actioned', 'Warned the sender.');
+  if r.email <> 'ab@imperial.ac.uk' then raise exception 'FAIL: resolve did not return the reporter, got %', r.email; end if;
+  if r.reported_name <> 'Ann A' then raise exception 'FAIL: wrong reported_name'; end if;
+
+  begin
+    perform public.admin_resolve_connection_report(v_rid, 'dismissed');
+    raise exception 'FAIL: a resolved report was resolved twice';
+  exception when sqlstate '22023' then null;
+  end;
+
+  set local role none;
+  select actor_id into v_actor from public.connection_events
+   where event='report_upheld' and subject_id = v_a order by created_at desc limit 1;
+  if v_actor <> v_b then
+    raise exception 'FAIL: report_upheld actor is % (want the reporter %, not the admin %)', v_actor, v_b, v_adm;
+  end if;
+  if not exists (select 1 from public.admin_actions where action='uphold_connection_report' and target_id=v_rid) then
+    raise exception 'FAIL: resolve wrote no admin_actions row';
+  end if;
+end; $$;
+
+-- A5. Flagged senders: signals and decline rate are separate columns.
+do $$
+declare
+  v_adm uuid := (select v from _conn_ctx where k='madm');
+  v_a uuid := (select v from _conn_ctx where k='ma');
+  v_i int; r record; v_seen boolean := false;
+begin
+  set local role none;
+  -- Four more distinct blockers pushes Ann over the throttle threshold.
+  for v_i in 1..4 loop
+    insert into public.connection_events (connection_id, actor_id, subject_id, event)
+    values (gen_random_uuid(), gen_random_uuid(), v_a, 'blocked');
+  end loop;
+
+  perform _set_caller(v_adm);
+  for r in select * from public.admin_list_flagged_senders() loop
+    if r.member_id = v_a then
+      v_seen := true;
+      if r.distinct_signals <> 5 then raise exception 'FAIL: distinct_signals % want 5', r.distinct_signals; end if;
+      if not r.throttled then raise exception 'FAIL: 5 signals did not throttle'; end if;
+      if r.member_name <> 'Ann A' then raise exception 'FAIL: wrong name'; end if;
+    end if;
+  end loop;
+  if not v_seen then raise exception 'FAIL: throttled sender missing from the flagged list'; end if;
+
+  -- The admin override lifts it, append-only.
+  perform public.admin_clear_sender_throttle(v_a, 'False positives.');
+  -- connection_sender_throttled is internal and revoked from
+  -- authenticated, which is the point — reach it as the owner.
+  set local role none;
+  if public.connection_sender_throttled(v_a) then raise exception 'FAIL: clear did not lift the throttle'; end if;
+  -- 4 blocks here plus the report_upheld from A4 is what made 5 distinct
+  -- signals; the clear must leave all of them on the record.
+  if (select count(*) from public.connection_events
+       where subject_id=v_a and event in ('blocked','report_upheld')) <> 5 then
+    raise exception 'FAIL: clear destroyed the original signals';
+  end if;
+  if not exists (select 1 from public.admin_actions where action='clear_connection_throttle' and target_id=v_a) then
+    raise exception 'FAIL: clear wrote no admin_actions row';
+  end if;
+end; $$;
+
+-- A6. Aggregate stats, and nothing per-member.
+do $$
+declare v_adm uuid := (select v from _conn_ctx where k='madm'); s record; v_n int; v_expected bigint;
+begin
+  perform _set_caller(v_adm);
+  select * into s from public.admin_connection_stats();
+
+  -- Checked against a directly computed expectation rather than against
+  -- hard-coded fixture numbers. These are GLOBAL aggregates and this
+  -- file runs every section in one transaction, so any constant here
+  -- would really be asserting "no earlier section made a connection" —
+  -- which is a fact about test ordering, not about the RPC. Recomputing
+  -- tests the arithmetic, which is the part that can actually be wrong.
+  set local role none;
+  select count(*) into v_expected from public.connections where status = 'accepted';
+  perform _set_caller(v_adm);
+
+  if s.total_connections <> v_expected then
+    raise exception 'FAIL: total_connections % but % accepted rows exist', s.total_connections, v_expected;
+  end if;
+  if s.median_per_member is null or s.median_per_member < 0 then
+    raise exception 'FAIL: median_per_member is %', s.median_per_member;
+  end if;
+  if s.cross_cohort_pct is null or s.cross_cohort_pct < 0 or s.cross_cohort_pct > 100 then
+    raise exception 'FAIL: cross_cohort_pct % is not a percentage', s.cross_cohort_pct;
+  end if;
+
+  select count(*) into v_n
+    from pg_proc p, unnest(p.proargnames) as n
+   where p.proname = 'admin_connection_stats' and n ilike '%member_id%';
+  if v_n <> 0 then raise exception 'FAIL: stats RPC exposes a per-member column'; end if;
+end; $$;
+
+-- A7. Lifecycle: expiry carries no cooldown; removed rows are deleted after theirs.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ma');
+  v_b uuid := (select v from _conn_ctx where k='mb');
+  v_v text := public.connection_consent_version();
+  v_id uuid; v_n int;
+begin
+  set local role none;
+  select id into v_id from public.connections
+   where least(requester_id,addressee_id)=least(v_a,v_b) and greatest(requester_id,addressee_id)=greatest(v_a,v_b);
+
+  -- Remove it, then age the cooldown past its end.
+  perform _set_caller(v_a);
+  perform public.remove_connection(v_id);
+  set local role none;
+  update public.connections set cooldown_until = now() - interval '1 day' where id = v_id;
+  if public.purge_removed_connections() <> 1 then raise exception 'FAIL: removed row not purged'; end if;
+  if exists (select 1 from public.connections where id = v_id) then raise exception 'FAIL: row survived the purge'; end if;
+  if (select count(*) from public.connection_events where connection_id = v_id) = 0 then
+    raise exception 'FAIL: purge took the history with it';
+  end if;
+
+  -- A pending request aged past expiry.
+  perform _set_caller(v_a);
+  v_id := public.send_connection_request(v_b, v_v);
+  set local role none;
+  update public.connections set created_at = now() - interval '9 months' where id = v_id;
+  if public.expire_connection_requests() <> 1 then raise exception 'FAIL: nothing expired'; end if;
+  if (select status from public.connections where id=v_id) <> 'expired' then raise exception 'FAIL: not expired'; end if;
+  if (select cooldown_until from public.connections where id=v_id) is not null then
+    raise exception 'FAIL: expiry set a cooldown — nobody decided anything';
+  end if;
+  if not exists (select 1 from public.connection_events
+                  where connection_id=v_id and event='expired' and actor_id is null) then
+    raise exception 'FAIL: expiry logged no actor-less event';
+  end if;
+
+  -- And an expired request is immediately re-sendable.
+  perform _set_caller(v_a);
+  if public.send_connection_request(v_b, v_v) <> v_id then raise exception 'FAIL: expired re-request made a new row'; end if;
+end; $$;
+
+-- A8. The 12-month purge honours open reports.
+do $$
+declare v_a uuid := (select v from _conn_ctx where k='ma'); v_open uuid := gen_random_uuid();
+begin
+  set local role none;
+  insert into public.connection_reports (connection_id, reporter_id, reported_member_id, category, reason, status, purge_after)
+  values (v_open, v_a, v_a, 'spam', 'old and open', 'open', now() - interval '1 day');
+  insert into public.connection_events (connection_id, actor_id, subject_id, event, purge_after)
+  values (gen_random_uuid(), v_a, v_a, 'requested', now() - interval '1 day');
+
+  perform public.purge_connection_records();
+
+  if not exists (select 1 from public.connection_reports where connection_id = v_open) then
+    raise exception 'FAIL: an OPEN report was purged';
+  end if;
+  if exists (select 1 from public.connection_events where purge_after <= now()) then
+    raise exception 'FAIL: expired events survived the purge';
+  end if;
+end; $$;
+
+-- A9. Digest claims exactly once, carries names and counts, respects the opt-out.
+do $$
+declare
+  v_a uuid := (select v from _conn_ctx where k='ma');
+  v_b uuid := (select v from _conn_ctx where k='mb');
+  v_adm uuid := (select v from _conn_ctx where k='madm');
+  v_v text := public.connection_consent_version();
+  r record; v_n int;
+begin
+  set local role none;
+  -- Scoped to this battery's own members. An unqualified DELETE here
+  -- would silently wipe the write and read batteries' rows, which share
+  -- this transaction.
+  delete from public.connections
+   where requester_id in (v_a, v_b, v_adm) or addressee_id in (v_a, v_b, v_adm);
+
+  perform _set_caller(v_a);
+  perform public.send_connection_request(v_b, v_v, 'note one');
+  perform _set_caller(v_adm);
+  perform public.send_connection_request(v_b, v_v, 'note two');
+
+  -- Every assertion below is scoped to THIS battery's recipient.
+  -- claim_connection_digests is global by nature — it is a cron batch —
+  -- and the write and read batteries above leave their own pending rows
+  -- in the same transaction, so a bare count asserts a fact about test
+  -- ordering rather than about the digest.
+  set local role none;
+  select count(*) into v_n from public.claim_connection_digests(500) d where d.member_id = v_b;
+  if v_n <> 1 then raise exception 'FAIL: expected 1 digest for the recipient, got %', v_n; end if;
+
+  select count(*) into v_n from public.claim_connection_digests(500) d where d.member_id = v_b;
+  if v_n <> 0 then raise exception 'FAIL: a second run re-claimed already-digested rows'; end if;
+
+  -- Opt-out: pending rows belonging to an opted-out member are never
+  -- claimed, and are left UNCLAIMED rather than claimed-and-discarded.
+  perform _set_caller(v_b);
+  perform public.set_connection_settings(p_emails_enabled => false);
+  set local role none;
+  update public.connections set digested_at = null
+   where addressee_id = v_b and status = 'pending';
+  select count(*) into v_n from public.claim_connection_digests(500) d where d.member_id = v_b;
+  if v_n <> 0 then raise exception 'FAIL: digest ignored the opt-out'; end if;
+  if exists (select 1 from public.connections
+              where addressee_id = v_b and status = 'pending' and digested_at is not null) then
+    raise exception 'FAIL: opted-out rows were claimed and discarded rather than left alone';
+  end if;
+
+  -- Back on: one mail, two senders, a count, and no note text anywhere.
+  perform _set_caller(v_b);
+  perform public.set_connection_settings(p_emails_enabled => true);
+  set local role none;
+  select * into r from public.claim_connection_digests(500) d where d.member_id = v_b;
+  if r.pending_count <> 2 then raise exception 'FAIL: pending_count % want 2', r.pending_count; end if;
+  if array_length(r.sender_names,1) <> 2 then raise exception 'FAIL: wrong sender_names'; end if;
+  if not (r.sender_names @> array['Ann A','Ad Min']) then raise exception 'FAIL: sender names %', r.sender_names; end if;
+  if r.email <> 'ab@imperial.ac.uk' then raise exception 'FAIL: wrong recipient'; end if;
+  if array_to_string(r.sender_names,' ') like '%note%' then raise exception 'FAIL: note text reached the digest'; end if;
+
+  select count(*) into v_n
+    from pg_proc p, unnest(p.proargnames) as n
+   where p.proname = 'claim_connection_digests' and n ilike '%note%';
+  if v_n <> 0 then raise exception 'FAIL: digest payload declares a note column'; end if;
+end; $$;
+
+-- A10. Cron functions are unreachable from every client role; service_role can claim.
+do $$
+declare fn text;
+begin
+  foreach fn in array array[
+    'public.expire_connection_requests()',
+    'public.purge_removed_connections()',
+    'public.purge_connection_records()',
+    'public.cron_connection_digest()',
+    'public.claim_connection_digests(int)',
+    'public.purge_sent_outbound_email()'
+  ] loop
+    if has_function_privilege('anon', fn, 'execute')          then raise exception 'FAIL: % reachable by anon', fn; end if;
+    if has_function_privilege('authenticated', fn, 'execute') then raise exception 'FAIL: % reachable by authenticated', fn; end if;
+  end loop;
+  if not has_function_privilege('service_role', 'public.claim_connection_digests(int)', 'execute') then
+    raise exception 'FAIL: the digest route cannot call claim_connection_digests';
+  end if;
+
+  if (select count(*) from cron.job where jobname in
+      ('expire-connection-requests-daily','purge-connection-records-daily','connections-digest-daily',
+       'purge-outbound-email-daily')) <> 4 then
+    raise exception 'FAIL: the four cron jobs are not all registered';
+  end if;
+end; $$;
+
+-- A10b. The outbound queue is not an archive. A sent row is deleted after
+-- 7 days; a row that exhausted its retries after 30. A row still in flight
+-- is never touched at any age, and today's sends survive so that
+-- admin_outbound_email_stats keeps counting them.
+--
+-- This exists because the queue held every message body FOREVER until
+-- migration 20260917000013, and the connection-accept body names the
+-- address the requester was just given — a second copy of a released
+-- address that three compliance documents said did not exist.
+do $$
+declare v_n int;
+begin
+  delete from public.outbound_email where to_address like '%@rlssmoke.test';
+
+  insert into public.outbound_email
+    (to_address, subject, text_body, html_body, sent_at, created_at, attempts, max_attempts)
+  values
+    ('sent-old@rlssmoke.test',    's','t','h', now() - interval '8 days', now() - interval '8 days', 1, 6),
+    ('sent-today@rlssmoke.test',  's','t','h', now(),                     now(),                     1, 6),
+    ('inflight@rlssmoke.test',    's','t','h', null,                      now() - interval '40 days',0, 6),
+    ('buried-old@rlssmoke.test',  's','t','h', null,                      now() - interval '40 days',6, 6),
+    ('buried-new@rlssmoke.test',  's','t','h', null,                      now() - interval '2 days', 6, 6);
+
+  perform public.purge_sent_outbound_email();
+
+  select count(*) into v_n from public.outbound_email
+   where to_address in ('sent-old@rlssmoke.test','buried-old@rlssmoke.test');
+  if v_n <> 0 then raise exception 'FAIL(A10b): stale sent/buried rows survived the purge'; end if;
+
+  select count(*) into v_n from public.outbound_email
+   where to_address in ('sent-today@rlssmoke.test','inflight@rlssmoke.test','buried-new@rlssmoke.test');
+  if v_n <> 3 then
+    raise exception 'FAIL(A10b): the purge deleted a row it must never touch (today''s send, an in-flight row, or a fresh failure) — % of 3 left', v_n;
+  end if;
+
+  delete from public.outbound_email where to_address like '%@rlssmoke.test';
+end; $$;
+
+
+-- ─── 38. admin_delete_graduates deletes a NON-EMPTY cohort ───────────
+-- The function returns early on an empty cohort, and that early return is
+-- precisely what hid "column reference user_id is ambiguous" for four
+-- months (docs/audits/C3-connections-benchmark-gate.md, Finding 2). Every
+-- assertion here is therefore on a cohort with rows in it.
+--
+-- The fixture graduates are seeded at grad_year 1951 and the cutoff is
+-- 1951, so this cannot reach the file's own 2025-2027 fixtures.
+do $$
+declare
+  v_admin uuid := (select v from _test_ctx where k = 'admin');
+  v_g1    uuid := gen_random_uuid();
+  v_g2    uuid := gen_random_uuid();
+  v_keep  uuid := gen_random_uuid();
+  v_rows  int;
+  v_conn  uuid;
+  r       record;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_g1,   'grad1@imperial.ac.uk', '{"first_name":"Gee","surname":"One","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_g2,   'grad2@imperial.ac.uk', '{"first_name":"Gee","surname":"Two","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_keep, 'keep1@imperial.ac.uk', '{"first_name":"Kee","surname":"Per","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+
+  insert into public.profiles (id, role, status, first_name, surname, course, grad_year, profile_version)
+  values
+    (v_g1,   'student', 'approved', 'Gee', 'One', 'MEng Computing', 1951, 2),
+    (v_g2,   'student', 'approved', 'Gee', 'Two', 'MEng Computing', 1951, 2),
+    (v_keep, 'student', 'approved', 'Kee', 'Per', 'MEng Computing', 2099, 2)
+  on conflict (id) do update set
+    status = excluded.status, course = excluded.course,
+    grad_year = excluded.grad_year, profile_version = excluded.profile_version;
+
+  -- A connection between a doomed graduate and a survivor. Both FK columns
+  -- are on delete cascade, and the row must go with the graduate -- this is
+  -- the deletion path the connections index list exists for.
+  v_conn := gen_random_uuid();
+  insert into public.connections (id, requester_id, addressee_id, status, consent_version, decided_at)
+  values (v_conn, v_g1, v_keep, 'accepted', public.connection_consent_version(), now());
+
+  -- An admin_actions row authored BY a doomed graduate: admin_id has no
+  -- cascade, so the function has to clear it or the auth delete fails.
+  insert into public.admin_actions (admin_id, action, target_table, target_id, notes)
+  values (v_g1, 'test_fixture', 'profiles', v_keep, 'authored by a doomed graduate');
+
+  perform _set_caller(v_admin);
+
+  v_rows := 0;
+  for r in select * from public.admin_delete_graduates(1951) loop
+    v_rows := v_rows + 1;
+    if r.user_id not in (v_g1, v_g2) then
+      raise exception 'FAIL: admin_delete_graduates returned an unexpected member %', r.user_id;
+    end if;
+    if r.email is null or r.first_name is null then
+      raise exception 'FAIL: admin_delete_graduates returned a null identity for %', r.user_id;
+    end if;
+  end loop;
+  if v_rows <> 2 then
+    raise exception 'FAIL: expected 2 deleted graduates, got %', v_rows;
+  end if;
+
+  set local role postgres;
+  if exists (select 1 from auth.users where id in (v_g1, v_g2)) then
+    raise exception 'FAIL: a graduate survived the cohort delete';
+  end if;
+  if not exists (select 1 from auth.users where id = v_keep) then
+    raise exception 'FAIL: the cohort delete reached outside the cutoff';
+  end if;
+  if exists (select 1 from public.connections where id = v_conn) then
+    raise exception 'FAIL: the connection did not cascade with the deleted graduate';
+  end if;
+  if (select count(*) from public.admin_actions
+       where action = 'admin_delete_graduate' and target_id in (v_g1, v_g2)) <> 2 then
+    raise exception 'FAIL: the cohort delete was not audited one row per graduate';
+  end if;
+
+  -- Re-entrancy: the temp table is `on commit drop`, so a second call in
+  -- this same transaction used to fail with "relation already exists".
+  perform _set_caller(v_admin);
+  perform public.admin_delete_graduates(1951);
+end; $$;
+
+-- ─── 38b. The cleanup never deletes the admin running it ─────────────
+-- Admins here ARE members: admin is granted by email after onboarding, so
+-- a committee member who is an admin and whose graduation year has passed
+-- lands in their own cohort. Before 20260917000009 the annual cleanup
+-- deleted the person running it -- and then failed on
+-- admin_actions_admin_id_fkey while writing the audit row against an
+-- auth.users row it had just removed, rolling the WHOLE cleanup back with
+-- nothing logged to say it had been attempted.
+--
+-- admin_delete_user has refused this for a single target since
+-- 20260529000007 ("Use the self-service Delete Account flow"); this is the
+-- bulk variant inheriting the same rule.
+do $$
+declare
+  v_selfadmin uuid := gen_random_uuid();
+  v_other     uuid := gen_random_uuid();
+  v_rows      int;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_selfadmin, 'gradadmin@imperial.ac.uk', '{"first_name":"Grad","surname":"Admin","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_other,     'grad3@imperial.ac.uk',     '{"first_name":"Gee","surname":"Three","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+
+  insert into public.profiles (id, role, status, first_name, surname, course, grad_year, profile_version)
+  values
+    (v_selfadmin, 'student', 'approved', 'Grad', 'Admin', 'MEng Computing', 1952, 2),
+    (v_other,     'student', 'approved', 'Gee',  'Three', 'MEng Computing', 1952, 2)
+  -- on_auth_user_created has already inserted a bare profile row, so this
+  -- is an update in practice and `course` has to be set here or the
+  -- post-onboarding check constraint rejects the approved status.
+  on conflict (id) do update set
+    status = excluded.status, course = excluded.course,
+    grad_year = excluded.grad_year, profile_version = excluded.profile_version;
+
+  insert into public.admins (user_id) values (v_selfadmin) on conflict do nothing;
+
+  perform _set_caller(v_selfadmin);
+  select count(*) into v_rows from public.admin_delete_graduates(1952);
+
+  set local role postgres;
+  if v_rows <> 1 then
+    raise exception 'FAIL: expected 1 deleted graduate, got % (the caller was probably included)', v_rows;
+  end if;
+  if not exists (select 1 from auth.users where id = v_selfadmin) then
+    raise exception 'FAIL: the graduate cleanup deleted the admin who ran it';
+  end if;
+  if exists (select 1 from auth.users where id = v_other) then
+    raise exception 'FAIL: the cohort delete did not remove the other graduate';
+  end if;
+  -- The audit is written BEFORE the destruction, so it exists whatever
+  -- happens later in the statement.
+  if not exists (select 1 from public.admin_actions
+                  where action = 'admin_delete_graduate'
+                    and admin_id = v_selfadmin and target_id = v_other) then
+    raise exception 'FAIL: the cohort delete was not audited against the calling admin';
+  end if;
+end; $$;
 
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note

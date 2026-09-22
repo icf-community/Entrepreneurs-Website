@@ -269,7 +269,7 @@ jobs:
         working-directory: frontend
         # Scope to the app projects; the rate-limit project runs in its own
         # isolated job (Upstash enabled there only).
-        run: pnpm exec playwright test --project=public --project=member --project=admin --project=pipelines
+        run: pnpm exec playwright test --project=public --project=member --project=admin --project=pipelines --project=connections
 
       - if: always()
         run: supabase stop || true

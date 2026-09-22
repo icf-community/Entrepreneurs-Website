@@ -61,6 +61,14 @@ export default defineConfig({
       testMatch: /pipelines\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    // Connections. No storageState: the round trip needs BOTH ends of a
+    // handshake at once, so the spec opens each side's context explicitly
+    // from the seeded connector/connectee states.
+    {
+      name: "connections",
+      testMatch: /connections\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
     // Live rate-limit enforcement. Deliberately NOT run by the main e2e job
     // (which scopes to public/member/admin) — it only runs in the isolated
     // `e2e-ratelimit` CI job that wires Upstash via an SRH sidecar, so the

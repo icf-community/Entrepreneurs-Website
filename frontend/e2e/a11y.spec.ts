@@ -10,7 +10,12 @@ import { test, expect } from "@playwright/test";
 // Runs under the `member` project — most of these routes are gated.
 
 const PAGES = ["/members", "/opportunities", "/events", "/vcs",
-               "/opportunities/new", "/events/new", "/vcs/new", "/profile", "/settings", "/contact"];
+               "/opportunities/new", "/events/new", "/vcs/new", "/profile", "/settings", "/contact",
+               // All three tabs and both views. The graph is the one
+               // surface here that is a picture, so it is the one most
+               // likely to ship an unnamed control.
+               "/connections", "/connections?tab=pending", "/connections?tab=sent",
+               "/connections?view=graph"];
 
 for (const path of PAGES) {
   test(`every form control on ${path} has an accessible name`, async ({ page }) => {

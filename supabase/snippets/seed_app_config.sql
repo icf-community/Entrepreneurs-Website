@@ -14,6 +14,7 @@
 --   cron_drain_outbound_email      → drain_email_url            + cron_secret
 --   cron_drain_blob_deletions      → drain_blob_deletions_url   + cron_secret
 --   cron_github_showcase_nudge     → github_showcase_nudge_url  + cron_secret
+--   cron_connection_digest         → connections_digest_url     + cron_secret
 --
 -- Every one of them handles a missing key the same way:
 --
@@ -34,6 +35,11 @@
 -- running forever and mailing nobody — with the member-facing symptom
 -- being "we never told anyone they had new repos worth spotlighting",
 -- which nobody would think to report as a bug.
+--
+-- `connections_digest_url` (20260917000004) is the same shape of new key
+-- and has a worse symptom: connection requests pile up unanswered
+-- because nobody is ever told they have any, and the senders conclude
+-- the community ignores them. Add the row when that migration is pushed.
 --
 -- ──────────────────────────────────────────────────────────────────────
 -- HOW TO USE
@@ -61,13 +67,18 @@ insert into public.app_config (key, value) values
   ('cron_secret',               :'cron_secret'),
   ('drain_email_url',           :'app_url' || '/api/cron/drain-email'),
   ('drain_blob_deletions_url',  :'app_url' || '/api/cron/drain-blob-deletions'),
-  ('github_showcase_nudge_url', :'app_url' || '/api/cron/github-showcase-nudge')
+  ('github_showcase_nudge_url', :'app_url' || '/api/cron/github-showcase-nudge'),
+  ('connections_digest_url',    :'app_url' || '/api/cron/connections-digest')
 on conflict (key) do update set value = excluded.value;
 
--- Feature flag, seeded separately because it is a product decision rather
--- than deployment plumbing, and because unlike the rows above it has a
--- sensible default that must not be clobbered on a re-run.
+-- Feature flags, seeded separately because they are product decisions
+-- rather than deployment plumbing, and because unlike the rows above they
+-- have sensible defaults that must not be clobbered on a re-run. The
+-- migrations seed these too; the entries here exist so a database that
+-- somehow lost a row gets it back rather than failing closed forever.
 insert into public.app_config (key, value) values ('community_posts_enabled', 'true')
+on conflict (key) do nothing;
+insert into public.app_config (key, value) values ('connections_enabled', 'true')
 on conflict (key) do nothing;
 
 -- ─── Verification ────────────────────────────────────────────────────
@@ -87,7 +98,11 @@ from (values
   ('drain_email_url'),
   ('drain_blob_deletions_url'),
   ('github_showcase_nudge_url'),
-  ('community_posts_enabled')
+  ('connections_digest_url'),
+  ('community_posts_enabled'),
+  ('connections_enabled'),
+  ('connection_limits'),
+  ('connection_consent_version')
 ) as k(key)
 left join public.app_config c on c.key = k.key
 order by state, k.key;

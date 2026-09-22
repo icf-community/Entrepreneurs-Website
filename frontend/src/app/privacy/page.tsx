@@ -9,7 +9,7 @@ export const metadata = {
   title: "Privacy Policy · Foundry",
 };
 
-const LAST_UPDATED = "1 September 2026";
+const LAST_UPDATED = "20 September 2026";
 
 export default function PrivacyPage() {
   return (
@@ -54,7 +54,8 @@ export default function PrivacyPage() {
               <li><strong>Your CV, if you choose to upload one</strong> — stored as the file you uploaded. If you tick the separate consent for it, we read the text once to suggest skills from our fixed list for you to confirm — see section 2a below for exactly what that does and doesn&rsquo;t do.</li>
               <li><strong>Membership status</strong> — whether you are a current student or alum, and your approval status, which our admins set during review.</li>
               <li><strong>Content you post</strong> — the opportunities, events, and VC / grant listings you submit, including any contact email you choose to attach to a listing; and your community posts, including any images you attach and the text you write to describe them.</li>
-              <li><strong>Reports and moderation records</strong> — if you report a community post, what you tell us about it; and if one of your posts is removed by an admin, a record of the post and the reason it was removed. See section 8 for how long we keep these.</li>
+              <li><strong>Connections</strong> — which members you have connected with, who asked whom and when, and the short note attached to a request if you wrote one. See section 7a for how this works and what it shares.</li>
+              <li><strong>Reports and moderation records</strong> — if you report a community post or a connection, what you tell us about it; and if one of your posts is removed by an admin, a record of the post and the reason it was removed. See section 8 for how long we keep these.</li>
               <li><strong>Engagement data</strong> — anonymised-to-others counts of views and click-throughs on listings you posted, so you can see how your content performs.</li>
               <li><strong>Technical and security data</strong> — your IP address and request metadata, used by our edge provider and rate limiter to prevent abuse, and limited error diagnostics (e.g. URL, browser, your user ID) if something goes wrong.</li>
             </ul>
@@ -87,13 +88,18 @@ export default function PrivacyPage() {
               <li><strong>Creating and running your account and verifying your eligibility</strong> — to provide the membership service you asked for (performance of a contract under our Terms), supported by your consent at sign-up.</li>
               <li><strong>Showing your profile in the member directory</strong> — your consent. You can withdraw this at any time by editing your profile or deleting your account.</li>
               <li><strong>Storing a profile photo or a CV you upload</strong> — your consent. Both are optional and skippable, and reading your CV to suggest skills needs a separate consent tick, unticked by default.</li>
-              <li><strong>Sending you service / transactional emails</strong> (sign-in and password reset, decisions on your application and listings, account and content notices, and replies when you contact us) — necessary to perform our contract with you and our legitimate interest in operating the platform.</li>
+              <li><strong>Exchanging your email address when you connect with a member</strong> — your consent, given by sending a request or by accepting one, and withdrawable by removing the connection. See section 7a.</li>
+              <li><strong>Sending you service / transactional emails</strong> (sign-in and password reset, decisions on your application and listings, account and content notices, a summary of connection requests waiting for you, and replies when you contact us) — necessary to perform our contract with you and our legitimate interest in operating the platform. You can turn the connection summary off in Settings.</li>
               <li><strong>Keeping the platform secure</strong> (anti-bot challenges, rate limiting, abuse prevention) — our legitimate interest in protecting members and the service.</li>
               <li><strong>Understanding how the product is used</strong> (cookieless, pseudonymous analytics) — our legitimate interest in improving Foundry. See our <Link href="/cookies" className="text-accent hover:text-accent-light no-underline">Cookie Policy</Link>.</li>
             </ul>
             <p className="mt-2">
               We do not use your data for advertising, we do not sell it, and we do not carry out automated
-              decision-making that produces legal or similarly significant effects about you.
+              decision-making that produces legal or similarly significant effects about you. One automated
+              limit does exist and we would rather name it than leave it unsaid: if several different members
+              block you or successfully report you, how many connection requests you can send per day is
+              reduced for 30 days. It lifts automatically, changes nothing else about your account, and an
+              admin can remove it — see section 7a.
             </p>
           </Section>
 
@@ -136,11 +142,55 @@ export default function PrivacyPage() {
             <p>
               Your profile (name, course, graduation year, photo, bio, what you&rsquo;re working on, sectors,
               skills, and links) is visible to other approved Foundry members in the directory. Your email address
-              is <strong>not</strong> displayed unless you explicitly choose to make a listing&rsquo;s contact email
-              visible. Your CV is visible only to you and to our admins — it is never shown to other members. Our
+              is <strong>not</strong> displayed in the directory. There are exactly two ways another member sees
+              it: if you choose to attach a contact email to a listing, and if you connect with them — see
+              section 7a. Your CV is visible only to you and to our admins — it is never shown to other members. Our
               admins can see all profile data, including email addresses and CVs, for review and operational
               purposes; every admin view of a member&rsquo;s CV is individually logged. We do not make your data
               public on the open internet.
+            </p>
+          </Section>
+
+          <Section title="7a. Connections: how your email address gets shared">
+            <p>
+              Foundry lets you connect with another member. <strong>The point of connecting is that you
+              each get the other&rsquo;s email address</strong> — the address you sign in with. Nothing else
+              is exchanged, because your profile and links are already visible to members in the directory.
+            </p>
+            <p className="mt-3">
+              It only happens if you both agree. Sending a request is your agreement; accepting one is
+              theirs. Before you accept, we show you the exact address that will be released, and we record
+              which version of that wording you saw. If you decline, we tell the other person nothing at
+              all — the request simply disappears from their view.
+            </p>
+            <p className="mt-3">
+              Either of you can remove the connection at any time, which stops the address being shown in
+              Foundry. To be straightforward about the limits of that: <strong>removing a connection cannot
+              un-send an address someone already has.</strong> Treat sharing it as permanent, as you would
+              anywhere else.
+            </p>
+            <p className="mt-3">
+              You can add a short note (up to 300 characters) to a request. Only the person you sent it to
+              can read it. An admin can read it only if someone reports that connection, and every such read
+              is individually logged. Notes never appear in any email we send.
+            </p>
+            <p className="mt-3">
+              <strong>We never show anyone else&rsquo;s connections to you.</strong> The network view shows
+              you and the people you are connected to. If two of your connections know each other, we do not
+              draw that or count it — they agreed to share an address with you, not to show you their own
+              relationships. There is no admin screen that browses the network either: admins see totals, such as
+              how many connections exist across the community, and never a list of who is connected to whom.
+              The one exception is a report — if you or the other member reports a connection, the admins
+              handling it necessarily see that the two of you were connected, because that is what they are
+              being asked to look at.
+            </p>
+            <p className="mt-3">
+              You can turn off new requests entirely in Settings, and you can block an individual member.
+              Blocking is silent — they are never told — and only you can undo it. If several different
+              members block or successfully report you, we automatically reduce how many requests you can
+              send per day for 30 days. That limit lifts by itself, affects nothing else about your account,
+              and an admin can remove it. We never apply it because your requests go unanswered: people not
+              replying is not misconduct.
             </p>
           </Section>
 
@@ -159,7 +209,9 @@ export default function PrivacyPage() {
               <li><strong>Community posts and their images — 7 days.</strong> Every post is deleted automatically seven days after it is published, along with any images attached to it. You can delete a post sooner at any time from Community → My posts.</li>
               <li><strong>Profile photo and CV — until you replace, remove, or your account is deleted.</strong> We keep one of each at a time; uploading a new one, removing it, or deleting your account queues the old file for deletion within minutes.</li>
               <li><strong>Moderation records — 12 months.</strong> If an admin removes one of your posts, we keep a record of the removal: the post&rsquo;s title and text, the reason given, and who removed it and when. We keep this so that a removal can be explained, reviewed, or defended if it is challenged, which is a legitimate interest and, where the record relates to a potential legal claim, is permitted under Article 17(3)(e) UK GDPR even if you ask us to erase your data. It is deleted after 12 months unless a specific dispute is still live.</li>
-              <li><strong>Reports — 12 months.</strong> If you report a post, we keep your report, what you told us, and the outcome, on the same 12-month clock.</li>
+              <li><strong>Reports — 12 months.</strong> If you report a post or a connection, we keep your report, what you told us, and the outcome, on the same 12-month clock. A report that is still open when the 12 months are up is kept until it is resolved, so that nothing is deleted out from under an investigation.</li>
+              <li><strong>Connections — while they last.</strong> A connection you remove, a request you withdraw, and a request that is declined are all deleted permanently three weeks later, along with any note that was sent with the request. The three weeks are not storage for its own sake: that is the period during which the same two people cannot be re-matched, and the record is what enforces it. A request nobody answers expires after six months and is deleted at that point. A block is kept until you lift it, because the block is the record. We also keep a record of connection activity (a request sent, accepted, declined, blocked) for 12 months, which is what lets us spot someone sending unwanted requests to many people. As with moderation records, that activity log is kept even if you delete your account, for the same reason and under the same Article 17(3)(e) basis.</li>
+              <li><strong>Emails we send you — 7 days.</strong> Mail leaves Foundry through a short queue, and we delete the queued copy a week after it is sent. We keep it that long only so we can tell you whether something actually went out if you say you never received it. This matters for one email in particular: when someone accepts your connection request, the email telling you so contains their address, and that copy goes with the rest. The email in your own inbox is yours and stays there.</li>
             </ul>
           </Section>
 

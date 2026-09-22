@@ -9,7 +9,7 @@ export const metadata = {
   title: "Terms & Conditions · Foundry",
 };
 
-const LAST_UPDATED = "1 September 2026";
+const LAST_UPDATED = "20 September 2026";
 
 export default function TermsPage() {
   return (
@@ -62,6 +62,17 @@ export default function TermsPage() {
               <li>upload malware, attempt to bypass our security or access controls, probe or disrupt the service, or use it other than through the interface we provide;</li>
               <li>use Foundry for any commercial purpose unrelated to its community aims without our permission.</li>
             </ul>
+            <p className="mt-3">
+              <strong>Connections and the email addresses they release.</strong> Connecting with another member
+              exists so the two of you can contact each other, and an address you obtain that way is given to you
+              for that and nothing else. You additionally agree that you will not:
+            </p>
+            <ul className="list-disc pl-5 space-y-1 mt-2">
+              <li>add an address you obtained through a connection to a mailing list, newsletter, CRM, or any bulk or automated sending, or pass it to anyone else, without that member&rsquo;s separate agreement;</li>
+              <li>send connection requests indiscriminately, or keep approaching someone who has declined, withdrawn from, or removed a connection with you;</li>
+              <li>use connection requests, or the note attached to one, to advertise, recruit, solicit money or investment, or send anything you would not be willing to post publicly;</li>
+              <li>collect connections, or the addresses behind them, in order to build a contact list rather than to speak to the people in it.</li>
+            </ul>
             <p className="mt-2">
               We may remove content and suspend or terminate accounts that breach this section, at our reasonable
               discretion.
@@ -103,6 +114,14 @@ export default function TermsPage() {
               Every member can report a post. If you see something that breaches these rules, use the Report
               control on the post — an admin will review it and email you the outcome either way.
             </p>
+            <p className="mt-3">
+              <strong>The note on a connection request is content you post.</strong> It is optional, limited to 300
+              characters, and written to one named person rather than to the feed — but the community guidelines
+              above apply to it in full, and so does section 3. Only the member you sent it to can read it, and an
+              admin only if one of you reports the request, in which case the reading is logged. The note is deleted
+              with the request: three weeks after it is declined or withdrawn, or when an unanswered request expires.
+              Notes never appear in any email we send, so do not use one to reach someone who is not reading Foundry.
+            </p>
           </Section>
 
           <Section title="5. Listings are signposting, not endorsements">
@@ -131,6 +150,15 @@ export default function TermsPage() {
               even if you delete your account, and section 8 of the{" "}
               <Link href="/privacy" className="text-accent hover:text-accent-light no-underline">Privacy Policy</Link>{" "}
               explains the basis for keeping it.
+            </p>
+            <p className="mt-3">
+              <strong>Connections.</strong> Declining a request tells the sender nothing — it simply disappears from
+              their view — and blocking someone is silent too. You can report a connection or a request the same way
+              you report a post, and we will email you the outcome either way, including when we decide to take no
+              action. If several different members block you or successfully report you, Foundry automatically
+              reduces how many connection requests you can send per day for a while. That limit lifts on its own, it
+              affects nothing else about your account, and an admin can remove it if it was applied unfairly —
+              email <strong>appeals@imperialentrepreneurs.com</strong>.
             </p>
           </Section>
 
