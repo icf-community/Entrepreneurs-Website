@@ -24,7 +24,7 @@ audit in this series has a file.
 
 ## What ships
 
-Thirteen migrations, `20260917000001` through `20260917000013`:
+Fifteen migrations, `20260917000001` through `20260917000015`:
 
 | # | File | What it is |
 |---|---|---|
@@ -41,11 +41,16 @@ Thirteen migrations, `20260917000001` through `20260917000013`:
 | 011 | `purge_settled_connections` | Declined / withdrawn / expired rows were kept forever |
 | 012 | `block_cannot_launder_cooldown` | Block → unblock reset a running cooldown; block had no cap |
 | 013 | `purge_sent_outbound_email` | The outbound queue was an archive of every message body |
+| 014 | `index_settled_connection_purge` | The nightly purge from 011 was a full seq scan at scale (measured 28.9ms at 5k/248k, but reads/sorts every row) — added a partial index so it seeks instead |
+| 015 | `report_connection_validates_input` | An invalid `category`/`reason` used to fall through to Postgres's raw 23514, which puts the whole failing row — including `note_snapshot`, the private note — in PostgREST's error `details`. Now validated before the insert, same message either way |
 
 Plus, outside the migrations: the `/connections` UI, the admin surface,
 `ratelimit.ts` buckets, `frontend/src/app/api/cron/connections-digest`,
 the compliance edits in `docs/compliance/`, and the privacy and terms
-pages.
+pages. As of 2026-09-22 that also includes a follow-up frontend-only
+commit closing four previously-flagged findings (login return-path,
+kill-switch button state, stale-card cleanup, a `cache.ts` env fallback
+bug) — no new migrations, so nothing above changes because of it.
 
 ---
 
