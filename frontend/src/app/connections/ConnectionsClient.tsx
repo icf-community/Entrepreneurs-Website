@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import SearchableMultiSelect from "@/components/forms/SearchableMultiSelect";
 import { useUrlFilters, useSearchDraft } from "@/lib/filters/useUrlFilters";
 import { SearchInput, FilterPanel, ChipGroup, RangeFilter } from "@/components/filters/FilterBar";
@@ -444,8 +445,8 @@ function ConnectionsTab({
                 the connection disappears for both of you.
               </p>
               <p>
-                It can&apos;t un-send an address someone already has. Neither of you can
-                send a new request for three weeks.
+                It can&apos;t un-send an address someone already has. Either of you can send
+                a new request later.
               </p>
             </>
           }
@@ -536,8 +537,14 @@ function PendingTab({
           role="status"
           className="mb-4 rounded-lg border border-border-strong bg-white/[0.05] px-4 py-3 text-[0.85rem] text-text-secondary"
         >
-          You&apos;re connected with {justAccepted}. Their email address is on the{" "}
-          <strong className="text-text-primary">Your connections</strong> tab.
+          You&apos;re connected with {justAccepted}.{" "}
+          <Link
+            href="/connections"
+            className="text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
+          >
+            See your connections and their contact details
+          </Link>
+          .
         </p>
       )}
 
@@ -629,7 +636,10 @@ function PendingTab({
                 They are not told, and the request disappears from their sent list. No
                 addresses are shared.
               </p>
-              <p>They can&apos;t send you another request for three weeks.</p>
+              <p>
+                They can&apos;t send you another request for three weeks. You can still send
+                them one if you change your mind.
+              </p>
             </>
           }
           confirmLabel="Decline"
@@ -743,7 +753,7 @@ function SentTab({ page }: { page: RequestsPage<SentRequest> }) {
           body={
             <p>
               The request disappears from their list. You won&apos;t be able to send them
-              another for three weeks.
+              another for three weeks. They can still send you one.
             </p>
           }
           confirmLabel="Withdraw"

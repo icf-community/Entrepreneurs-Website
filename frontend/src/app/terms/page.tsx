@@ -119,7 +119,8 @@ export default function TermsPage() {
               characters, and written to one named person rather than to the feed — but the community guidelines
               above apply to it in full, and so does section 3. Only the member you sent it to can read it, and an
               admin only if one of you reports the request, in which case the reading is logged. The note is deleted
-              with the request: three weeks after it is declined or withdrawn, or when an unanswered request expires.
+              with the request: three weeks after it is declined or withdrawn, within a day of the connection being
+              removed, or when an unanswered request expires.
               Notes never appear in any email we send, so do not use one to reach someone who is not reading Foundry.
             </p>
           </Section>

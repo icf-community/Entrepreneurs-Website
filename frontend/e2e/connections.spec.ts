@@ -20,8 +20,9 @@ import { USERS, storageStatePath } from "./fixtures";
 // that a button did not throw.
 //
 // It uses a dedicated seeded pair (connector/connectee) rather than the
-// shared `student`, because a completed round trip leaves a 21-day
-// cooldown behind and no other spec should have to reason about that.
+// shared `student`, because a withdrawn or declined request leaves a
+// three-week hold on its sender, and no other spec should have to reason
+// about that.
 // ════════════════════════════════════════════════════════════════════
 
 const service = (): SupabaseClient =>
@@ -33,19 +34,24 @@ const A = USERS.connector;   // sends
 const B = USERS.connectee;   // receives
 
 async function idFor(email: string): Promise<string> {
-  const { data } = await service().auth.admin.listUsers({ page: 1, perPage: 200 });
-  const user = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-  if (!user) throw new Error(`No seeded user for ${email}`);
-  return user.id;
+  const db = service();
+  for (let page = 1; ; page += 1) {
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    const user = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+    if (user) return user.id;
+    if (data.users.length < 1000) break;
+  }
+  throw new Error(`No seeded user for ${email}`);
 }
 
 /**
  * Delete every connection row between two emails, plus their events.
  *
- * Not `remove_connection`: that leaves a `removed` row carrying a 21-day
- * cooldown, which is correct product behaviour and exactly wrong for a
- * fixture — the second test on the same pair would be refused. This is
- * the service role reaching past the RPC on purpose.
+ * Not the RPCs: a withdrawn or declined row holds its sender for three
+ * weeks, which is correct product behaviour and exactly wrong for a
+ * fixture — the next test on the same pair would be refused. This is the
+ * service role reaching past the RPC on purpose.
  */
 async function resetBetween(emailX: string, emailY: string): Promise<void> {
   const db = service();
@@ -118,7 +124,8 @@ const reportOf    = (w: Who) => new RegExp(`^Report ${w.firstName} ${w.surname}$
 
 /** Open the member dialog for a named member from /members. */
 async function openMemberDialog(page: Page, surname: string): Promise<void> {
-  await page.goto("/members");
+  // The fixture need not be on page one once the scale corpus is present.
+  await page.goto(`/members?q=${encodeURIComponent(surname)}`);
   await page.getByRole("button", { name: new RegExp(surname, "i") }).first().click();
   await expect(page.getByRole("dialog")).toBeVisible();
 }
@@ -187,7 +194,9 @@ test("the full round trip: request → pending → accept → both see an addres
   await expect(dialog).toBeHidden();
 
   // ── Both sides now see the other's address ────────────────────────
-  await pageB.goto("/connections");
+  // B reaches it through the confirmation's own link, not a typed URL.
+  await pageB.getByRole("link", { name: "See your connections and their contact details" }).click();
+  await expect(pageB).toHaveURL(/\/connections$/);
   await expect(pageB.getByText(A.email)).toBeVisible();
 
   await pageA.goto("/connections");
@@ -322,29 +331,58 @@ test("the digest claims each pending request exactly once, even under a double c
       headers: { authorization: `Bearer ${secret}` },
     });
 
-  const first = await call();
-  expect(first.ok()).toBeTruthy();
-  expect((await first.json()).digested).toBeGreaterThan(0);
+  // Put only our fixture at the front of the bounded queue. With a scale
+  // corpus present, a fresh request can otherwise sit thousands of rows
+  // behind the first batch. Do not change other members' digest state.
+  const [sender, recipient] = await Promise.all([idFor(A.email), idFor(B.email)]);
+  const { error: ageError } = await service().from("connections")
+    .update({ created_at: "2000-01-01T00:00:00Z" })
+    .eq("requester_id", sender).eq("addressee_id", recipient).eq("status", "pending");
+  expect(ageError).toBeNull();
 
-  // The claim stamps digested_at in the SAME statement that selects the
-  // rows, so a second run — an overlapping cron, a manual retrigger, a
-  // pg_net redelivery — matches zero rows. No time-window arithmetic is
-  // involved, which is why this holds a second later rather than only a
-  // day later.
-  const second = await call();
-  expect(second.ok()).toBeTruthy();
-  expect((await second.json()).digested).toBe(0);
+  // Two guards (20260917000016) would otherwise make this depend on what
+  // ran before it: one digest per recipient per 20h, and a daily budget
+  // counted across ALL recipients. Push B's earlier digests outside the
+  // spacing window, and lift the budget for this test only.
+  const { error: spacingError } = await service().from("connections")
+    .update({ digested_at: new Date(Date.now() - 21 * 3600_000).toISOString() })
+    .eq("addressee_id", recipient)
+    .gt("digested_at", new Date(Date.now() - 20 * 3600_000).toISOString());
+  expect(spacingError).toBeNull();
+  const { data: limitsRow } = await service()
+    .from("app_config").select("value").eq("key", "connection_limits").maybeSingle();
+  const originalLimits = limitsRow?.value ?? null;
+  const limits = originalLimits ? (JSON.parse(originalLimits) as Record<string, unknown>) : {};
+  await service().from("app_config").upsert(
+    { key: "connection_limits", value: JSON.stringify({ ...limits, digest_daily_cap: 10000 }) },
+    { onConflict: "key" },
+  );
 
-  const mail = await queuedMail(B.email);
-  expect(mail).toHaveLength(1);
-  expect(mail[0]!.subject).toMatch(new RegExp(A.firstName, "i"));
-  // Names and counts only. The note is attacker-controlled text and this
-  // builds HTML; not carrying it removes the injection surface entirely,
-  // and stops an abusive note reaching an inbox where there is no Block
-  // control next to it.
-  expect(mail[0]!.text_body).not.toContain("e2e round trip");
+  try {
+    // Actually overlap the calls. Other members can legitimately produce
+    // mail in either batch; exactly-once is asserted for our recipient.
+    const responses = await Promise.all([call(), call()]);
+    for (const response of responses) expect(response.ok()).toBeTruthy();
+    const totals = await Promise.all(responses.map((response) => response.json()));
+    expect(totals.reduce((sum, result) => sum + result.digested, 0)).toBeGreaterThan(0);
 
-  await clearQueuedMail(B.email);
+    const mail = await queuedMail(B.email);
+    expect(mail).toHaveLength(1);
+    expect(mail[0]!.subject).toMatch(new RegExp(A.firstName, "i"));
+    // Names and counts only. The note is attacker-controlled text and this
+    // builds HTML; not carrying it removes the injection surface entirely,
+    // and stops an abusive note reaching an inbox where there is no Block
+    // control next to it.
+    expect(mail[0]!.text_body).not.toContain("e2e round trip");
+  } finally {
+    if (originalLimits === null) {
+      await service().from("app_config").delete().eq("key", "connection_limits");
+    } else {
+      await service().from("app_config")
+        .update({ value: originalLimits }).eq("key", "connection_limits");
+    }
+    await clearQueuedMail(B.email);
+  }
 });
 
 test("the network view can be driven from the keyboard, and renders a settled layout", async () => {
@@ -717,5 +755,124 @@ test("cold start: every tab has an empty state that points at the directory", as
     }
   } finally {
     await ctx.close();
+  }
+});
+
+// ─── C7: LinkedIn-style Connect / Pending, and the directional cooldown ─
+//
+// 20260917000017. A cooldown holds only the member who SENT the settled
+// request; the Connect button asks before sending, turns into Pending,
+// withdraws from Pending, and greys out at a limit instead of failing.
+
+async function pairRow() {
+  const [a, b] = await Promise.all([idFor(A.email), idFor(B.email)]);
+  const { data } = await service().from("connections")
+    .select("id, status, requester_id")
+    .or(`and(requester_id.eq.${a},addressee_id.eq.${b}),and(requester_id.eq.${b},addressee_id.eq.${a})`);
+  return data ?? [];
+}
+
+const connectConfirm = (page: Page, w: Who) =>
+  page.getByRole("dialog", { name: `Connect with ${w.firstName} ${w.surname}?` });
+
+test("Connect asks first, and ✕ or Cancel sends nothing", async () => {
+  await resetPair();
+  await openMemberDialog(pageA, B.surname);
+
+  await pageA.getByRole("button", { name: "Connect", exact: true }).click();
+  const confirm = connectConfirm(pageA, B);
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Close" }).click();
+  await expect(confirm).toBeHidden();
+  // Still in the member's profile, and still free to connect later.
+  await expect(pageA.getByRole("button", { name: "Connect", exact: true })).toBeEnabled();
+
+  await pageA.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toBeHidden();
+  await expect(pageA.getByRole("button", { name: "Connect", exact: true })).toBeEnabled();
+
+  expect(await pairRow()).toHaveLength(0);
+});
+
+test("Pending withdraws, and holds only the withdrawer — the other member can still connect", async () => {
+  await resetPair();
+  await openMemberDialog(pageA, B.surname);
+  await pageA.getByRole("button", { name: "Connect", exact: true }).click();
+  await connectConfirm(pageA, B).getByRole("button", { name: /send request/i }).click();
+  await expect(pageA.getByText(/request sent/i)).toBeVisible();
+
+  await pageA.getByRole("button", { name: `Pending — withdraw your request to ${B.firstName}` }).click();
+  const withdraw = pageA.getByRole("dialog", { name: `Withdraw your request to ${B.firstName}?` });
+  await expect(withdraw).toContainText(/can still send you one/i);
+  await withdraw.getByRole("button", { name: "Withdraw", exact: true }).click();
+  await expect(pageA.getByText(/you withdrew your request\. you can send .+ a new one from/i)).toBeVisible();
+  await expect(pageA.getByRole("button", { name: "Connect", exact: true })).toHaveCount(0);
+
+  // The member who was withdrawn from is not held.
+  await openMemberDialog(pageB, A.surname);
+  await pageB.getByRole("button", { name: "Connect", exact: true }).click();
+  await connectConfirm(pageB, A).getByRole("button", { name: /send request/i }).click();
+  await expect(pageB.getByText(/request sent/i)).toBeVisible();
+
+  const rows = await pairRow();
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.status).toBe("pending");
+  expect(rows[0]!.requester_id).toBe(await idFor(B.email));
+});
+
+test("a decliner can change their mind and send a request back", async () => {
+  await resetPair();
+  await openMemberDialog(pageA, B.surname);
+  await pageA.getByRole("button", { name: "Connect", exact: true }).click();
+  await connectConfirm(pageA, B).getByRole("button", { name: /send request/i }).click();
+  await expect(pageA.getByText(/request sent/i)).toBeVisible();
+
+  await pageB.goto("/connections?tab=pending");
+  await pageB.getByRole("button", { name: declineFrom(A) }).first().click();
+  const decline = pageB.getByRole("dialog");
+  await expect(decline).toContainText(/you can still send them one/i);
+  await decline.getByRole("button", { name: "Decline", exact: true }).click();
+  await expect(decline).toBeHidden();
+
+  await openMemberDialog(pageB, A.surname);
+  await pageB.getByRole("button", { name: "Connect", exact: true }).click();
+  await connectConfirm(pageB, A).getByRole("button", { name: /send request/i }).click();
+  await expect(pageB.getByText(/request sent/i)).toBeVisible();
+  expect((await pairRow())[0]!.requester_id).toBe(await idFor(B.email));
+});
+
+test("at the weekly limit, Connect is greyed out and says so before anything is sent", async () => {
+  await resetPair();
+  const a = await idFor(A.email);
+  const b = await idFor(B.email);
+  // One send this week, against a cap of one.
+  const { error: seedError } = await service().from("connection_events").insert({
+    connection_id: crypto.randomUUID(), actor_id: a, subject_id: b, event: "requested",
+    created_at: new Date(Date.now() - 3600_000).toISOString(),
+  });
+  expect(seedError).toBeNull();
+  const { data: limitsRow } = await service()
+    .from("app_config").select("value").eq("key", "connection_limits").maybeSingle();
+  const originalLimits = limitsRow?.value ?? null;
+  const limits = originalLimits ? (JSON.parse(originalLimits) as Record<string, unknown>) : {};
+  await service().from("app_config").upsert(
+    { key: "connection_limits", value: JSON.stringify({ ...limits, weekly_cap: 1 }) },
+    { onConflict: "key" },
+  );
+  try {
+    await openMemberDialog(pageA, B.surname);
+    const connect = pageA.getByRole("button", { name: "Connect", exact: true });
+    await expect(connect).toBeDisabled();
+    await expect(pageA.getByText(/you've hit your weekly limit of 1 connection request\. you can send more from/i)).toBeVisible();
+    expect(await pairRow()).toHaveLength(0);
+  } finally {
+    if (originalLimits === null) {
+      await service().from("app_config").delete().eq("key", "connection_limits");
+    } else {
+      await service().from("app_config").update({ value: originalLimits }).eq("key", "connection_limits");
+    }
+    await resetPair();
   }
 });

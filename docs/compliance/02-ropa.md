@@ -215,7 +215,7 @@ be — see `07-dpia-screening.md` for the corresponding re-screen.
 | **Purpose** | Letting two members who each agreed to it exchange their email addresses, and remembering that they agreed |
 | **Suggested basis** | **Consent** (Art. 6(1)(a)) — sending is the requester's consent and accepting is the addressee's, and either can be withdrawn by removing the connection. Not contract: nothing about membership requires anyone to connect with anyone |
 | **Recipients** | Supabase only. The table is deny-all RLS with **no policies at all**; every read goes through a `SECURITY DEFINER` RPC that scopes to the caller's own edges |
-| **Retention** | For the life of the relationship. A settled row — removed, declined or withdrawn — is hard-deleted once its 21-day cooldown lapses (`purge_removed_connections()`); the cooldown is enforced by reading that row, so it cannot be deleted sooner. A pending request expires at 6 months and the expired row is deleted on sight, since expiry carries no cooldown. A blocked row is never purged: the block is the row, and it lasts until the blocker lifts it. Account deletion cascades every row on both FK columns |
+| **Retention** | For the life of the relationship. A removed row is hard-deleted on the next nightly purge (`purge_removed_connections()`), because removal holds nobody back (20260917000017). A declined or withdrawn row is hard-deleted once its 21-day cooldown lapses; that cooldown holds only the member who sent the request, and it is enforced by reading the row, so the row cannot be deleted sooner. A pending request expires at 6 months and the expired row is deleted on sight, since expiry carries no cooldown. A blocked row is never purged: the block is the row, and it lasts until the blocker lifts it. Account deletion cascades every row on both FK columns |
 | **Location** | Supabase (EU/London) |
 
 **The email address is never stored here.** It is joined live from `auth.users` at read time, and
@@ -239,7 +239,7 @@ community's size a count of 1 is an identification.
 | **Purpose** | Letting a requester say why they want to connect, so the recipient has something to decide on |
 | **Suggested basis** | Consent — the note is optional, and is written knowing the recipient will read it |
 | **Recipients** | The recipient only. Admins can read one **only** on a report, and each read writes an `admin_actions` row *before* the text is returned |
-| **Retention** | The note has no separate clock: it is deleted with the row that carries it, per item P — three weeks after the request is declined or withdrawn, or on sight once it expires. A note snapshotted into a report follows item R's 12 months |
+| **Retention** | The note has no separate clock: it is deleted with the row that carries it, per item P — three weeks after the request is declined or withdrawn, on the next nightly purge after a connection is removed, or on sight once it expires. A note snapshotted into a report follows item R's 12 months |
 | **Location** | Supabase |
 
 **The note never appears in an email.** The daily digest carries names and counts only. That
@@ -295,7 +295,8 @@ asks for. It is a rate limit with a trigger, not a decision about a person, and 
 | Post reports | 12 months | `purge_moderation_records()` daily (02:35) |
 | Post moderation log (takedowns) | 12 months, unless `legal_hold` | `purge_moderation_records()` daily (02:35) |
 | Connections (accepted) | For the life of the relationship | Removed on either party's action, or on account deletion (FK cascade) |
-| Connections (removed, declined, withdrawn) | 21 days after the row settled — the cooldown period it is holding — then hard-deleted | `purge_removed_connections()` daily (02:45) |
+| Connections (removed) | Next nightly run — a removal holds nobody back, so the row has nothing to enforce | `purge_removed_connections()` daily (02:45) |
+| Connections (declined, withdrawn) | 21 days after the row settled — the sender's cooldown it is holding — then hard-deleted | `purge_removed_connections()` daily (02:45) |
 | Connections (blocked) | Until the blocker lifts it; never purged, because the row *is* the block | `unblock_member()` (member-initiated) |
 | Connection requests (pending) | 6 months, then `expired` | `expire_connection_requests()` daily (02:40) |
 | Connections (expired) | Deleted on sight — expiry carries no cooldown, so the row has nothing left to enforce | `purge_removed_connections()` daily (02:45) |

@@ -187,7 +187,7 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
             connection_state_with, which answers `self` for your own
             profile — so every call site that opens this dialog is
             unchanged. */}
-        <ConnectControl memberId={m.id} firstName={m.firstName} />
+        <ConnectControl memberId={m.id} firstName={m.firstName} surname={m.surname} />
 
         {/* Only claim the profile is empty once we know: the links and the
             full text arrive after the dialog opens. */}
