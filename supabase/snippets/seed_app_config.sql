@@ -7,7 +7,7 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- WHY THIS FILE EXISTS
 -- ──────────────────────────────────────────────────────────────────────
--- Three pg_cron jobs reach back into the Next.js app over HTTP, and each
+-- Four pg_cron jobs reach back into the Next.js app over HTTP, and each
 -- one reads its target URL and the shared bearer secret out of
 -- `app_config` at call time:
 --
@@ -44,7 +44,21 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- HOW TO USE
 -- ──────────────────────────────────────────────────────────────────────
--- Replace the two \set values below, then run the whole file.
+-- Replace the two values marked EDIT THESE TWO below, then run the
+-- whole file. Plain SQL on purpose: the Supabase web SQL Editor does not
+-- understand psql's `\set` / `:'var'`, which this file used to rely on.
+-- The insert refuses to run while the secret is still the placeholder.
+--
+-- CAREFUL: this OVERWRITES cron_secret, which every cron above shares. A
+-- value that differs from Vercel's CRON_SECRET silently stops ALL of them,
+-- including the email drain. If the environment is already seeded and you
+-- only need a missing URL row, add just that row instead, e.g.:
+--
+--   insert into public.app_config (key, value)
+--   select 'connections_digest_url',
+--          replace(value, '/api/cron/drain-email', '/api/cron/connections-digest')
+--     from public.app_config where key = 'drain_email_url'
+--   on conflict (key) do nothing;
 --
 --   app_url     — the site's public origin, NO trailing slash. Must be the
 --                 apex-or-www host that actually serves the app: the apex
@@ -53,23 +67,35 @@
 --                 cron call a silent 307 that does nothing.
 --   cron_secret — must equal the CRON_SECRET env var set in Vercel. The
 --                 routes compare it with a constant-time check and return
---                 401 on a mismatch; a mismatch therefore looks exactly
+--                 403 on a mismatch; a mismatch therefore looks exactly
 --                 like a missing key from the database side.
 --
 -- Verify with the SELECT at the bottom, which reports what is missing
 -- rather than what is present.
 -- ════════════════════════════════════════════════════════════════════
 
-\set app_url     'https://www.imperialentrepreneurs.com'
-\set cron_secret 'REPLACE_WITH_THE_VERCEL_CRON_SECRET'
+do $$
+declare
+  -- ▼▼ EDIT THESE TWO ▼▼
+  v_app_url     text := 'https://www.imperialentrepreneurs.com';
+  v_cron_secret text := 'REPLACE_WITH_THE_VERCEL_CRON_SECRET';
+  -- ▲▲ ─────────────── ▲▲
+begin
+  if v_cron_secret = 'REPLACE_WITH_THE_VERCEL_CRON_SECRET' or btrim(v_cron_secret) = '' then
+    raise exception 'Set v_cron_secret to the Vercel CRON_SECRET first — nothing was written';
+  end if;
+  if v_app_url !~ '^https://[^/]+$' then
+    raise exception 'v_app_url must be https://host with no path and no trailing slash (got %)', v_app_url;
+  end if;
 
-insert into public.app_config (key, value) values
-  ('cron_secret',               :'cron_secret'),
-  ('drain_email_url',           :'app_url' || '/api/cron/drain-email'),
-  ('drain_blob_deletions_url',  :'app_url' || '/api/cron/drain-blob-deletions'),
-  ('github_showcase_nudge_url', :'app_url' || '/api/cron/github-showcase-nudge'),
-  ('connections_digest_url',    :'app_url' || '/api/cron/connections-digest')
-on conflict (key) do update set value = excluded.value;
+  insert into public.app_config (key, value) values
+    ('cron_secret',               v_cron_secret),
+    ('drain_email_url',           v_app_url || '/api/cron/drain-email'),
+    ('drain_blob_deletions_url',  v_app_url || '/api/cron/drain-blob-deletions'),
+    ('github_showcase_nudge_url', v_app_url || '/api/cron/github-showcase-nudge'),
+    ('connections_digest_url',    v_app_url || '/api/cron/connections-digest')
+  on conflict (key) do update set value = excluded.value;
+end $$;
 
 -- Feature flags, seeded separately because they are product decisions
 -- rather than deployment plumbing, and because unlike the rows above they

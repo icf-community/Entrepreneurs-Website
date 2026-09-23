@@ -933,11 +933,12 @@ export async function sendConnectionAcceptedEmail(opts: {
 /**
  * One daily digest per recipient, however many requests are waiting.
  *
- * Claimed exactly once by claim_connection_digests(), which stamps
- * digested_at inside the same statement that selects the row — so a
- * request ignored last week never nags again, and a cron misfire cannot
- * double-send. Rendered separately from sending so the cron route builds
- * a batch and hands it to enqueueEmailsBulk in one round trip.
+ * Mailed exactly once: claim_connection_digests() leases the recipient,
+ * and complete_connection_digests() stamps digested_at and queues the mail
+ * in one transaction (20260917000016) — so a request ignored last week
+ * never nags again, and a crash or cron misfire neither loses nor doubles
+ * a digest. Rendered separately from sending so the cron route builds a
+ * batch and hands it to the complete RPC in one round trip.
  *
  * The link is tab-addressed on purpose. Dropping someone on the default
  * view when the mail was about their pending requests is the lesson the

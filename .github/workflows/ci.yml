@@ -218,6 +218,11 @@ jobs:
       github.event_name == 'push' ||
       needs.changes.outputs.db == 'true' ||
       contains(github.event.pull_request.labels.*.name, 'e2e')
+    env:
+      # A throwaway value for the ephemeral stack only. Without it the
+      # connections-digest e2e test skips itself, so the digest's
+      # exactly-once contract was never exercised in CI.
+      CRON_SECRET: e2e-cron-secret
     steps:
       - uses: actions/checkout@v5
 
