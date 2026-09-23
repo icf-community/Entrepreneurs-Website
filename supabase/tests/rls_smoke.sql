@@ -818,6 +818,8 @@ declare
     'connection_state_with','my_pending_connection_count',
     'list_my_connection_facets','list_my_connection_graph',
     'my_connection_settings','set_connection_settings',
+    -- 20260917000017: the caller's own usage against their own caps.
+    'my_connection_quota',
     -- 20260917000007. Scoped to rows the caller BLOCKED (blocked_by =
     -- caller), never rows where they were blocked — there is deliberately
     -- no counterpart RPC, because a member must not be able to learn they
@@ -2960,7 +2962,7 @@ begin
   if (select consent_version from public.connections where id=v_id) is null then raise exception 'FAIL: no consent_version'; end if;
 end; $$;
 
--- 2. Already connected refuses; remove sets cooldown; re-request refused.
+-- 2. Already connected refuses; remove holds NOBODY (20260917000017).
 do $$
 declare
   v_a uuid := (select v from _conn_ctx where k='wa');
@@ -2986,17 +2988,27 @@ begin
 
   set local role none;
   if (select status from public.connections where id=v_id) <> 'removed' then raise exception 'FAIL: not removed'; end if;
-  if (select cooldown_until from public.connections where id=v_id) is null then raise exception 'FAIL: remove set no cooldown'; end if;
 
+  -- Either member may re-request straight away. Each send runs in a block
+  -- that is rolled back on purpose (P0099), so the pair stays 'removed'
+  -- for the batteries below; a refusal (42501) is NOT caught and fails.
   perform _set_caller(v_a);
+  if (select state from public.connection_state_with(v_b)) <> 'none' then
+    raise exception 'FAIL: the remover is still held after a remove';
+  end if;
   begin
     perform public.send_connection_request(v_b, v_v);
-    raise exception 'FAIL: re-request during cooldown succeeded';
-  exception when sqlstate '42501' then
-    get stacked diagnostics v_msg = message_text;
-    if v_msg <> 'You can''t send a request to this member right now.' then
-      raise exception 'FAIL: cooldown message not generic: %', v_msg;
-    end if;
+    raise exception using errcode = 'P0099', message = 'undo';
+  exception when sqlstate 'P0099' then null;
+  end;
+  perform _set_caller(v_b);
+  if (select state from public.connection_state_with(v_a)) <> 'none' then
+    raise exception 'FAIL: the removed member is held after a remove';
+  end if;
+  begin
+    perform public.send_connection_request(v_a, v_v);
+    raise exception using errcode = 'P0099', message = 'undo';
+  exception when sqlstate 'P0099' then null;
   end;
 end; $$;
 
@@ -3465,8 +3477,10 @@ begin
   if (select count(*) from public.list_my_connections()) <> 0 then raise exception 'FAIL: remover still sees the address'; end if;
   perform _set_caller(v_a);
   if (select count(*) from public.list_my_connections()) <> 0 then raise exception 'FAIL: other side still sees the address'; end if;
-  if (select state from public.connection_state_with(v_b)) <> 'unavailable' then
-    raise exception 'FAIL: post-removal cooldown is not unavailable';
+  -- A removed connection holds nobody (20260917000017): the pair is back
+  -- to `none`, with the address still gone.
+  if (select state from public.connection_state_with(v_b)) <> 'none' then
+    raise exception 'FAIL: post-removal state is not none';
   end if;
 end; $$;
 
@@ -3920,7 +3934,8 @@ begin
   if v_n <> 0 then raise exception 'FAIL: stats RPC exposes a per-member column'; end if;
 end; $$;
 
--- A7. Lifecycle: expiry carries no cooldown; removed rows are deleted after theirs.
+-- A7. Lifecycle: expiry carries no cooldown; removed rows go on the next purge;
+--     a withdrawn row survives while its sender's lock is running (20260917000017).
 do $$
 declare
   v_a uuid := (select v from _conn_ctx where k='ma');
@@ -3932,12 +3947,13 @@ begin
   select id into v_id from public.connections
    where least(requester_id,addressee_id)=least(v_a,v_b) and greatest(requester_id,addressee_id)=greatest(v_a,v_b);
 
-  -- Remove it, then age the cooldown past its end.
+  -- Remove it. No aging: a removed row holds nobody, so it has nothing
+  -- to keep it past the next purge. (Other batteries' removed rows go in
+  -- the same run, so the count is not asserted — only that it acted.)
   perform _set_caller(v_a);
   perform public.remove_connection(v_id);
   set local role none;
-  update public.connections set cooldown_until = now() - interval '1 day' where id = v_id;
-  if public.purge_removed_connections() <> 1 then raise exception 'FAIL: removed row not purged'; end if;
+  if public.purge_removed_connections() < 1 then raise exception 'FAIL: removed row not purged'; end if;
   if exists (select 1 from public.connections where id = v_id) then raise exception 'FAIL: row survived the purge'; end if;
   if (select count(*) from public.connection_events where connection_id = v_id) = 0 then
     raise exception 'FAIL: purge took the history with it';
@@ -3961,6 +3977,20 @@ begin
   -- And an expired request is immediately re-sendable.
   perform _set_caller(v_a);
   if public.send_connection_request(v_b, v_v) <> v_id then raise exception 'FAIL: expired re-request made a new row'; end if;
+
+  -- A withdrawn row IS its sender's lock, so it survives the purge while
+  -- the three weeks run — and goes once they lapse.
+  perform public.withdraw_connection_request(v_id);
+  set local role none;
+  perform public.purge_removed_connections();
+  if not exists (select 1 from public.connections where id = v_id) then
+    raise exception 'FAIL: a withdrawn row was purged while its lock was running';
+  end if;
+  update public.connections set cooldown_until = now() - interval '1 day' where id = v_id;
+  perform public.purge_removed_connections();
+  if exists (select 1 from public.connections where id = v_id) then
+    raise exception 'FAIL: a withdrawn row outlived its lock';
+  end if;
 end; $$;
 
 -- A8. The 12-month purge honours open reports.
@@ -3983,14 +4013,26 @@ begin
   end if;
 end; $$;
 
--- A9. Digest claims exactly once, carries names and counts, respects the opt-out.
+-- A9. Digest (20260917000016): lease + atomic complete, whole recipients,
+-- spacing, budget, opt-out, poison pill, names-and-counts only.
+--
+-- This file is ONE transaction, so now() is frozen: every time-based case
+-- back-dates columns explicitly and never waits for the clock. Leases
+-- taken here never lapse on their own for the same reason, which is why
+-- global digest state is reset before the order- and budget-sensitive
+-- cases — other batteries leave pending rows that any claim also takes.
 do $$
 declare
-  v_a uuid := (select v from _conn_ctx where k='ma');
-  v_b uuid := (select v from _conn_ctx where k='mb');
+  v_a   uuid := (select v from _conn_ctx where k='ma');
+  v_b   uuid := (select v from _conn_ctx where k='mb');
   v_adm uuid := (select v from _conn_ctx where k='madm');
-  v_v text := public.connection_consent_version();
-  r record; v_n int;
+  v_v   text := public.connection_consent_version();
+  v_mail text;
+  v_old  uuid;
+  v_claim uuid;
+  v_n    int;
+  v_pay  jsonb;
+  r record;
 begin
   set local role none;
   -- Scoped to this battery's own members. An unqualified DELETE here
@@ -3998,53 +4040,383 @@ begin
   -- this transaction.
   delete from public.connections
    where requester_id in (v_a, v_b, v_adm) or addressee_id in (v_a, v_b, v_adm);
+  update public.connections set digested_at = null, digest_claim_id = null, digest_claimed_at = null;
+
+  select email into v_mail from auth.users where id = v_b;
+  delete from public.outbound_email where to_address = v_mail;
+  v_pay := jsonb_build_array(jsonb_build_object(
+    'member_id', v_b, 'subject', 'digest', 'text', 't', 'html', '<p>h</p>'));
 
   perform _set_caller(v_a);
   perform public.send_connection_request(v_b, v_v, 'note one');
   perform _set_caller(v_adm);
   perform public.send_connection_request(v_b, v_v, 'note two');
-
-  -- Every assertion below is scoped to THIS battery's recipient.
-  -- claim_connection_digests is global by nature — it is a cron batch —
-  -- and the write and read batteries above leave their own pending rows
-  -- in the same transaction, so a bare count asserts a fact about test
-  -- ordering rather than about the digest.
   set local role none;
-  select count(*) into v_n from public.claim_connection_digests(500) d where d.member_id = v_b;
-  if v_n <> 1 then raise exception 'FAIL: expected 1 digest for the recipient, got %', v_n; end if;
+  -- Oldest in the table, so the p_limit and budget cases pick this recipient.
+  update public.connections set created_at = '2000-01-01' where addressee_id = v_b;
 
-  select count(*) into v_n from public.claim_connection_digests(500) d where d.member_id = v_b;
-  if v_n <> 0 then raise exception 'FAIL: a second run re-claimed already-digested rows'; end if;
+  -- 1. A claim reserves; it neither stamps nor queues. One row, two
+  --    senders, a count, the right member, and no note text anywhere.
+  select * into r from public.claim_connection_digests(50) d where d.member_id = v_b;
+  if r.member_id is null then raise exception 'FAIL: recipient was not claimed'; end if;
+  if r.pending_count <> 2 then raise exception 'FAIL: pending_count % want 2', r.pending_count; end if;
+  if not (r.sender_names @> array['Ann A','Ad Min']) then raise exception 'FAIL: sender names %', r.sender_names; end if;
+  if array_to_string(r.sender_names,' ') like '%note%' then raise exception 'FAIL: note text reached the digest'; end if;
+  if exists (select 1 from public.connections where addressee_id = v_b and digested_at is not null) then
+    raise exception 'FAIL: claim stamped digested_at — a crash would lose the digest';
+  end if;
+  if exists (select 1 from public.outbound_email where to_address = v_mail) then
+    raise exception 'FAIL: claim queued mail on its own';
+  end if;
+  v_old := r.claim_id;
 
-  -- Opt-out: pending rows belonging to an opted-out member are never
-  -- claimed, and are left UNCLAIMED rather than claimed-and-discarded.
+  -- 2. A live lease is not re-claimed by an overlapping run.
+  if exists (select 1 from public.claim_connection_digests(50) d where d.member_id = v_b) then
+    raise exception 'FAIL: a live lease was claimed twice';
+  end if;
+
+  -- 3. Crash: the route died after the claim. The lease lapses, a later
+  --    run re-claims under a NEW id, and the stale completer queues nothing.
+  update public.connections set digest_claimed_at = now() - interval '11 minutes' where addressee_id = v_b;
+  select d.claim_id into v_claim from public.claim_connection_digests(50) d where d.member_id = v_b;
+  if v_claim is null or v_claim = v_old then raise exception 'FAIL: lapsed lease not re-claimed under a new id'; end if;
+
+  v_n := public.complete_connection_digests(v_old, v_pay);
+  if v_n <> 0 or exists (select 1 from public.outbound_email where to_address = v_mail) then
+    raise exception 'FAIL: a stale completer queued mail';
+  end if;
+
+  v_n := public.complete_connection_digests(v_claim, v_pay);
+  if v_n <> 1 then raise exception 'FAIL: complete queued % want 1', v_n; end if;
+  if (select count(*) from public.outbound_email where to_address = v_mail) <> 1 then
+    raise exception 'FAIL: expected exactly one queued digest';
+  end if;
+  if exists (select 1 from public.connections where addressee_id = v_b and digested_at is null) then
+    raise exception 'FAIL: complete left a claimed row unstamped';
+  end if;
+
+  -- A repeated complete (a retried HTTP call) is a no-op.
+  if public.complete_connection_digests(v_claim, v_pay) <> 0
+     or (select count(*) from public.outbound_email where to_address = v_mail) <> 1 then
+    raise exception 'FAIL: a repeated complete double-queued';
+  end if;
+
+  -- The address comes from auth.users, never the payload.
+  if exists (select 1 from public.outbound_email where to_address = v_mail and subject <> 'digest') then
+    raise exception 'FAIL: unexpected outbox row';
+  end if;
+
+  -- 4. Spacing: a request arriving after this morning's digest waits.
+  update public.connections set digested_at = null, digest_claim_id = null, digest_claimed_at = null
+   where addressee_id = v_b and requester_id = v_a;
+  if exists (select 1 from public.claim_connection_digests(50) d where d.member_id = v_b) then
+    raise exception 'FAIL: digest_min_hours ignored — second digest inside 20h';
+  end if;
+  -- ...and is mailed once the spacing has passed.
+  update public.connections set digested_at = now() - interval '21 hours'
+   where addressee_id = v_b and digested_at is not null;
+  select * into r from public.claim_connection_digests(50) d where d.member_id = v_b;
+  if r.member_id is null or r.pending_count <> 1 then
+    raise exception 'FAIL: after 21h the waiting request was not claimed (got %)', r.pending_count;
+  end if;
+  v_claim := r.claim_id;
+
+  -- 5. Opt-out between claim and complete: nothing stamped, nothing queued.
   perform _set_caller(v_b);
   perform public.set_connection_settings(p_emails_enabled => false);
   set local role none;
-  update public.connections set digested_at = null
-   where addressee_id = v_b and status = 'pending';
-  select count(*) into v_n from public.claim_connection_digests(500) d where d.member_id = v_b;
-  if v_n <> 0 then raise exception 'FAIL: digest ignored the opt-out'; end if;
-  if exists (select 1 from public.connections
-              where addressee_id = v_b and status = 'pending' and digested_at is not null) then
-    raise exception 'FAIL: opted-out rows were claimed and discarded rather than left alone';
+  if public.complete_connection_digests(v_claim, v_pay) <> 0 then
+    raise exception 'FAIL: mailed a member who opted out mid-flight';
+  end if;
+  if exists (select 1 from public.connections where addressee_id = v_b and requester_id = v_a and digested_at is not null) then
+    raise exception 'FAIL: opted-out rows were stamped rather than left alone';
   end if;
 
-  -- Back on: one mail, two senders, a count, and no note text anywhere.
+  -- 6. Opt-out before the claim: rows are left UNCLAIMED, not discarded.
+  update public.connections set digest_claimed_at = now() - interval '11 minutes' where addressee_id = v_b;
+  if exists (select 1 from public.claim_connection_digests(50) d where d.member_id = v_b) then
+    raise exception 'FAIL: digest ignored the opt-out';
+  end if;
   perform _set_caller(v_b);
   perform public.set_connection_settings(p_emails_enabled => true);
   set local role none;
-  select * into r from public.claim_connection_digests(500) d where d.member_id = v_b;
-  if r.pending_count <> 2 then raise exception 'FAIL: pending_count % want 2', r.pending_count; end if;
-  if array_length(r.sender_names,1) <> 2 then raise exception 'FAIL: wrong sender_names'; end if;
-  if not (r.sender_names @> array['Ann A','Ad Min']) then raise exception 'FAIL: sender names %', r.sender_names; end if;
-  if r.email <> 'ab@imperial.ac.uk' then raise exception 'FAIL: wrong recipient'; end if;
-  if array_to_string(r.sender_names,' ') like '%note%' then raise exception 'FAIL: note text reached the digest'; end if;
 
+  -- 7. A recipient is claimed whole: p_limit = 1 still takes all their rows.
+  update public.connections set digested_at = null, digest_claim_id = null, digest_claimed_at = null;
+  select * into r from public.claim_connection_digests(1);
+  if r.member_id is distinct from v_b or r.pending_count <> 2 then
+    raise exception 'FAIL: p_limit=1 took % with % rows, want mb with 2', r.member_id, r.pending_count;
+  end if;
+  if (select count(*) from public.connections where digest_claim_id = r.claim_id) <> 2 then
+    raise exception 'FAIL: a recipient was split across claims';
+  end if;
+  if public.complete_connection_digests(r.claim_id, v_pay) <> 1 then
+    raise exception 'FAIL: whole-recipient complete';
+  end if;
+
+  -- 8. Budget: digest_daily_cap counts recipients mailed in 24h plus live
+  --    leases. mb was just mailed, so a cap of 1 leaves nothing.
+  update public.connections set digested_at = null, digest_claim_id = null, digest_claimed_at = null
+   where addressee_id <> v_b;
+  perform _set_caller(v_adm);
+  perform public.send_connection_request(v_a, v_v, null);
+  set local role none;
+  update public.connections set created_at = '2000-01-02' where addressee_id = v_a;
+  update public.app_config set value = (value::jsonb || '{"digest_daily_cap":1}')::text where key = 'connection_limits';
+  if exists (select 1 from public.claim_connection_digests(50)) then
+    raise exception 'FAIL: claimed past a spent budget';
+  end if;
+  update public.app_config set value = (value::jsonb || '{"digest_daily_cap":2}')::text where key = 'connection_limits';
+  select count(*), min(d.member_id::text)::uuid into v_n, v_claim from public.claim_connection_digests(50) d;
+  if v_n <> 1 or v_claim is distinct from v_a then
+    raise exception 'FAIL: budget of one more took % recipients (want ma only)', v_n;
+  end if;
+  update public.app_config set value = (value::jsonb || '{"digest_daily_cap":40}')::text where key = 'connection_limits';
+
+  -- 9. Poison pill: an address outbound_email would reject is never
+  --    claimed, so it cannot fail complete for everybody else in the batch.
+  update public.connections set digest_claimed_at = now() - interval '11 minutes' where addressee_id = v_a;
+  set local session_replication_role = replica;   -- bypass auth.users triggers for the fixture
+  update auth.users set email = null where id = v_a;
+  set local session_replication_role = origin;
+  if exists (select 1 from public.claim_connection_digests(50) d where d.member_id = v_a) then
+    raise exception 'FAIL: claimed a recipient with no usable address';
+  end if;
+  -- And complete skips (does not raise on) a bad entry, still mailing the good ones.
+  update public.connections set digested_at = null, digest_claim_id = null, digest_claimed_at = null
+   where addressee_id = v_b;
+  update public.connections set digested_at = now() - interval '21 hours'
+   where addressee_id = v_b and requester_id = v_adm;
+  select d.claim_id into v_claim from public.claim_connection_digests(50) d where d.member_id = v_b;
+  if v_claim is null then raise exception 'FAIL: poison-pill setup: mb not claimed'; end if;
+  v_n := public.complete_connection_digests(v_claim, jsonb_build_array(
+    jsonb_build_object('member_id', v_a, 'subject', 'x', 'text', 't', 'html', 'h'),
+    jsonb_build_object('member_id', v_b, 'subject', '', 'text', 't', 'html', 'h'),
+    jsonb_build_object('member_id', v_b, 'subject', 'digest', 'text', 't', 'html', 'h')));
+  if v_n <> 1 then raise exception 'FAIL: complete with bad entries queued % want 1', v_n; end if;
+
+  -- The payload type still has no note column.
   select count(*) into v_n
     from pg_proc p, unnest(p.proargnames) as n
-   where p.proname = 'claim_connection_digests' and n ilike '%note%';
+   where p.proname in ('claim_connection_digests', 'complete_connection_digests') and n ilike '%note%';
   if v_n <> 0 then raise exception 'FAIL: digest payload declares a note column'; end if;
+end; $$;
+
+-- C7. Directional cooldown and my_connection_quota (20260917000017).
+--
+-- Owner rule: a cooldown holds only the member who SENT the settled
+-- request — the withdrawer, or the sender who was declined. The other
+-- member may send at any time; a removed connection holds nobody. Each
+-- refusal below must be the byte-identical generic message, so a decline
+-- is never revealed. Then: the quota readout the Connect button greys out
+-- on must agree with the send path's own refusal at every cap boundary.
+do $$
+declare
+  v_a   uuid := (select v from _conn_ctx where k='ma');
+  v_b   uuid := (select v from _conn_ctx where k='mb');
+  v_c   uuid := (select v from _conn_ctx where k='madm');
+  v_v   text := public.connection_consent_version();
+  v_generic constant text := 'You can''t send a request to this member right now.';
+  v_id  uuid;
+  v_msg text;
+  r     record;
+  q     record;
+begin
+  set local role none;
+  delete from public.connections
+   where requester_id in (v_a, v_b, v_c) or addressee_id in (v_a, v_b, v_c);
+  delete from public.connection_events where actor_id in (v_a, v_b, v_c) or subject_id in (v_a, v_b, v_c);
+  update public.app_config
+     set value = (value::jsonb || '{"daily_cap":10,"weekly_cap":25,"outstanding_cap":30,"cooldown_days":21,"throttle_distinct_signals":5,"throttle_daily_cap":3}')::text
+   where key = 'connection_limits';
+
+  -- ── 1. WITHDRAW holds the withdrawer only ─────────────────────────
+  perform _set_caller(v_a);
+  v_id := public.send_connection_request(v_b, v_v);
+  perform public.withdraw_connection_request(v_id);
+
+  select * into r from public.connection_state_with(v_b);
+  if r.state <> 'withdrawn_by_me' then raise exception 'FAIL: withdrawer state % want withdrawn_by_me', r.state; end if;
+  if r.available_at is null or abs(extract(epoch from r.available_at - (now() + interval '21 days'))) > 5 then
+    raise exception 'FAIL: withdrawer told the wrong date: %', r.available_at;
+  end if;
+  begin
+    perform public.send_connection_request(v_b, v_v);
+    raise exception 'FAIL: the withdrawer re-requested during their lock';
+  exception when sqlstate '42501' then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg <> v_generic then raise exception 'FAIL: withdraw refusal not generic: %', v_msg; end if;
+  end;
+
+  perform _set_caller(v_b);
+  if (select state from public.connection_state_with(v_a)) <> 'none' then
+    raise exception 'FAIL: the member who was withdrawn from is held';
+  end if;
+  if public.send_connection_request(v_a, v_v) <> v_id then raise exception 'FAIL: reverse request made a new row'; end if;
+  set local role none;
+  if (select requester_id from public.connections where id = v_id) <> v_b then
+    raise exception 'FAIL: reverse request did not flip the orientation';
+  end if;
+
+  -- ── 2. DECLINE holds the declined sender only, and says nothing ───
+  perform _set_caller(v_a);
+  perform public.respond_to_connection_request(v_id, false);
+
+  perform _set_caller(v_b);
+  select * into r from public.connection_state_with(v_a);
+  if r.state <> 'unavailable' then raise exception 'FAIL: declined sender state % want unavailable', r.state; end if;
+  if r.available_at is not null then raise exception 'FAIL: a decline leaked a date to the declined sender'; end if;
+  begin
+    perform public.send_connection_request(v_a, v_v);
+    raise exception 'FAIL: the declined sender re-requested during the lock';
+  exception when sqlstate '42501' then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg <> v_generic then raise exception 'FAIL: decline refusal not generic: %', v_msg; end if;
+  end;
+
+  perform _set_caller(v_a);
+  if (select state from public.connection_state_with(v_b)) <> 'none' then
+    raise exception 'FAIL: the decliner is held';
+  end if;
+  perform public.send_connection_request(v_b, v_v);          -- decliner changed their mind: A → B
+
+  -- ── 3. Block-then-unblock cannot launder a lock ───────────────────
+  -- (a) The SENDER blocks and unblocks their own pending request.
+  perform public.block_member(v_b);
+  perform public.unblock_member(v_b);
+  set local role none;
+  if (select status from public.connections where id = v_id) <> 'withdrawn' then
+    raise exception 'FAIL: sender-blocked pending restored as % want withdrawn',
+      (select status from public.connections where id = v_id);
+  end if;
+  perform _set_caller(v_a);
+  begin
+    perform public.send_connection_request(v_b, v_v);
+    raise exception 'FAIL: block-then-unblock laundered the sender''s lock';
+  exception when sqlstate '42501' then null;
+  end;
+
+  -- (b) The RECIPIENT blocks and unblocks: the sender is held, as a decline.
+  perform _set_caller(v_b);
+  perform public.send_connection_request(v_a, v_v);          -- B is free: B → A
+  perform _set_caller(v_a);
+  perform public.block_member(v_b);
+  perform public.unblock_member(v_b);
+  set local role none;
+  if (select status from public.connections where id = v_id) <> 'declined' then
+    raise exception 'FAIL: recipient-blocked pending restored as % want declined',
+      (select status from public.connections where id = v_id);
+  end if;
+  perform _set_caller(v_b);
+  begin
+    perform public.send_connection_request(v_a, v_v);
+    raise exception 'FAIL: recipient block-then-unblock freed the sender';
+  exception when sqlstate '42501' then null;
+  end;
+  perform _set_caller(v_a);
+  perform public.send_connection_request(v_b, v_v);          -- the blocker may still send: A → B
+
+  -- ── 4. The lock lapses ────────────────────────────────────────────
+  perform public.withdraw_connection_request(v_id);
+  set local role none;
+  update public.connections set cooldown_until = now() - interval '1 second' where id = v_id;
+  perform _set_caller(v_a);
+  if (select state from public.connection_state_with(v_b)) <> 'none' then raise exception 'FAIL: lapsed lock still shown'; end if;
+  perform public.send_connection_request(v_b, v_v);
+
+  -- ── 5. my_connection_quota agrees with the send path ──────────────
+  set local role none;
+  delete from public.connections
+   where requester_id in (v_a, v_b, v_c) or addressee_id in (v_a, v_b, v_c);
+  delete from public.connection_events where actor_id in (v_a, v_b, v_c) or subject_id in (v_a, v_b, v_c);
+
+  -- Daily: two sends in the last day against a cap of 2.
+  insert into public.connection_events (connection_id, actor_id, subject_id, event, created_at) values
+    (gen_random_uuid(), v_a, v_b, 'requested', now() - interval '2 hours'),
+    (gen_random_uuid(), v_a, v_b, 'requested', now() - interval '1 hour');
+  update public.app_config set value = (value::jsonb || '{"daily_cap":3,"weekly_cap":25}')::text where key = 'connection_limits';
+  perform _set_caller(v_a);
+  select * into q from public.my_connection_quota();
+  if q.daily_used <> 2 or q.daily_cap <> 3 or q.limit_reason is not null or q.available_at is not null then
+    raise exception 'FAIL: under-cap quota wrong: %', row_to_json(q);
+  end if;
+  set local role none;
+  update public.app_config set value = (value::jsonb || '{"daily_cap":2}')::text where key = 'connection_limits';
+  perform _set_caller(v_a);
+  select * into q from public.my_connection_quota();
+  if q.limit_reason is distinct from 'daily' then raise exception 'FAIL: daily cap not reported: %', row_to_json(q); end if;
+  if abs(extract(epoch from q.available_at - (now() - interval '2 hours' + interval '24 hours'))) > 1 then
+    raise exception 'FAIL: daily available_at % is not the oldest send + 24h', q.available_at;
+  end if;
+  begin
+    perform public.send_connection_request(v_b, v_v);
+    raise exception 'FAIL: quota said daily-limited but the send went through';
+  exception when sqlstate '42501' then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg not like '%daily limit%' then raise exception 'FAIL: send refused for a different reason: %', v_msg; end if;
+  end;
+
+  -- Weekly: three sends this week against a cap of 3; the daily cap is lifted.
+  set local role none;
+  delete from public.connection_events where actor_id = v_a;
+  insert into public.connection_events (connection_id, actor_id, subject_id, event, created_at) values
+    (gen_random_uuid(), v_a, v_b, 'requested', now() - interval '6 days'),
+    (gen_random_uuid(), v_a, v_b, 'requested', now() - interval '5 days'),
+    (gen_random_uuid(), v_a, v_b, 'requested', now() - interval '1 hour');
+  update public.app_config set value = (value::jsonb || '{"daily_cap":100,"weekly_cap":3}')::text where key = 'connection_limits';
+  perform _set_caller(v_a);
+  select * into q from public.my_connection_quota();
+  if q.limit_reason is distinct from 'weekly' or q.weekly_used <> 3 then raise exception 'FAIL: weekly cap not reported: %', row_to_json(q); end if;
+  if abs(extract(epoch from q.available_at - (now() - interval '6 days' + interval '7 days'))) > 1 then
+    raise exception 'FAIL: weekly available_at % is not the oldest send + 7d', q.available_at;
+  end if;
+  begin
+    perform public.send_connection_request(v_b, v_v);
+    raise exception 'FAIL: quota said weekly-limited but the send went through';
+  exception when sqlstate '42501' then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg not like '%weekly limit%' then raise exception 'FAIL: send refused for a different reason: %', v_msg; end if;
+  end;
+  -- Cap 4 with 3 used: the n-th event rule (n = used - cap + 1) at the edge.
+  set local role none;
+  update public.app_config set value = (value::jsonb || '{"weekly_cap":4}')::text where key = 'connection_limits';
+  perform _set_caller(v_a);
+  if (select limit_reason from public.my_connection_quota()) is not null then raise exception 'FAIL: one slot left reported as limited'; end if;
+  perform public.send_connection_request(v_b, v_v);          -- uses the last slot: A → B pending
+  select * into q from public.my_connection_quota();
+  if q.limit_reason is distinct from 'weekly'
+     or abs(extract(epoch from q.available_at - (now() - interval '6 days' + interval '7 days'))) > 1 then
+    raise exception 'FAIL: after the last slot, quota % (want weekly, oldest + 7d)', row_to_json(q);
+  end if;
+
+  -- Outstanding: one pending request against a cap of 1; no date to give.
+  set local role none;
+  update public.app_config set value = (value::jsonb || '{"weekly_cap":100,"outstanding_cap":1}')::text where key = 'connection_limits';
+  perform _set_caller(v_a);
+  select * into q from public.my_connection_quota();
+  if q.limit_reason is distinct from 'outstanding' or q.outstanding <> 1 or q.available_at is not null then
+    raise exception 'FAIL: outstanding cap not reported: %', row_to_json(q);
+  end if;
+  begin
+    perform public.send_connection_request(v_c, v_v);
+    raise exception 'FAIL: quota said outstanding-limited but the send went through';
+  exception when sqlstate '42501' then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg not like '%waiting for a reply%' then raise exception 'FAIL: send refused for a different reason: %', v_msg; end if;
+  end;
+
+  -- Throttle: the reduced daily cap is the one reported.
+  set local role none;
+  update public.app_config
+     set value = (value::jsonb || '{"outstanding_cap":30,"daily_cap":10,"throttle_distinct_signals":1,"throttle_daily_cap":2}')::text
+   where key = 'connection_limits';
+  insert into public.connection_events (connection_id, actor_id, subject_id, event)
+  values (gen_random_uuid(), v_b, v_a, 'blocked');
+  perform _set_caller(v_a);
+  if (select daily_cap from public.my_connection_quota()) <> 2 then
+    raise exception 'FAIL: throttled daily cap not reflected';
+  end if;
+  set local role none;   -- hand the transaction back as the batteries below expect
 end; $$;
 
 -- A10. Cron functions are unreachable from every client role; service_role can claim.
@@ -4057,6 +4429,7 @@ begin
     'public.purge_connection_records()',
     'public.cron_connection_digest()',
     'public.claim_connection_digests(int)',
+    'public.complete_connection_digests(uuid,jsonb)',
     'public.purge_sent_outbound_email()'
   ] loop
     if has_function_privilege('anon', fn, 'execute')          then raise exception 'FAIL: % reachable by anon', fn; end if;
@@ -4064,6 +4437,9 @@ begin
   end loop;
   if not has_function_privilege('service_role', 'public.claim_connection_digests(int)', 'execute') then
     raise exception 'FAIL: the digest route cannot call claim_connection_digests';
+  end if;
+  if not has_function_privilege('service_role', 'public.complete_connection_digests(uuid,jsonb)', 'execute') then
+    raise exception 'FAIL: the digest route cannot call complete_connection_digests';
   end if;
 
   if (select count(*) from cron.job where jobname in

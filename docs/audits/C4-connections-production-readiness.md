@@ -24,7 +24,7 @@ audit in this series has a file.
 
 ## What ships
 
-Fifteen migrations, `20260917000001` through `20260917000015`:
+Seventeen migrations, `20260917000001` through `20260917000017`:
 
 | # | File | What it is |
 |---|---|---|
@@ -43,6 +43,8 @@ Fifteen migrations, `20260917000001` through `20260917000015`:
 | 013 | `purge_sent_outbound_email` | The outbound queue was an archive of every message body |
 | 014 | `index_settled_connection_purge` | The nightly purge from 011 was a full seq scan at scale (measured 28.9ms at 5k/248k, but reads/sorts every row) — added a partial index so it seeks instead |
 | 015 | `report_connection_validates_input` | An invalid `category`/`reason` used to fall through to Postgres's raw 23514, which puts the whole failing row — including `note_snapshot`, the private note — in PostgREST's error `details`. Now validated before the insert, same message either way |
+| 016 | `digest_lease_and_budget` | S1 digest redesign — claims whole recipients under a 10-minute lease, then stamps and queues in one transaction (no lost or doubled digests on a crash); enforces the 20h spacing that was registered but never read; adds `digest_daily_cap` (default 40); reschedules the digest to every 15 min, 08:00–11:45 UTC |
+| 017 | `connections_directional_cooldown` | C7 LinkedIn parity — the 3-week cooldown holds only the member who SENT the settled request (withdrawer / declined sender); remove holds nobody and removed rows purge nightly; block-then-unblock can't launder a sender's hold; `connection_state_with` gains `withdrawn_by_me` + `available_at`; new `my_connection_quota()` so Connect greys out at a limit |
 
 Plus, outside the migrations: the `/connections` UI, the admin surface,
 `ratelimit.ts` buckets, `frontend/src/app/api/cron/connections-digest`,
@@ -70,18 +72,38 @@ bug) — no new migrations, so nothing above changes because of it.
       tier of 100/day; a launch burst of digests plus auth mail can exceed
       that. The queue's backoff degrades it to "delivered later", which is
       acceptable for a digest and **not** acceptable for a sign-in OTP.
+      `digest_daily_cap` (default 40) keeps digests inside the free tier;
+      once Resend Pro is live, raise it:
+      `update app_config set value = (value::jsonb || '{"digest_daily_cap":800}')::text where key = 'connection_limits';`
 
 ### 2 · The push
 
-- [ ] `supabase db push`. Thirteen migrations, all additive — no column is
-      dropped and no existing function signature changes, so there is no
-      window where the deployed frontend is talking to a schema it does not
-      understand.
+- [ ] `supabase db push`, **before** the frontend deploy. Seventeen migrations, all additive — no column is
+      dropped. 016 and 017 change the return types of `claim_connection_digests`
+      and `connection_state_with`, but prod has no Connections schema yet, so
+      nothing deployed calls the old shapes. Schema first matters anyway: the new digest route calls
+      `complete_connection_digests`, which only exists once 016 is applied.
 - [ ] Run `supabase/snippets/seed_app_config.sql`. **This is the step that
       fails silently if skipped.** `connections_digest_url` is a new key;
       without it `cron_connection_digest` raises a warning, SUCCEEDS, and
       mails nobody, forever. The member-facing symptom is "nobody ever
       answers my connection requests", which no one reports as a bug.
+      **Prod is already seeded for the other crons, so add only this row.**
+      It copies the origin from the live email-drain URL and never touches
+      `cron_secret` (a wrong secret silently stops every cron, email
+      included):
+      ```sql
+      insert into public.app_config (key, value)
+      select 'connections_digest_url',
+             replace(value, '/api/cron/drain-email', '/api/cron/connections-digest')
+        from public.app_config where key = 'drain_email_url'
+      on conflict (key) do nothing;
+      ```
+      Then run only the verification `select` at the bottom of the
+      snippet; `connections_digest_url` must read `present` and show
+      `https://www.…/api/cron/connections-digest`. On the domain change,
+      re-run the full snippet with the new origin, which rewrites every
+      URL row.
 
 ### 3 · Verify against the database itself, not the pipeline
 
@@ -95,7 +117,7 @@ CI green is not running code — that lesson is already recorded
       `expire-connection-requests-daily` (02:40),
       `purge-connection-records-daily` (02:45),
       `purge-outbound-email-daily` (02:50),
-      `connections-digest-daily` (08:00).
+      `connections-digest-daily` (`*/15 8-11 * * *` — every 15 min, 08:00–11:45 UTC).
 - [ ] Come back the next day and check `cron.job_run_details` for all four.
       A registered job that has never fired looks identical to a healthy one
       until you look here.
@@ -111,8 +133,17 @@ CI green is not running code — that lesson is already recorded
       card and note → accept → **both** addresses visible → copy → remove →
       gone for both.
 - [ ] Confirm the accept email arrives, and that it names the right address.
-- [ ] Confirm the digest arrives the following morning for an account with
-      an unanswered request, and does **not** arrive for one with none.
+- [ ] Connect → the "Connect with {name}?" dialog; ✕ and Cancel send nothing.
+      Send → the profile shows **Pending**; Pending → Withdraw → "You can
+      send {name} a new one from {date}". From the OTHER account, open the
+      withdrawer's profile: Connect is live and the request arrives.
+- [ ] Decline a request, then send one back from the decliner's account — it
+      must go through. From the declined account, the profile must say only
+      "You can't send a request to this member right now" (never "declined").
+- [ ] Confirm the digest arrives the following morning (08:00–11:45 UTC
+      window) for an account with an unanswered request, arrives **once**,
+      and does **not** arrive for one with none. Then run the digest-budget
+      query in `supabase/checks/launch_capacity.sql`.
 - [ ] Flip the kill switch off in the admin surface and confirm the exact
       documented behaviour: **new requests refuse; accept, decline,
       withdraw, block, report, remove and the digest all keep working.**
@@ -129,6 +160,63 @@ CI green is not running code — that lesson is already recorded
 - [ ] The privacy policy and terms pages deployed with the same push. Both
       now describe this feature; shipping the feature without them is the
       one ordering that is actually wrong.
+
+---
+
+## Local verification, 2026-09-23 (5k members / 248k connections)
+
+Run on the local stack before the prod push. Laptop numbers: the
+rankings and the pass/fail results transfer to prod; the milliseconds
+don't.
+
+- **Cron chain, end to end:** real pg_cron → pg_net → digest route →
+  outbox → pg_cron → drain route → a local fake Resend that injects 429s
+  and 500s.
+  - **Cap 40:** exactly 40 recipients across 3 firings, then 0.
+  - **Cap 800 under 20-way concurrent bursts:** exactly 800, never
+    more, no recipient twice, no split digests, subjects match the
+    stamped counts.
+  - **Crash between claim and complete:** the lease holds the budget.
+    After it lapses, all 50 recipients are mailed exactly once, and the
+    stale completer queues 0.
+  - **Drain under 10 overlapping runs:** 956 sent = 956 received, 0
+    duplicate sends. 429s don't burn an attempt; 500s back off.
+- **Retention purge:** it deleted only 500 rows a night, with removed
+  rows sorted last, which broke privacy §6's "within a day". It now loops
+  bounded batches (017). A worst-case 27,280-row backlog clears in one
+  run in 0.6s.
+- **Write concurrency** (pgbench, 64 clients, 60s, 200 members,
+  random send / mutual send / accept / decline / withdraw / remove /
+  block / unblock): 553k operations, ~19.6k real state changes.
+  - 0 failed transactions, 0 deadlocks.
+  - Invariants hold: no duplicate pairs, no accepted row without
+    consent, every pending row has its `requested` event.
+- **Read load** (k6, signed-in): 100 users → 0 errors, p95 < 3s on
+  all three `/connections` views.
+  - 250 users fails locally, and that's this laptop's ceiling, not the
+    app's. Docker Desktop's port proxy drops sockets above ~250
+    concurrent connections: a bare Node fetch storm fails the same way,
+    and the local GoTrue container exhausts ephemeral ports under
+    sustained load.
+  - The 250/500 answer needs the staging run (`tasks/todo.md` S4).
+- **Scale query plans:** every Connections RPC is under 50 ms for the
+  busiest member; the graph is 13 ms. The harness also had a
+  nested-transaction bug that committed its "rolled back" sections.
+  That's fixed (a savepoint), and a run now leaves row counts unchanged.
+- **Browser, by hand:**
+  - The confirm dialog: Escape closes only it, and focus returns to
+    Connect.
+  - An over-length note is blocked, with a count.
+  - An HTML note renders as inert text.
+  - A double-click sends once.
+  - The declined sender sees only the generic line.
+  - A direct-API resend, block → unblock → resend, and 20 parallel
+    resends are all refused.
+  - The limit state is disabled with its reason exposed to screen
+    readers, and nothing scrolls sideways at 400px.
+- **Suites:** Vitest 402/402. Full E2E 146/146 with rate limiting off.
+  With a local SRH Redis: rate-limit 3/3 and Connections 17/17. SQL
+  suites are green.
 
 ---
 

@@ -246,7 +246,7 @@ begin
       ('block_member'),('unblock_member'),('report_connection'),
       ('list_my_connections'),('list_my_pending_requests'),('list_my_sent_requests'),
       ('connection_state_with'),('my_pending_connection_count'),
-      ('list_my_connection_graph'),('claim_connection_digests'),
+      ('list_my_connection_graph'),('claim_connection_digests'),('complete_connection_digests'),('my_connection_quota'),
       ('admin_resolve_connection_report'),('admin_reveal_connection_note'),
       -- 20260917000007. The only route back from a block: without it the
       -- blocker's sole option is finding the person again in a directory
@@ -278,7 +278,7 @@ begin
       'connection_clean_note','connection_limit_defaults',
       'expire_connection_requests','purge_removed_connections',
       'purge_connection_records','cron_connection_digest',
-      'claim_connection_digests',
+      'claim_connection_digests','complete_connection_digests',
       -- Not a connections helper, but shipped on the same branch and
       -- internal for the same reason: it deletes rows.
       'purge_sent_outbound_email'

@@ -90,7 +90,8 @@ test("the dialog loads the full profile the list deliberately doesn't carry", as
   // migration 20260901000007's cutover to bio_focus/bio_hobbies); the dialog
   // fetches the rest when it opens. This asserts the second half of that
   // bargain actually happens.
-  const long = `Bio ${Date.now()} ` + "z".repeat(400);
+  const stamp = `Bio ${Date.now()}`;
+  const long = `${stamp} ` + "z".repeat(400);
   await page.goto("/profile");
   const bio = page.getByLabel(/^What are you working on, or into\?/);
   await bio.waitFor();
@@ -129,8 +130,14 @@ test("the dialog loads the full profile the list deliberately doesn't carry", as
   // the value to have actually round-tripped rather than for a banner.
   await expect(page.getByLabel(/^What are you working on, or into\?/)).toHaveValue(long, { timeout: 15_000 });
 
-  await page.goto("/members");
-  const card = page.locator('[role="button"][tabindex="0"]').filter({ hasText: "Bio " }).first();
+  // Search for this run's stamp rather than taking the first "Bio " card
+  // on page one: the directory is paged and sorted, so on any database with
+  // more members than a page (the local scale corpus, or prod-sized data)
+  // this member may not be on page one, and another member's bio can
+  // contain "Bio " too. The search matches bio_focus, and the stamp is
+  // unique to this run.
+  await page.goto(`/members?q=${encodeURIComponent(stamp)}`);
+  const card = page.locator('[role="button"][tabindex="0"]').filter({ hasText: stamp }).first();
   const dialog = await openDialog(page, card);
   // The card only carries the first 160 characters; the dialog must end up
   // with all 400+.

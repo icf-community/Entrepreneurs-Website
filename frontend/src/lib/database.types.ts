@@ -219,6 +219,8 @@ export type Database = {
           cooldown_until: string | null
           created_at: string
           decided_at: string | null
+          digest_claim_id: string | null
+          digest_claimed_at: string | null
           digested_at: string | null
           id: string
           note: string | null
@@ -233,6 +235,8 @@ export type Database = {
           cooldown_until?: string | null
           created_at?: string
           decided_at?: string | null
+          digest_claim_id?: string | null
+          digest_claimed_at?: string | null
           digested_at?: string | null
           id?: string
           note?: string | null
@@ -247,6 +251,8 @@ export type Database = {
           cooldown_until?: string | null
           created_at?: string
           decided_at?: string | null
+          digest_claim_id?: string | null
+          digest_claimed_at?: string | null
           digested_at?: string | null
           id?: string
           note?: string | null
@@ -1968,7 +1974,7 @@ export type Database = {
       claim_connection_digests: {
         Args: { p_limit?: number }
         Returns: {
-          email: string
+          claim_id: string
           first_name: string
           member_id: string
           pending_count: number
@@ -1987,6 +1993,10 @@ export type Database = {
           text_body: string
           to_address: string
         }[]
+      }
+      complete_connection_digests: {
+        Args: { p_claim_id: string; p_emails: Json }
+        Returns: number
       }
       confirm_avatar_upload: {
         Args: { p_blob_key: string }
@@ -2035,6 +2045,7 @@ export type Database = {
       connection_state_with: {
         Args: { p_member: string }
         Returns: {
+          available_at: string
           connection_id: string
           state: string
         }[]
@@ -2627,6 +2638,19 @@ export type Database = {
           p_kind: Database["public"]["Enums"]["listing_event_kind"]
         }
         Returns: undefined
+      }
+      my_connection_quota: {
+        Args: never
+        Returns: {
+          available_at: string
+          daily_cap: number
+          daily_used: number
+          limit_reason: string
+          outstanding: number
+          outstanding_cap: number
+          weekly_cap: number
+          weekly_used: number
+        }[]
       }
       my_connection_settings: {
         Args: never

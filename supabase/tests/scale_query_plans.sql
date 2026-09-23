@@ -258,6 +258,25 @@ select u.id as isolate_id
  limit 1
 \gset
 
+-- A corpus can have no isolate at all (the seed makes very few, and a
+-- member delete removes one). Make one inside this transaction rather
+-- than let every section that needs it fail: the least-connected
+-- approved member, with their rows cleared — rolled back at the end.
+\if :{?isolate_id}
+\else
+select u.id as isolate_id
+  from auth.users u
+  join public.profiles p on p.id = u.id
+ where u.email like '%scale.invalid%'
+   and p.status = 'approved'
+ order by (select count(*) from public.connections c
+            where c.requester_id = u.id or c.addressee_id = u.id)
+ limit 1
+\gset
+delete from public.connections
+ where requester_id = :'isolate_id'::uuid or addressee_id = :'isolate_id'::uuid;
+\endif
+
 select 'connections' as tbl, count(*) from public.connections
 union all select 'connection_events', count(*) from public.connection_events
 union all select 'hub degree', count(*) from public.connections
@@ -412,9 +431,20 @@ theirs as (
 select other_id, count(*) as mutuals from theirs group by other_id order by mutuals desc limit 20;
 
 \echo ''
-\echo '--- 8j. claim_connection_digests — the nightly cron batch ---'
+\echo '--- 8j. claim_connection_digests — one morning-window run (20260917000016) ---'
+-- Rolled back: the claim writes leases, and complete writes digested_at
+-- and outbox rows. The cap is lifted so the budget cannot hide the cost.
+-- A SAVEPOINT, not begin/rollback: this whole file is one transaction
+-- (line 42), and a bare `rollback` here would end it — every "rolled
+-- back" section after this point would then run in autocommit and
+-- really delete a member and really purge the corpus.
+savepoint before_digest_claim;
+update public.app_config
+   set value = (value::jsonb || '{"digest_daily_cap":10000}')::text
+ where key = 'connection_limits';
 explain (analyze, buffers)
-select * from public.claim_connection_digests(200);
+select * from public.claim_connection_digests(50);
+rollback to savepoint before_digest_claim;
 
 \echo ''
 \echo '--- 8l. block_member — the write path added after the first gate run ---'
@@ -520,8 +550,16 @@ select 1 from public.connections where addressee_id = :'hub_id';
 
 \echo ''
 \echo '--- 8k-ii. single-member delete (rolled back) ---'
+-- A graph isolate can still own listings. Clear the same RESTRICT FKs
+-- as the cohort path below; otherwise a valid corpus stops this harness
+-- before retention and size checks run. Restore everything immediately.
+savepoint before_single_delete;
+delete from public.opportunities where posted_by = :'isolate_id'::uuid;
+delete from public.events where posted_by = :'isolate_id'::uuid;
+delete from public.vcs_grants where posted_by = :'isolate_id'::uuid;
 explain (analyze, buffers)
 delete from public.profiles where id = :'isolate_id'::uuid;
+rollback to savepoint before_single_delete;
 
 \echo ''
 \echo '--- 8k-iii. COHORT delete — the REAL admin_delete_graduates ---'
