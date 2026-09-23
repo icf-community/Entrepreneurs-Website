@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { computeDisplayName } from "@/lib/auth/guard";
 import AppShell from "@/components/app/AppShell";
 import EmailChangeForm from "./EmailChangeForm";
@@ -14,7 +15,8 @@ import { myConnectionSettings } from "@/lib/data/connections";
 export default async function SettingsPage() {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
   const [profileRes, isAdminRes] = await Promise.all([
@@ -25,6 +27,8 @@ export default async function SettingsPage() {
       .single(),
     supabase.rpc("is_admin"),
   ]);
+  throwIfUnreachable("profile", profileRes);
+  throwIfUnreachable("is_admin", isAdminRes);
 
   // Read after the gate rather than alongside it: the RPC requires an
   // approved member, and a member still in review has no connections

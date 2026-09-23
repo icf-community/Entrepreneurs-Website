@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { invalidate } from "@/lib/cache";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
 import { getActionAuth } from "@/lib/auth/actionAuth";
+import { UNREACHABLE_MESSAGE } from "@/lib/supabase/unavailable";
 import type { Database } from "@/lib/database.overrides";
 
 export type ListingType = "opportunity" | "event" | "vc_grant";
@@ -45,7 +46,8 @@ const REVALIDATE: Record<ListingType, string[]> = {
 export async function deleteOwnListing(type: ListingType, id: string): Promise<Result> {
   if (!TABLE[type]) return { ok: false, error: "Unknown listing type." };
 
-  const { user, supabase } = await getActionAuth();
+  const { user, supabase, unreachable } = await getActionAuth();
+  if (unreachable) return { ok: false, error: UNREACHABLE_MESSAGE };
   if (!user) return { ok: false, error: "You must be signed in." };
 
   const { error, count } = await supabase

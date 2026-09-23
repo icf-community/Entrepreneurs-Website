@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.overrides";
 import { reportIfCapped } from "@/lib/supabase/rowCap";
+import { throwIfUnreachable } from "@/lib/supabase/unavailable";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · The read path, once instead of at every call site
@@ -49,6 +50,8 @@ export type Db = SupabaseClient<Database>;
 type ListResponse<T> = {
   data: T[] | null;
   error: PostgrestError | null;
+  /** HTTP status; 0 when the request never got an answer. */
+  status?: number;
 };
 
 /**
@@ -63,16 +66,21 @@ type ListResponse<T> = {
  * instead and reading `.data` back off it sidesteps the inference
  * entirely.
  */
-type SingleLike = { data: unknown; error: PostgrestError | null };
+type SingleLike = { data: unknown; error: PostgrestError | null; status?: number };
 
 /**
- * Run a list query. Logs and degrades to `[]` on error, and reports if the
- * result came back at PostgREST's row cap.
+ * Run a list query. Reports if the result came back at PostgREST's row cap.
  *
- * A read failure is not thrown: these are page loads, and a directory that
- * renders empty with a logged error is better than a 500. That was already
- * the behaviour at all 28 call sites; it is centralised here rather than
- * changed.
+ * TWO KINDS OF FAILURE, TWO BEHAVIOURS (S2, 2026-09-23):
+ *
+ *   * Supabase unreachable — network error, timeout, 5xx, 429. THROWS
+ *     ServiceUnavailableError, so the page renders its error boundary with
+ *     a working "Try again". This used to degrade to `[]` too, which meant
+ *     an outage rendered "No members yet" as if it were true — and a
+ *     cached() loader could pin that empty list for everyone.
+ *   * Anything else (a 4xx: a missing grant, a bad argument). Logs, reports
+ *     and degrades to `[]` as before. That is a code bug in one section, and
+ *     one broken section should not take the whole page down with it.
  *
  * @param source Name of the query, for the log line and the cap report.
  *               Use the RPC or table name, e.g. "list_approved_events".
@@ -81,7 +89,9 @@ export async function rows<T>(
   source: string,
   run: () => PromiseLike<ListResponse<T>>,
 ): Promise<T[]> {
-  const { data, error } = await run();
+  const res = await run();
+  throwIfUnreachable(source, res);
+  const { data, error } = res;
   if (error) {
     console.error(`Failed to load ${source}:`, error);
     Sentry.captureException(error, { tags: { surface: "data-read", source } });
@@ -93,13 +103,16 @@ export async function rows<T>(
 /**
  * Run a query expected to return one row or none (`.single()`,
  * `.maybeSingle()`, or a scalar-returning RPC). No cap check — there is
- * no cap to hit.
+ * no cap to hit. Same two failure behaviours as rows(): unreachable
+ * throws, so a detail page shows the error page rather than a 404.
  */
 export async function maybeRow<R extends SingleLike>(
   source: string,
   run: () => PromiseLike<R>,
 ): Promise<NonNullable<R["data"]> | null> {
-  const { data, error } = await run();
+  const res = await run();
+  throwIfUnreachable(source, res);
+  const { data, error } = res;
   if (error) {
     console.error(`Failed to load ${source}:`, error);
     Sentry.captureException(error, { tags: { surface: "data-read", source } });

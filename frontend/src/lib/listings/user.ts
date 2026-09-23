@@ -1,6 +1,7 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
 import { getActionAuth } from "@/lib/auth/actionAuth";
+import { UNREACHABLE_MESSAGE } from "@/lib/supabase/unavailable";
 import { guardSubmission, type SubmissionMode } from "@/lib/actions/guardSubmission";
 import { ok, err, type Result } from "@/lib/result";
 import { LISTINGS, type ListingKind } from "./registry";
@@ -57,7 +58,8 @@ export async function updateOwnListing(
 ): Promise<Result<{ staged: boolean }>> {
   const def = LISTINGS[kind];
 
-  const { user, supabase } = await getActionAuth();
+  const { user, supabase, unreachable } = await getActionAuth();
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
   if (!user) return err("You must be signed in.");
 
   const res = await def.update(supabase, id, payload);

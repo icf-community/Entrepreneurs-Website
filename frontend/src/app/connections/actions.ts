@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { getActionAuth } from "@/lib/auth/actionAuth";
+import { getActionAuth, unreachableAsNull } from "@/lib/auth/actionAuth";
+import { UNREACHABLE_MESSAGE } from "@/lib/supabase/unavailable";
 import { check, type RateBucket } from "@/lib/ratelimit";
 import { ok, err, type Result } from "@/lib/result";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
@@ -56,7 +57,8 @@ import type { MemberFilters } from "@/lib/data/directory";
  * arrives with a perfectly valid session.
  */
 async function guardMember(noun: string) {
-  const { user, isAdmin, status, supabase } = await getActionAuth();
+  const { user, isAdmin, status, supabase, unreachable } = await getActionAuth();
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
   if (!user) return err(`You must be signed in to ${noun}.`);
   if (!isAdmin && status !== "approved") {
     return err("Your membership must be approved before you can use connections.");
@@ -447,7 +449,8 @@ export async function loadMoreConnections(
   const decoded = decodeCursor(cursor);
   if (!decoded) return err("Couldn't load more. Refresh the page to start again.");
 
-  const page = await myConnectionsPage(guard.data.supabase, filters, decoded);
+  const page = await myConnectionsPage(guard.data.supabase, filters, decoded).catch(unreachableAsNull);
+  if (!page) return err(UNREACHABLE_MESSAGE);
   return ok({ connections: page.connections, nextCursor: page.nextCursor });
 }
 
@@ -460,7 +463,8 @@ export async function loadMorePendingRequests(
   const decoded = decodeCursor(cursor);
   if (!decoded) return err("Couldn't load more. Refresh the page to start again.");
 
-  const page = await myPendingRequestsPage(guard.data.supabase, decoded);
+  const page = await myPendingRequestsPage(guard.data.supabase, decoded).catch(unreachableAsNull);
+  if (!page) return err(UNREACHABLE_MESSAGE);
   return ok({ requests: page.requests, nextCursor: page.nextCursor });
 }
 
@@ -473,6 +477,7 @@ export async function loadMoreSentRequests(
   const decoded = decodeCursor(cursor);
   if (!decoded) return err("Couldn't load more. Refresh the page to start again.");
 
-  const page = await mySentRequestsPage(guard.data.supabase, decoded);
+  const page = await mySentRequestsPage(guard.data.supabase, decoded).catch(unreachableAsNull);
+  if (!page) return err(UNREACHABLE_MESSAGE);
   return ok({ requests: page.requests, nextCursor: page.nextCursor });
 }

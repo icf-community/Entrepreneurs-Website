@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { allow, clientIp } from "@/lib/ratelimit";
 import { buildCsp, generateNonce } from "@/lib/csp";
 import type { Database } from "@/lib/database.overrides";
+import { fetchWithTimeout } from "@/lib/supabase/unavailable";
 
 export async function updateSession(request: NextRequest, pathname?: string) {
   // Per-request CSP nonce. Carried on the *request* headers so Next.js stamps
@@ -26,6 +27,10 @@ export async function updateSession(request: NextRequest, pathname?: string) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Runs on EVERY request, public pages included, so a hung Auth must
+      // not freeze the site. On timeout getUser() just yields no user —
+      // the same as any other error here; the proxy never redirects on it.
+      global: { fetch: fetchWithTimeout(8_000) },
       cookies: {
         getAll() {
           return request.cookies.getAll();

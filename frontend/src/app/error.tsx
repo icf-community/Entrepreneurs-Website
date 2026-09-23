@@ -7,10 +7,10 @@ import Starfield from "@/components/Starfield";
 
 export default function Error({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     // instrumentation.ts's onRequestError only covers server-render
@@ -36,14 +36,14 @@ export default function Error({
           </h1>
 
           <p className="text-[0.95rem] text-text-secondary leading-[1.7] mb-10">
-            An unexpected error stopped the page from loading. You can try again,
-            or head back home.
+            We couldn&apos;t load this page. This is usually a brief hiccup on our side
+            and nothing is wrong with your account — try again in a moment.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
               type="button"
-              onClick={reset}
+              onClick={retry}
               className="inline-flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-accent px-7 py-3.5 text-sm font-semibold text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
             >
               Try again

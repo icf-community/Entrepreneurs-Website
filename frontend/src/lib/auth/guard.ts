@@ -5,6 +5,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.overrides";
 import type { UserStatus } from "@/lib/database.overrides";
 import { destinationForStatus, postApprovalDestination } from "@/lib/auth/status";
+import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 
 // Auth + onboarding-status gating used by every authenticated page.
 // Centralised so swapping Supabase for a different backend later (e.g.
@@ -88,10 +89,13 @@ export function computeDisplayName(
 export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateResult> {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  // An outage is not a signed-out visitor: throw to the error page rather
+  // than bouncing a signed-in member to a login form that will fail too.
+  throwIfAuthUnreachable("session", authError);
   if (!user) redirect(await loginRedirectPath());
 
-  const [{ data: isAdminData }, { data: profile }] = await Promise.all([
+  const [adminRes, profileRes] = await Promise.all([
     supabase.rpc("is_admin"),
     supabase
       .from("profiles")
@@ -99,9 +103,15 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
       .eq("id", user.id)
       .single(),
   ]);
+  // Before either result is trusted: a failed is_admin would otherwise read
+  // as "not an admin", and a failed profile read as "no profile".
+  throwIfUnreachable("is_admin", adminRes);
+  throwIfUnreachable("profile", profileRes);
+  const profile = profileRes.data;
 
-  const isAdmin = !!isAdminData;
+  const isAdmin = !!adminRes.data;
 
+  // Now genuinely "no row" (PGRST116) or a rejected token — signed out.
   if (!profile) redirect(await loginRedirectPath());
 
   if (!opts.passthrough && !isAdmin && profile.status !== "approved") {
@@ -133,10 +143,13 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
  */
 export async function requireSignedInUser(): Promise<GateResult> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  // An outage is not a signed-out visitor: throw to the error page rather
+  // than bouncing a signed-in member to a login form that will fail too.
+  throwIfAuthUnreachable("session", authError);
   if (!user) redirect(await loginRedirectPath());
 
-  const [{ data: isAdminData }, { data: profile }] = await Promise.all([
+  const [adminRes, profileRes] = await Promise.all([
     supabase.rpc("is_admin"),
     supabase
       .from("profiles")
@@ -144,10 +157,13 @@ export async function requireSignedInUser(): Promise<GateResult> {
       .eq("id", user.id)
       .maybeSingle(),
   ]);
+  throwIfUnreachable("is_admin", adminRes);
+  throwIfUnreachable("profile", profileRes);
+  const profile = profileRes.data;
 
   return {
     user,
-    isAdmin: !!isAdminData,
+    isAdmin: !!adminRes.data,
     status: (profile?.status ?? null) as GateResult["status"],
     displayName: computeDisplayName(profile),
     supabase,

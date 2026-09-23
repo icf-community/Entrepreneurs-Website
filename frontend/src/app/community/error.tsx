@@ -4,10 +4,10 @@ import { SegmentError } from "@/components/SegmentError";
 
 export default function CommunityError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
-  return <SegmentError error={error} reset={reset} label="the community feed" />;
+  return <SegmentError error={error} retry={retry} label="the community feed" />;
 }

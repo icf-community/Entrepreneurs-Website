@@ -4,10 +4,10 @@ import { SegmentError } from "@/components/SegmentError";
 
 export default function AdminError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
-  return <SegmentError error={error} reset={reset} label="this admin page" />;
+  return <SegmentError error={error} retry={retry} label="this admin page" />;
 }

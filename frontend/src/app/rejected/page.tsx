@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import SignOutButton from "@/app/admin/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
 import { redirectAwayFrom } from "@/lib/auth/status";
@@ -8,16 +9,21 @@ import { redirectAwayFrom } from "@/lib/auth/status";
 export default async function RejectedPage() {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
-  const { data: isAdmin } = await supabase.rpc("is_admin");
+  const adminRes = await supabase.rpc("is_admin");
+  throwIfUnreachable("is_admin", adminRes);
+  const isAdmin = adminRes.data;
 
-  const { data: profile } = await supabase
+  const profileRes = await supabase
     .from("profiles")
     .select("status, first_name")
     .eq("id", user.id)
     .single();
+  throwIfUnreachable("profile", profileRes);
+  const profile = profileRes.data;
 
   if (!profile) redirect("/login");
   // Admins bypass status gates so they can preview the page for diagnostics.

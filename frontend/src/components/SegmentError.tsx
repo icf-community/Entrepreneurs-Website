@@ -17,11 +17,11 @@ import { ErrorBanner } from "@/components/forms/Banners";
 
 export function SegmentError({
   error,
-  reset,
+  retry,
   label,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
   /** Shown in the message, e.g. "the members admin queue". */
   label: string;
 }) {
@@ -39,7 +39,7 @@ export function SegmentError({
         </ErrorBanner>
         <button
           type="button"
-          onClick={reset}
+          onClick={retry}
           className="inline-flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-accent px-5 py-2.5 text-sm font-semibold text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
         >
           Try again

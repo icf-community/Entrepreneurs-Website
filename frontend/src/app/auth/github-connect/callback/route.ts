@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isInfraAuthError } from "@/lib/supabase/unavailable";
 import { emailBaseUrl } from "@/lib/siteUrl";
 import {
   GITHUB_OAUTH_RETURN_COOKIE,
@@ -64,7 +65,11 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+  // An outage is not a signed-out member: land on the existing error
+  // outcome ("try again") rather than /login.
+  if (isInfraAuthError(authError)) return redirectBack(origin, returnPath, "error");
   if (!user) return NextResponse.redirect(`${origin}/login`);
 
   const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
