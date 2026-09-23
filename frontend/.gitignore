@@ -22,6 +22,7 @@
 
 # load test — holds live (local-only) session tokens for the seeded corpus
 /scripts/.loadtest-sessions.json
+/loadtest-summary.json
 
 # next.js
 /.next/

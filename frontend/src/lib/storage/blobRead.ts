@@ -113,11 +113,23 @@ function serviceClient(cfg: Config): BlobServiceClient {
 }
 
 let keyCache: { key: UserDelegationKey; refreshAfter: number } | null = null;
+let keyInFlight: Promise<UserDelegationKey> | null = null;
 
 async function delegationKey(cfg: Config): Promise<UserDelegationKey> {
   const now = Date.now();
   if (keyCache && now < keyCache.refreshAfter) return keyCache.key;
 
+  // A launch burst can have many renders in one warm process. Share the
+  // refresh, not just its result, so a cold/expired cache makes one Azure
+  // request per process. Rejections must clear this slot so later requests
+  // can recover. Separate serverless processes still fetch their own key.
+  keyInFlight ??= fetchDelegationKey(cfg, now).finally(() => {
+    keyInFlight = null;
+  });
+  return keyInFlight;
+}
+
+async function fetchDelegationKey(cfg: Config, now: number): Promise<UserDelegationKey> {
   const startsOn = new Date(now - 5 * 60 * 1000); // clock-skew allowance
   const expiresOn = new Date(now + KEY_TTL_HOURS * 3600 * 1000);
   // Unbounded otherwise: a hung Azure network path would hang whichever
