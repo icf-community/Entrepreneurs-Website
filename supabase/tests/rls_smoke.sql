@@ -757,6 +757,9 @@ declare
     -- public / member reads
     'list_approved_opportunities','list_approved_events',
     'list_approved_vcs_grants',
+    -- /home's newest strips (20260917000019): same visibility gate, no
+    -- contact_email, nothing viewer-dependent.
+    'list_newest_events','list_newest_opportunities',
     'list_directory_cards','list_directory_facets',
     'list_my_bookmarked_opportunities',
     'get_my_activity','get_my_listing_actions','get_my_listing_stats',
@@ -4476,6 +4479,20 @@ begin
   if not found then raise exception 'FAIL(L1): member cannot see the approved event'; end if;
   if r.contact_email is not null then raise exception 'FAIL(L1): hidden event contact_email leaked to a member'; end if;
 
+  -- /home's newest strips (20260917000019): the new rows are the newest,
+  -- and the functions have no contact_email column to leak at all.
+  if not exists (select 1 from public.list_newest_opportunities(20) where id = v_opp)
+     or not exists (select 1 from public.list_newest_events(20) where id = v_ev) then
+    raise exception 'FAIL(L1): newest strips miss a just-approved listing';
+  end if;
+  if exists (select 1 from information_schema.routines rt
+               join information_schema.parameters x on x.specific_name = rt.specific_name
+              where rt.routine_schema = 'public'
+                and rt.routine_name in ('list_newest_opportunities','list_newest_events')
+                and x.parameter_name = 'contact_email') then
+    raise exception 'FAIL(L1): a newest strip returns contact_email';
+  end if;
+
   -- The poster and an admin both get it.
   perform _set_caller(v_poster);
   if (select contact_email from public.list_approved_opportunities() where id = v_opp) is distinct from 'l1-hidden@imperial.ac.uk'
@@ -4498,7 +4515,21 @@ begin
     raise exception 'FAIL(L1): empty skills/sectors must be empty arrays';
   end if;
 
+  -- A member still awaiting review sees neither strip.
+  -- Status flips need service_role claims: tg_profiles_protect_status
+  -- reads the JWT, which a bare role reset does not touch (see 22c).
   set local role none;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  update public.profiles set status = 'pending_review' where id = v_member;
+  perform _set_caller(v_member);
+  if exists (select 1 from public.list_newest_opportunities(20))
+     or exists (select 1 from public.list_newest_events(20)) then
+    raise exception 'FAIL(L1): a pending member can read the newest strips';
+  end if;
+
+  set local role none;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  update public.profiles set status = 'approved' where id = v_member;
   delete from public.opportunities where id = v_opp;
   delete from public.events where id = v_ev;
 end; $$;

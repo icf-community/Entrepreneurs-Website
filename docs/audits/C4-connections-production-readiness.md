@@ -24,7 +24,7 @@ audit in this series has a file.
 
 ## What ships
 
-Eighteen migrations, `20260917000001` through `20260917000018`:
+Nineteen migrations, `20260917000001` through `20260917000019`:
 
 | # | File | What it is |
 |---|---|---|
@@ -46,6 +46,7 @@ Eighteen migrations, `20260917000001` through `20260917000018`:
 | 016 | `digest_lease_and_budget` | S1 digest redesign — claims whole recipients under a 10-minute lease, then stamps and queues in one transaction (no lost or doubled digests on a crash); enforces the 20h spacing that was registered but never read; adds `digest_daily_cap` (default 40); reschedules the digest to every 15 min, 08:00–11:45 UTC |
 | 017 | `connections_directional_cooldown` | C7 LinkedIn parity — the 3-week cooldown holds only the member who SENT the settled request (withdrawer / declined sender); remove holds nobody and removed rows purge nightly; block-then-unblock can't launder a sender's hold; `connection_state_with` gains `withdrawn_by_me` + `available_at`; new `my_connection_quota()` so Connect greys out at a limit |
 | 018 | `listing_feeds_set_based` | Load finding, not Connections: `list_approved_opportunities` was 43% of all DB time at 500 realistic members (per-row skills/sectors sub-selects + per-row `is_admin()`). Rewritten set-based, same output for member/poster/admin/pending (EXCEPT ALL verified; rls_smoke L1 pins contact_email privacy). Opportunities 8.35 → 2.10 ms/call, events ~1.0 → 0.6 |
+| 019 | `home_newest_listings` | Page-read cost: /home fetched every open event and opportunity to show three. `list_newest_events` / `list_newest_opportunities` return just the card fields — no contact_email, identical for every member. Together with caching the unfiltered /members first page and /home's newest members (60s, dropped with every directory write): /home 17.9 → 3.4 ms DB per load, /members 10.2 → 0.6 ms |
 
 Plus, outside the migrations: the `/connections` UI, the admin surface,
 `ratelimit.ts` buckets, `frontend/src/app/api/cron/connections-digest`,
@@ -79,7 +80,7 @@ bug) — no new migrations, so nothing above changes because of it.
 
 ### 2 · The push
 
-- [ ] `supabase db push`, **before** the frontend deploy. Eighteen migrations, all additive — no column is
+- [ ] `supabase db push`, **before** the frontend deploy. Nineteen migrations, all additive — no column is
       dropped. 016 and 017 change the return types of `claim_connection_digests`
       and `connection_state_with`, but prod has no Connections schema yet, so
       nothing deployed calls the old shapes. Schema first matters anyway: the new digest route calls

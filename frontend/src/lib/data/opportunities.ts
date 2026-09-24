@@ -94,6 +94,29 @@ export function toOpportunity(r: Row): Opportunity {
  * to application_deadline >= current_date, so expired roles drop out
  * without anyone having to prune them.
  */
+/** What a /home card shows — and nothing viewer-dependent, so no contact_email. */
+export type NewestOpportunity = Pick<Opportunity, "id" | "positionName" | "company" | "locationType" | "locationText" | "createdAt">;
+
+/**
+ * The most recently added open opportunities, for /home.
+ *
+ * Its own RPC rather than list_approved_opportunities() sliced in JS:
+ * that shipped every open role, descriptions and all, to show three
+ * (20260917000019).
+ */
+export async function newestOpportunities(db: Db, limit = 3): Promise<NewestOpportunity[]> {
+  const data = await rows("list_newest_opportunities", () =>
+    db.rpc("list_newest_opportunities", { p_limit: limit }));
+  return data.map((r) => ({
+    id:           r.id,
+    positionName: r.position_name,
+    company:      r.company,
+    locationType: r.location_type,
+    locationText: r.location_text,
+    createdAt:    r.created_at,
+  }));
+}
+
 export async function listApprovedOpportunities(db: Db): Promise<Opportunity[]> {
   const data = await rows("list_approved_opportunities", () =>
     db.rpc("list_approved_opportunities"),

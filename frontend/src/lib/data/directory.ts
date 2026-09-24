@@ -215,9 +215,19 @@ async function openRolesByPoster(db: Db, ids: string[]) {
  * directory pay for a second RPC on every filter keystroke would be
  * paying for a query nothing reads.
  */
-export async function newestMembers(db: Db, limit = 5): Promise<DirectoryMember[]> {
-  const cards = await rows("list_directory_cards (newest)", () =>
-    db.rpc("list_directory_cards", { p_limit: limit, p_sort: "recent" }));
+export async function newestMembers(
+  db: Db,
+  limit = 5,
+  { isAdmin = false }: { isAdmin?: boolean } = {},
+): Promise<DirectoryMember[]> {
+  // Cached for /home's five only; the key does not carry the limit.
+  // Raw rows are what's cached — avatar URLs are signed per request below.
+  const cards = await cached(
+    "directoryNewest",
+    () => rows("list_directory_cards (newest)", () =>
+      db.rpc("list_directory_cards", { p_limit: limit, p_sort: "recent" })),
+    { skip: isAdmin || limit !== 5, isCacheable: (r) => r.length > 0 },
+  );
   const lookingFor = await openRolesByPoster(db, cards.map((r) => r.id));
   return withAvatarUrls(cards.map((r) => toDirectoryMember(r, lookingFor.get(r.id) ?? [])));
 }
@@ -236,14 +246,25 @@ export async function directoryPage(
   filters: MemberFilters,
   { isAdmin }: { isAdmin: boolean },
 ): Promise<DirectoryPage> {
+  // Only the unfiltered first page is cached (see cache.ts). Anything
+  // with a search, a filter or a later page goes straight to Postgres.
+  const unfiltered =
+    filters.page === 1 && !filters.q &&
+    !filters.roles.length && !filters.courses.length &&
+    !filters.sectors.length && !filters.skills.length &&
+    !filters.gradMin && !filters.gradMax;
   const [cards, facets] = await Promise.all([
-    rows("list_directory_cards", () =>
-      db.rpc("list_directory_cards", {
-        ...filterArgs(filters),
-        p_limit:  DIRECTORY_PAGE_SIZE,
-        p_offset: (filters.page - 1) * DIRECTORY_PAGE_SIZE,
-        p_sort:   "name",
-      })),
+    cached(
+      "directoryFirstPage",
+      () => rows("list_directory_cards", () =>
+        db.rpc("list_directory_cards", {
+          ...filterArgs(filters),
+          p_limit:  DIRECTORY_PAGE_SIZE,
+          p_offset: (filters.page - 1) * DIRECTORY_PAGE_SIZE,
+          p_sort:   "name",
+        })),
+      { skip: isAdmin || !unfiltered, isCacheable: (r) => r.length > 0 },
+    ),
     directoryFacets(db, { skip: isAdmin }),
   ]);
 

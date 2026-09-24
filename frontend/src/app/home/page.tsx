@@ -7,8 +7,8 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { myPendingConnectionCount } from "@/lib/data/connections";
 import { newestMembers } from "@/lib/data/directory";
-import { listApprovedEvents } from "@/lib/data/events";
-import { listApprovedOpportunities } from "@/lib/data/opportunities";
+import { newestEvents } from "@/lib/data/events";
+import { newestOpportunities } from "@/lib/data/opportunities";
 import { newestVcs } from "@/lib/data/vcs";
 import { formatDate, formatDateTime } from "@/lib/dates";
 
@@ -41,15 +41,8 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 // used to name.
 // ════════════════════════════════════════════════════════════════════
 
-/** Most recently added first. Ties keep their incoming order. */
-function newestFirst<T extends { createdAt: string }>(items: T[], n: number): T[] {
-  return [...items]
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, n);
-}
-
 export default async function HomePage() {
-  const { supabase, user } = await requireApprovedUser({ bounceToIntake: true });
+  const { supabase, user, isAdmin } = await requireApprovedUser({ bounceToIntake: true });
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -68,9 +61,9 @@ export default async function HomePage() {
   const showIntakePrompt = (profile?.profile_version ?? 2) < 2;
 
   // Started, not awaited — the four sections resolve in the same tick.
-  const members = newestMembers(supabase);
-  const events = listApprovedEvents(supabase);
-  const opps = listApprovedOpportunities(supabase);
+  const members = newestMembers(supabase, 5, { isAdmin });
+  const events = newestEvents(supabase);
+  const opps = newestOpportunities(supabase);
   const vcs = newestVcs(supabase);
   // One index-only scan on the partial pending index. Awaited rather than
   // streamed because it decides whether a whole section exists, and a
@@ -246,8 +239,8 @@ async function Newest({ data }: { data: ReturnType<typeof newestMembers> }) {
   return <NewestMembers newest={await data} />;
 }
 
-async function Events({ data }: { data: ReturnType<typeof listApprovedEvents> }) {
-  const latest = newestFirst(await data, 3);
+async function Events({ data }: { data: ReturnType<typeof newestEvents> }) {
+  const latest = await data;
   if (latest.length === 0) {
     return <Empty>Nothing scheduled yet. Post the first one from the Events page.</Empty>;
   }
@@ -273,8 +266,8 @@ async function Events({ data }: { data: ReturnType<typeof listApprovedEvents> })
   );
 }
 
-async function Opportunities({ data }: { data: ReturnType<typeof listApprovedOpportunities> }) {
-  const latest = newestFirst(await data, 3);
+async function Opportunities({ data }: { data: ReturnType<typeof newestOpportunities> }) {
+  const latest = await data;
   if (latest.length === 0) {
     return <Empty>No open opportunities right now. Post one from the Opportunities page.</Empty>;
   }

@@ -827,6 +827,8 @@ begin
     'public.my_connection_settings()',
     'public.set_connection_settings(boolean,boolean)',
     'public.my_connection_quota()',
+    'public.list_newest_events(int)',
+    'public.list_newest_opportunities(int)',
     'public.claim_connection_digests(int)',
     'public.complete_connection_digests(uuid,jsonb)',
     'public.expire_connection_requests()',

@@ -2563,6 +2563,28 @@ export type Database = {
           total_count: number
         }[]
       }
+      list_newest_events: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_at: string
+          event_at: string
+          id: string
+          is_society_event: boolean
+          location: string
+          title: string
+        }[]
+      }
+      list_newest_opportunities: {
+        Args: { p_limit?: number }
+        Returns: {
+          company: string
+          created_at: string
+          id: string
+          location_text: string
+          location_type: Database["public"]["Enums"]["location_type"]
+          position_name: string
+        }[]
+      }
       list_pending_events_admin: {
         Args: never
         Returns: {

@@ -111,6 +111,28 @@ describe("invalidate()", () => {
     expect(vcs).toHaveBeenCalledTimes(2);
   });
 
+  it("invalidating the directory also drops its cached card lists", async () => {
+    // Every directory write path invalidates directoryFacets and nothing
+    // else; the first page and the newest members hold the same people,
+    // so a profile edit must not leave the old card up for the TTL.
+    const { cached, invalidate } = await load();
+    const page = vi.fn(async () => ["card"]);
+    const newest = vi.fn(async () => ["card"]);
+    const vcs = vi.fn(async () => "vcs");
+
+    await cached("directoryFirstPage", page);
+    await cached("directoryNewest", newest);
+    await cached("vcs", vcs);
+    await invalidate("directoryFacets");
+    await cached("directoryFirstPage", page);
+    await cached("directoryNewest", newest);
+    await cached("vcs", vcs);
+
+    expect(page).toHaveBeenCalledTimes(2);
+    expect(newest).toHaveBeenCalledTimes(2);
+    expect(vcs).toHaveBeenCalledTimes(1);
+  });
+
   it("does not throw when Redis is unreachable — the write has already committed", async () => {
     const { invalidate } = await load();
     redis.del.mockRejectedValueOnce(new Error("upstash down"));

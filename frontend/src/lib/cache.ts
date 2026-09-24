@@ -165,7 +165,9 @@ async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
  */
 const VERSION = 1;
 
-export type CacheKey = "directoryFacets" | "vcs" | "lookups" | "skills" | "skillsDetailed" | "sectors";
+export type CacheKey =
+  | "directoryFacets" | "directoryFirstPage" | "directoryNewest"
+  | "vcs" | "lookups" | "skills" | "skillsDetailed" | "sectors";
 
 const key = (k: CacheKey) => `cache:v${VERSION}:${k}`;
 
@@ -179,10 +181,18 @@ const key = (k: CacheKey) => `cache:v${VERSION}:${k}`;
 const TTL_SECONDS: Record<CacheKey, number> = {
   // Facets are the distinct courses / sectors / skills and the graduation-year
   // bounds — a couple of hundred bytes that change only when someone joins,
-  // leaves or edits their profile. The paginated result pages themselves are
-  // not cached: with search and six filters the key space is effectively
-  // unbounded, and each page is now a ~3ms indexed query anyway.
+  // leaves or edits their profile.
   directoryFacets: 300,
+  // Two FIXED directory reads, not the paginated result space: the
+  // unfiltered first page of /members and the five newest members on
+  // /home. With search and six filters the full key space is unbounded,
+  // but these two are what nearly every visit asks for, and each was a
+  // whole-directory count-and-sort (~8ms at 5k members). Both are
+  // identical for every member. Short TTL because they carry names and
+  // bios, and they are dropped together with directoryFacets — see
+  // LINKED below — so every existing directory write path clears them.
+  directoryFirstPage: 60,
+  directoryNewest: 60,
   vcs: 300,
   lookups: 3600,
   // Skills/sectors are a seeded taxonomy a human edits by migration — see
@@ -257,7 +267,19 @@ export async function cached<T>(
  * lib/listings/admin.ts and lib/listings/user.ts — so an approval or an
  * edit is visible immediately rather than at the end of a TTL.
  */
-export async function invalidate(...names: CacheKey[]): Promise<void> {
+/**
+ * Keys that must go whenever another does. Every directory write path
+ * (admin approvals and removals, profile and onboarding saves via
+ * invalidateDirectoryCache, graduate cleanup) already invalidates
+ * directoryFacets; the cached card lists hold the same people, so they
+ * ride on that rather than on twenty call sites remembering two more keys.
+ */
+const LINKED: Partial<Record<CacheKey, CacheKey[]>> = {
+  directoryFacets: ["directoryFirstPage", "directoryNewest"],
+};
+
+export async function invalidate(...requested: CacheKey[]): Promise<void> {
+  const names = [...new Set(requested.flatMap((n) => [n, ...(LINKED[n] ?? [])]))];
   if (!redis || names.length === 0) return;
   try {
     // Awaited, unlike the write: correctness beats latency here. The

@@ -60,6 +60,28 @@ export function toEvent(r: Row): FoundryEvent {
  * event_at >= now(), so this list is bounded by what is actually upcoming
  * rather than by how many events have ever existed.
  */
+/** What a /home card shows — and nothing viewer-dependent, so no contact_email. */
+export type NewestEvent = Pick<FoundryEvent, "id" | "title" | "eventAt" | "location" | "isSocietyEvent" | "createdAt">;
+
+/**
+ * The most recently added open events, for /home.
+ *
+ * Its own RPC rather than list_approved_events() sliced in JS: that
+ * shipped every open event, descriptions and all, to show three
+ * (20260917000019).
+ */
+export async function newestEvents(db: Db, limit = 3): Promise<NewestEvent[]> {
+  const data = await rows("list_newest_events", () => db.rpc("list_newest_events", { p_limit: limit }));
+  return data.map((r) => ({
+    id:             r.id,
+    title:          r.title,
+    eventAt:        r.event_at,
+    location:       r.location,
+    isSocietyEvent: r.is_society_event,
+    createdAt:      r.created_at,
+  }));
+}
+
 export async function listApprovedEvents(db: Db): Promise<FoundryEvent[]> {
   const data = await rows("list_approved_events", () => db.rpc("list_approved_events"));
   return data.map(toEvent);
