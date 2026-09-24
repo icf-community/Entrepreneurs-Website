@@ -103,8 +103,18 @@ Pro is $25 a month including $10 of compute credit.
 
 - [ ] **Upgrade the project to Pro** (needs the society funding).
 - [ ] **Set compute to Small** (2 GB RAM, 90 direct connections, about $30 a
-      month total with the credit). Upgrading the plan does **not**
-      necessarily upgrade compute; it can stay on Nano/Micro.
+      month total with the credit).
+      Why this matters, measured locally on 2026-09-24 (C4, "Read load"):
+      - A database the size of Free sustains about **50** members active at
+        the same moment, and falls over at 100.
+      - One the size of Small served **250** active members with every page
+        under 0.43s and no errors.
+      - Small, Micro and Medium are *burstable shared* CPU. If sustained
+        traffic ever goes well past that, step up a size (one click,
+        reversible) before optimising further.
+
+      Upgrading the plan does **not** necessarily upgrade compute; it can
+      stay on Nano/Micro.
       **Check:** Dashboard → Settings → Compute and Disk shows *Small*.
       Changing compute restarts the database for a minute or two, so do it
       out of hours.

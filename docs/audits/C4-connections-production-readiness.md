@@ -24,7 +24,7 @@ audit in this series has a file.
 
 ## What ships
 
-Seventeen migrations, `20260917000001` through `20260917000017`:
+Eighteen migrations, `20260917000001` through `20260917000018`:
 
 | # | File | What it is |
 |---|---|---|
@@ -45,6 +45,7 @@ Seventeen migrations, `20260917000001` through `20260917000017`:
 | 015 | `report_connection_validates_input` | An invalid `category`/`reason` used to fall through to Postgres's raw 23514, which puts the whole failing row — including `note_snapshot`, the private note — in PostgREST's error `details`. Now validated before the insert, same message either way |
 | 016 | `digest_lease_and_budget` | S1 digest redesign — claims whole recipients under a 10-minute lease, then stamps and queues in one transaction (no lost or doubled digests on a crash); enforces the 20h spacing that was registered but never read; adds `digest_daily_cap` (default 40); reschedules the digest to every 15 min, 08:00–11:45 UTC |
 | 017 | `connections_directional_cooldown` | C7 LinkedIn parity — the 3-week cooldown holds only the member who SENT the settled request (withdrawer / declined sender); remove holds nobody and removed rows purge nightly; block-then-unblock can't launder a sender's hold; `connection_state_with` gains `withdrawn_by_me` + `available_at`; new `my_connection_quota()` so Connect greys out at a limit |
+| 018 | `listing_feeds_set_based` | Load finding, not Connections: `list_approved_opportunities` was 43% of all DB time at 500 realistic members (per-row skills/sectors sub-selects + per-row `is_admin()`). Rewritten set-based, same output for member/poster/admin/pending (EXCEPT ALL verified; rls_smoke L1 pins contact_email privacy). Opportunities 8.35 → 2.10 ms/call, events ~1.0 → 0.6 |
 
 Plus, outside the migrations: the `/connections` UI, the admin surface,
 `ratelimit.ts` buckets, `frontend/src/app/api/cron/connections-digest`,
@@ -78,7 +79,7 @@ bug) — no new migrations, so nothing above changes because of it.
 
 ### 2 · The push
 
-- [ ] `supabase db push`, **before** the frontend deploy. Seventeen migrations, all additive — no column is
+- [ ] `supabase db push`, **before** the frontend deploy. Eighteen migrations, all additive — no column is
       dropped. 016 and 017 change the return types of `claim_connection_digests`
       and `connection_state_with`, but prod has no Connections schema yet, so
       nothing deployed calls the old shapes. Schema first matters anyway: the new digest route calls
@@ -191,14 +192,26 @@ don't.
   - 0 failed transactions, 0 deadlocks.
   - Invariants hold: no duplicate pairs, no accepted row without
     consent, every pending row has its `requested` event.
-- **Read load** (k6, signed-in): 100 users → 0 errors, p95 < 3s on
-  all three `/connections` views.
-  - 250 users fails locally, and that's this laptop's ceiling, not the
-    app's. Docker Desktop's port proxy drops sockets above ~250
-    concurrent connections: a bare Node fetch storm fails the same way,
-    and the local GoTrue container exhausts ephemeral ports under
-    sustained load.
-  - The 250/500 answer needs the staging run (`tasks/todo.md` S4).
+- **Read load** (k6, signed-in, 2026-09-24). Realistic pacing: one page
+  per member every 15s. Local ceilings were removed first. The local Kong
+  runs 1 worker with 512 connections (raised to 4096). GoTrue's container
+  ran out of ephemeral ports. The directory cache was switched on as in
+  prod. With those fixed, the only ceiling is **database CPU**:
+
+  | DB size (emulated) | Data | 25 | 50 | 100 | 250 | 500 members |
+  |---|---|---|---|---|---|---|
+  | ½ core, 1 GB (≈ Free/Nano) | launch-sized (1k members, ~10 conns each) | p95 0.23s, 0 err | p95 0.61s, 0 err | p95 17–23s, 15% err | collapses | collapses |
+  | 2 cores, 2 GB (≈ Pro Small) | 5k members / 248k conns | — | — | — | **p95 < 0.43s, 0 err** | 0 err, p95 9–16s |
+  | 8 cores (laptop) | 5k / 248k | — | — | 0 err, p95 < 3s | — | 0.03% err, p95 1.4–5.3s |
+
+  - Real Nano–Medium compute is **burstable shared CPU**. Short spikes
+    beat these numbers; sustained load is bounded by the baseline. Treat
+    the ½-core row as the Free plan's sustained ceiling: about 50 members
+    active at once.
+  - This found 018. `list_approved_opportunities` was 43% of all DB time.
+    Of the rest, 88% is the app's own page reads; auth is 1.5%.
+  - The S4 staging run on the real tier is still what signs off launch
+    capacity.
 - **Scale query plans:** every Connections RPC is under 50 ms for the
   busiest member; the graph is 13 ms. The harness also had a
   nested-transaction bug that committed its "rolled back" sections.
