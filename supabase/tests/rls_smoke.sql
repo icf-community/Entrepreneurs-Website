@@ -4419,6 +4419,90 @@ begin
   set local role none;   -- hand the transaction back as the batteries below expect
 end; $$;
 
+-- L1. Listing feeds keep contact_email private (20260917000018).
+--
+-- list_approved_opportunities / list_approved_events were rewritten
+-- set-based for load. The one thing a rewrite of them must not change:
+-- a hidden contact_email reaches only its poster and admins. Also pins
+-- the skills/sectors arrays the rewrite now aggregates in one pass.
+do $$
+declare
+  v_poster uuid := (select v from _conn_ctx where k='ma');
+  v_member uuid := (select v from _conn_ctx where k='mb');
+  v_admin  uuid := (select v from _conn_ctx where k='madm');
+  v_opp    uuid := gen_random_uuid();
+  v_ev     uuid := gen_random_uuid();
+  v_skills text[];
+  v_sector text;
+  r        record;
+begin
+  set local role none;
+  insert into public.opportunities (
+    id, posted_by, status, position_name, company, pay, location_type,
+    description, start_month, start_year, application_deadline,
+    contact_email, contact_email_visible, apply_method, approved_at, approved_by
+  ) values (
+    v_opp, v_poster, 'approved', 'L1 role', 'Co', '£1', 'remote',
+    'Description that is at least twenty chars long.', 1, 2027, current_date + 30,
+    'l1-hidden@imperial.ac.uk', false, 'email', now(), v_admin
+  );
+  insert into public.events (
+    id, posted_by, status, title, description, luma_link,
+    event_at, location, organiser_name, contact_email, contact_email_visible, is_society_event,
+    approved_at, approved_by
+  ) values (
+    v_ev, v_poster, 'approved', 'L1 event',
+    'Description that is at least twenty chars long.',
+    'https://lu.ma/l1', now() + interval '7 days', 'Imperial',
+    'L1 Organiser', 'l1-hidden@imperial.ac.uk', false, false,
+    now(), v_admin
+  );
+  insert into public.opportunity_skills (opportunity_id, skill_id)
+    select v_opp, id from public.skills order by name limit 2;
+  insert into public.opportunity_sectors (opportunity_id, sector_id)
+    select v_opp, id from public.sectors order by name limit 1;
+  select array_agg(name order by name) into v_skills
+    from (select name from public.skills order by name limit 2) s;
+  select name into v_sector from public.sectors order by name limit 1;
+
+  -- A member who is neither poster nor admin: the row, but no address.
+  perform _set_caller(v_member);
+  select * into r from public.list_approved_opportunities() where id = v_opp;
+  if not found then raise exception 'FAIL(L1): member cannot see the approved opportunity'; end if;
+  if r.contact_email is not null then raise exception 'FAIL(L1): hidden opportunity contact_email leaked to a member'; end if;
+  if r.skill_names is distinct from v_skills then raise exception 'FAIL(L1): skill_names % want %', r.skill_names, v_skills; end if;
+  if r.sector_names is distinct from array[v_sector] then raise exception 'FAIL(L1): sector_names %', r.sector_names; end if;
+  select * into r from public.list_approved_events() where id = v_ev;
+  if not found then raise exception 'FAIL(L1): member cannot see the approved event'; end if;
+  if r.contact_email is not null then raise exception 'FAIL(L1): hidden event contact_email leaked to a member'; end if;
+
+  -- The poster and an admin both get it.
+  perform _set_caller(v_poster);
+  if (select contact_email from public.list_approved_opportunities() where id = v_opp) is distinct from 'l1-hidden@imperial.ac.uk'
+     or (select contact_email from public.list_approved_events() where id = v_ev) is distinct from 'l1-hidden@imperial.ac.uk' then
+    raise exception 'FAIL(L1): poster does not see their own contact_email';
+  end if;
+  perform _set_caller(v_admin);
+  if (select contact_email from public.list_approved_opportunities() where id = v_opp) is distinct from 'l1-hidden@imperial.ac.uk'
+     or (select contact_email from public.list_approved_events() where id = v_ev) is distinct from 'l1-hidden@imperial.ac.uk' then
+    raise exception 'FAIL(L1): admin does not see a hidden contact_email';
+  end if;
+
+  -- An opportunity with no skills/sectors still returns empty arrays, not null.
+  set local role none;
+  delete from public.opportunity_skills where opportunity_id = v_opp;
+  delete from public.opportunity_sectors where opportunity_id = v_opp;
+  perform _set_caller(v_member);
+  select * into r from public.list_approved_opportunities() where id = v_opp;
+  if r.skill_names is distinct from array[]::text[] or r.sector_names is distinct from array[]::text[] then
+    raise exception 'FAIL(L1): empty skills/sectors must be empty arrays';
+  end if;
+
+  set local role none;
+  delete from public.opportunities where id = v_opp;
+  delete from public.events where id = v_ev;
+end; $$;
+
 -- A10. Cron functions are unreachable from every client role; service_role can claim.
 do $$
 declare fn text;
