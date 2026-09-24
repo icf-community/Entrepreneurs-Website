@@ -34,9 +34,10 @@ nobody, forever, and there's no error anywhere.
       ```
 - [ ] **Check:** run the verification `select` at the bottom of
       `supabase/snippets/seed_app_config.sql`. `connections_digest_url` must
-      read `present` and point at `https://www.…/api/cron/connections-digest`
-      (the `www` host, because the bare domain redirects and the cron call
-      does not follow redirects).
+      read `present` and use the same host as `drain_email_url` (prod: the
+      `vercel.app` address, which serves the site without redirecting; never
+      the bare domain, which redirects, and the cron call doesn't follow redirects).
+      ✅ Seeded 2026-09-24.
 - [ ] On the domain change, re-run the **full** snippet with the new origin,
       so all four URL rows move together.
 
@@ -72,6 +73,19 @@ notices, digests and admin mail. Pro removes the daily cap (50,000 a month).
       launch day the whole campus requests codes from one shared IP.
       Set it to what Resend Pro can carry. **Check:** request a code from two
       accounts back to back and confirm both arrive.
+- [ ] **Switch on the weekly GitHub showcase email.** Found 2026-09-24: prod
+      never had `github_showcase_nudge_url`, so the Monday cron has run and
+      done nothing since 20260907000004. Only after Pro, since it emails
+      members. Same host as `drain_email_url`:
+      ```sql
+      insert into public.app_config (key, value)
+      select 'github_showcase_nudge_url',
+             replace(value, '/api/cron/drain-email', '/api/cron/github-showcase-nudge')
+        from public.app_config where key = 'drain_email_url'
+      on conflict (key) do nothing;
+      ```
+      **Check:** the verification `select` in `supabase/snippets/seed_app_config.sql`
+      shows no `MISSING` rows.
 - [ ] **Leave the drain alone.** The general queue sends 20 emails every 5
       minutes (up to about 5,760 a day), which is already far above launch
       volume. Resend's API limit (about 2 requests a second by default) is

@@ -198,7 +198,7 @@ locally.
 
 - [ ] `supabase/tests/verify_prod_schema.sql` passes: every function,
       grant and cron is present.
-- [ ] `connections_digest_url` reads `present` and points at the `www` host.
+- [ ] `connections_digest_url` reads `present` and uses the same host as `drain_email_url`.
 - [ ] Two real accounts:
   - A requests B → B sees it → B accepts.
   - Both see each other's email on /connections.
