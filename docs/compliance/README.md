@@ -1,15 +1,18 @@
 # Imperial Entrepreneurs — Data Protection & Governance Portfolio
 
-These documents are prepared to support engagement with **Imperial College London's
-Data Protection Office (DPO)** and legal team. They describe the actual technical
-implementation of the Imperial Entrepreneurs ("Foundry") platform as built, so that
-Imperial governance can review, correct, and formalise them in their own required
-templates (e.g. DART 2.0).
+These documents describe the actual technical implementation of the Imperial
+Entrepreneurs ("Foundry") platform as built. The data controller is **IC Founders Ltd**
+(Companies House 17171277) — see `02-ropa.md` §1 — not Imperial College London, which is
+not a joint controller of this service. Copies are shared with Imperial where the
+platform's own governance decides that is useful (e.g. its DART 2.0 record, given the
+platform's affiliation with the College), but Imperial does not own or sign off this
+portfolio.
 
-> **Status:** DRAFT for review. Authored from the live codebase, not from assumptions.
-> Items marked **⚠ CONFIRM** require a factual input only the project owner / Imperial
-> can supply (e.g. vendor account region settings, named role-holders). Nothing here is
-> legal advice — Imperial's DPO and legal team own the final wording and sign-off.
+> **Status:** DRAFT for the controller's review. Authored from the live codebase, not
+> from assumptions. Items marked **⚠ CONFIRM** require a factual input only the project
+> owner can supply (e.g. vendor account region settings, named role-holders). Nothing
+> here is legal advice — the controller's data protection contact and legal team own the
+> final wording and sign-off.
 
 ## Contents
 

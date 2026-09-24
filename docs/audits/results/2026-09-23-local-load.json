@@ -1,0 +1,203 @@
+{
+  "scope": "Local Next.js production webpack build + local Supabase; max_connections=300; no Redis/Azure/email credentials. NOT deployed capacity. Latencies include redirects and are not successful authenticated render timings.",
+  "completed_controlled_runs": [
+    {
+      "vus": 100,
+      "hold_seconds": 60,
+      "think_seconds": 2,
+      "distinct_sessions": 20,
+      "preflight": "all 20 passed",
+      "exit_code": 99,
+      "http_requests_including_20_preflight": 3485,
+      "page_check_failure_rate": 0.3359307359307359,
+      "auth_redirects": 1164,
+      "duration_ms": 110367.956,
+      "routes_including_failed_pages": {
+        "route_events_auth": {
+          "max": 1602.214,
+          "count": 770,
+          "avg": 406.234267532467,
+          "min": 18.142,
+          "med": 234.3305,
+          "p(90)": 1049.9462,
+          "p(95)": 1165.24315,
+          "p(99)": 1296.82096
+        },
+        "route_connections_graph_auth": {
+          "max": 1518.062,
+          "count": 385,
+          "avg": 426.6925272727273,
+          "min": 20.2,
+          "med": 270.739,
+          "p(90)": 1029.3048000000001,
+          "p(95)": 1191.8700000000001,
+          "p(99)": 1330.52388
+        },
+        "route_connections_auth": {
+          "med": 261.219,
+          "p(90)": 1027.6342,
+          "p(95)": 1131.5095999999999,
+          "p(99)": 1273.6766799999998,
+          "max": 1403.578,
+          "count": 385,
+          "avg": 414.1133844155846,
+          "min": 21
+        },
+        "route_vcs_auth": {
+          "avg": 399.90501558441525,
+          "min": 18.448,
+          "med": 262.416,
+          "p(90)": 977.7792000000001,
+          "p(95)": 1076.452,
+          "p(99)": 1233.7192400000001,
+          "max": 1601.395,
+          "count": 385
+        },
+        "route_opportunities_auth": {
+          "p(99)": 1338.2507999999998,
+          "max": 1469.554,
+          "count": 385,
+          "avg": 429.7841688311688,
+          "min": 19.55,
+          "med": 278.75,
+          "p(90)": 1068.7756,
+          "p(95)": 1180.4748
+        },
+        "route_home_auth": {
+          "avg": 448.5032857142858,
+          "min": 19.176,
+          "med": 262.187,
+          "p(90)": 1107.7244,
+          "p(95)": 1225.2087999999999,
+          "p(99)": 1368.6011199999998,
+          "max": 1580.953,
+          "count": 385
+        },
+        "route_connections_pending_auth": {
+          "p(99)": 1234.3845999999999,
+          "max": 1534.593,
+          "count": 385,
+          "avg": 403.2524519480516,
+          "min": 21.133,
+          "med": 266.827,
+          "p(90)": 968.4442000000001,
+          "p(95)": 1078.5714
+        },
+        "route_members_auth": {
+          "max": 1897.903,
+          "count": 385,
+          "avg": 599.8448961038964,
+          "min": 20.165,
+          "med": 473.509,
+          "p(90)": 1350.1388000000002,
+          "p(95)": 1469.8806,
+          "p(99)": 1639.1514399999996
+        }
+      }
+    },
+    {
+      "vus": 500,
+      "hold_seconds": 60,
+      "think_seconds": 2,
+      "distinct_sessions": 20,
+      "preflight": "all 20 passed",
+      "exit_code": 99,
+      "http_requests_including_20_preflight": 7599,
+      "page_check_failure_rate": 0.8478691120200554,
+      "auth_redirects": 6426,
+      "duration_ms": 121637.197,
+      "routes_including_failed_pages": {
+        "route_events_auth": {
+          "med": 875.9535,
+          "p(90)": 6707.162200000001,
+          "p(95)": 8519.008899999995,
+          "p(99)": 43275.21719999999,
+          "max": 47585.633,
+          "count": 1944,
+          "avg": 2891.5648713991786,
+          "min": 5.113
+        },
+        "route_home_auth": {
+          "max": 50867.306,
+          "count": 1074,
+          "avg": 3264.522541899446,
+          "min": 6.068,
+          "med": 1586.2705,
+          "p(90)": 7523.153900000001,
+          "p(95)": 9605.446299999998,
+          "p(99)": 14965.68367
+        },
+        "route_opportunities_auth": {
+          "count": 976,
+          "avg": 2794.7955368852436,
+          "min": 10.602,
+          "med": 881.4390000000001,
+          "p(90)": 7120.282500000001,
+          "p(95)": 8815.581,
+          "p(99)": 40996.48149999997,
+          "max": 46749.775
+        },
+        "route_connections_graph_auth": {
+          "p(95)": 8381.053399999999,
+          "p(99)": 43952.81228,
+          "max": 47621.39,
+          "count": 633,
+          "avg": 2951.63139494471,
+          "min": 6.578,
+          "med": 984.87,
+          "p(90)": 6922.933800000001
+        },
+        "route_connections_pending_auth": {
+          "count": 656,
+          "avg": 2541.7824984756107,
+          "min": 5.596,
+          "med": 1018.4095,
+          "p(90)": 6196.726500000001,
+          "p(95)": 8191.1894999999995,
+          "p(99)": 24495.440899999838,
+          "max": 46415.966
+        },
+        "route_connections_auth": {
+          "p(99)": 42691.216359999984,
+          "max": 49702.665,
+          "count": 705,
+          "avg": 2837.7125106382964,
+          "min": 5.06,
+          "med": 975.279,
+          "p(90)": 6350.065000000001,
+          "p(95)": 8536.421799999996
+        },
+        "route_vcs_auth": {
+          "med": 1043.4655,
+          "p(90)": 7127.4512,
+          "p(95)": 8817.698199999995,
+          "p(99)": 40096.62691,
+          "max": 45566.394,
+          "count": 760,
+          "avg": 2914.0898197368438,
+          "min": 5.261
+        },
+        "route_members_auth": {
+          "med": 923.302,
+          "p(90)": 6784.684,
+          "p(95)": 8633.271999999999,
+          "p(99)": 41811.97879999998,
+          "max": 45049.633,
+          "count": 831,
+          "avg": 2786.012813477735,
+          "min": 5.263
+        }
+      }
+    }
+  ],
+  "750_vu_controlled_rerun": "Not started: session expiry preflight refused it. Earlier exploratory 750-VU run failed but lacked all-identity preflight.",
+  "recovery": {
+    "vus": 1,
+    "preflight_sessions_passed": 20,
+    "page_checks": 108,
+    "failures": 0,
+    "redirects": 0,
+    "worst_route_p95_ms": 212.9,
+    "service_restart_required": false
+  }
+}

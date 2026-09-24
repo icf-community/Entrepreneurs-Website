@@ -49,7 +49,17 @@
 do $$
 declare
   -- ── Knobs. Lower N_MEMBERS for a quick smoke run. ──────────────────
-  n_members  constant int := 2000;
+  --
+  -- N_MEMBERS was 2000 for the original C2 audit (2026-09-08) and is
+  -- 5000 from the Connections benchmark gate (2026-09-17) onward. 5000
+  -- is 2.5x expected membership, and the connections edge generator at
+  -- the bottom of this file targets 2.5x expected density on top of it,
+  -- so a plan that holds here holds with a lot of room to spare.
+  --
+  -- The earlier 2000-member numbers are a recorded historical result,
+  -- not something regenerated from this file, so nothing is invalidated
+  -- by the bump — but do not compare a 5000-member timing against them.
+  n_members  constant int := 5000;
   n_events   constant int := 300;
   n_opps     constant int := 400;
   n_vcs      constant int := 150;
@@ -233,11 +243,49 @@ begin
     is_committee  = (n.rn % 200 = 0),
     committee_role = case when n.rn % 200 = 0 then 'Committee member' end,
     intake_completed_at = case when n.rn % 6 <> 0 then now() - (random() * interval '200 days') end,
+    -- profile_version has to agree with intake_completed_at, and it was
+    -- missing here until the Connections benchmark gate needed it:
+    -- send_connection_request requires profile_version >= 2 (an empty
+    -- profile card gives the recipient nothing to decide on), so a
+    -- corpus left at the default 1 has 5,000 members who cannot send a
+    -- single request, and the send path cannot be measured at all.
+    --
+    -- It was always wrong, just never load-bearing: the same 1-in-6 that
+    -- has no intake_completed_at keeps version 1, which is exactly the
+    -- "joined under the old form, never finished intake" population
+    -- 20260828000003 describes.
+    profile_version = case when n.rn % 6 <> 0 then 2 else 1 end,
     cv_parse_consent = (n.rn % 5 <> 0)
   from numbered n
   where p.id = n.id;
   get diagnostics v_n = row_count;
   raise notice 'shaped % profiles', v_n;
+
+  -- ── An admin, but only if there is not one already ─────────────────
+  -- scale_query_plans.sql section 5 measures admin_list_profiles, which
+  -- gates on is_admin() — "who are you", not "what role do you hold", so
+  -- a service_role claim does not satisfy it. With `public.admins`
+  -- empty, its \gset returns no rows, the substitution fails, and
+  -- because the whole harness runs in ONE transaction that first error
+  -- aborts every section after it, including the connections gate.
+  --
+  -- Guarded on `not exists` rather than unconditional: on a stack that
+  -- already has a real admin, that admin is used and no fake account is
+  -- ever granted admin alongside them. On a fresh `supabase db reset`
+  -- there is nobody, and this is what makes the harness runnable at all.
+  if not exists (select 1 from public.admins) then
+    select p.id into v_admin
+      from public.profiles p
+      join auth.users au on au.id = p.id
+     where au.email like '%scale.invalid%' and p.status = 'approved'
+     order by p.id
+     limit 1;
+
+    if v_admin is not null then
+      insert into public.admins (user_id) values (v_admin) on conflict do nothing;
+      raise notice 'promoted corpus member % to admin (none existed)', v_admin;
+    end if;
+  end if;
 
   -- Students must hold an Imperial address (is_imperial_email, enforced
   -- by tg_handle_new_user on INSERT and by the domain re-check trigger
@@ -638,6 +686,193 @@ begin
   on conflict do nothing;
   get diagnostics v_n = row_count;
   raise notice 'inserted % github_connections', v_n;
+end;
+$$;
+
+
+-- ════════════════════════════════════════════════════════════════════
+-- 8. CONNECTIONS CORPUS — the Connections benchmark gate
+--
+-- Separate DO block because it is a different question from everything
+-- above. The corpus so far measures "does a list RPC degrade with
+-- membership". This measures "does a graph query degrade with DEGREE",
+-- which is a different axis and the one connections actually lives on.
+--
+-- Target: 250,000 edges over 5,000 members — an average degree of 100,
+-- roughly 2.5x what this community is expected to reach. Nothing in the
+-- connections read path should care about the total: a member with 300
+-- connections must cost the same at 5,000 members as at 200,000, because
+-- every index is keyed on the member first.
+--
+-- ─── THE SKEW MEMBERS, AND WHY A UNIFORM CORPUS IS A BAD ONE ────────
+-- Uniformly random edges give every member roughly the same degree, and
+-- a plan that is fine for everybody at degree 100 tells you nothing
+-- about the person the feature will actually break for. Two deliberate
+-- outliers are seeded at the end:
+--
+--   the HUB   ~2000 connections — the committee member or angel everyone
+--             wants to reach. If list_my_connections degrades, it
+--             degrades here first, and this is the account whose page
+--             gets opened at the careers evening.
+--   the ISOLATE  zero connections — the cold-start path, and the one
+--             that silently returns an empty page if a join is wrong.
+--
+-- ─── WHY 'requested' EVENTS ARE SEEDED TOO ──────────────────────────
+-- connection_assert_can_send counts daily and weekly sends from
+-- connection_events, NOT from connections.created_at (a re-request
+-- reuses and resets the row, so row counts under-count). That count is
+-- on the hot path of every send, so the events table has to be the right
+-- size for the measurement to mean anything.
+-- ════════════════════════════════════════════════════════════════════
+do $$
+declare
+  n_connections constant int := 250000;
+  n_hub_edges   constant int := 2000;
+
+  v_ids   uuid[];
+  v_cnt   int;
+  v_hub   uuid;
+  v_n     int;
+  v_cv    text;
+begin
+  perform set_config('request.jwt.claims',
+    json_build_object('role','service_role')::text, true);
+
+  -- Same production guard as the block above: keyed on the corpus email
+  -- domain, so this can only ever touch accounts this file created.
+  select array_agg(p.id order by p.id) into v_ids
+    from public.profiles p
+    join auth.users au on au.id = p.id
+   where au.email like '%scale.invalid%'
+     and p.status = 'approved';
+
+  v_cnt := coalesce(array_length(v_ids, 1), 0);
+  if v_cnt < 100 then
+    raise notice 'skipping connections corpus: only % approved corpus members', v_cnt;
+    return;
+  end if;
+
+  delete from public.connections c
+   where c.requester_id = any(v_ids) or c.addressee_id = any(v_ids);
+  delete from public.connection_events e
+   where e.actor_id = any(v_ids) or e.subject_id = any(v_ids);
+
+  v_cv := public.connection_consent_version();
+
+  -- Random unordered pairs, deduplicated by the pair unique index rather
+  -- than by generating distinct pairs up front. With 5000 members there
+  -- are ~12.5M possible pairs, so 250k draws collide only ~2% of the
+  -- time — cheaper to let the index reject them than to build a
+  -- collision-free generator.
+  --
+  -- The status mix is weighted toward 'accepted' because that is what
+  -- the read path scans, but every other status is present: a partial
+  -- index is only proven by rows it has to skip.
+  insert into public.connections (
+    requester_id, addressee_id, status, note, consent_version,
+    created_at, decided_at, digested_at, cooldown_until, blocked_by
+  )
+  select
+    x.a, x.b, x.st,
+    case when x.r2 < 0.4 then 'Corpus note ' || x.i else null end,
+    case when x.st = 'accepted' then v_cv
+         when x.st = 'pending'  then v_cv
+         else null end,
+    x.made,
+    case when x.st = 'pending' then null else x.made + interval '2 days' end,
+    case when x.st = 'pending' and x.r2 < 0.7 then x.made + interval '1 day' else null end,
+    case when x.st in ('declined', 'withdrawn', 'removed')
+         then x.made + interval '2 days' + interval '21 days' else null end,
+    case when x.st = 'blocked' then x.a else null end
+  from (
+    select
+      y.i, y.a, y.b, y.r2, y.made,
+      case
+        when y.r1 < 0.78 then 'accepted'
+        when y.r1 < 0.88 then 'pending'
+        when y.r1 < 0.93 then 'declined'
+        when y.r1 < 0.96 then 'withdrawn'
+        when y.r1 < 0.98 then 'expired'
+        when y.r1 < 0.99 then 'removed'
+        else 'blocked'
+      end as st
+    from (
+      select
+        g.i,
+        v_ids[1 + floor(random() * v_cnt)::int] as a,
+        v_ids[1 + floor(random() * v_cnt)::int] as b,
+        random() as r1,
+        random() as r2,
+        now() - (random() * interval '300 days') as made
+      from generate_series(1, n_connections) g(i)
+      -- `offset 0` is an optimisation fence, and it is load-bearing.
+      -- Without it the planner may pull this subquery up into the outer
+      -- one, which references r1 six times in the CASE below — six
+      -- independent random() draws per row instead of one, producing a
+      -- status that does not match its own probability bands.
+      --
+      -- The first version of this used a non-correlated CROSS JOIN
+      -- LATERAL instead, which failed the opposite way: the planner
+      -- evaluated it ONCE for the whole statement, so all 250,000 rows
+      -- were the same pair and exactly one survived the unique index.
+      -- Correlating through generate_series is what makes the draws
+      -- per-row.
+      offset 0
+    ) y
+    where y.a <> y.b
+  ) x
+  on conflict do nothing;
+  get diagnostics v_n = row_count;
+  raise notice 'inserted % connections (of % attempted)', v_n, n_connections;
+
+  -- ── The hub ────────────────────────────────────────────────────────
+  -- v_ids[1] gets ~2000 accepted edges. Note `on conflict do nothing`
+  -- again: many of these pairs already exist from the random fill, and
+  -- the ones that do keep whatever status they were given, so the hub's
+  -- real degree lands a little under n_hub_edges. That is fine — it is
+  -- an order of magnitude, not a fixture to assert on.
+  v_hub := v_ids[1];
+  insert into public.connections (
+    requester_id, addressee_id, status, consent_version, created_at, decided_at
+  )
+  select v_hub, t.id, 'accepted', v_cv,
+         now() - (random() * interval '300 days'),
+         now() - (random() * interval '200 days')
+    from (
+      select v_ids[1 + floor(random() * v_cnt)::int] as id
+        from generate_series(1, n_hub_edges)
+    ) t
+   where t.id <> v_hub
+  on conflict do nothing;
+
+  select count(*) into v_n from public.connections
+   where status = 'accepted' and (requester_id = v_hub or addressee_id = v_hub);
+  raise notice 'hub member % has % accepted connections', v_hub, v_n;
+
+  -- ── The isolate ────────────────────────────────────────────────────
+  -- v_ids[2] is stripped of every edge, in every status. The cold-start
+  -- path has to return an empty page, not an error and not everybody.
+  delete from public.connections
+   where requester_id = v_ids[2] or addressee_id = v_ids[2];
+  raise notice 'isolate member % has 0 connections', v_ids[2];
+
+  -- ── The event log ──────────────────────────────────────────────────
+  -- One 'requested' event per connection, which is what the daily and
+  -- weekly cap counts scan. Dated to match the connection so the rolling
+  -- 24h/7d windows select a realistic slice rather than all or nothing.
+  insert into public.connection_events (connection_id, actor_id, subject_id, event, created_at)
+  select c.id, c.requester_id, c.addressee_id, 'requested', c.created_at
+    from public.connections c
+   where c.requester_id = any(v_ids);
+  get diagnostics v_n = row_count;
+  raise notice 'inserted % connection_events', v_n;
+
+  -- A handful of reputation signals against the hub, so
+  -- connection_sender_throttled has rows to scan rather than being
+  -- measured against an empty table.
+  insert into public.connection_events (connection_id, actor_id, subject_id, event, created_at)
+  select gen_random_uuid(), v_ids[2 + i], v_hub, 'blocked', now() - (i * interval '3 days')
+    from generate_series(1, 3) g(i);
 end;
 $$;
 

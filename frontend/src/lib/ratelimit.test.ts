@@ -1,5 +1,35 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { allow, check, clientIp, failOpen, checkLocal, __resetLocalBuckets } from "./ratelimit";
+import type { RateBucket } from "./ratelimit";
+
+// ─── The classification table ──────────────────────────────────────────
+//
+// FAIL_CLOSED in ratelimit.ts is a LIST, not a default: a bucket left off
+// it silently fails OPEN, which is the quiet way an abuse limit stops
+// existing. This is the guard that comment promises.
+//
+// It is `Record<RateBucket, …>`, so adding a bucket to the union breaks
+// `pnpm typecheck` here until someone writes down which side it is on —
+// the decision is forced at compile time, not discovered in production.
+// The test below then asserts the shipped behaviour matches this table,
+// so the two cannot drift.
+const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
+  mutations: "open",
+  anonMutations: "open",
+  submit: "closed",
+  communityPost: "closed",
+  communityUpload: "closed",
+  postReport: "closed",
+  avatarUpload: "closed",
+  cvUpload: "closed",
+  githubConnect: "closed",
+  githubShowcase: "closed",
+  connectionRequest: "closed",
+  connectionRespond: "closed",
+  otpVerify: "closed",
+};
+
+const EVERY_BUCKET = Object.keys(CLASSIFICATION) as RateBucket[];
 
 describe("clientIp", () => {
   // 173.245.48.1 is inside Cloudflare's published 173.245.48.0/20 — see
@@ -66,6 +96,18 @@ describe("failOpen (behaviour when the limiter backend is unreachable)", () => {
 
   it("fails CLOSED for otpVerify — an outage must not become a way to brute-force a code", () => {
     expect(failOpen("otpVerify")).toBe(false);
+  });
+
+  it("fails CLOSED for connectionRequest — an outage must not become an email-harvesting window", () => {
+    expect(failOpen("connectionRequest")).toBe(false);
+  });
+
+  it("fails CLOSED for connectionRespond — the one connections bucket with no DB cap underneath it", () => {
+    expect(failOpen("connectionRespond")).toBe(false);
+  });
+
+  it.each(EVERY_BUCKET)("classifies %s deliberately, not by omission", (bucket) => {
+    expect(failOpen(bucket)).toBe(CLASSIFICATION[bucket] === "open");
   });
 });
 
@@ -197,11 +239,9 @@ describe("bucket key namespace", () => {
   // keeping their counters apart. Two properties matter and neither is
   // visible by reading a call site: production's keys must be unchanged
   // from what is already live, and no two buckets may collide.
-  const ALL_BUCKETS = [
-    "mutations", "anonMutations", "submit", "communityPost", "communityUpload",
-    "postReport", "avatarUpload", "cvUpload", "githubConnect", "githubShowcase",
-    "otpVerify",
-  ] as const;
+  // Derived from the classification table above so a new bucket cannot be
+  // added without also being key-checked here.
+  const ALL_BUCKETS = EVERY_BUCKET;
 
   afterEach(() => {
     vi.unstubAllEnvs();

@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.overrides";
 import type { UserStatus } from "@/lib/database.overrides";
 import { destinationForStatus, postApprovalDestination } from "@/lib/auth/status";
+import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 
 // Auth + onboarding-status gating used by every authenticated page.
 // Centralised so swapping Supabase for a different backend later (e.g.
@@ -50,6 +52,23 @@ export type GateResult = {
  * ever reached when there is no profile row at all (requireSignedInUser,
  * pre-onboarding).
  */
+/**
+ * Where to send a signed-out visitor. Appends the page they were trying
+ * to reach (from the x-pathname header set in lib/supabase/proxy.ts) as
+ * ?next=, so a session that expired mid-visit — or a cold deep link —
+ * lands back where it was after signing in, instead of always /home.
+ *
+ * The header is only ever set server-side from request.nextUrl, never
+ * from anything a client sends, so there is nothing here for an attacker
+ * to control; LoginClient.tsx still validates it again before using it,
+ * since that is the side an open redirect would actually be exploited
+ * from.
+ */
+async function loginRedirectPath(): Promise<string> {
+  const path = (await headers()).get("x-pathname");
+  return path ? `/login?next=${encodeURIComponent(path)}` : "/login";
+}
+
 export function computeDisplayName(
   profile: { first_name?: string | null; surname?: string | null; preferred_name?: string | null } | null,
 ): string {
@@ -70,10 +89,13 @@ export function computeDisplayName(
 export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateResult> {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  // An outage is not a signed-out visitor: throw to the error page rather
+  // than bouncing a signed-in member to a login form that will fail too.
+  throwIfAuthUnreachable("session", authError);
+  if (!user) redirect(await loginRedirectPath());
 
-  const [{ data: isAdminData }, { data: profile }] = await Promise.all([
+  const [adminRes, profileRes] = await Promise.all([
     supabase.rpc("is_admin"),
     supabase
       .from("profiles")
@@ -81,10 +103,16 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
       .eq("id", user.id)
       .single(),
   ]);
+  // Before either result is trusted: a failed is_admin would otherwise read
+  // as "not an admin", and a failed profile read as "no profile".
+  throwIfUnreachable("is_admin", adminRes);
+  throwIfUnreachable("profile", profileRes);
+  const profile = profileRes.data;
 
-  const isAdmin = !!isAdminData;
+  const isAdmin = !!adminRes.data;
 
-  if (!profile) redirect("/login");
+  // Now genuinely "no row" (PGRST116) or a rejected token — signed out.
+  if (!profile) redirect(await loginRedirectPath());
 
   if (!opts.passthrough && !isAdmin && profile.status !== "approved") {
     redirect(destinationForStatus(profile.status));
@@ -115,10 +143,13 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
  */
 export async function requireSignedInUser(): Promise<GateResult> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  // An outage is not a signed-out visitor: throw to the error page rather
+  // than bouncing a signed-in member to a login form that will fail too.
+  throwIfAuthUnreachable("session", authError);
+  if (!user) redirect(await loginRedirectPath());
 
-  const [{ data: isAdminData }, { data: profile }] = await Promise.all([
+  const [adminRes, profileRes] = await Promise.all([
     supabase.rpc("is_admin"),
     supabase
       .from("profiles")
@@ -126,10 +157,13 @@ export async function requireSignedInUser(): Promise<GateResult> {
       .eq("id", user.id)
       .maybeSingle(),
   ]);
+  throwIfUnreachable("is_admin", adminRes);
+  throwIfUnreachable("profile", profileRes);
+  const profile = profileRes.data;
 
   return {
     user,
-    isAdmin: !!isAdminData,
+    isAdmin: !!adminRes.data,
     status: (profile?.status ?? null) as GateResult["status"],
     displayName: computeDisplayName(profile),
     supabase,

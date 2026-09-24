@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { getActionAuth, requireAdmin } from "@/lib/auth/actionAuth";
+import { getActionAuth, requireAdmin, unreachableAsNull } from "@/lib/auth/actionAuth";
+import { UNREACHABLE_MESSAGE } from "@/lib/supabase/unavailable";
 import { check, type RateBucket } from "@/lib/ratelimit";
 import { ok, err, type Result } from "@/lib/result";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
@@ -36,7 +37,8 @@ import { toFeedView, toMyPostView, type FeedPostView, type MyPostView } from "./
  * with a perfectly valid session.
  */
 async function guardMember(noun: string) {
-  const { user, isAdmin, status, supabase } = await getActionAuth();
+  const { user, isAdmin, status, supabase, unreachable } = await getActionAuth();
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
   if (!user) return err(`You must be signed in to ${noun}.`);
   if (!isAdmin && status !== "approved") {
     return err("Your membership must be approved before you can post.");
@@ -180,7 +182,8 @@ export async function createPost(payload: unknown): Promise<Result<FeedPostView>
 
 // ─── Delete (author) ────────────────────────────────────────────────
 export async function deleteMyPost(postId: string): Promise<Result> {
-  const { user, supabase } = await getActionAuth();
+  const { user, supabase, unreachable } = await getActionAuth();
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
   if (!user) return err("You must be signed in.");
 
   const { error } = await supabase.rpc("delete_my_post", { p_post_id: postId });
@@ -197,7 +200,8 @@ export async function deleteMyPost(postId: string): Promise<Result> {
 // like toggle is high-frequency/low-risk compared to posting or
 // reporting, so it doesn't warrant one of its own.
 export async function toggleLike(postId: string): Promise<Result<{ liked: boolean; likeCount: number }>> {
-  const { user, supabase } = await getActionAuth();
+  const { user, supabase, unreachable } = await getActionAuth();
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
   if (!user) return err("You must be signed in.");
 
   const { data, error } = await supabase.rpc("toggle_post_like", { p_post_id: postId });
@@ -216,7 +220,8 @@ export async function toggleLike(postId: string): Promise<Result<{ liked: boolea
 export async function refreshLikeCounts(
   postIds: string[],
 ): Promise<Result<Record<string, { likeCount: number; likedByMe: boolean }>>> {
-  const { user, supabase } = await getActionAuth();
+  const { user, supabase, unreachable } = await getActionAuth();
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
   if (!user) return err("You must be signed in.");
   if (postIds.length === 0) return ok({});
 
@@ -295,7 +300,8 @@ export async function loadMoreFeed(
   const decoded = decodeCursor(cursor);
   if (!decoded) return err("Couldn't load more posts. Refresh the page to start again.");
 
-  const page = await communityFeedPage(guard.data.supabase, decoded);
+  const page = await communityFeedPage(guard.data.supabase, decoded).catch(unreachableAsNull);
+  if (!page) return err(UNREACHABLE_MESSAGE);
   return ok({ posts: await toFeedView(page.posts), nextCursor: page.nextCursor });
 }
 
@@ -308,7 +314,8 @@ export async function loadMoreMyPosts(
   const decoded = decodeCursor(cursor);
   if (!decoded) return err("Couldn't load more posts. Refresh the page to start again.");
 
-  const page = await myPostsPage(guard.data.supabase, decoded);
+  const page = await myPostsPage(guard.data.supabase, decoded).catch(unreachableAsNull);
+  if (!page) return err(UNREACHABLE_MESSAGE);
   return ok({ posts: await toMyPostView(page.posts), nextCursor: page.nextCursor });
 }
 

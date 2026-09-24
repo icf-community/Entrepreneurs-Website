@@ -152,8 +152,17 @@ test.describe("home", () => {
     // cold server and an populated one on a warm server — a flake that
     // reports itself as "no cards", which is indistinguishable from the bug
     // this test exists to catch.
+    //
+    // Events, Opportunities and VCs each resolve their own independent
+    // Suspense boundary, on their own schedule — waiting for the first
+    // visible card only proves the fastest of the three landed. Under
+    // worker contention a slower section can still be showing its skeleton
+    // at that instant, which undercounts hrefs without looking like "no
+    // cards" at all (seen once as 2 of the expected 3). Waiting out every
+    // skeleton first means all three boundaries have actually settled.
     const cards = page.locator("section ul li a");
     await expect(cards.first()).toBeVisible();
+    await expect(page.locator(".animate-pulse")).toHaveCount(0);
 
     const hrefs = await cards.evaluateAll(
       (as) => as.map((a) => (a as HTMLAnchorElement).getAttribute("href")!),

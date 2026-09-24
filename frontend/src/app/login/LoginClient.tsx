@@ -10,6 +10,7 @@ import { TurnstileWidget, turnstileConfigured } from "@/components/forms/Turnsti
 import { BrandLogo } from "@/components/BrandLogo";
 import Starfield from "@/components/Starfield";
 import { destinationForStatus } from "@/lib/auth/status";
+import { safeNextPath } from "@/lib/auth/safeNextPath";
 import { Button } from "@/components/ui/Button";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { AFFILIATIONS, NON_STUDENT_AFFILIATIONS, type Affiliation } from "@/lib/intake/steps";
@@ -146,6 +147,19 @@ export default function LoginClient() {
     // reaches a session, so this one call site covers the whole auth funnel
     // rather than needing a capture in each of the four hooks above.
     trackEvent("auth_completed", { mode, track });
+
+    // Tried first, ahead of the admin/status branching below: whichever
+    // page sent the member to /login still runs the same guard on the way
+    // back, so an approved-only or admin-only "next" that this member
+    // shouldn't see re-redirects them correctly from there. This is just
+    // "try to go back", not a second copy of the access decision.
+    const next = safeNextPath(searchParams.get("next"), window.location.origin);
+    if (next) {
+      router.replace(next);
+      router.refresh();
+      return;
+    }
+
     const { data: isAdmin } = await supabase.rpc("is_admin");
     if (isAdmin) {
       router.replace("/admin");

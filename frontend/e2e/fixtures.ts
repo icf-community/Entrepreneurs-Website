@@ -2,7 +2,9 @@
 // global-setup (which creates them) and the specs (which assert as them).
 // These only ever exist in the ephemeral CI Supabase, never prod.
 
-export type Role = "student" | "admin" | "reauth" | "emailchange";
+export type Role =
+  | "student" | "admin" | "reauth" | "emailchange"
+  | "connector" | "connectee";
 
 export type SeedUser = {
   role: Role;
@@ -11,6 +13,17 @@ export type SeedUser = {
   firstName: string;
   surname: string;
   isAdmin: boolean;
+  /**
+   * Seed this account as having completed intake.
+   *
+   * `send_connection_request` requires `profile_version >= 2` — an empty
+   * profile card gives the recipient nothing to decide on, so completed
+   * intake is required to SEND (though not to receive). The other seeded
+   * users stay at version 1 with `intake_deferred_at` set, which is what
+   * the rest of the suite asserts against; only the connections pair
+   * needs this.
+   */
+  intakeComplete?: boolean;
 };
 
 // Student emails must be @imperial.ac.uk (the signup-domain trigger enforces it).
@@ -54,6 +67,29 @@ export const USERS: Record<Role, SeedUser> = {
     firstName: "Rhea",
     surname: "Reauth",
     isAdmin: false,
+  },
+  // A dedicated pair for connections.spec.ts. Two accounts rather than
+  // reusing `student`, for two reasons: the round trip needs both ends of
+  // a handshake simultaneously, and it mutates state that persists for
+  // the life of the run (a connection, then a 21-day cooldown on removal)
+  // — which no other spec should have to reason about.
+  connector: {
+    role: "connector",
+    email: "e2e-connector@imperial.ac.uk",
+    password: "E2e-Connector-Pw-123!",
+    firstName: "Cora",
+    surname: "Connector",
+    isAdmin: false,
+    intakeComplete: true,
+  },
+  connectee: {
+    role: "connectee",
+    email: "e2e-connectee@imperial.ac.uk",
+    password: "E2e-Connectee-Pw-123!",
+    firstName: "Dev",
+    surname: "Connectee",
+    isAdmin: false,
+    intakeComplete: true,
   },
 };
 

@@ -1,17 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { computeDisplayName } from "@/lib/auth/guard";
 import AppShell from "@/components/app/AppShell";
 import EmailChangeForm from "./EmailChangeForm";
 import PasswordChangeForm from "./PasswordChangeForm";
 import DeleteAccountSection from "./DeleteAccountSection";
 import SessionsSection from "./SessionsSection";
+import ConnectionSettings from "./ConnectionSettings";
+import BlockedMembers from "./BlockedMembers";
+import { myConnectionSettings } from "@/lib/data/connections";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
   const [profileRes, isAdminRes] = await Promise.all([
@@ -22,6 +27,14 @@ export default async function SettingsPage() {
       .single(),
     supabase.rpc("is_admin"),
   ]);
+  throwIfUnreachable("profile", profileRes);
+  throwIfUnreachable("is_admin", isAdminRes);
+
+  // Read after the gate rather than alongside it: the RPC requires an
+  // approved member, and a member still in review has no connections
+  // surface to configure.
+  const connectionSettings =
+    profileRes.data?.status === "approved" ? await myConnectionSettings(supabase) : null;
 
   const profile = profileRes.data;
   const isAdmin = !!isAdminRes.data;
@@ -88,6 +101,15 @@ export default async function SettingsPage() {
                 <span className="shrink-0 text-text-muted transition-colors group-hover:text-text-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5"><line x1="4" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" /></svg></span>
               </div>
             </Link>
+
+            {connectionSettings && (
+              <ConnectionSettings
+                emailsEnabled={connectionSettings.connection_emails_enabled}
+                openToConnections={connectionSettings.open_to_connections}
+              />
+            )}
+
+            {connectionSettings && <BlockedMembers />}
 
             <EmailChangeForm currentEmail={user.email ?? ""} role={profile.role} />
 

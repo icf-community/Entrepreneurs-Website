@@ -1,5 +1,6 @@
 import "server-only";
 import { getActionAuth } from "@/lib/auth/actionAuth";
+import { UNREACHABLE_MESSAGE } from "@/lib/supabase/unavailable";
 import * as Sentry from "@sentry/nextjs";
 import { check } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
@@ -27,8 +28,9 @@ export async function guardSubmission(args: {
   noun: string;
   turnstileToken?: string;
 }): Promise<Result<{ supabase: SupabaseClient<Database>; user: User }>> {
-  const { user, isAdmin, status, supabase } = await getActionAuth();
+  const { user, isAdmin, status, supabase, unreachable } = await getActionAuth();
 
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
   if (!user) return err(`You must be signed in to post ${args.noun}.`);
   if (args.mode === "admin" && !isAdmin) return err("Admin access required.");
   if (args.mode === "user" && !isAdmin && status !== "approved") {

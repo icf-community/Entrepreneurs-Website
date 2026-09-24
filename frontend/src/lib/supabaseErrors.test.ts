@@ -126,4 +126,46 @@ describe("describeSupabaseError", () => {
       }),
     ).toBe("You don't have permission to do that.");
   });
+
+  it("passes through 22023 / 22001 / P0002 sentences our RPCs write for the user", () => {
+    // These were being flattened into "Something went wrong." — which is
+    // most of the connections feature's vocabulary, and a good deal of
+    // create_post's and submit_intake's too.
+    expect(
+      describeSupabaseError({ code: "22023", message: "That request is no longer pending." }),
+    ).toBe("That request is no longer pending.");
+    expect(
+      describeSupabaseError({
+        code: "22023",
+        message: "You can't send a request to this member right now.",
+      }),
+    ).toBe("You can't send a request to this member right now.");
+    expect(
+      describeSupabaseError({ code: "22001", message: "Your note must be 300 characters or fewer." }),
+    ).toBe("Your note must be 300 characters or fewer.");
+    expect(describeSupabaseError({ code: "P0002", message: "Profile not found" })).toBe(
+      "Profile not found",
+    );
+  });
+
+  it("does NOT pass through Postgres's own 22023 / 22001 wording", () => {
+    // The engine's own messages on these codes are lowercase technical
+    // fragments carrying types, lengths and column names. Our RPCs never
+    // raise one that starts lowercase, which is the whole discriminator.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(
+      describeSupabaseError({
+        code: "22001",
+        message: "value too long for type character varying(50)",
+      }),
+    ).toBe("Something went wrong. Please try again.");
+    expect(
+      describeSupabaseError({
+        code: "22023",
+        message: "invalid regular expression: quantifier operand invalid",
+      }),
+    ).toBe("Something went wrong. Please try again.");
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
 });

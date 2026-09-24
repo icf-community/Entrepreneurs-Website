@@ -133,6 +133,150 @@ export type Database = {
         }
         Relationships: []
       }
+      connection_events: {
+        Row: {
+          actor_id: string | null
+          connection_id: string
+          created_at: string
+          event: string
+          id: string
+          purge_after: string
+          subject_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          connection_id: string
+          created_at?: string
+          event: string
+          id?: string
+          purge_after?: string
+          subject_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          connection_id?: string
+          created_at?: string
+          event?: string
+          id?: string
+          purge_after?: string
+          subject_id?: string
+        }
+        Relationships: []
+      }
+      connection_reports: {
+        Row: {
+          category: string
+          connection_id: string
+          created_at: string
+          id: string
+          note_snapshot: string | null
+          purge_after: string
+          reason: string
+          reported_member_id: string | null
+          reporter_id: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          category: string
+          connection_id: string
+          created_at?: string
+          id?: string
+          note_snapshot?: string | null
+          purge_after?: string
+          reason: string
+          reported_member_id?: string | null
+          reporter_id?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          category?: string
+          connection_id?: string
+          created_at?: string
+          id?: string
+          note_snapshot?: string | null
+          purge_after?: string
+          reason?: string
+          reported_member_id?: string | null
+          reporter_id?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      connections: {
+        Row: {
+          addressee_id: string
+          blocked_by: string | null
+          consent_version: string | null
+          cooldown_until: string | null
+          created_at: string
+          decided_at: string | null
+          digest_claim_id: string | null
+          digest_claimed_at: string | null
+          digested_at: string | null
+          id: string
+          note: string | null
+          requester_id: string
+          status: string
+          unblock_restore_status: string | null
+        }
+        Insert: {
+          addressee_id: string
+          blocked_by?: string | null
+          consent_version?: string | null
+          cooldown_until?: string | null
+          created_at?: string
+          decided_at?: string | null
+          digest_claim_id?: string | null
+          digest_claimed_at?: string | null
+          digested_at?: string | null
+          id?: string
+          note?: string | null
+          requester_id: string
+          status?: string
+          unblock_restore_status?: string | null
+        }
+        Update: {
+          addressee_id?: string
+          blocked_by?: string | null
+          consent_version?: string | null
+          cooldown_until?: string | null
+          created_at?: string
+          decided_at?: string | null
+          digest_claim_id?: string | null
+          digest_claimed_at?: string | null
+          digested_at?: string | null
+          id?: string
+          note?: string | null
+          requester_id?: string
+          status?: string
+          unblock_restore_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connections_addressee_id_fkey"
+            columns: ["addressee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "connections_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cv_chunks: {
         Row: {
           chunk_type: Database["public"]["Enums"]["cv_chunk_type"]
@@ -1174,6 +1318,7 @@ export type Database = {
           bio_focus: string | null
           bio_hobbies: string | null
           committee_role: string | null
+          connection_emails_enabled: boolean
           course: string | null
           created_at: string
           current_focus: string | null
@@ -1192,6 +1337,7 @@ export type Database = {
           intent_urgency: string | null
           is_committee: boolean
           linkedin_url: string | null
+          open_to_connections: boolean
           portfolio_url: string | null
           preferred_name: string | null
           profile_version: number
@@ -1213,6 +1359,7 @@ export type Database = {
           bio_focus?: string | null
           bio_hobbies?: string | null
           committee_role?: string | null
+          connection_emails_enabled?: boolean
           course?: string | null
           created_at?: string
           current_focus?: string | null
@@ -1231,6 +1378,7 @@ export type Database = {
           intent_urgency?: string | null
           is_committee?: boolean
           linkedin_url?: string | null
+          open_to_connections?: boolean
           portfolio_url?: string | null
           preferred_name?: string | null
           profile_version?: number
@@ -1252,6 +1400,7 @@ export type Database = {
           bio_focus?: string | null
           bio_hobbies?: string | null
           committee_role?: string | null
+          connection_emails_enabled?: boolean
           course?: string | null
           created_at?: string
           current_focus?: string | null
@@ -1270,6 +1419,7 @@ export type Database = {
           intent_urgency?: string | null
           is_committee?: boolean
           linkedin_url?: string | null
+          open_to_connections?: boolean
           portfolio_url?: string | null
           preferred_name?: string | null
           profile_version?: number
@@ -1475,6 +1625,18 @@ export type Database = {
         }[]
       }
       admin_clear_avatar: { Args: { p_profile_id: string }; Returns: undefined }
+      admin_clear_sender_throttle: {
+        Args: { p_member: string; p_note?: string }
+        Returns: undefined
+      }
+      admin_connection_stats: {
+        Args: never
+        Returns: {
+          cross_cohort_pct: number
+          median_per_member: number
+          total_connections: number
+        }[]
+      }
       admin_create_event: {
         Args: {
           p_contact_email: string
@@ -1545,6 +1707,14 @@ export type Database = {
           first_name: string
         }[]
       }
+      admin_get_connections_status: {
+        Args: never
+        Returns: {
+          enabled: boolean
+          last_changed_at: string
+          last_changed_by: string
+        }[]
+      }
       admin_get_cv_info: {
         Args: { p_profile_id: string }
         Returns: {
@@ -1566,6 +1736,39 @@ export type Database = {
         Returns: {
           email: string
           user_id: string
+        }[]
+      }
+      admin_list_connection_reports: {
+        Args: { p_limit?: number; p_offset?: number; p_status?: string }
+        Returns: {
+          admin_is_party: boolean
+          category: string
+          connection_id: string
+          created_at: string
+          has_note: boolean
+          id: string
+          reason: string
+          reported_member_id: string
+          reported_name: string
+          reported_signals: number
+          reporter_id: string
+          reporter_name: string
+          resolution_note: string
+          resolved_at: string
+          status: string
+          total_count: number
+        }[]
+      }
+      admin_list_flagged_senders: {
+        Args: { p_limit?: number }
+        Returns: {
+          decline_rate: number
+          declines: number
+          distinct_signals: number
+          member_id: string
+          member_name: string
+          requests_sent: number
+          throttled: boolean
         }[]
       }
       admin_list_listing_edits: {
@@ -1686,6 +1889,14 @@ export type Database = {
           title: string
         }[]
       }
+      admin_resolve_connection_report: {
+        Args: { p_note?: string; p_report_id: string; p_status: string }
+        Returns: {
+          email: string
+          first_name: string
+          reported_name: string
+        }[]
+      }
       admin_resolve_post_report: {
         Args: { p_note?: string; p_report_id: string; p_status: string }
         Returns: {
@@ -1694,12 +1905,20 @@ export type Database = {
           post_title: string
         }[]
       }
+      admin_reveal_connection_note: {
+        Args: { p_report_id: string }
+        Returns: string
+      }
       admin_set_committee: {
         Args: {
           p_committee_role?: string
           p_is_committee: boolean
           p_member_id: string
         }
+        Returns: undefined
+      }
+      admin_set_connections_enabled: {
+        Args: { p_enabled: boolean }
         Returns: undefined
       }
       admin_set_ingestion_enabled: {
@@ -1741,6 +1960,7 @@ export type Database = {
         Args: { p_id: string; p_notes?: string }
         Returns: undefined
       }
+      block_member: { Args: { p_member: string }; Returns: undefined }
       claim_blob_deletion_batch: {
         Args: { p_limit?: number }
         Returns: {
@@ -1749,6 +1969,16 @@ export type Database = {
           container: string
           id: string
           max_attempts: number
+        }[]
+      }
+      claim_connection_digests: {
+        Args: { p_limit?: number }
+        Returns: {
+          claim_id: string
+          first_name: string
+          member_id: string
+          pending_count: number
+          sender_names: string[]
         }[]
       }
       claim_outbound_email_batch: {
@@ -1763,6 +1993,10 @@ export type Database = {
           text_body: string
           to_address: string
         }[]
+      }
+      complete_connection_digests: {
+        Args: { p_claim_id: string; p_emails: Json }
+        Returns: number
       }
       confirm_avatar_upload: {
         Args: { p_blob_key: string }
@@ -1781,6 +2015,42 @@ export type Database = {
         }
         Returns: undefined
       }
+      connection_assert_can_block: {
+        Args: { p_caller: string }
+        Returns: undefined
+      }
+      connection_assert_can_send: {
+        Args: { p_caller: string }
+        Returns: undefined
+      }
+      connection_clean_note: { Args: { p_note: string }; Returns: string }
+      connection_consent_version: { Args: never; Returns: string }
+      connection_limit: { Args: { p_key: string }; Returns: number }
+      connection_limit_defaults: { Args: never; Returns: Json }
+      connection_limits: { Args: never; Returns: Json }
+      connection_log_event: {
+        Args: {
+          p_actor: string
+          p_connection_id: string
+          p_event: string
+          p_subject: string
+        }
+        Returns: undefined
+      }
+      connection_refusal_message: { Args: never; Returns: string }
+      connection_sender_throttled: {
+        Args: { p_member: string }
+        Returns: boolean
+      }
+      connection_state_with: {
+        Args: { p_member: string }
+        Returns: {
+          available_at: string
+          connection_id: string
+          state: string
+        }[]
+      }
+      connections_enabled: { Args: never; Returns: boolean }
       create_post: {
         Args: { p_body: string; p_images?: Json; p_title: string }
         Returns: {
@@ -1802,6 +2072,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      cron_connection_digest: { Args: never; Returns: undefined }
       cron_drain_blob_deletions: { Args: never; Returns: undefined }
       cron_drain_outbound_email: { Args: never; Returns: undefined }
       cron_github_showcase_nudge: { Args: never; Returns: undefined }
@@ -1831,6 +2102,7 @@ export type Database = {
         Returns: string
       }
       enqueue_outbound_email_bulk: { Args: { p_rows: Json }; Returns: number }
+      expire_connection_requests: { Args: never; Returns: number }
       expire_events: { Args: never; Returns: number }
       expire_opportunities: { Args: never; Returns: number }
       expire_vcs_grants: { Args: never; Returns: number }
@@ -2125,6 +2397,19 @@ export type Database = {
           total: number
         }[]
       }
+      list_my_blocked_members: {
+        Args: never
+        Returns: {
+          avatar_path: string
+          blocked_at: string
+          course: string
+          first_name: string
+          grad_year: number
+          member_id: string
+          role: Database["public"]["Enums"]["user_role"]
+          surname: string
+        }[]
+      }
       list_my_bookmarked_opportunities: {
         Args: never
         Returns: {
@@ -2152,6 +2437,96 @@ export type Database = {
           start_year: number
         }[]
       }
+      list_my_connection_facets: {
+        Args: never
+        Returns: {
+          courses: string[]
+          grad_max: number
+          grad_min: number
+          sectors: string[]
+          skills: string[]
+          total: number
+        }[]
+      }
+      list_my_connection_graph: {
+        Args: {
+          p_courses?: string[]
+          p_grad_max?: number
+          p_grad_min?: number
+          p_query?: string
+          p_roles?: string[]
+          p_sectors?: string[]
+          p_skills?: string[]
+        }
+        Returns: {
+          avatar_path: string
+          connected_at: string
+          course: string
+          first_name: string
+          grad_year: number
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          sector_names: string[]
+          skill_names: string[]
+          surname: string
+          total_count: number
+        }[]
+      }
+      list_my_connections: {
+        Args: {
+          p_courses?: string[]
+          p_cursor_decided_at?: string
+          p_cursor_id?: string
+          p_grad_max?: number
+          p_grad_min?: number
+          p_limit?: number
+          p_query?: string
+          p_roles?: string[]
+          p_sectors?: string[]
+          p_skills?: string[]
+        }
+        Returns: {
+          avatar_path: string
+          bio_focus: string
+          bio_hobbies: string
+          connected_at: string
+          connection_id: string
+          course: string
+          email: string
+          first_name: string
+          grad_year: number
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          sector_names: string[]
+          skill_names: string[]
+          surname: string
+          total_count: number
+        }[]
+      }
+      list_my_pending_requests: {
+        Args: {
+          p_cursor_created_at?: string
+          p_cursor_id?: string
+          p_limit?: number
+        }
+        Returns: {
+          avatar_path: string
+          bio_focus: string
+          bio_hobbies: string
+          connection_id: string
+          course: string
+          first_name: string
+          grad_year: number
+          id: string
+          note: string
+          requested_at: string
+          role: Database["public"]["Enums"]["user_role"]
+          sector_names: string[]
+          skill_names: string[]
+          surname: string
+          total_count: number
+        }[]
+      }
       list_my_posts: {
         Args: {
           p_cursor_created_at?: string
@@ -2166,6 +2541,48 @@ export type Database = {
           images: Json
           like_count: number
           title: string
+        }[]
+      }
+      list_my_sent_requests: {
+        Args: {
+          p_cursor_created_at?: string
+          p_cursor_id?: string
+          p_limit?: number
+        }
+        Returns: {
+          avatar_path: string
+          connection_id: string
+          course: string
+          first_name: string
+          grad_year: number
+          id: string
+          note: string
+          requested_at: string
+          role: Database["public"]["Enums"]["user_role"]
+          surname: string
+          total_count: number
+        }[]
+      }
+      list_newest_events: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_at: string
+          event_at: string
+          id: string
+          is_society_event: boolean
+          location: string
+          title: string
+        }[]
+      }
+      list_newest_opportunities: {
+        Args: { p_limit?: number }
+        Returns: {
+          company: string
+          created_at: string
+          id: string
+          location_text: string
+          location_type: Database["public"]["Enums"]["location_type"]
+          position_name: string
         }[]
       }
       list_pending_events_admin: {
@@ -2244,10 +2661,34 @@ export type Database = {
         }
         Returns: undefined
       }
+      my_connection_quota: {
+        Args: never
+        Returns: {
+          available_at: string
+          daily_cap: number
+          daily_used: number
+          limit_reason: string
+          outstanding: number
+          outstanding_cap: number
+          weekly_cap: number
+          weekly_used: number
+        }[]
+      }
+      my_connection_settings: {
+        Args: never
+        Returns: {
+          connection_emails_enabled: boolean
+          open_to_connections: boolean
+        }[]
+      }
+      my_pending_connection_count: { Args: never; Returns: number }
       posting_enabled: { Args: never; Returns: boolean }
+      purge_connection_records: { Args: never; Returns: number }
       purge_expired_posts: { Args: never; Returns: number }
       purge_moderation_records: { Args: never; Returns: number }
       purge_rejected_listings: { Args: never; Returns: number }
+      purge_removed_connections: { Args: never; Returns: number }
+      purge_sent_outbound_email: { Args: never; Returns: number }
       purge_stale_upload_tickets: { Args: never; Returns: number }
       reap_stalled_jobs: { Args: never; Returns: number }
       record_listing_event: {
@@ -2289,14 +2730,46 @@ export type Database = {
           title: string
         }[]
       }
+      remove_connection: { Args: { p_id: string }; Returns: undefined }
       remove_my_avatar: { Args: never; Returns: undefined }
       remove_my_cv: { Args: never; Returns: undefined }
+      report_connection: {
+        Args: { p_category: string; p_id: string; p_reason: string }
+        Returns: {
+          category: string
+          filed: boolean
+          reported_name: string
+        }[]
+      }
       report_post: {
         Args: { p_category: string; p_post_id: string; p_reason: string }
         Returns: {
           filed: boolean
           post_title: string
         }[]
+      }
+      respond_to_connection_request: {
+        Args: { p_accept: boolean; p_consent_version?: string; p_id: string }
+        Returns: {
+          accepted: boolean
+          accepter_first_name: string
+          accepter_surname: string
+          requester_email: string
+          requester_first_name: string
+          requester_id: string
+        }[]
+      }
+      send_connection_request: {
+        Args: {
+          p_addressee: string
+          p_consent_version: string
+          p_note?: string
+        }
+        Returns: string
+      }
+      set_connection_settings: {
+        Args: { p_emails_enabled?: boolean; p_open?: boolean }
+        Returns: undefined
       }
       set_cv_suggested_skills: {
         Args: { p_skill_ids: number[] }
@@ -2403,6 +2876,7 @@ export type Database = {
           liked: boolean
         }[]
       }
+      unblock_member: { Args: { p_member: string }; Returns: undefined }
       unmark_listing_action: {
         Args: {
           p_action: Database["public"]["Enums"]["user_action_type"]
@@ -2487,6 +2961,10 @@ export type Database = {
           p_name: string
           p_stage: string
         }
+        Returns: undefined
+      }
+      withdraw_connection_request: {
+        Args: { p_id: string }
         Returns: undefined
       }
     }

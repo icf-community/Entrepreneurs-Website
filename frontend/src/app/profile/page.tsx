@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { computeDisplayName } from "@/lib/auth/guard";
 import { destinationForStatus } from "@/lib/auth/status";
 import AppShell from "@/components/app/AppShell";
@@ -12,7 +13,8 @@ import ProfileForm from "./ProfileForm";
 export default async function ProfilePage() {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
   const [profileRes, skillTaxonomy, sectors, selected, isAdminRes, cvInfoRes, githubStatusRes, ingestionEnabledRes] = await Promise.all([
@@ -39,6 +41,11 @@ export default async function ProfilePage() {
     supabase.rpc("github_cv_ingestion_enabled"),
   ]);
 
+  throwIfUnreachable("profile", profileRes);
+  throwIfUnreachable("is_admin", isAdminRes);
+  throwIfUnreachable("get_my_cv_info", cvInfoRes);
+  throwIfUnreachable("get_my_github_status", githubStatusRes);
+  throwIfUnreachable("github_cv_ingestion_enabled", ingestionEnabledRes);
   const profile = profileRes.data;
   const isAdmin = !!isAdminRes.data;
   if (!profile) redirect("/login");

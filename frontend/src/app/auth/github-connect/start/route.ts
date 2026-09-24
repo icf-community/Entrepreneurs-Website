@@ -55,7 +55,10 @@ export async function GET(request: Request) {
   const returnPath = githubConnectReturnPath(returnTo);
   const errorRedirect = () => NextResponse.redirect(`${origin}${returnPath}?github=error`);
 
-  const { user, isAdmin, status } = await getActionAuth();
+  const { user, isAdmin, status, unreachable } = await getActionAuth();
+  // An outage is not a signed-out visitor; the existing error landing says
+  // "try again" without a trip through /login.
+  if (unreachable) return errorRedirect();
   if (!user) return NextResponse.redirect(`${origin}/login`);
   if (!isAdmin && status !== "approved") return errorRedirect();
 

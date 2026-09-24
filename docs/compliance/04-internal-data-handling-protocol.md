@@ -1,8 +1,9 @@
 # 04 · Internal Data Handling Protocol
 
 How the Imperial Entrepreneurs team accesses, secures and minimises personal data.
-DRAFT for Imperial DPO review. Describes controls as built, plus the operational
+DRAFT for the controller's review. Describes controls as built, plus the operational
 practices the team commits to.
+**Controller:** IC Founders Ltd (Companies House 17171277) — see `02-ropa.md` §1.
 
 ---
 

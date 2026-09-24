@@ -91,3 +91,39 @@ describe("maybeRow", () => {
     expect(row?.first_name).toBe("Ada");
   });
 });
+
+// S2: an unreachable Supabase must reach the error page, not render as an
+// empty list or a 404. A 4xx (a code bug in one section) still degrades.
+describe("infrastructure failures throw instead of degrading", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(Sentry.captureException).mockClear();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([
+    ["network failure", 0],
+    ["statement timeout", 500],
+    ["pool-acquire timeout", 504],
+    ["gateway unavailable", 503],
+    ["rate limited", 429],
+  ])("rows() throws ServiceUnavailableError on %s (status %i)", async (_, status) => {
+    await expect(rows("list_directory", async () => ({ data: null, error: boom, status })))
+      .rejects.toMatchObject({ name: "ServiceUnavailableError" });
+  });
+
+  it("maybeRow() throws on an unreachable database, so a detail page cannot 404", async () => {
+    await expect(maybeRow("get_event", async () => ({ data: null, error: boom, status: 0 })))
+      .rejects.toMatchObject({ name: "ServiceUnavailableError" });
+  });
+
+  it.each([400, 401, 403, 404, 406])("a %i still degrades quietly and is reported", async (status) => {
+    expect(await rows("q", async () => ({ data: null, error: boom, status }))).toEqual([]);
+    expect(await maybeRow("q", async () => ({ data: null, error: boom, status }))).toBeNull();
+    expect(Sentry.captureException).toHaveBeenCalledTimes(2);
+  });
+
+  it("a status on a SUCCESSFUL response is never treated as a failure", async () => {
+    expect(await rows("q", async () => ({ data: [{ a: 1 }], error: null, status: 200 }))).toEqual([{ a: 1 }]);
+  });
+});

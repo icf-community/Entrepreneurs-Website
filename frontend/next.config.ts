@@ -38,7 +38,7 @@ const securityHeaders = [
 const AUTHENTICATED_SEGMENTS = [
   "home", "profile", "settings", "admin", "calendar", "community", "intake",
   "onboarding", "members", "opportunities", "events", "vcs", "messaging",
-  "my-activity", "my-bookmarks", "my-submissions", "pending", "rejected",
+  "my-activity", "my-bookmarks", "my-submissions", "pending", "rejected", "connections",
 ];
 
 const nextConfig: NextConfig = {

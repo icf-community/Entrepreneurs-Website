@@ -1,6 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/lib/database.overrides";
 import { cookies } from "next/headers";
+import { fetchWithTimeout } from "@/lib/supabase/unavailable";
+
+// A stalled Supabase connection must fail, not hang: without a timeout a
+// page waits until the platform kills the function and never reaches the
+// error page (see lib/supabase/unavailable.ts). 25s is far above measured
+// p99; the service client is deliberately left without one.
+const REQUEST_TIMEOUT_MS = 25_000;
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -14,6 +21,7 @@ export async function createClient() {
     url,
     anonKey,
     {
+      global: { fetch: fetchWithTimeout(REQUEST_TIMEOUT_MS) },
       cookies: {
         getAll() {
           return cookieStore.getAll();

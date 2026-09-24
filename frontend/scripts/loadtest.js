@@ -78,13 +78,26 @@
 // ════════════════════════════════════════════════════════════════════
 
 import http from "k6/http";
-import { check, group } from "k6";
+import { check, group, sleep } from "k6";
+import { classifyPage } from "./loadtest-response.mjs";
 import { SharedArray } from "k6/data";
 import { Trend, Rate, Counter } from "k6/metrics";
 
 const BASE = __ENV.BASE || "http://127.0.0.1:3100";
 const STAGE = __ENV.STAGE ? Number(__ENV.STAGE) : null;
 const MODE = __ENV.MODE || "anon";
+// Default to browsing pace. THINK_SECONDS=0 explicitly opts into a stress
+// test; neither mode simulates browser assets, hydration or uploads.
+const THINK_SECONDS = Number(__ENV.THINK_SECONDS ?? 2);
+const HOLD_SECONDS = Number(__ENV.HOLD_SECONDS ?? 120);
+const P95_MS = Number(__ENV.P95_MS ?? 5000);
+const GATE = __ENV.GATE !== "0";
+if ((STAGE !== null && (!Number.isInteger(STAGE) || STAGE < 1)) ||
+    !Number.isFinite(THINK_SECONDS) || THINK_SECONDS < 0 ||
+    !Number.isFinite(HOLD_SECONDS) || HOLD_SECONDS < 1 ||
+    !Number.isFinite(P95_MS) || P95_MS < 1) {
+  throw new Error("Invalid STAGE, THINK_SECONDS, HOLD_SECONDS or P95_MS.");
+}
 
 if (!["anon", "auth", "mixed"].includes(MODE)) {
   throw new Error(`MODE must be anon, auth or mixed — got "${MODE}".`);
@@ -113,7 +126,7 @@ const SESSIONS = new SharedArray("sessions", () => {
   // redirect to /login, which would look like a fast page rather than a
   // broken run. Refuse the file instead of quietly measuring nothing.
   const now = Math.floor(Date.now() / 1000);
-  if (parsed.soonestExpiry <= now + 300) {
+  if (parsed.soonestExpiry <= now + (STAGE ? HOLD_SECONDS + 90 : 300)) {
     throw new Error(
       "`.loadtest-sessions.json` is expired or expires within 5 minutes. Re-run the mint script.",
     );
@@ -141,10 +154,32 @@ const routeLatency = {
   opportunities_auth: new Trend("route_opportunities_auth", true),
   members_auth: new Trend("route_members_auth", true),
   vcs_auth: new Trend("route_vcs_auth", true),
+  // Connections. Three separate series because they are three different
+  // queries behind one path: the card list (list_my_connections, a keyset
+  // page joined to profiles), the inbox (list_my_pending_requests, which
+  // is also what the digest email links straight at), and the ego-graph
+  // payload (list_my_connection_graph, up to 500 nodes in one shot).
+  // Averaging them would hide whichever one is slow.
+  connections_auth: new Trend("route_connections_auth", true),
+  connections_pending_auth: new Trend("route_connections_pending_auth", true),
+  connections_graph_auth: new Trend("route_connections_graph_auth", true),
 };
 const errors = new Rate("route_errors");
 const expectedRedirect = new Counter("expected_redirect");
 const authRedirect = new Counter("auth_redirect");
+const authContentErrors = new Counter("auth_content_errors");
+const requiredContent = {
+  home_auth: "Hello,",
+  events_auth: "Upcoming Foundry events",
+  opportunities_auth: "Roles from the Foundry network",
+  members_auth: "The Foundry directory",
+  vcs_auth: "Funding for Foundry founders",
+  // This nav is inside the resolved Suspense boundary: the page heading
+  // alone can be sent before any of the Connections data has loaded.
+  connections_auth: 'aria-label="Connections views"',
+  connections_pending_auth: 'aria-label="Connections views"',
+  connections_graph_auth: 'aria-label="Connections views"',
+};
 // Diagnostic only: a high error rate could mean the app is actually
 // failing, or it could mean an edge layer (Vercel attack-challenge mode,
 // Cloudflare) is fast-rejecting requests before they reach the app at
@@ -173,14 +208,19 @@ export const options = {
   stages: STAGE
     ? [
         { duration: "20s", target: STAGE },
-        { duration: "60s", target: STAGE },
+        { duration: `${HOLD_SECONDS}s`, target: STAGE },
         { duration: "10s", target: 0 },
       ]
     : FULL_STAGES,
-  // No thresholds that abort the run. The point is to find where it
-  // breaks and report what broke — a run that aborts at the first
-  // threshold breach throws away the measurement it exists to take.
-  thresholds: {},
+  // Thresholds fail the exit status AFTER the run, retaining all samples.
+  // GATE=0 is exploratory only and must not be used as launch evidence.
+  thresholds: GATE ? {
+    route_errors: ["rate==0"],
+    checks: ["rate==1"],
+    ...Object.fromEntries(Object.keys(routeLatency)
+      .filter((name) => MODE === "mixed" || (MODE === "auth" ? name.endsWith("_auth") : !name.endsWith("_auth")))
+      .map((name) => [`route_${name}`, [`p(95)<${P95_MS}`]])),
+  } : {},
   // Redirects are the thing being measured on protected routes, so do
   // not let k6 silently follow them and time two requests as one.
   maxRedirects: 0,
@@ -192,6 +232,22 @@ export const options = {
   summaryTrendStats: ["avg", "min", "med", "p(90)", "p(95)", "p(99)", "max", "count"],
 };
 
+// Validate EVERY synthetic identity before adding load. A valid expiry
+// does not prove the session still exists or that its member is approved.
+export function setup() {
+  for (let i = 0; i < SESSIONS.length; i += 1) {
+    const res = http.get(`${BASE}/home`, {
+      headers: { Cookie: SESSIONS[i].cookie },
+      jar: new http.CookieJar(),
+      tags: { route: "session_preflight" },
+      timeout: "15s",
+    });
+    if (!classifyPage(res.status, res.body, true, requiredContent.home_auth).ok) {
+      throw new Error(`Synthetic session ${i + 1} failed authenticated preflight; no load stage started.`);
+    }
+  }
+}
+
 // `session` is undefined for anonymous hits and a minted session for
 // signed-in ones. The cookie goes on as an explicit header rather than
 // through k6's per-VU jar: the jar would absorb whatever the app set on
@@ -201,12 +257,17 @@ function hit(name, path, session) {
   const headers = { "Accept-Encoding": "gzip" };
   if (session) headers.Cookie = session.cookie;
 
-  const res = http.get(`${BASE}${path}`, { tags: { route: name }, headers });
+  const res = http.get(`${BASE}${path}`, {
+    tags: { route: name }, headers,
+    // Never merge a refreshed cookie from one response with the fixed
+    // synthetic cookie supplied above. Each measurement uses that session.
+    jar: new http.CookieJar(),
+  });
   routeLatency[name].add(res.timings.duration);
   (statusCodes[res.status] || statusOther).add(1);
 
   const redirected = res.status >= 300 && res.status < 400;
-  const served = res.status >= 200 && res.status < 300;
+  const result = classifyPage(res.status, res.body, Boolean(session), requiredContent[name]);
 
   if (session) {
     // A signed-in request must RENDER. A 3xx here is the session being
@@ -214,9 +275,11 @@ function hit(name, path, session) {
     // and it silently turns the measurement back into redirect timing,
     // which is the precise defect this mode was added to fix. So it is
     // an error, not an expected redirect.
-    if (redirected) authRedirect.add(1);
-    errors.add(!served);
-    check(res, { [`${name} rendered while signed in`]: () => served });
+    if (result.redirected) authRedirect.add(1);
+    if (!result.ok && !result.redirected) authContentErrors.add(1);
+    errors.add(!result.ok);
+    check(res, { [`${name} rendered while signed in`]: () => result.ok });
+    if (THINK_SECONDS > 0) sleep(THINK_SECONDS);
     return res;
   }
 
@@ -227,9 +290,10 @@ function hit(name, path, session) {
   // (see the header). A real 3xx still happens on a few paths and is
   // fine. Everything else — 5xx, a connection reset, a timeout surfaced
   // as status 0 — is a real failure.
-  const ok = served || redirected;
+  const ok = result.ok;
   errors.add(!ok);
   check(res, { [`${name} served or redirected`]: () => ok });
+  if (THINK_SECONDS > 0) sleep(THINK_SECONDS);
   return res;
 }
 
@@ -263,10 +327,33 @@ function signedInBurst(session) {
     hit("events_auth", "/events", session);
     hit("members_auth", "/members", session);
     hit("vcs_auth", "/vcs", session);
+    // k6/http does not execute PendingBadge's browser effect. /home's
+    // server-side count is covered, but badge RPCs on navigation are NOT.
+    hit("connections_auth", "/connections", session);
+    hit("connections_pending_auth", "/connections?tab=pending", session);
+    hit("connections_graph_auth", "/connections?view=graph", session);
   });
 }
 
-export default function () {
+// ─── Why send_connection_request is NOT in this harness ─────────────
+// The plan asks for it and it is deliberately left out, which is worth
+// stating rather than leaving as an omission someone re-raises later.
+//
+// It is a POST server action behind a CSRF-protected form, so driving it
+// from k6 means forging the action payload — but the real objection is
+// that it CANNOT be load-tested honestly here. It is capped at 10 per
+// member per day in the database and 15 per day in Upstash, by design:
+// the eleventh call from a VU measures the refusal path, not the send
+// path, and every call that does succeed writes a permanent row plus an
+// event into whatever database the run points at.
+//
+// Its cost is measured instead where that cost actually lives:
+// `supabase/tests/scale_query_plans.sql` §8g runs the real RPC, with
+// every gate, against 5,000 members and 247k edges, and reads the plan
+// shape rather than a laptop millisecond. A concurrency number for it
+// would have to come from a staging database that can be thrown away.
+
+export default function loadIteration() {
   // Spread VUs across the minted members rather than reusing one: a
   // single auth.uid() gets unrealistically warm plans and page caches.
   const session = SESSIONS.length ? SESSIONS[(__VU - 1) % SESSIONS.length] : null;
@@ -312,6 +399,8 @@ export function handleSummary(data) {
   }
   const errRate = m.route_errors ? (m.route_errors.values.rate * 100).toFixed(2) : "0";
   const authRedirects = m.auth_redirect ? m.auth_redirect.values.count : 0;
+  const authSamples = Object.keys(routeLatency).filter((name) => name.endsWith("_auth"))
+    .reduce((sum, name) => sum + (m[`route_${name}`]?.values.count || 0), 0);
   out += `\nrequests: ${m.http_reqs ? m.http_reqs.values.count : 0}`;
   out += `   error rate: ${errRate}%`;
   out += `   expected redirects: ${m.expected_redirect ? m.expected_redirect.values.count : 0}\n`;
@@ -328,12 +417,16 @@ export function handleSummary(data) {
     out += `\n!! ${authRedirects} signed-in requests were REDIRECTED, not rendered.\n`;
     out += `!! The *_auth numbers above are redirect timings and must not be quoted.\n`;
     out += `!! Re-mint sessions, and check the app is pointed at the same Supabase.\n`;
-  } else if (MODE !== "anon") {
-    out += `\nAll signed-in requests rendered (0 redirects) — the *_auth rows are real page renders.\n`;
+  } else if (MODE !== "anon" && authSamples > 0 && Number(errRate) === 0) {
+    out += `\nSigned-in responses passed status and page-content checks.\n`;
   }
+  if (MODE !== "anon" && authSamples === 0) out += "\nNo authenticated stage samples: this is NOT a capacity result.\n";
+  out += `\nAuthenticated content/transport failures: ${m.auth_content_errors?.values.count || 0}\n`;
+  out += `Pacing: ${THINK_SECONDS}s per page; distinct sessions: ${SESSIONS.length}; gate: ${GATE}\n`;
+  out += "HTTP-only: excludes browser effects, graph animation, images, login and mutations.\n";
 
   out += `\nRead the RANKING, not the milliseconds — this ran on a laptop`;
   out += `\nsharing cores with Postgres and k6 itself.\n`;
 
-  return { stdout: out };
+  return { stdout: out, "loadtest-summary.json": JSON.stringify(data, null, 2) };
 }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { throwIfAuthUnreachable } from "@/lib/supabase/unavailable";
 import ResetPasswordForm from "./ResetPasswordForm";
 
 // Reached only via the recovery link: /auth/callback exchanges the PKCE code
@@ -10,7 +11,8 @@ import ResetPasswordForm from "./ResetPasswordForm";
 // password (which would bypass the settings-page reauth).
 export default async function ResetPasswordPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  throwIfAuthUnreachable("session", authError);
 
   const cookieStore = await cookies();
   const hasMarker = cookieStore.get("pw-recovery")?.value === "1";

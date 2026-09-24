@@ -211,6 +211,9 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
+    # A normal run is ~7 minutes. Without a ceiling a hung Playwright held
+    # this job for GitHub's 6-hour default on every PR run of feat/connections.
+    timeout-minutes: 30
     needs: changes
     # Same gate as rls-smoke: the Supabase stack is slow, so only pay it on
     # pushes to main, PRs touching DB/server/E2E surfaces, or PRs labelled `e2e`.
@@ -218,6 +221,11 @@ jobs:
       github.event_name == 'push' ||
       needs.changes.outputs.db == 'true' ||
       contains(github.event.pull_request.labels.*.name, 'e2e')
+    env:
+      # A throwaway value for the ephemeral stack only. Without it the
+      # connections-digest e2e test skips itself, so the digest's
+      # exactly-once contract was never exercised in CI.
+      CRON_SECRET: e2e-cron-secret
     steps:
       - uses: actions/checkout@v5
 
@@ -269,7 +277,11 @@ jobs:
         working-directory: frontend
         # Scope to the app projects; the rate-limit project runs in its own
         # isolated job (Upstash enabled there only).
-        run: pnpm exec playwright test --project=public --project=member --project=admin --project=pipelines
+        # The wrapper fails the step (with a process dump) if Playwright is
+        # still alive after 20 minutes — see scripts/ci-playwright.sh.
+        env:
+          PW_LIMIT_SECONDS: "1200"
+        run: scripts/ci-playwright.sh --project=public --project=member --project=admin --project=pipelines --project=connections
 
       - if: always()
         run: supabase stop || true
@@ -284,6 +296,7 @@ jobs:
   e2e-ratelimit:
     name: E2E rate-limit enforcement (SRH)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: changes
     if: >
       github.event_name == 'push' ||
@@ -371,7 +384,9 @@ jobs:
         run: pnpm build
       - name: Run rate-limit E2E
         working-directory: frontend
-        run: pnpm exec playwright test --project=ratelimit
+        env:
+          PW_LIMIT_SECONDS: "180"
+        run: scripts/ci-playwright.sh --project=ratelimit
 
       - if: always()
         run: supabase stop || true

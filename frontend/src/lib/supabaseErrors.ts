@@ -74,6 +74,37 @@ export function describeSupabaseError(err: AnyError): string {
     return message;
   }
 
+  // The OTHER codes our own SECURITY DEFINER functions raise with a
+  // message written for the user. Same argument as the 42501 branch
+  // above, and the same shape — but these were missing, and everything
+  // raised with them was being flattened into "Something went wrong."
+  //
+  // Found while wiring the connections actions: that feature's entire
+  // vocabulary is 22023 ("That request is no longer pending.", "You've
+  // reached your daily limit…", the byte-identical generic refusal), and
+  // none of it was reaching anybody. It is not a new problem —
+  // create_post, submit_intake, the showcase picker and the committee
+  // RPCs all raise 22023 with sentences nobody has ever seen.
+  //
+  // The risk this guards is the same one the 42501 branch guards: these
+  // codes are also raised by POSTGRES ITSELF, whose wording carries
+  // internals. Postgres's own 22023/22001 messages are recognisable —
+  // they are lowercase technical fragments ("invalid regular
+  // expression: …", "value too long for type character varying(50)") —
+  // and every message this codebase raises is a capitalised sentence
+  // written for a member. So: passthrough for a sentence, generic for
+  // anything that looks like the engine talking.
+  //
+  //   22023 invalid_parameter_value      — the house's "you did something
+  //                                        that isn't allowed" code
+  //   22001 string_data_right_truncation — over-length input
+  //   P0002 no_data_found                — "Profile not found"
+  if (code === "22023" || code === "22001" || code === "P0002") {
+    if (message && !/^[a-z]/.test(message.trim())) return message;
+    console.error("Unmapped database error surfaced to a user:", { code, message });
+    return "Something went wrong. Please try again.";
+  }
+
   // Unique constraint violations — show a humanised version when we can
   // identify the column.
   if (code === "23505") {

@@ -853,3 +853,295 @@ export async function sendListingEditDecisionEmail(opts: {
   const { subject, text, html } = renderListingEditDecisionEmail(opts);
   await enqueueEmail({ to: opts.to, subject, text, html, replyTo: appealsInbox() });
 }
+
+// ─── Connections ────────────────────────────────────────────────────
+// Two messages, and deliberately only two.
+//
+// The accept notice goes to the REQUESTER only. The accepter just
+// pressed the button; mailing them about their own action is how people
+// learn to filter Foundry mail, and the deliverability of that domain is
+// shared with sign-in codes.
+//
+// A decline sends nothing at all, ever. That is a product decision, not
+// an oversight: a silent decline is what lets someone say no without a
+// social cost, and it is the reason the decline rate is not a throttle
+// signal either.
+//
+// NEITHER MESSAGE CARRIES THE NOTE. The note is member-written text and
+// these templates build HTML; the digest in particular would deliver an
+// abusive note into the inbox of someone who had not chosen to open the
+// app. Names and counts only — the note is read in Foundry, where it can
+// be reported.
+
+/**
+ * Sent to the requester when their request is accepted. This is the one
+ * message in the whole feature that carries an email address, and it
+ * carries it because the address IS the payoff — a notification that
+ * says "you're connected" and makes you go and look is a worse version
+ * of the same disclosure.
+ */
+export function renderConnectionAcceptedEmail(opts: {
+  firstName: string | null;
+  accepterName: string;
+  accepterEmail: string;
+  appUrl: string;
+}): { subject: string; text: string; html: string } {
+  const greeting = opts.firstName ? `Hi ${escapeName(opts.firstName)},` : "Hi,";
+  const who = escapeName(opts.accepterName);
+  const connections = `${opts.appUrl.replace(/\/$/, "")}/connections`;
+  const subject = `${who} accepted your connection request`;
+
+  const text = [
+    greeting,
+    "",
+    `${who} accepted your connection request on Foundry. You can now see each other's email address:`,
+    "",
+    opts.accepterEmail,
+    "",
+    `They can see yours too — that exchange is what accepting a request does.`,
+    "",
+    "Your connections:",
+    connections,
+    "",
+    "— The Foundry team",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; line-height: 1.6;">
+      <p>${escapeHtml(greeting)}</p>
+      <p><strong>${escapeHtml(who)}</strong> accepted your connection request on Foundry. You can now see each other&rsquo;s email address:</p>
+      <p style="margin: 16px 0; padding: 12px 16px; background: #f6f5f1; border-left: 3px solid #c9a84c;"><a href="mailto:${escapeHtml(opts.accepterEmail)}" style="color: #1a1a1a;">${escapeHtml(opts.accepterEmail)}</a></p>
+      <p>They can see yours too &mdash; that exchange is what accepting a request does.</p>
+      <p><a href="${escapeHtml(connections)}" style="color: #1a1a1a;">See all your connections</a></p>
+      <p style="color: #5a5855; margin-top: 32px;">&mdash; The Foundry team</p>
+    </div>`;
+
+  return { subject, text, html };
+}
+
+export async function sendConnectionAcceptedEmail(opts: {
+  to: string;
+  firstName: string | null;
+  accepterName: string;
+  accepterEmail: string;
+  appUrl: string;
+}): Promise<void> {
+  const { subject, text, html } = renderConnectionAcceptedEmail(opts);
+  await enqueueEmail({ to: opts.to, subject, text, html });
+}
+
+/**
+ * One daily digest per recipient, however many requests are waiting.
+ *
+ * Mailed exactly once: claim_connection_digests() leases the recipient,
+ * and complete_connection_digests() stamps digested_at and queues the mail
+ * in one transaction (20260917000016) — so a request ignored last week
+ * never nags again, and a crash or cron misfire neither loses nor doubles
+ * a digest. Rendered separately from sending so the cron route builds a
+ * batch and hands it to the complete RPC in one round trip.
+ *
+ * The link is tab-addressed on purpose. Dropping someone on the default
+ * view when the mail was about their pending requests is the lesson the
+ * listing pages already learned with their deep links.
+ */
+export function renderConnectionDigestEmail(opts: {
+  firstName: string | null;
+  senderNames: string[];
+  pendingCount: number;
+  appUrl: string;
+}): { subject: string; text: string; html: string } {
+  const greeting = opts.firstName ? `Hi ${escapeName(opts.firstName)},` : "Hi,";
+  const pending = `${opts.appUrl.replace(/\/$/, "")}/connections?tab=pending`;
+  const n = opts.pendingCount;
+
+  // Named, not counted, for the same reason the showcase nudge names
+  // repos: "you have 3 requests" is a notification, "Priya, Tom and one
+  // other want to connect" is a reason to open it. Capped at three so a
+  // popular member's subject line stays a sentence.
+  const names = opts.senderNames.slice(0, 3).map(escapeName);
+  const extra = opts.senderNames.length - names.length;
+  const who =
+    names.length === 0
+      ? `${n} ${n === 1 ? "member" : "members"}`
+      : extra > 0
+        ? `${names.join(", ")} and ${extra} ${extra === 1 ? "other" : "others"}`
+        : names.length === 1
+          ? names[0]!
+          : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]!}`;
+
+  const subject =
+    n === 1 ? `${who} wants to connect on Foundry` : `${n} connection requests on Foundry`;
+
+  const text = [
+    greeting,
+    "",
+    n === 1
+      ? `${who} sent you a connection request on Foundry.`
+      : `${who} sent you connection requests on Foundry.`,
+    "",
+    "Accepting means you each see the other's email address. Declining tells them nothing at all.",
+    "",
+    "Review them here:",
+    pending,
+    "",
+    "You can turn these emails off in your settings.",
+    "",
+    "— The Foundry team",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; line-height: 1.6;">
+      <p>${escapeHtml(greeting)}</p>
+      <p><strong>${escapeHtml(who)}</strong> sent you ${n === 1 ? "a connection request" : "connection requests"} on Foundry.</p>
+      <p>Accepting means you each see the other&rsquo;s email address. Declining tells them nothing at all.</p>
+      <p><a href="${escapeHtml(pending)}" style="color: #1a1a1a;">Review your requests</a></p>
+      <p style="color: #5a5855; margin-top: 32px;">You can turn these emails off in your settings.<br />&mdash; The Foundry team</p>
+    </div>`;
+
+  return { subject, text, html };
+}
+
+// ─── Connection reports ─────────────────────────────────────────────
+// The two halves of a complaints process, and neither is optional.
+//
+// A connection carries an optional 300-character note, which makes this
+// user-to-user content and brings the Online Safety Act's illegal-content
+// duties with it — the same duties already flagged for community posts.
+// A service has to act once it KNOWS, and knowing cannot depend on
+// somebody remembering to open an admin page. That is the first mail.
+//
+// The second is telling the reporter what happened. A report route that
+// never reports back trains members to stop using it, and leaves us
+// holding a documented notification with no evidence we acted on it.
+// "We looked and took no action" is a result. Silence is not.
+
+/**
+ * To the moderation inbox, on a genuinely new report only.
+ *
+ * Carries NO note text and no reason quoting beyond what the reporter
+ * typed about it. The note is private member-to-member content read
+ * through the audited `admin_reveal_connection_note`, behind an admin
+ * session — putting it in an inbox would spread it further than the
+ * report asked us to and would bypass the audit row entirely.
+ */
+export function renderConnectionReportEmail(opts: {
+  category: string;
+  reason: string;
+  reportedName: string;
+  reportedAt: Date;
+  siteUrl: string;
+}): { subject: string; text: string; html: string } {
+  const when = opts.reportedAt.toLocaleString("en-GB", {
+    day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+  const queue = `${opts.siteUrl.replace(/\/$/, "")}/admin/connections`;
+  // Category first, so severity is legible in a notification list without
+  // opening anything.
+  const subject = `[Foundry] Connection reported — ${opts.category}`;
+
+  const text = [
+    `A member reported a connection on ${when}.`,
+    "",
+    `Category: ${opts.category}`,
+    `About:    ${opts.reportedName || "(member no longer on the platform)"}`,
+    "",
+    "What they said:",
+    opts.reason,
+    "",
+    `Review it: ${queue}`,
+    "",
+    "The reporter is identified in the admin queue, not here. Any note sent with",
+    "the request is read there too, and reading it is logged.",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; line-height: 1.6;">
+      <p>A member reported a connection on ${escapeHtml(when)}.</p>
+      <table style="border-collapse: collapse; margin: 16px 0;">
+        <tr><td style="padding: 2px 12px 2px 0; color: #5a5855;">Category</td><td style="padding: 2px 0;"><strong>${escapeHtml(opts.category)}</strong></td></tr>
+        <tr><td style="padding: 2px 12px 2px 0; color: #5a5855;">About</td><td style="padding: 2px 0;">${escapeHtml(opts.reportedName || "(member no longer on the platform)")}</td></tr>
+      </table>
+      <p style="margin-bottom: 4px;">What they said:</p>
+      <blockquote style="margin: 0 0 16px; padding: 12px 16px; background: #f6f5f1; border-left: 3px solid #c9a84c; white-space: pre-wrap;">${escapeHtml(opts.reason)}</blockquote>
+      <p><a href="${escapeHtml(queue)}" style="color: #1a1a1a;">Review it in the admin queue</a></p>
+      <p style="color: #5a5855; font-size: 13px; margin-top: 24px;">The reporter is identified in the admin queue, not here. Any note sent with the request is read there too, and reading it is logged.</p>
+    </div>`;
+
+  return { subject, text, html };
+}
+
+export async function sendConnectionReportEmail(opts: {
+  category: string;
+  reason: string;
+  reportedName: string;
+  reportedAt: Date;
+  siteUrl: string;
+}): Promise<void> {
+  const { subject, text, html } = renderConnectionReportEmail(opts);
+  await enqueueEmail({ to: moderationInbox(), subject, text, html });
+}
+
+/**
+ * To the reporter, on both outcomes.
+ *
+ * Names the member the report was about, because a member who reported
+ * one person out of several needs to know which one this is closing —
+ * and unlike a post title, the reporter already knows this name; it is
+ * not a disclosure.
+ */
+export function renderConnectionReportOutcomeEmail(opts: {
+  firstName: string | null;
+  reportedName: string;
+  outcome: "actioned" | "dismissed";
+  note: string | null;
+}): { subject: string; text: string; html: string } {
+  const greeting = opts.firstName ? `Hi ${escapeName(opts.firstName)},` : "Hi,";
+  const subject = "We've reviewed your Foundry report";
+  const about = opts.reportedName || "another member";
+
+  const verdict =
+    opts.outcome === "actioned"
+      ? "We agreed, and we've acted on it."
+      : "We reviewed it and decided it doesn't breach our guidelines, so no action was taken.";
+
+  const text = [
+    greeting,
+    "",
+    `Thanks for reporting your connection with ${about}. An admin has now reviewed it.`,
+    "",
+    verdict,
+    ...(opts.note ? ["", "They added:", "", opts.note] : []),
+    "",
+    "You can block a member at any time from their profile. Blocking is silent — they are never told.",
+    "",
+    "If you disagree with this outcome, reply to this email and we'll take another look.",
+    "",
+    "— The Foundry team",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; line-height: 1.6;">
+      <p>${escapeHtml(greeting)}</p>
+      <p>Thanks for reporting your connection with ${escapeHtml(about)}. An admin has now reviewed it.</p>
+      <p>${escapeHtml(verdict)}</p>
+      ${opts.note
+        ? `<p>They added:</p><blockquote style="margin: 16px 0; padding: 12px 16px; background: #f6f5f1; border-left: 3px solid #c9a84c; white-space: pre-wrap;">${escapeHtml(opts.note)}</blockquote>`
+        : ""}
+      <p>You can block a member at any time from their profile. Blocking is silent &mdash; they are never told.</p>
+      <p>If you disagree with this outcome, reply to this email and we&rsquo;ll take another look.</p>
+      <p style="color: #5a5855; margin-top: 32px;">&mdash; The Foundry team</p>
+    </div>`;
+
+  return { subject, text, html };
+}
+
+export async function sendConnectionReportOutcomeEmail(opts: {
+  to: string;
+  firstName: string | null;
+  reportedName: string;
+  outcome: "actioned" | "dismissed";
+  note: string | null;
+}): Promise<void> {
+  const { subject, text, html } = renderConnectionReportOutcomeEmail(opts);
+  await enqueueEmail({ to: opts.to, subject, text, html, replyTo: appealsInbox() });
+}

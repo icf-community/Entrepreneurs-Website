@@ -3,7 +3,9 @@
 **System:** Imperial Entrepreneurs ("Foundry") platform — a members-only founder
 community for Imperial College London students and alumni.
 **Public URL:** https://imperialentrepreneurs.com
-**Status:** DRAFT for Imperial DPO review · authored from the live codebase.
+**Status:** DRAFT for the controller's review · authored from the live codebase.
+**Controller:** IC Founders Ltd (Companies House 17171277) — see `02-ropa.md` §1. Imperial
+College London is not the controller or a joint controller of this service.
 
 ---
 

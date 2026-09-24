@@ -212,7 +212,13 @@ async function seedUser(admin: SupabaseClient, user: SeedUser): Promise<string> 
       status: "approved",
       course: "MEng Computing",
       grad_year: 2027,
-      intake_deferred_at: new Date().toISOString(),
+      // profile_version 2 is "intake complete", which send_connection_request
+      // requires. Version 1 + intake_deferred_at is the default here because
+      // that is what the rest of the suite asserts against; only the
+      // connections pair opts in.
+      ...(user.intakeComplete
+        ? { profile_version: 2, intake_deferred_at: null }
+        : { intake_deferred_at: new Date().toISOString() }),
     })
     .eq("id", userId);
   if (pErr) throw new Error(`approve profile ${user.email}: ${pErr.message}`);

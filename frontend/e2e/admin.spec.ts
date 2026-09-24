@@ -121,10 +121,16 @@ test.describe("admin profile lists are paged", () => {
 
     await page.getByRole("button", { name: "Awaiting review", exact: true }).click();
 
-    // The count is of every match, so it must exceed one page — proof it
-    // came from the database rather than from counting the rows on screen.
+    // The count is of every match in the database, not the rows on screen:
+    // at least the 30 seeded here, and fewer than the unfiltered total —
+    // proof the filter reached the query. Compared numerically rather than
+    // as "a two-digit number", which only held on a near-empty database.
     await expect(page).toHaveURL(/[?&]status=pending_review/);
-    await expect(page.getByRole("status").first()).toContainText(/\b(3\d|[4-9]\d)\b of \b\d+/);
+    const status = page.getByRole("status").first();
+    await expect(status).toContainText(/\d+ of \d+/);
+    const [, matched, total] = (await status.innerText()).replace(/,/g, "").match(/(\d+) of (\d+)/)!;
+    expect(Number(matched)).toBeGreaterThanOrEqual(30);
+    expect(Number(matched)).toBeLessThan(Number(total));
 
     // Filtering while on page 2 of the old result set would otherwise
     // leave the admin looking at an offset that no longer exists.

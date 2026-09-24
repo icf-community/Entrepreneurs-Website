@@ -50,7 +50,7 @@ route that's still dynamically nonce-rendered.
 
 Everything in `next.config.ts`'s `AUTHENTICATED_SEGMENTS` (`home`, `profile`, `settings`, `admin`,
 `calendar`, `community`, `intake`, `onboarding`, `members`, `opportunities`, `events`, `vcs`,
-`messaging`, `my-activity`, `my-bookmarks`, `my-submissions`, `pending`, `rejected`), plus:
+`messaging`, `my-activity`, `my-bookmarks`, `my-submissions`, `pending`, `rejected`, `connections`), plus:
 
 - `/api/*` — every route here either mutates state, serves the CV/GitHub image redirect (which itself
   must never be cached — see B3.4: each hit needs a fresh SAS), or is a cron endpoint.

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import SignOutButton from "@/app/admin/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
+import { PendingBadge } from "@/components/connections/PendingBadge";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · App sidebar
@@ -249,6 +250,11 @@ export default function Sidebar({
         >
           {it.icon}
           {!collapsed && <span className="truncate">{it.label}</span>}
+          {/* Only the Connections row carries a count, and only when
+              there is one. It fails to nothing — see PendingBadge. The
+              collapsed rail drops it: a bare number beside an unlabelled
+              icon says nothing, and the row is 4.5rem wide. */}
+          {it.key === "connections" && !collapsed && full && <PendingBadge />}
         </Link>
       </li>
     );

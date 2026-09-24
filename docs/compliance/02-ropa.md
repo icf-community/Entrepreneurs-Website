@@ -1,21 +1,29 @@
 # 02 · Record of Processing Activities (ROPA)
 
-Prepared under **Article 30, UK GDPR**. DRAFT for Imperial DPO review.
+Prepared under **Article 30, UK GDPR**. DRAFT for the controller's review.
 
-- **Data Controller:** ⚠ CONFIRM — Imperial College London (via the Imperial Entrepreneurs
-  society) *or* the society as controller under Imperial oversight. The DPO must determine the
-  controller/processor relationship.
-- **Information Asset Owner (IAO):** ⚠ CONFIRM — [staff sponsor / Union officer]
+- **Data Controller:** IC Founders Ltd (Companies House 17171277), registered office
+  71–75 Shelton Street, London WC2H 9JQ. The company operates Foundry
+  (imperialentrepreneurs.com) and determines the purposes and means of the processing
+  recorded here. Imperial College London is not the controller for this service; the
+  society's association with the College does not make the College a joint controller of
+  data the company collects through this platform.
+- **Information Asset Owner (IAO):** ⚠ CONFIRM — [director or officer of IC Founders Ltd]
 - **Information Asset Administrator (IAA):** ⚠ CONFIRM — [project owner running operations]
 - **Categories of data subject:** Imperial students and verified Imperial alumni who register;
   individuals who contact the platform via the contact/appeals forms.
 - **Special-category data:** None collected by design (Art. 9 not engaged).
-- **Automated decision-making / profiling (Art. 22):** None.
+- **Automated decision-making / profiling (Art. 22):** No decision producing legal or similarly
+  significant effects. One automated measure exists and is disclosed rather than omitted: the
+  connections sending throttle in item R, which reduces one rate limit for 30 days after five
+  distinct members have blocked or successfully reported the sender. It is temporary, decays
+  automatically, affects no account status or access, and is admin-reversible. Reasoned through
+  against Art. 22 in item R and in `07-dpia-screening.md`.
 
 > **Lawful basis** below is a *suggested* mapping for the DPO to confirm. For a voluntary
 > membership community the realistic candidates are **performance of a contract / service**
 > (Art. 6(1)(b)) for account and core features, and **legitimate interests** (Art. 6(1)(f))
-> for security and cookieless analytics. Imperial's DPO decides the final basis.
+> for security and cookieless analytics. The controller's data protection contact decides the final basis.
 
 ---
 
@@ -54,11 +62,11 @@ Prepared under **Article 30, UK GDPR**. DRAFT for Imperial DPO review.
 ### D. Transactional email
 | Field | Detail |
 |-------|--------|
-| **Data** | Recipient email address + message body (acceptance, rejection, contact reply, account-removal) |
+| **Data** | Recipient email address + message body (acceptance, rejection, contact reply, account-removal, connection accept, connection digest). One body carries a *third party's* address: the connection-accept mail names the address the requester has just been given |
 | **Purpose** | Operational communication tied to membership and submissions |
 | **Suggested basis** | Contract / legitimate interests |
 | **Recipients** | Resend (send); recipient names are HTML-escaped, never in headers |
-| **Retention** | Queued rows in `outbound_email` are transient (drained every 5 min then marked sent); delivery logs per Resend's retention |
+| **Retention** | Queued rows in `outbound_email` are drained every 5 minutes, and the sent row is then deleted after **7 days** by `purge_sent_outbound_email()` (daily, 02:50) — long enough to answer "did that mail go?", short enough that the queue is not an archive of message bodies. A row that exhausted its retries is kept 30 days as the delivery-failure diagnostic, then deleted. Delivery logs per Resend's retention |
 | **Location** | Supabase (queue) → Resend (EU, ⚠ confirm) |
 
 ### E. Contact & appeals inbox
@@ -200,6 +208,73 @@ against a controlled vocabulary, and every suggestion requires the member's own 
 part of their profile. This is a materially weaker processing claim than an LLM-based version would
 be — see `07-dpia-screening.md` for the corresponding re-screen.
 
+### P. Connections — the mutual connection graph
+| Field | Detail |
+|-------|--------|
+| **Data** | One row per *pair* of members for the life of the relationship: the two member ids, the current status, who sent, who decided, when, and (on an accepted row) the version of the consent wording both parties saw |
+| **Purpose** | Letting two members who each agreed to it exchange their email addresses, and remembering that they agreed |
+| **Suggested basis** | **Consent** (Art. 6(1)(a)) — sending is the requester's consent and accepting is the addressee's, and either can be withdrawn by removing the connection. Not contract: nothing about membership requires anyone to connect with anyone |
+| **Recipients** | Supabase only. The table is deny-all RLS with **no policies at all**; every read goes through a `SECURITY DEFINER` RPC that scopes to the caller's own edges |
+| **Retention** | For the life of the relationship. A removed row is hard-deleted on the next nightly purge (`purge_removed_connections()`), because removal holds nobody back (20260917000017). A declined or withdrawn row is hard-deleted once its 21-day cooldown lapses; that cooldown holds only the member who sent the request, and it is enforced by reading the row, so the row cannot be deleted sooner. A pending request expires at 6 months and the expired row is deleted on sight, since expiry carries no cooldown. A blocked row is never purged: the block is the row, and it lasts until the blocker lifts it. Account deletion cascades every row on both FK columns |
+| **Location** | Supabase (EU/London) |
+
+**The email address is never stored here.** It is joined live from `auth.users` at read time, and
+only for a pair where both sides are still `approved`. A member who changes their login address
+does not leave a stale copy in anybody else's connection list. The one qualification, because it
+would otherwise be an overclaim: the accept notification names the address in its body, so a copy
+exists in the `outbound_email` row for as long as that row does — 7 days after sending, per item D.
+Nothing in this table holds one.
+
+**Who-knows-who is a new data category for this platform, and it is never published.** No RPC
+returns an edge the caller is not a party to. The graph view renders the caller's own connections
+only — an edge between two of your connections exists in the table and is deliberately not drawn,
+because those two consented to share an address with *you*, not to have their own relationships
+shown to you. "N mutual connections" counts are excluded from v1 for the same reason: at this
+community's size a count of 1 is an identification.
+
+### Q. Connection request notes
+| Field | Detail |
+|-------|--------|
+| **Data** | An optional free-text note of up to 300 characters, written by the requester and addressed to one other member |
+| **Purpose** | Letting a requester say why they want to connect, so the recipient has something to decide on |
+| **Suggested basis** | Consent — the note is optional, and is written knowing the recipient will read it |
+| **Recipients** | The recipient only. Admins can read one **only** on a report, and each read writes an `admin_actions` row *before* the text is returned |
+| **Retention** | The note has no separate clock: it is deleted with the row that carries it, per item P — three weeks after the request is declined or withdrawn, on the next nightly purge after a connection is removed, or on sight once it expires. A note snapshotted into a report follows item R's 12 months |
+| **Location** | Supabase |
+
+**The note never appears in an email.** The daily digest carries names and counts only. That
+removes the HTML-injection surface entirely rather than relying on an escape staying correct, and
+it stops an abusive note reaching the inbox of somebody who would never have opened the app — in
+Foundry that note sits next to a Block control and a Report control; in an inbox it sits next to
+nothing.
+
+### R. Connection reports and the connection event log
+| Field | Detail |
+|-------|--------|
+| **Data** | *Reports:* reporter identity, the member reported, category, free-text reason, the note text snapshotted at report time, outcome and any note. *Events:* an append-only row per state change — requested, accepted, declined, withdrawn, blocked, unblocked, removed, expired, reported, report upheld — with actor, subject and timestamp |
+| **Purpose** | Operating a complaints route for member-to-member contact; and computing the automatic sending throttle, which is derived from the event log rather than stored |
+| **Suggested basis** | Legitimate interests (member safety, platform integrity); compliance with a legal obligation where a report concerns illegal content |
+| **Recipients** | Supabase only (admin-readable via RPC; both tables are deny-all) |
+| **Retention** | **12 months**, via `purge_connection_records()` daily — with one exemption: a report still `open` at 12 months is kept until a human closes it. A complaint nobody adjudicated in a year is a process failure, and deleting it on schedule would hide the failure instead of fixing it |
+| **Location** | Supabase |
+
+The note is snapshotted into the report because removing a connection hard-deletes the row — a
+report pointing at a deleted connection would otherwise be unadjudicable.
+
+⚠ **`connection_events` deliberately survives account deletion**, exactly as the post moderation
+log does and for the same reason: `connection_id` and the actor/subject ids carry no foreign key,
+so a member cannot erase the record of their own conduct by closing their account. Art. 17(3)(e),
+bounded to 12 months. **Confirm with the DPO alongside item L.**
+
+**On Art. 22.** The automatic throttle drops a member's daily request cap from 10 to 3 for 30 days once five
+*distinct* other members have blocked them or had a report upheld against them. It is reasoned
+through rather than waved past: it is triggered only by other members' explicit acts, never by
+inference or by a decline rate; it restricts one rate limit and nothing else — no account status,
+no visibility, no access to any part of the service; it is temporary and decays on its own, with
+no stored flag to go stale; and an admin can lift it, which is the human intervention Art. 22(3)
+asks for. It is a rate limit with a trigger, not a decision about a person, and the header of
+`admin_list_flagged_senders` records why decline rate is excluded from it.
+
 ---
 
 ## Retention summary (as actually implemented in code)
@@ -208,7 +283,8 @@ be — see `07-dpia-screening.md` for the corresponding re-screen.
 |------|-----------|-----------|
 | Rejected listings | 2 days after review | `purge_rejected_listings()` daily cron (02:30) |
 | Expired opportunities / events / VC-grants | Removed once expired | Three daily expire crons (02:00 / 02:05 / 02:10) |
-| Outbound email queue | Transient | Drained every 5 min |
+| Outbound email queue (sent) | 7 days after sending | `purge_sent_outbound_email()` daily (02:50); drained every 5 min |
+| Outbound email queue (retries exhausted) | 30 days | `purge_sent_outbound_email()` daily (02:50) |
 | Community posts + attached images | 7 days after publication | `purge_expired_posts()` hourly (:15) |
 | Post likes | Cascade-deletes with the post; no independent retention | `on delete cascade` from `posts` |
 | Abandoned image uploads | 24 hours | `purge_stale_upload_tickets()` hourly (:25) |
@@ -218,6 +294,14 @@ be — see `07-dpia-screening.md` for the corresponding re-screen.
 | CV extracted text (skill suggestion) | Not retained — discarded within the same request | Held in memory only, never written to a table or a log |
 | Post reports | 12 months | `purge_moderation_records()` daily (02:35) |
 | Post moderation log (takedowns) | 12 months, unless `legal_hold` | `purge_moderation_records()` daily (02:35) |
+| Connections (accepted) | For the life of the relationship | Removed on either party's action, or on account deletion (FK cascade) |
+| Connections (removed) | Next nightly run — a removal holds nobody back, so the row has nothing to enforce | `purge_removed_connections()` daily (02:45) |
+| Connections (declined, withdrawn) | 21 days after the row settled — the sender's cooldown it is holding — then hard-deleted | `purge_removed_connections()` daily (02:45) |
+| Connections (blocked) | Until the blocker lifts it; never purged, because the row *is* the block | `unblock_member()` (member-initiated) |
+| Connection requests (pending) | 6 months, then `expired` | `expire_connection_requests()` daily (02:40) |
+| Connections (expired) | Deleted on sight — expiry carries no cooldown, so the row has nothing left to enforce | `purge_removed_connections()` daily (02:45) |
+| Connection request notes | No separate clock; deleted with the row that carries it | `purge_removed_connections()` daily (02:45) |
+| Connection reports + event log | 12 months; a report still `open` is kept until a human closes it | `purge_connection_records()` daily (02:45) |
 | Account & all user-owned data | Immediate on request | `delete_my_account()` (user-initiated) |
 | Contact/appeals messages | ⚠ Policy to be set (proposed: end of following academic year) | Manual / not yet automated |
 | Inactive accounts | ⚠ **Proposed, not implemented** (DART draft's "24 months" is aspirational) | Would require a new cron |

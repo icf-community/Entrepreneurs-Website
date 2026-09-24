@@ -1,0 +1,8 @@
+# Keep graph refreshes out of configuration and local credential artifacts,
+# including templates that graphify otherwise treats as safe exceptions.
+.env*
+**/.env*
+*.env
+**/*.env
+envs.txt
+**/envs.txt

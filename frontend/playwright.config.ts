@@ -61,6 +61,14 @@ export default defineConfig({
       testMatch: /pipelines\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    // Connections. No storageState: the round trip needs BOTH ends of a
+    // handshake at once, so the spec opens each side's context explicitly
+    // from the seeded connector/connectee states.
+    {
+      name: "connections",
+      testMatch: /connections\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
     // Live rate-limit enforcement. Deliberately NOT run by the main e2e job
     // (which scopes to public/member/admin) — it only runs in the isolated
     // `e2e-ratelimit` CI job that wires Upstash via an SRH sidecar, so the
@@ -76,7 +84,7 @@ export default defineConfig({
     // Playwright polled, while `next start` kept binding 3000 — so the one
     // documented escape hatch for "a dev server already holds 3000" failed
     // with EADDRINUSE and looked like the escape hatch not existing.
-    // `pnpm exec next start`, not `pnpm start`: pnpm swallows `-p` as its own
+    // The binary directly, not `pnpm start`: pnpm swallows `-p` as its own
     // flag and `--` reaches next as a positional argument it reads as a
     // project directory. Either way the port never arrives.
     //
@@ -87,7 +95,15 @@ export default defineConfig({
     // PRODUCTION Upstash credentials and read and wrote the live cache; the
     // Supabase half was safe only because CI and the local runner both export
     // NEXT_PUBLIC_SUPABASE_URL into the process env, which outranks every file.
-    command: `node scripts/assert-local-env.mjs --mode production && pnpm exec next start -p ${PORT}`,
+    //
+    // NOT through pnpm. From pnpm 11.27.1, `pnpm exec` starts the command in
+    // its own process group; Playwright stops the web server by killing the
+    // group of the shell it spawned, so next-server survived, kept the
+    // stdout pipe open, and every CI run passed its tests then hung until
+    // GitHub's 6-hour cancel (the last green run used 11.27.0). `exec` the
+    // package's own binary so the server IS the process Playwright started
+    // and nothing sits in between to change how it is launched.
+    command: `node scripts/assert-local-env.mjs --mode production && exec ./node_modules/.bin/next start -p ${PORT}`,
     url: BASE_URL,
     // Never reuse. `reuseExistingServer: !CI` looks like a local convenience
     // and is a trap: a server already on this port was built against whatever

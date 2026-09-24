@@ -1,13 +1,16 @@
 # 03 · Third-Party Processor & DPA Register
 
-DRAFT for Imperial DPO review. Lists every external service that processes (or could
+DRAFT for the controller's review. Lists every external service that processes (or could
 incidentally process) personal data on behalf of the platform, the data it handles, and the
 status of a Data Processing Agreement (DPA) / international transfer safeguard.
+**Controller:** IC Founders Ltd (Companies House 17171277) — see `02-ropa.md` §1.
 
 > **Action for the owner:** for each row, locate the vendor's standard DPA (links below are the
 > typical locations as of early 2026 — **verify the current URL**), accept/sign it where required,
-> and retain a copy for the Imperial governance file. Most of these vendors expose a self-serve
-> DPA that is accepted on account creation or available on their legal/trust page.
+> and retain a copy in the controller's own file (a copy can be shared with Imperial for its
+> DART 2.0 record, but this register is not Imperial's to hold or approve). Most of these
+> vendors expose a self-serve DPA that is accepted on account creation or available on their
+> legal/trust page.
 
 | Processor | Role | Personal data it handles | Region | DPA location (verify) | Transfer safeguard |
 |-----------|------|--------------------------|--------|----------------------|--------------------|
@@ -20,7 +23,7 @@ status of a Data Processing Agreement (DPA) / international transfer safeguard.
 | **Sentry** | Processor — error monitoring | Error traces (may incidentally include user-id) | EU via DSN (⚠ confirm org) | `sentry.io/legal/dpa` | EU region org |
 | **Inbox/email provider** (Gmail forward target for contact@ / appeals@) | Recipient of forwarded mail | Inbound contact/appeals messages | Global (Google) | Google DPA / Workspace terms | SCCs |
 
-## Notes for the DPO
+## Notes for the controller's data protection contact
 
 - **No data is sold or shared for marketing.** Every external recipient above is a service
   provider acting on instructions for hosting, delivery, security or diagnostics.

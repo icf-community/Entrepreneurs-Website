@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { getActionAuth } from "@/lib/auth/actionAuth";
+import { UNREACHABLE_MESSAGE } from "@/lib/supabase/unavailable";
 import { check } from "@/lib/ratelimit";
 import { ok, err, type Result } from "@/lib/result";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
@@ -44,7 +45,8 @@ import * as Sentry from "@sentry/nextjs";
 // ════════════════════════════════════════════════════════════════════
 
 async function guardApprovedMember(noun: string) {
-  const { user, isAdmin, status, supabase } = await getActionAuth();
+  const { user, isAdmin, status, supabase, unreachable } = await getActionAuth();
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
   if (!user) return err(`You must be signed in to ${noun}.`);
   if (!isAdmin && status !== "approved") {
     return err("Your membership must be approved before you can do that.");
@@ -494,7 +496,8 @@ export async function setGithubNudges(enabled: boolean): Promise<Result> {
  * (abuse handling, DSARs) but never silent.
  */
 export async function adminGetCvDownloadUrl(profileId: string): Promise<Result<string | null>> {
-  const { user, isAdmin, supabase } = await getActionAuth();
+  const { user, isAdmin, supabase, unreachable } = await getActionAuth();
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
   if (!user) return err("You must be signed in.");
   if (!isAdmin) return err("Admin access required.");
 

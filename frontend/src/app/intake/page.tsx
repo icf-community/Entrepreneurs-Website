@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { listSkillsDetailed, listSectors } from "@/lib/data/taxonomy";
 import { newestMembers } from "@/lib/data/directory";
 import { signedImageUrls, signedCvUrl } from "@/lib/storage/blobRead";
@@ -22,7 +23,9 @@ export default async function IntakePage() {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+  throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
   // cv_path and cv_original_filename are deliberately not in the profiles
@@ -48,6 +51,11 @@ export default async function IntakePage() {
     supabase.rpc("github_cv_ingestion_enabled"),
   ]);
 
+  throwIfUnreachable("profile", profileRes);
+  throwIfUnreachable("is_admin", isAdminRes);
+  throwIfUnreachable("get_my_cv_info", cvInfoRes);
+  throwIfUnreachable("get_my_github_status", githubRes);
+  throwIfUnreachable("github_cv_ingestion_enabled", ingestionEnabledRes);
   const profile = profileRes.data;
   if (!profile) redirect("/login");
   const isAdmin = !!isAdminRes.data;
