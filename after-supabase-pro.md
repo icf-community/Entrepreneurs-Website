@@ -102,8 +102,9 @@ Free is the real ceiling today. It has:
 Pro is $25 a month including $10 of compute credit.
 
 - [ ] **Upgrade the project to Pro** (needs the society funding).
-- [ ] **Set compute to Small** (2 GB RAM, 90 direct connections, about $30 a
-      month total with the credit).
+- [ ] **Set compute to Medium** (the owner's choice for launch; 4 GB RAM,
+      120 direct connections; step down to Small if it's idle). Same 2
+      shared cores as Small; Medium buys RAM, not CPU (`scalability-audit.md` §3).
       Why this matters, measured locally on 2026-09-24 (C4, "Read load"):
       - A database the size of Free sustains about **50** members active at
         the same moment, and falls over at 100.
@@ -115,7 +116,7 @@ Pro is $25 a month including $10 of compute credit.
 
       Upgrading the plan does **not** necessarily upgrade compute; it can
       stay on Nano/Micro.
-      **Check:** Dashboard → Settings → Compute and Disk shows *Small*.
+      **Check:** Dashboard → Settings → Compute and Disk shows *Medium*.
       Changing compute restarts the database for a minute or two, so do it
       out of hours.
 - [ ] **Keep the spend cap ON** (it is by default). It turns surprise
