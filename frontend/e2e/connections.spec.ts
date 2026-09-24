@@ -195,7 +195,7 @@ test("the full round trip: request → pending → accept → both see an addres
 
   // ── Both sides now see the other's address ────────────────────────
   // B reaches it through the confirmation's own link, not a typed URL.
-  await pageB.getByRole("link", { name: "See your connections and their contact details" }).click();
+  await pageB.getByRole("link", { name: "View your network" }).click();
   await expect(pageB).toHaveURL(/\/connections$/);
   await expect(pageB.getByText(A.email)).toBeVisible();
 

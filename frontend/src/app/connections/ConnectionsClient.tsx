@@ -542,9 +542,8 @@ function PendingTab({
             href="/connections"
             className="text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
           >
-            See your connections and their contact details
+            View your network
           </Link>
-          .
         </p>
       )}
 
