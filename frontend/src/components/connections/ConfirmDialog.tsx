@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Dialog, closeDialog, dialogCloser } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
+import { settle } from "@/lib/settle";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One confirmation dialog, four uses
@@ -64,7 +65,7 @@ export function ConfirmDialog({
     const close = dialogCloser(e);
     setBusy(true);
     setError(null);
-    const res = await onConfirm();
+    const res = await settle(onConfirm());
     setBusy(false);
     if (!res.ok) {
       // The row is already stale — dropping it (onSuccess, same as a real

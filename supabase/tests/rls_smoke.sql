@@ -823,6 +823,9 @@ declare
     'my_connection_settings','set_connection_settings',
     -- 20260917000017: the caller's own usage against their own caps.
     'my_connection_quota',
+    -- 20260928000001: the four reads above in one call, for the Connect
+    -- control. Composes them, so it inherits their 42501 self-defence.
+    'connection_panel_state',
     -- 20260917000007. Scoped to rows the caller BLOCKED (blocked_by =
     -- caller), never rows where they were blocked — there is deliberately
     -- no counterpart RPC, because a member must not be able to learn they
@@ -3344,6 +3347,8 @@ begin
   then raise exception 'FAIL: connection_refusal_message executable by authenticated'; end if;
   if has_function_privilege('anon', 'public.send_connection_request(uuid,text,text)', 'execute')
   then raise exception 'FAIL: send_connection_request executable by anon'; end if;
+  if has_function_privilege('anon', 'public.connection_panel_state(uuid)', 'execute')
+    then raise exception 'FAIL: anon can read connection_panel_state'; end if;
   if not has_function_privilege('authenticated', 'public.send_connection_request(uuid,text,text)', 'execute')
   then raise exception 'FAIL: send_connection_request NOT executable by authenticated'; end if;
 end; $$;
@@ -3364,6 +3369,14 @@ begin
   if (select count(*) from public.list_my_pending_requests()) <> 0 then raise exception 'FAIL: sender sees own request as pending'; end if;
   if public.my_pending_connection_count() <> 0 then raise exception 'FAIL: sender badge non-zero'; end if;
   if (select state from public.connection_state_with(v_b)) <> 'pending_outgoing' then raise exception 'FAIL: wrong sender state'; end if;
+  -- B25: the one-call panel read agrees with the parts it composes.
+  select * into r from public.connection_panel_state(v_b);
+  if r.state <> 'pending_outgoing' or r.connection_id is distinct from v_id then
+    raise exception 'FAIL: connection_panel_state disagrees with connection_state_with';
+  end if;
+  if r.consent_version is distinct from v_v or r.outstanding <> 1 then
+    raise exception 'FAIL: connection_panel_state consent/quota wrong (%, %)', r.consent_version, r.outstanding;
+  end if;
 
   -- B sees it in Pending, with the note.
   perform _set_caller(v_b);

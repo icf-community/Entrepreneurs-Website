@@ -127,3 +127,24 @@ describe("infrastructure failures throw instead of degrading", () => {
     expect(await rows("q", async () => ({ data: [{ a: 1 }], error: null, status: 200 }))).toEqual([{ a: 1 }]);
   });
 });
+
+// B4: for surfaces where an empty list reads as "nothing to do" (admin
+// queues), a failed read must not render as an empty one.
+describe("rowsOrThrow", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("returns the rows on success", async () => {
+    const { rowsOrThrow } = await import("./query");
+    expect(await rowsOrThrow("q", async () => ({ data: [{ a: 1 }], error: null }))).toEqual([{ a: 1 }]);
+  });
+
+  it("throws on a 4xx instead of returning []", async () => {
+    const { rowsOrThrow } = await import("./query");
+    await expect(
+      rowsOrThrow("list_pending_events_admin", async () => ({ data: null, error: boom, status: 400 })),
+    ).rejects.toThrow(/list_pending_events_admin/);
+  });
+});

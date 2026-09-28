@@ -33,6 +33,7 @@ import type {
   RequestsPage,
   SentRequest,
 } from "@/lib/data/connections";
+import { settle } from "@/lib/settle";
 
 // d3-force is ~30 KB and is used by one optional view that is not the
 // default. Loaded on demand so it never enters the card-view bundle and
@@ -244,7 +245,7 @@ function ConnectionsTab({
     if (!cursor) return;
     setLoading(true);
     setLoadError(null);
-    const res = await loadMoreConnections(cursor, filters);
+    const res = await settle(loadMoreConnections(cursor, filters));
     setLoading(false);
     if (!res.ok) { setLoadError(res.error); return; }
     setItems((prev) => [...prev, ...res.data.connections]);

@@ -30,8 +30,14 @@ export default function SessionsSection() {
   const handleSignOutEverywhere = async () => {
     setError(null);
     setPending(true);
-    const { error: e } = await supabase.auth.signOut({ scope: "global" });
-    setPending(false);
+    let e: { message: string } | null;
+    try {
+      ({ error: e } = await supabase.auth.signOut({ scope: "global" }));
+    } catch {
+      e = { message: "Couldn't reach the server. Please try again." };
+    } finally {
+      setPending(false);
+    }
     if (e) { setError(e.message); return; }
     router.replace("/login");
     router.refresh();

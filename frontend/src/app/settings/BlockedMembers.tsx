@@ -32,38 +32,69 @@ type Blocked = {
 
 export default function BlockedMembers() {
   const [list, setList] = useState<Blocked[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const failed = (e: unknown) => {
+      if (cancelled) return;
+      // B4: this used to render nothing, which reads as "you haven't blocked
+      // anyone" and hides the only way to unblock. Say it failed instead.
+      console.error("Failed to load blocked members:", e);
+      setLoadFailed(true);
+    };
     browserClient()
       .rpc("list_my_blocked_members")
       .then(
         ({ data, error: e }) => {
+          if (e) return failed(e);
           if (cancelled) return;
-          // A read failure renders nothing rather than an error card. The
-          // section is empty for almost every member, so "nothing here"
-          // is both the honest fallback and the usual answer.
-          if (e) { console.error("Failed to load blocked members:", e); setList([]); return; }
+          setLoadFailed(false);
           setList((data ?? []) as Blocked[]);
         },
-        (e: unknown) => {
-          if (cancelled) return;
-          console.error("Failed to load blocked members:", e);
-          setList([]);
-        },
+        failed,
       );
     return () => { cancelled = true; };
-  }, []);
+  }, [attempt]);
 
   async function unblock(id: string) {
-    setBusy(id);
+    setBusy((prev) => new Set(prev).add(id));
     setError(null);
-    const res = await unblockMember({ memberId: id });
-    setBusy(null);
-    if (!res.ok) { setError(res.error); return; }
-    setList((prev) => (prev ?? []).filter((b) => b.member_id !== id));
+    try {
+      const res = await unblockMember({ memberId: id });
+      if (!res.ok) { setError(res.error); return; }
+      setList((prev) => (prev ?? []).filter((b) => b.member_id !== id));
+    } catch {
+      setError("Couldn't unblock right now. Please try again.");
+    } finally {
+      setBusy((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  if (loadFailed) {
+    return (
+      <section className="rounded-2xl border border-border bg-bg-card p-6">
+        <h2 className="text-[0.95rem] font-medium text-text-primary">Blocked members</h2>
+        <p role="alert" className="mt-1 text-[0.8rem] text-text-muted">
+          Couldn&apos;t load the people you&apos;ve blocked.
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-3"
+          onClick={() => { setLoadFailed(false); setAttempt((n) => n + 1); }}
+        >
+          Try again
+        </Button>
+      </section>
+    );
   }
 
   // Nothing at all while loading, and nothing when empty. A permanent
@@ -96,7 +127,7 @@ export default function BlockedMembers() {
             <Button
               variant="ghost"
               size="sm"
-              loading={busy === b.member_id}
+              loading={busy.has(b.member_id)}
               onClick={() => unblock(b.member_id)}
               className="shrink-0"
             >

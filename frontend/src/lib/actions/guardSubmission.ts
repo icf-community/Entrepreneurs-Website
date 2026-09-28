@@ -28,6 +28,11 @@ export async function guardSubmission(args: {
   noun: string;
   turnstileToken?: string;
 }): Promise<Result<{ supabase: SupabaseClient<Database>; user: User }>> {
+  // `mode` comes from the browser. Any value other than the two real modes
+  // used to fall through both branches below and skip Turnstile, the
+  // `submit` limit and the approval check.
+  if (args.mode !== "user" && args.mode !== "admin") return err("Invalid submission.");
+
   const { user, isAdmin, status, supabase, unreachable } = await getActionAuth();
 
   if (unreachable) return err(UNREACHABLE_MESSAGE);

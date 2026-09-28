@@ -28,6 +28,14 @@ export const runtime = "nodejs";
 
 const ALLOWED_PURPOSES: readonly BlobPurpose[] = ["profile_picture"];
 
+// The only key shape the upload pipeline generates for an image: uuid4 +
+// ".webp" (issue_upload_ticket; the gateway's is_valid_key enforces the
+// same). The key is the one input this unauthenticated route trusts, so
+// nothing else reaches the signer. No per-IP limit on purpose: GET traffic
+// is left to Cloudflare (see ratelimit.ts), and campus NAT would make an IP
+// bucket a whole-university bucket for /committee.
+const IMAGE_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ purpose: string; key: string }> },
@@ -36,6 +44,9 @@ export async function GET(
 
   if (!ALLOWED_PURPOSES.includes(purpose as BlobPurpose)) {
     return NextResponse.json({ error: "Unknown image purpose" }, { status: 404 });
+  }
+  if (!IMAGE_KEY.test(key)) {
+    return NextResponse.json({ error: "Image not found" }, { status: 404 });
   }
 
   const [url] = await signedImageUrls([key], purpose as BlobPurpose);

@@ -1,5 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/lib/supabase/service";
 
 // ════════════════════════════════════════════════════════════════════
@@ -12,7 +13,9 @@ import { createServiceClient } from "@/lib/supabase/service";
 // identical to "the site is up" from outside unless something on this
 // route actually touches the database. Unauthenticated by design: an
 // uptime monitor has no credentials, and this leaks nothing beyond
-// "the DB answered a trivial query".
+// "the DB answered a trivial query". The failure body is just
+// {ok:false}: DB error text can name tables or hosts, so the detail goes
+// to Sentry, never to an anonymous caller.
 // ════════════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
@@ -25,11 +28,16 @@ export async function GET() {
       .select("key")
       .limit(1);
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 503 });
+      Sentry.captureMessage("health check: database query failed", {
+        level: "error",
+        tags: { surface: "api-health" },
+        extra: { code: error.code },
+      });
+      return NextResponse.json({ ok: false }, { status: 503 });
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ ok: false, error: message }, { status: 503 });
+    Sentry.captureException(e, { tags: { surface: "api-health" } });
+    return NextResponse.json({ ok: false }, { status: 503 });
   }
 }

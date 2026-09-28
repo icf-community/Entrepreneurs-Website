@@ -80,3 +80,41 @@ describe("toAdminMember", () => {
     expect(toAdminMember(adminRow).email).toBe("grace@ic.ac.uk");
   });
 });
+
+// B4: the dashboard said "Queues clear" whenever a count query failed,
+// because a failed count read as 0.
+describe("pendingCounts", () => {
+  const okCount = { count: 2, error: null };
+  const failed = { count: null, error: { message: "permission denied", code: "42501" }, status: 403 };
+
+  function db(profiles: unknown, edits: { data: unknown; error: unknown }) {
+    const chain = (res: unknown) => {
+      const q: Record<string, unknown> = {};
+      q.select = () => q;
+      q.eq = () => Promise.resolve(res);
+      return q;
+    };
+    return {
+      from: (t: string) => chain(t === "profiles" ? profiles : okCount),
+      rpc: async () => edits,
+    } as never;
+  }
+
+  it("adds the queues up when every count loads", async () => {
+    const { pendingCounts } = await import("./admin");
+    const c = await pendingCounts(db(okCount, { data: [{}, {}], error: null }));
+    expect(c.total).toBe(10);
+  });
+
+  it("throws rather than reporting 0 when a count fails", async () => {
+    const { pendingCounts } = await import("./admin");
+    await expect(pendingCounts(db(failed, { data: [], error: null }))).rejects.toThrow();
+  });
+
+  it("throws rather than reporting 0 when the edits queue fails", async () => {
+    const { pendingCounts } = await import("./admin");
+    await expect(
+      pendingCounts(db(okCount, { data: null, error: { message: "boom", code: "XX000" } })),
+    ).rejects.toThrow();
+  });
+});

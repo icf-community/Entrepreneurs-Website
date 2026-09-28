@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { Skeleton, SkeletonRegion } from "@/components/ui/Skeleton";
+import { settle } from "@/lib/settle";
 import { Dialog, closeDialog, dialogCloser } from "@/components/ui/Dialog";
 import { ConfirmDialog } from "@/components/connections/ConfirmDialog";
 import { browserClient } from "@/lib/supabase/browser";
@@ -77,6 +79,29 @@ function limitMessage(q: Quota | null): string | null {
   return `You have ${q.outstanding === 1 ? "1 request" : `${q.outstanding} requests`} waiting for a reply. Withdraw some from your Sent tab, or wait for replies, before sending more.`;
 }
 
+type PanelRow = {
+  state: string;
+  connection_id: string | null;
+  available_at: string | null;
+  consent_version: string | null;
+  enabled: boolean | null;
+  daily_cap: number;
+  weekly_cap: number;
+  outstanding: number;
+  limit_reason: string | null;
+  quota_available_at: string | null;
+};
+
+/** One read for the whole control (B25); null when it failed. */
+async function fetchPanel(memberId: string): Promise<PanelRow | null> {
+  const { data, error } = await browserClient().rpc("connection_panel_state", { p_member: memberId });
+  if (error) {
+    console.error("Failed to load connection state:", error);
+    return null;
+  }
+  return (Array.isArray(data) ? data[0] : null) ?? null;
+}
+
 export function ConnectControl({
   memberId,
   firstName,
@@ -86,6 +111,10 @@ export function ConnectControl({
   firstName: string;
   surname: string;
 }) {
+  // B25: unique per instance, so two controls on one page never share an
+  // id (and aria-describedby never points at the wrong control).
+  const uid = useId();
+  const ids = { status: `${uid}-status`, note: `${uid}-note`, count: `${uid}-note-count` };
   const [state, setState] = useState<State>("loading");
   const [connectionId, setConnectionId] = useState<string | null>(null);
   const [availableAt, setAvailableAt] = useState<string | null>(null);
@@ -107,61 +136,48 @@ export function ConnectControl({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // All three reads on open, in one round. connection_state_with is
-  // sub-millisecond (it is one lookup on the canonical-pair index); the
-  // consent version and the kill switch are each a single app_config row.
+  // B25: one read, not four. connection_panel_state composes
+  // connection_state_with, the consent version, the kill switch and the
+  // caller's quota server-side (20260928000001), so opening a profile is
+  // one round trip instead of four. `attempt` re-runs it for Try again.
+  const [attempt, setAttempt] = useState(0);
+
+  function apply(row: PanelRow | null) {
+    if (!row) {
+      setState("error");
+      return;
+    }
+    setState((row.state as State) ?? "error");
+    setConnectionId(row.connection_id ?? null);
+    setAvailableAt(row.available_at ?? null);
+    setQuota({
+      daily_cap: row.daily_cap,
+      weekly_cap: row.weekly_cap,
+      outstanding: row.outstanding,
+      limit_reason: row.limit_reason,
+      available_at: row.quota_available_at,
+    });
+    setConsentVersion(typeof row.consent_version === "string" ? row.consent_version : null);
+    setEnabled(row.enabled !== false);
+  }
+
   useEffect(() => {
     let cancelled = false;
-    const db = browserClient();
-
-    Promise.all([
-      db.rpc("connection_state_with", { p_member: memberId }),
-      db.rpc("connection_consent_version"),
-      db.rpc("connections_enabled"),
-      db.rpc("my_connection_quota"),
-    ]).then(
-      ([stateRes, versionRes, enabledRes, quotaRes]) => {
-        if (cancelled) return;
-        if (stateRes.error || versionRes.error) {
-          console.error("Failed to load connection state:", stateRes.error ?? versionRes.error);
-          setState("error");
-          return;
-        }
-        const row = Array.isArray(stateRes.data) ? stateRes.data[0] : stateRes.data;
-        setState((row?.state as State) ?? "error");
-        setConnectionId(row?.connection_id ?? null);
-        setAvailableAt(row?.available_at ?? null);
-        const quotaRow = Array.isArray(quotaRes.data) ? quotaRes.data[0] : null;
-        setQuota(quotaRes.error ? null : (quotaRow as Quota | undefined) ?? null);
-        setConsentVersion(typeof versionRes.data === "string" ? versionRes.data : null);
-        // Fail open on this one read only: a failed kill-switch check must
-        // not itself hide the Connect button — the RPC's own gate is still
-        // the enforcement, this is only what the button says beforehand.
-        setEnabled(enabledRes.error ? true : enabledRes.data !== false);
-      },
+    // A dialog switched to another member mid-read must not show this one's state.
+    fetchPanel(memberId).then(
+      (row) => { if (!cancelled) apply(row); },
       (e: unknown) => {
         if (cancelled) return;
         console.error("Failed to load connection state:", e);
         setState("error");
       },
     );
-
     return () => { cancelled = true; };
-  }, [memberId]);
+  }, [memberId, attempt]);
 
   // Re-read after any action rather than assuming its outcome.
   async function refresh() {
-    const db = browserClient();
-    const [stateRes, quotaRes] = await Promise.all([
-      db.rpc("connection_state_with", { p_member: memberId }),
-      db.rpc("my_connection_quota"),
-    ]);
-    const row = Array.isArray(stateRes.data) ? stateRes.data[0] : null;
-    setState((row?.state as State) ?? "error");
-    setConnectionId(row?.connection_id ?? null);
-    setAvailableAt(row?.available_at ?? null);
-    const quotaRow = Array.isArray(quotaRes.data) ? quotaRes.data[0] : null;
-    setQuota(quotaRes.error ? null : (quotaRow as Quota | undefined) ?? null);
+    apply(await fetchPanel(memberId).catch(() => null));
   }
 
   async function send(e: { currentTarget: HTMLElement }) {
@@ -170,11 +186,11 @@ export function ConnectControl({
     const close = dialogCloser(e);
     setSending(true);
     setError(null);
-    const res = await sendConnectionRequest({
+    const res = await settle(sendConnectionRequest({
       memberId,
       note: note || undefined,
       consentVersion,
-    });
+    }));
     setSending(false);
 
     if (!res.ok) {
@@ -189,17 +205,38 @@ export function ConnectControl({
     close();
   }
 
-  // Nothing at all for your own profile, and nothing while we are still
-  // finding out — a Connect button that might turn into "Connected" a
-  // moment later is worse than a beat of nothing.
-  if (state === "loading" || state === "self") return null;
+  // Nothing for your own profile. While we are still finding out, a
+  // placeholder of the same height rather than a button: a Connect button
+  // that might turn into "Connected" a moment later is worse than a beat of
+  // nothing, but a footer that pops in shifts the dialog.
+  if (state === "self") return null;
+  if (state === "loading") {
+    return (
+      <Footer>
+        <SkeletonRegion label="Checking your connection status…" className="flex items-center justify-between gap-3">
+          <Skeleton className="h-3 w-2/5" />
+          <Skeleton className="h-8 w-24 rounded-lg" />
+        </SkeletonRegion>
+      </Footer>
+    );
+  }
 
   if (state === "error") {
     return (
       <Footer>
-        <p className="text-[0.8rem] text-text-muted">
-          Couldn&apos;t check your connection status. Refresh to try again.
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p role="alert" className="text-[0.8rem] text-text-muted">
+            Couldn&apos;t check your connection status.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0"
+            onClick={() => { setState("loading"); setAttempt((n) => n + 1); }}
+          >
+            Try again
+          </Button>
+        </div>
       </Footer>
     );
   }
@@ -308,7 +345,7 @@ export function ConnectControl({
             onClick={async () => {
               setSending(true);
               setError(null);
-              const res = await unblockMember({ memberId });
+              const res = await settle(unblockMember({ memberId }));
               setSending(false);
               if (!res.ok) { setError(res.error); return; }
               // Unblocking deletes the row, so the pair is back to having
@@ -351,7 +388,7 @@ export function ConnectControl({
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p id="connect-status" className="text-[0.8rem] text-text-muted">
+        <p id={ids.status} className="text-[0.8rem] text-text-muted">
           {limited ?? "Connect to exchange email addresses."}
         </p>
         <Button
@@ -360,7 +397,7 @@ export function ConnectControl({
           onClick={() => setComposing(true)}
           className="shrink-0"
           disabled={!!limited}
-          aria-describedby={limited ? "connect-status" : undefined}
+          aria-describedby={limited ? ids.status : undefined}
         >
           Connect
         </Button>
@@ -401,13 +438,13 @@ export function ConnectControl({
               </p>
               <div>
                 <label
-                  htmlFor="connect-note"
+                  htmlFor={ids.note}
                   className="block text-[0.7rem] uppercase tracking-wider text-text-muted mb-1.5"
                 >
                   Add a note (optional)
                 </label>
                 <textarea
-                  id="connect-note"
+                  id={ids.note}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   rows={3}
@@ -417,7 +454,7 @@ export function ConnectControl({
                   // characters would cut a legitimate note short.
                   maxLength={CONNECTION_NOTE_MAX * 2}
                   placeholder="Why you'd like to connect."
-                  aria-describedby="connect-note-count"
+                  aria-describedby={ids.count}
                   className="w-full rounded-lg border border-border-strong bg-bg-secondary px-3 py-2 text-[0.85rem] text-text-primary placeholder:text-text-muted"
                 />
                 {/* Described by the textarea AND a live region, because going
@@ -427,7 +464,7 @@ export function ConnectControl({
                     stated reason. Polite, so it waits for a pause in typing
                     rather than interrupting every keystroke. */}
                 <div
-                  id="connect-note-count"
+                  id={ids.count}
                   aria-live="polite"
                   className={`mt-1 text-[0.7rem] ${tooLong ? "text-[#ff8080]" : "text-text-muted"}`}
                 >

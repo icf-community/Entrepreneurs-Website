@@ -120,3 +120,23 @@ export async function maybeRow<R extends SingleLike>(
   }
   return (data ?? null) as NonNullable<R["data"]> | null;
 }
+
+/**
+ * rows(), for surfaces where an empty list would mislead (B4): an admin
+ * queue that failed to load must not say "Nothing pending". Any error
+ * throws, so the segment's error boundary shows it with "Try again".
+ * Everywhere else, rows()'s degrade-to-[] still applies.
+ */
+export async function rowsOrThrow<T>(
+  source: string,
+  run: () => PromiseLike<ListResponse<T>>,
+): Promise<T[]> {
+  const res = await run();
+  throwIfUnreachable(source, res);
+  const { data, error } = res;
+  if (error) {
+    Sentry.captureException(error, { tags: { surface: "data-read", source } });
+    throw new Error(`Failed to load ${source}`);
+  }
+  return reportIfCapped(source, data ?? []);
+}

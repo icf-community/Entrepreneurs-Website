@@ -2037,6 +2037,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      connection_panel_state: {
+        Args: { p_member: string }
+        Returns: {
+          available_at: string
+          connection_id: string
+          consent_version: string
+          daily_cap: number
+          enabled: boolean
+          limit_reason: string
+          outstanding: number
+          quota_available_at: string
+          state: string
+          weekly_cap: number
+        }[]
+      }
       connection_refusal_message: { Args: never; Returns: string }
       connection_sender_throttled: {
         Args: { p_member: string }

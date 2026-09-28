@@ -1,8 +1,10 @@
 import "server-only";
+import * as Sentry from "@sentry/nextjs";
 import type { PostgrestError } from "@supabase/supabase-js";
 import type { UserStatus } from "@/lib/database.overrides";
 import type { Affiliation } from "@/lib/intake/steps";
-import { rows, type Db } from "./query";
+import { rows, rowsOrThrow, type Db } from "./query";
+import { throwIfUnreachable } from "@/lib/supabase/unavailable";
 import {
   adminFacets,
   filterArgs,
@@ -68,14 +70,18 @@ function toPoster(r: PosterRow, signupEmail: string | null) {
  */
 async function countOf(
   source: string,
-  run: () => PromiseLike<{ count: number | null; error: PostgrestError | null }>,
+  run: () => PromiseLike<{ count: number | null; error: PostgrestError | null; status?: number }>,
 ): Promise<number> {
-  const { count, error } = await run();
-  if (error) {
-    console.error(`Failed to count ${source}:`, error);
-    return 0;
+  const res = await run();
+  throwIfUnreachable(source, res);
+  if (res.error) {
+    // B4: a failed count used to read as 0, so the dashboard said "Queues
+    // clear" when it simply couldn't see the queues. Throw to the admin
+    // error boundary instead.
+    Sentry.captureException(res.error, { tags: { surface: "data-read", source } });
+    throw new Error(`Failed to count ${source}`);
   }
-  return count ?? 0;
+  return res.count ?? 0;
 }
 
 export type PendingCounts = {
@@ -126,8 +132,9 @@ async function pendingEditCount(db: Db): Promise<number> {
     // PostgREST reads that RLS quietly returns 0 rows for, so logging this
     // one made every non-admin probe of /admin write an error nobody should
     // be paged about. Anything else is genuinely wrong and still surfaces.
-    if (error.code !== "42501") console.error("Failed to count listing edits:", error);
-    return 0;
+    if (error.code === "42501") return 0;
+    Sentry.captureException(error, { tags: { surface: "data-read", source: "admin_list_listing_edits" } });
+    throw new Error("Failed to count listing edits");
   }
   return data?.length ?? 0;
 }
@@ -199,7 +206,7 @@ export type EventReviewItem = ReturnType<typeof toEventReviewItem>;
  * so this is the only path to that field (migration 20260530000002).
  */
 export async function listPendingEvents(db: Db): Promise<EventReviewItem[]> {
-  const data = await rows("list_pending_events_admin", () => db.rpc("list_pending_events_admin"));
+  const data = await rowsOrThrow("list_pending_events_admin", () => db.rpc("list_pending_events_admin"));
   const emails = await signupEmailsFor(db, data);
   return data.map((r) => toEventReviewItem(r, emails.get(r.posted_by) ?? null));
 }
@@ -252,7 +259,7 @@ export type OpportunityReviewItem = ReturnType<typeof toOpportunityReviewItem>;
 
 /** The pending opportunities queue. Same admin-only RPC contract as above. */
 export async function listPendingOpportunities(db: Db): Promise<OpportunityReviewItem[]> {
-  const data = await rows("list_pending_opportunities_admin", () =>
+  const data = await rowsOrThrow("list_pending_opportunities_admin", () =>
     db.rpc("list_pending_opportunities_admin"));
   const emails = await signupEmailsFor(db, data);
   return data.map((r) => toOpportunityReviewItem(r, emails.get(r.posted_by) ?? null));
@@ -304,7 +311,7 @@ export type VcReviewItem = ReturnType<typeof toVcReviewItem>;
  * rows(), so it is visible to whoever changes this select next.
  */
 export async function listPendingVcs(db: Db): Promise<VcReviewItem[]> {
-  const data = (await rows("vcs_grants (pending)", () =>
+  const data = (await rowsOrThrow("vcs_grants (pending)", () =>
     db
       .from("vcs_grants")
       .select(`
@@ -387,7 +394,7 @@ export async function listPendingProfiles(
   db: Db,
   { limit, offset }: { limit: number; offset: number },
 ): Promise<PendingProfilesPage> {
-  const data = await rows("admin_list_pending_profiles", () =>
+  const data = await rowsOrThrow("admin_list_pending_profiles", () =>
     db.rpc("admin_list_pending_profiles", { p_limit: limit, p_offset: offset }));
 
   return {
@@ -473,7 +480,7 @@ export async function adminMemberPage(
   filters: AdminMemberFilters,
 ): Promise<AdminMemberPage> {
   const [data, facets] = await Promise.all([
-    rows("admin_list_profiles", () =>
+    rowsOrThrow("admin_list_profiles", () =>
       db.rpc("admin_list_profiles", {
         ...filterArgs(filters),
         p_statuses: filters.statuses.length ? filters.statuses : undefined,
