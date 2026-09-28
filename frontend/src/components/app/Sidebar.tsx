@@ -5,7 +5,9 @@ import { useSyncExternalStore } from "react";
 import SignOutButton from "@/app/admin/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
 import { PendingBadge } from "@/components/connections/PendingBadge";
+import { UnreadBadge } from "@/components/notifications/UnreadBadge";
 import { MESSAGING_ENABLED } from "@/lib/features";
+import { LinkPending } from "./LinkPending";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · App sidebar
@@ -74,7 +76,8 @@ export type NavKey =
   | "calendar"
   | "activity"
   | "submissions"
-  | "settings";
+  | "settings"
+  | "notifications";
 
 type Item = { key: NavKey; href: string; label: string; icon: React.ReactNode };
 
@@ -96,6 +99,9 @@ const I = {
   ),
   messaging: (
     <path d="M4 4.5h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H8.5L5 17v-3.5H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z" />
+  ),
+  notifications: (
+    <path d="M10 3.5a4.5 4.5 0 0 0-4.5 4.5v3L4 13.5h12L14.5 11V8A4.5 4.5 0 0 0 10 3.5ZM8.2 16a1.9 1.9 0 0 0 3.6 0" />
   ),
   foundryAi: (
     <>
@@ -201,6 +207,7 @@ const IN_REVIEW: Item[] = [
 ];
 
 const SECONDARY: Item[] = [
+  { key: "notifications", href: "/notifications", label: "Notifications", icon: <Icon d={I.notifications} /> },
   { key: "calendar", href: "/calendar", label: "Calendar", icon: <Icon d={I.calendar} /> },
   { key: "activity", href: "/my-activity", label: "My activity", icon: <Icon d={I.activity} /> },
   { key: "submissions", href: "/my-submissions", label: "My submissions", icon: <Icon d={I.submissions} /> },
@@ -253,11 +260,13 @@ export default function Sidebar({
         >
           {it.icon}
           {!collapsed && <span className="truncate">{it.label}</span>}
+          <LinkPending />
           {/* Only the Connections row carries a count, and only when
               there is one. It fails to nothing — see PendingBadge. The
               collapsed rail drops it: a bare number beside an unlabelled
               icon says nothing, and the row is 4.5rem wide. */}
           {it.key === "connections" && !collapsed && full && <PendingBadge />}
+          {it.key === "notifications" && !collapsed && full && <UnreadBadge />}
         </Link>
       </li>
     );

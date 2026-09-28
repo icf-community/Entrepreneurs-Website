@@ -236,7 +236,11 @@ function Grid({ children }: { children: React.ReactNode }) {
 }
 
 async function Newest({ data }: { data: ReturnType<typeof newestMembers> }) {
-  return <NewestMembers newest={await data} />;
+  const newest = await data;
+  // C4: an empty strip used to render nothing at all, which on a quiet
+  // week read as a gap in the page.
+  if (newest.length === 0) return <Empty>New members will appear here as they join.</Empty>;
+  return <NewestMembers newest={newest} />;
 }
 
 async function Events({ data }: { data: ReturnType<typeof newestEvents> }) {

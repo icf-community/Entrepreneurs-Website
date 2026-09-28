@@ -460,3 +460,35 @@ canvas[data-live] ~ * .hero-mark-fallback { opacity: 0; }
     animation-iteration-count: infinite !important;
   }
 }
+
+/* ── Navigation pending state (launch programme C2) ──────────────────
+   Shown by <LinkPending /> while a sidebar navigation is in flight.
+   Starts invisible and fades in after 120ms so a fast navigation never
+   flashes. The bar's sweep only runs when motion is allowed; with reduced
+   motion it is a static line. */
+.nav-pending {
+  opacity: 0;
+  animation: nav-pending-in 150ms ease-out 120ms forwards;
+}
+.nav-pending-bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 110;
+  height: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+@keyframes nav-pending-in {
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nav-pending-bar {
+    transform-origin: left;
+    animation: nav-pending-in 150ms ease-out 120ms forwards, nav-pending-sweep 1.4s ease-in-out 120ms infinite;
+  }
+}
+@keyframes nav-pending-sweep {
+  0% { transform: scaleX(0.05); }
+  60% { transform: scaleX(0.7); }
+  100% { transform: scaleX(0.95); }
+}

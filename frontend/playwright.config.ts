@@ -42,7 +42,7 @@ export default defineConfig({
     // Approved student session (from global-setup).
     {
       name: "member",
-      testMatch: /member\.spec\.ts|resilience\.spec\.ts|workflow\.spec\.ts|dialog\.spec\.ts|a11y\.spec\.ts|validation\.spec\.ts|urlfilters\.spec\.ts|home\.spec\.ts|community\.spec\.ts|github-showcase\.spec\.ts/,
+      testMatch: /member\.spec\.ts|resilience\.spec\.ts|loading\.spec\.ts|export\.spec\.ts|workflow\.spec\.ts|dialog\.spec\.ts|a11y\.spec\.ts|validation\.spec\.ts|urlfilters\.spec\.ts|home\.spec\.ts|community\.spec\.ts|github-showcase\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: storageStatePath("student") },
     },
     // Admin session.
@@ -66,7 +66,7 @@ export default defineConfig({
     // from the seeded connector/connectee states.
     {
       name: "connections",
-      testMatch: /connections\.spec\.ts/,
+      testMatch: /connections\.spec\.ts|notifications\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
     // Live rate-limit enforcement. Deliberately NOT run by the main e2e job

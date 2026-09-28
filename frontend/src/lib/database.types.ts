@@ -765,6 +765,42 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          read_at: string | null
+          ref_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          link?: string | null
+          read_at?: string | null
+          ref_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read_at?: string | null
+          ref_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       opportunities: {
         Row: {
           application_deadline: string
@@ -2180,6 +2216,7 @@ export type Database = {
       expire_events: { Args: never; Returns: number }
       expire_opportunities: { Args: never; Returns: number }
       expire_vcs_grants: { Args: never; Returns: number }
+      export_my_data: { Args: never; Returns: Json }
       get_event_for_edit: {
         Args: { p_id: string }
         Returns: {
@@ -2586,6 +2623,18 @@ export type Database = {
           total_count: number
         }[]
       }
+      list_my_notifications: {
+        Args: { p_before?: string; p_limit?: number }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          link: string
+          read_at: string
+          title: string
+        }[]
+      }
       list_my_pending_requests: {
         Args: {
           p_cursor_created_at?: string
@@ -2744,6 +2793,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_notifications_read: { Args: { p_ids?: string[] }; Returns: number }
       my_connection_quota: {
         Args: never
         Returns: {
@@ -2765,10 +2815,24 @@ export type Database = {
         }[]
       }
       my_pending_connection_count: { Args: never; Returns: number }
+      my_unread_notification_count: { Args: never; Returns: number }
+      notification_name: { Args: { p_user: string }; Returns: string }
+      notify: {
+        Args: {
+          p_body: string
+          p_kind: string
+          p_link: string
+          p_ref: string
+          p_title: string
+          p_user: string
+        }
+        Returns: undefined
+      }
       posting_enabled: { Args: never; Returns: boolean }
       purge_connection_records: { Args: never; Returns: number }
       purge_expired_posts: { Args: never; Returns: number }
       purge_moderation_records: { Args: never; Returns: number }
+      purge_old_notifications: { Args: never; Returns: number }
       purge_rejected_listings: { Args: never; Returns: number }
       purge_removed_connections: { Args: never; Returns: number }
       purge_sent_outbound_email: { Args: never; Returns: number }

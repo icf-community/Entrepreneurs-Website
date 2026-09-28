@@ -34,6 +34,7 @@ import type {
   SentRequest,
 } from "@/lib/data/connections";
 import { settle } from "@/lib/settle";
+import { Updating } from "@/components/ui/Updating";
 
 // d3-force is ~30 KB and is used by one optional view that is not the
 // default. Loaded on demand so it never enters the card-view bundle and
@@ -138,7 +139,8 @@ export default function ConnectionsClient({
         ))}
       </nav>
 
-      <div className={url.pending ? "opacity-60 transition-opacity duration-150" : undefined}>
+      <div className={`relative ${url.pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={url.pending || undefined}>
+        {url.pending && <Updating />}
         {tab === "connections" && (connections || graph) && (
           <ConnectionsTab
             key={pageKey}
@@ -263,7 +265,12 @@ function ConnectionsTab({
         onChange={setQueryDraft}
       />
 
-      {facets && (
+      {facets?.unavailable && (
+        <p role="status" className="mt-4 text-[0.8rem] text-text-muted">
+          Couldn&apos;t load the filters. Reload to try again.
+        </p>
+      )}
+      {facets && !facets.unavailable && (
         <FilterPanel
           activeCount={activeFilterCount}
           onClear={() => url.clear("role", "course", "sector", "skill", "gradMin", "gradMax")}

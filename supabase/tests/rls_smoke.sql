@@ -830,6 +830,11 @@ declare
     -- deliberately anon-callable read (the /login page shows it); the
     -- admin_* trio guard on is_admin() in-body.
     'get_site_banner','admin_get_site_banner','admin_set_site_banner','admin_clear_site_banner',
+    -- 20260928000004 in-app notifications (F-x3): owner-scoped reads and
+    -- mark-read, each on auth.uid(); the writers are triggers, not callable.
+    'list_my_notifications','my_unread_notification_count','mark_notifications_read',
+    -- 20260928000005 data export (F-x2): no parameters, keyed on auth.uid().
+    'export_my_data',
     -- 20260917000007. Scoped to rows the caller BLOCKED (blocked_by =
     -- caller), never rows where they were blocked — there is deliberately
     -- no counterpart RPC, because a member must not be able to learn they
@@ -4820,6 +4825,121 @@ begin
   if (select count(*) from public.admin_actions
        where admin_id = v_admin and action in ('site_banner_publish', 'site_banner_clear')) <> 2
     then raise exception 'FAIL: banner publish/clear not both written to admin_actions'; end if;
+end;
+$$;
+
+-- ─── F-x3. Notifications: triggers write them, only the owner reads them ─
+-- (20260928000004). Rolled back with the rest of the file.
+do $$
+declare
+  v_a uuid := gen_random_uuid();
+  v_b uuid := gen_random_uuid();
+  v_c uuid := gen_random_uuid();
+  v_conn uuid;
+  v_n int;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_a, 'notif-a@imperial.ac.uk', '{"first_name":"Nia","surname":"Alpha","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_b, 'notif-b@imperial.ac.uk', '{"first_name":"Nob","surname":"Beta","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_c, 'notif-c@imperial.ac.uk', '{"first_name":"Noc","surname":"Gamma","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+
+  -- The writers are not callable by members.
+  if has_function_privilege('authenticated', 'public.notify(uuid,text,text,text,text,uuid)', 'execute')
+    then raise exception 'FAIL: members can write notifications directly'; end if;
+  if has_table_privilege('authenticated', 'public.notifications', 'select')
+    then raise exception 'FAIL: notifications table directly readable'; end if;
+
+  -- A request notifies the addressee; withdrawing it removes the notice.
+  insert into public.connections (requester_id, addressee_id, status, consent_version)
+  values (v_a, v_b, 'pending', '2026-09-17') returning id into v_conn;
+  if (select count(*) from public.notifications where user_id = v_b and kind = 'connection_request') <> 1
+    then raise exception 'FAIL: connection request did not notify the addressee'; end if;
+  update public.connections set status = 'withdrawn', decided_at = now() where id = v_conn;
+  if exists (select 1 from public.notifications where user_id = v_b and kind = 'connection_request')
+    then raise exception 'FAIL: withdrawn request still notifies'; end if;
+
+  -- Re-request, then accept: the requester hears, the addressee's notice clears.
+  update public.connections set status = 'pending', decided_at = null where id = v_conn;
+  update public.connections set status = 'accepted', decided_at = now() where id = v_conn;
+  if (select count(*) from public.notifications where user_id = v_a and kind = 'connection_accepted') <> 1
+    then raise exception 'FAIL: acceptance did not notify the requester'; end if;
+
+  -- Owner-only reads and mark-read.
+  perform _set_caller(v_c);
+  if (select count(*) from public.list_my_notifications()) <> 0
+    then raise exception 'FAIL: a third member can read someone else''s notifications'; end if;
+  if public.mark_notifications_read() <> 0
+    then raise exception 'FAIL: a third member marked someone else''s notifications read'; end if;
+  perform _set_caller(v_a);
+  if public.my_unread_notification_count() <> 1 then raise exception 'FAIL: unread count wrong'; end if;
+  v_n := public.mark_notifications_read();
+  if v_n <> 1 or public.my_unread_notification_count() <> 0 then raise exception 'FAIL: mark-read did not clear'; end if;
+
+  -- Account deletion takes them (F30).
+  set local role postgres;
+  delete from auth.users where id = v_a;
+  if exists (select 1 from public.notifications where user_id = v_a)
+    then raise exception 'FAIL: notifications survived account deletion'; end if;
+end;
+$$;
+
+-- ─── F-x2. Data export: the caller's own data, never anyone else's ───
+-- (20260928000005). Rolled back with the rest of the file.
+do $$
+declare
+  v_a uuid := gen_random_uuid();
+  v_b uuid := gen_random_uuid();
+  v_c uuid := gen_random_uuid();
+  v_x jsonb;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_a, 'export-a@imperial.ac.uk', '{"first_name":"Exa","surname":"Alpha","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_b, 'export-b@imperial.ac.uk', '{"first_name":"Exb","surname":"Beta","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_c, 'export-c@imperial.ac.uk', '{"first_name":"Exc","surname":"Gamma","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+
+  if has_function_privilege('anon', 'public.export_my_data()', 'execute')
+    then raise exception 'FAIL: anon can call export_my_data'; end if;
+  if not has_function_privilege('authenticated', 'public.export_my_data()', 'execute')
+    then raise exception 'FAIL: members cannot call export_my_data'; end if;
+
+  -- A asked B with a note; C asked A and was declined; C blocked B.
+  insert into public.connections (requester_id, addressee_id, status, note, consent_version)
+  values (v_a, v_b, 'pending', 'note-written-by-exa', '2026-09-17');
+  insert into public.connections (requester_id, addressee_id, status, consent_version, decided_at)
+  values (v_c, v_a, 'declined', '2026-09-17', now());
+  insert into public.connections (requester_id, addressee_id, status, consent_version, blocked_by, decided_at)
+  values (v_b, v_c, 'blocked', '2026-09-17', v_c, now());
+
+  perform _set_caller(v_a);
+  v_x := public.export_my_data();
+  if v_x #>> '{account,email}' <> 'export-a@imperial.ac.uk'
+    then raise exception 'FAIL: export is not the caller''s account'; end if;
+  if v_x::text like '%export-b@%' or v_x::text like '%export-c@%'
+    then raise exception 'FAIL: export carries another member''s email'; end if;
+  if v_x::text not like '%note-written-by-exa%'
+    then raise exception 'FAIL: export omits a note the caller wrote'; end if;
+  if v_x->'profile' ? 'avatar_path' then raise exception 'FAIL: export carries a storage key'; end if;
+
+  -- The addressee sees the request, not the requester's note.
+  perform _set_caller(v_b);
+  v_x := public.export_my_data();
+  if v_x::text like '%note-written-by-exa%'
+    then raise exception 'FAIL: export leaks a note someone else wrote'; end if;
+  if not exists (select 1 from jsonb_array_elements(v_x->'connections') e where e->>'status' = 'request received')
+    then raise exception 'FAIL: export omits a received request'; end if;
+  -- B was blocked by C: nothing in B's export says so.
+  if v_x::text like '%Gamma%' then raise exception 'FAIL: export reveals who blocked the caller'; end if;
+
+  -- The declined sender sees "closed", never "declined".
+  perform _set_caller(v_c);
+  v_x := public.export_my_data();
+  if v_x::text like '%declined%' then raise exception 'FAIL: export tells a sender they were declined'; end if;
+  if not exists (select 1 from jsonb_array_elements(v_x->'connections') e where e->>'status' = 'blocked by you')
+    then raise exception 'FAIL: export omits a block the caller placed'; end if;
 end;
 $$;
 

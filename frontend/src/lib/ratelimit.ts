@@ -40,6 +40,7 @@ export type RateBucket =
   | "connectionRequest"
   | "connectionRespond"
   | "listingEdit"
+  | "dataExport"
   | "otpVerify";
 
 // ─── Key namespace ──────────────────────────────────────────────────
@@ -247,6 +248,11 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // fixing a listing never uses up the allowance for posting a new one.
   listingEdit: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(20, "1 h"), prefix: p("edit"), analytics: false }),
+  // F-x2: "Download my data" reads every table a member has rows in, in
+  // one call. Nobody needs it more than a few times a day; the ceiling is
+  // there so a script can't turn it into a DB load generator.
+  dataExport: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "1 d"), prefix: p("export"), analytics: false }),
 };
 
 const instances = new Map<RateBucket, Ratelimit>();
@@ -297,7 +303,7 @@ function instance(bucket: RateBucket): Ratelimit | null {
 const FAIL_CLOSED: readonly RateBucket[] = [
   "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload",
   "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "listingEdit",
-  "otpVerify",
+  "dataExport", "otpVerify",
 ];
 
 export function failOpen(bucket: RateBucket): boolean {
@@ -352,6 +358,7 @@ const WINDOW_MS: Record<RateBucket, number> = {
   connectionRequest: 86_400_000,
   connectionRespond: 86_400_000,
   listingEdit: 3_600_000,
+  dataExport: 86_400_000,
   otpVerify: 600_000,
 };
 
@@ -369,6 +376,7 @@ const LIMIT: Record<RateBucket, number> = {
   connectionRequest: 15,
   connectionRespond: 100,
   listingEdit: 20,
+  dataExport: 5,
   otpVerify: 10,
 };
 

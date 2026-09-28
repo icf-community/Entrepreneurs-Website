@@ -12,6 +12,7 @@ import type { UserStatus } from "@/lib/database.overrides";
 // Type-only, so the server-only module is erased rather than imported.
 import type { AdminMember, AdminMemberFilters } from "@/lib/data/admin";
 import type { Facets } from "@/lib/data/directory";
+import { Updating } from "@/components/ui/Updating";
 
 type Status = UserStatus;
 
@@ -152,7 +153,8 @@ export default function MembersAdminClient({
 
       {/* A pending navigation dims the table rather than replacing it with a
           skeleton: these rows are still valid, just about to change. */}
-      <div className={url.pending ? "opacity-60 transition-opacity duration-150" : undefined}>
+      <div className={`relative ${url.pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={url.pending || undefined}>
+        {url.pending && <Updating />}
         {members.length === 0 ? (
           <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
             {facets.total === 0 ? "No members yet." : "No members match your search or filters."}

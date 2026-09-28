@@ -1,10 +1,12 @@
 import "server-only";
-import { rows, maybeRow, type Db } from "./query";
+import { rows, rowsOrThrow, maybeRow, type Db } from "./query";
+import { isServiceUnavailable } from "@/lib/supabase/unavailable";
 import {
   toDirectoryMember,
   withAvatarUrls,
   filterArgs,
   EMPTY_FACETS,
+  UNAVAILABLE_FACETS,
   type Facets,
   type MemberFilters,
   type DirectoryMember,
@@ -236,9 +238,11 @@ export async function mySentRequestsPage(
  * the page ever needs trimming: the panel could fetch it on open.
  */
 export async function myConnectionFacets(db: Db): Promise<Facets> {
-  const data = await rows("list_my_connection_facets", () =>
-    db.rpc("list_my_connection_facets"));
-  return data[0] ?? EMPTY_FACETS;
+  const data = await rowsOrThrow("list_my_connection_facets", () =>
+    db.rpc("list_my_connection_facets"))
+    .catch((e) => { if (isServiceUnavailable(e)) throw e; return null; });
+  // C4: a failed read says so rather than posing as "no filters".
+  return data ? data[0] ?? EMPTY_FACETS : UNAVAILABLE_FACETS;
 }
 
 /**

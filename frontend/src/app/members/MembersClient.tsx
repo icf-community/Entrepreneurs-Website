@@ -17,6 +17,7 @@ import type {
   Facets,
   MemberFilters,
 } from "@/lib/data/directory";
+import { Updating } from "@/components/ui/Updating";
 
 // ════════════════════════════════════════════════════════════════════
 // Filtering and paging happen on the server; this component's job is to
@@ -78,6 +79,11 @@ export default function MembersClient({
           </>
         }
       >
+        {facets.unavailable && (
+          <p role="status" className="text-[0.8rem] text-text-muted">
+            Couldn&apos;t load the course, sector and skill filters. Reload to try again.
+          </p>
+        )}
         <ChipGroup
           label="Role"
           options={[
@@ -141,7 +147,8 @@ export default function MembersClient({
       {/* A pending navigation dims the current page rather than replacing it
           with a skeleton: the results are still valid, just about to change,
           and swapping them for placeholders on every keystroke would flash. */}
-      <div className={url.pending ? "opacity-60 transition-opacity duration-150" : undefined}>
+      <div className={`relative ${url.pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={url.pending || undefined}>
+        {url.pending && <Updating />}
         {members.length === 0 ? (
           <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
             {facets.total === 0 ? "No members yet." : "No members match your search or filters."}

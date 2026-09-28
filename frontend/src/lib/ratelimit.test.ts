@@ -28,6 +28,8 @@ const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
   connectionRespond: "closed",
   // Fail-closed: each staged edit emails the admins (B23).
   listingEdit: "closed",
+  // Fail-closed: a whole-account read, capped so it is not a load generator (F-x2).
+  dataExport: "closed",
   otpVerify: "closed",
 };
 

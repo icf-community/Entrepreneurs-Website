@@ -114,6 +114,8 @@ export const ACTION_POLICIES: Record<string, ActionPolicy> = {
   // ── profile and media ───────────────────────────────────────────────
   // Only drops the cached directory facets for the next read; takes no input.
   "app/profile/actions.ts#invalidateDirectoryCache": cheap,
+  // A whole-account read (F-x2), so it gets its own daily ceiling.
+  "app/settings/actions.ts#exportMyData": { kind: "read", bucket: "dataExport" },
   "app/profile/mediaActions.ts#requestAvatarTicket": { kind: "write-costly", bucket: "avatarUpload" },
   "app/profile/mediaActions.ts#requestCvTicket": { kind: "write-costly", bucket: "cvUpload" },
   "app/profile/mediaActions.ts#setMyGithubShowcase": { kind: "write-costly", bucket: "githubShowcase" },
