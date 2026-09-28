@@ -10,9 +10,9 @@ import { ErrorBanner } from "@/components/forms/Banners";
 // The root app/error.tsx is a full-screen takeover with no nav — right
 // for a genuinely broken app, wrong for one card failing to render in an
 // otherwise-fine feed. Next only calls error.tsx for the nearest segment
-// boundary, so app/{admin,community,calendar}/error.tsx wrapping this
-// keeps the sidebar/nav mounted (they live in the layout above) and
-// degrades just the content below it.
+// boundary. Admin has a real layout above its boundary; member pages
+// render AppShell inside page.tsx, so their boundaries use ShellError,
+// which wraps this in AppShell to keep the navigation (B9).
 // ════════════════════════════════════════════════════════════════════
 
 export function SegmentError({

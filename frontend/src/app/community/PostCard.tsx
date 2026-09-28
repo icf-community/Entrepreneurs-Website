@@ -9,6 +9,8 @@ import { adminDeletePost, deleteMyPost, reportPost, toggleLike } from "./actions
 import { ErrorBanner } from "@/components/forms/Banners";
 import PostBody from "./PostBody";
 import type { FeedPostView } from "./feedView";
+import { settle } from "@/lib/settle";
+import { useToast } from "@/components/ui/Toast";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One post in the feed
@@ -58,14 +60,18 @@ export default function PostCard({
   const liked = optimisticLike ? optimisticLike.liked : post.likedByMe;
   const likeCount = optimisticLike ? optimisticLike.likeCount : post.likeCount;
 
+  const toast = useToast();
   const onToggleLike = () => {
+    // B7: one request in flight; a second click waits for the first.
+    if (likePending) return;
     const wasLiked = post.likedByMe;
     const prevCount = post.likeCount;
     setOptimisticLike({ liked: !wasLiked, likeCount: wasLiked ? prevCount - 1 : prevCount + 1 });
     startLike(async () => {
-      const res = await toggleLike(post.id);
+      const res = await settle(toggleLike(post.id));
       if (!res.ok) {
         setOptimisticLike(null);
+        toast("Couldn't save your like. Please try again.", "error");
         return;
       }
       onLikeChanged(post.id, { likeCount: res.data.likeCount, likedByMe: res.data.liked });
@@ -150,8 +156,10 @@ export default function PostCard({
             {likeCount === 1 ? "1 like" : `${likeCount} likes`}
           </span>
         )}
+        {/* The optimistic count stays visible while the request runs; a
+            spinner in its place hid the very number that changed (B7). */}
         {post.kind === "member" && !isAuthor && (
-          <Button variant="ghost" size="sm" loading={likePending} onClick={onToggleLike}>
+          <Button variant="ghost" size="sm" aria-pressed={liked} onClick={onToggleLike}>
             {liked ? "Liked" : "Like"} ({likeCount})
           </Button>
         )}

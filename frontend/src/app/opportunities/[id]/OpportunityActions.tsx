@@ -7,6 +7,8 @@ import { recordListingEvent } from "@/lib/analytics";
 import { toggleOpportunityBookmark } from "../actions";
 import type { Opportunity } from "@/lib/data/opportunities";
 import { externalHref } from "@/lib/safeUrl";
+import { settle } from "@/lib/settle";
+import { useToast } from "@/components/ui/Toast";
 
 // Everything on the detail page that needs the browser: the apply
 // click-through (recorded), the applied pill, and the bookmark star.
@@ -31,21 +33,25 @@ export default function OpportunityActions({
     recordListingEvent("opportunity", o.id, "expand");
   }, [o.id]);
 
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
   const toggleBookmark = () => {
+    // B7: one write at a time; a failure says so instead of silently flipping back.
+    if (saving) return;
+    setSaving(true);
     // Optimistic, reverted if the write fails — same contract as the card.
     // The .catch() covers an actual thrown rejection (network blip
     // invoking the action), which would otherwise skip the rollback and
     // leave the star stuck showing the wrong state.
     const was = bookmarked;
     setBookmarked(!was);
-    void toggleOpportunityBookmark(o.id)
-      .then((res) => {
-        if (!res.ok) setBookmarked(was);
-      })
-      .catch((e) => {
-        console.error("Failed to toggle bookmark:", e);
+    void settle(toggleOpportunityBookmark(o.id)).then((res) => {
+      setSaving(false);
+      if (!res.ok) {
         setBookmarked(was);
-      });
+        toast("Couldn't update your bookmark. Please try again.", "error");
+      }
+    });
   };
 
   return (

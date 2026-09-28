@@ -112,9 +112,16 @@ export async function GET(request: Request) {
       Accept: "application/vnd.github+json",
     },
   });
-  const ghUser: { id?: number; login?: string } = await ghUserRes.json().catch(() => ({}));
+  const ghUser: { id?: number; login?: string; message?: string } = await ghUserRes.json().catch(() => ({}));
   if (!ghUserRes.ok || !ghUser.id || !ghUser.login) {
-    console.error("github-connect: fetching GitHub user failed", { status: ghUserRes.status, body: ghUser });
+    // Named fields only (B10): the /user body is the member's GitHub
+    // profile (name, email, bio, location), which has no place in logs.
+    console.error("github-connect: fetching GitHub user failed", {
+      status: ghUserRes.status,
+      hasId: !!ghUser.id,
+      hasLogin: !!ghUser.login,
+      message: typeof ghUser.message === "string" ? ghUser.message.slice(0, 200) : undefined,
+    });
     return redirectBack(origin, returnPath, "error");
   }
 

@@ -8,6 +8,7 @@ import { validate } from "@/lib/validation/listings";
 import * as Sentry from "@sentry/nextjs";
 import { check, clientIp } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { errorSummary } from "@/lib/errorSummary";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -57,7 +58,7 @@ export async function submitContactTicket(input: unknown): Promise<Result> {
     // Public endpoint: never surface the underlying error text (it can carry
     // DB/network internals). Log server-side for diagnosis; return a generic
     // message the form shows verbatim.
-    console.error("submitContactTicket: enqueue failed", e);
+    console.error("submitContactTicket: enqueue failed", errorSummary(e));
     Sentry.captureException(e, { tags: { surface: "contact", path: "ticket-enqueue" } });
     return { ok: false, error: "Something went wrong sending your message. Please try again shortly." };
   }
@@ -77,7 +78,7 @@ export async function submitContactTicket(input: unknown): Promise<Result> {
         subject,
       });
     } catch (e) {
-      console.error("submitContactTicket: confirmation enqueue failed", e);
+      console.error("submitContactTicket: confirmation enqueue failed", errorSummary(e));
       Sentry.captureException(e, { tags: { surface: "contact", path: "confirmation-enqueue" } });
     }
   }

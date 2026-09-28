@@ -1,6 +1,6 @@
 "use client";
 
-import { SegmentError } from "@/components/SegmentError";
+import { ShellError } from "@/components/ShellError";
 
 export default function CommunityError({
   error,
@@ -9,5 +9,5 @@ export default function CommunityError({
   error: Error & { digest?: string };
   retry: () => void;
 }) {
-  return <SegmentError error={error} retry={retry} label="the community feed" />;
+  return <ShellError error={error} retry={retry} active="community" label="the community feed" />;
 }

@@ -32,6 +32,8 @@ import {
   CURRENT_FOCUS, VENTURE_STAGES, VENTURE_STAGES_WITH_DETAIL, RECRUITING_STATUSES,
   INTENTS, INTENT_URGENCIES, AVAILABILITY_HOURS,
 } from "@/lib/intake/state";
+import { settle } from "@/lib/settle";
+import { startPoll } from "@/lib/poll";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · My Profile
@@ -504,9 +506,13 @@ function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
     }
   };
 
+  const [removing, setRemoving] = useState(false);
   const remove = async () => {
+    if (removing) return;
     setError("");
-    const result = await removeAvatar();
+    setRemoving(true);
+    const result = await settle(removeAvatar());
+    setRemoving(false);
     if (!result.ok) { setError(result.error); return; }
     setPreview(null);
     router.refresh();
@@ -537,9 +543,11 @@ function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
           <button
             type="button"
             onClick={remove}
-            className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080]"
+            disabled={removing}
+            aria-busy={removing}
+            className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-wait disabled:opacity-60"
           >
-            Remove
+            {removing ? "Removing…" : "Remove"}
           </button>
           <input ref={replaceRef} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Replace photo" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingFile(f); e.target.value = ""; }} />
         </div>
@@ -580,19 +588,25 @@ const CV_INGEST_PROCESSING: CvIngestStatus[] = ["pending", "extracting", "embedd
  * in flight. Stops on unmount via the cancelled flag, same guard the
  * dialog's own poll effect uses.
  */
-async function pollIngestStatus(
+// B20: the shared poller (lib/poll.ts). The old loop had no try/catch, so a
+// thrown status request left the badge on "Processing your CV…" for good.
+function pollIngestStatus(
   setStatus: (status: CvIngestStatus | null) => void,
-  isCancelled: () => boolean,
-): Promise<void> {
-  for (;;) {
-    if (isCancelled()) return;
-    const result = await getMyCvStatus();
-    if (isCancelled()) return;
-    if (!result.ok || !result.data) return;
-    setStatus(result.data.status);
-    if (!CV_INGEST_PROCESSING.includes(result.data.status)) return;
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  }
+  onFailed: () => void,
+): () => void {
+  return startPoll({
+    fetch: async () => {
+      const result = await getMyCvStatus();
+      if (!result.ok || !result.data) throw new Error("status unavailable");
+      return result.data.status;
+    },
+    onResult: (status) => {
+      setStatus(status);
+      return CV_INGEST_PROCESSING.includes(status) ? "continue" : "stop";
+    },
+    onError: onFailed,
+    baseMs: 2000,
+  });
 }
 
 function CvSection({
@@ -619,8 +633,14 @@ function CvSection({
   // reflects processing started in THIS session, same scope the dialog
   // used to have).
   const [ingestStatus, setIngestStatus] = useState<CvIngestStatus | null>(null);
-  const ingestCancelledRef = useRef(false);
-  useEffect(() => () => { ingestCancelledRef.current = true; }, []);
+  const [ingestCheckFailed, setIngestCheckFailed] = useState(false);
+  const stopIngestPollRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopIngestPollRef.current?.(), []);
+  const trackIngest = () => {
+    stopIngestPollRef.current?.();
+    setIngestCheckFailed(false);
+    stopIngestPollRef.current = pollIngestStatus(setIngestStatus, () => setIngestCheckFailed(true));
+  };
   // A student's CV is compulsory (screens.tsx's cvRequired mirrors this) —
   // they can replace it but never remove it down to nothing, so "change"
   // and "remove" are two different actions only alumni ever see both of.
@@ -677,7 +697,7 @@ function CvSection({
       // dialog's close button. The badge below is the non-blocking
       // equivalent; CvProcessingDialog is still there, just opened on
       // request via "View details" once there's something to show.
-      if (consent) void pollIngestStatus(setIngestStatus, () => ingestCancelledRef.current);
+      if (consent) trackIngest();
     } catch {
       setError("Couldn't reach the file service. Try again in a moment.");
     } finally {
@@ -685,9 +705,15 @@ function CvSection({
     }
   };
 
+  // B6: one action at a time, each with a visible pending state.
+  const [cvBusy, setCvBusy] = useState<null | "download" | "remove">(null);
+
   const remove = async () => {
+    if (cvBusy) return;
     setError("");
-    const result = await removeCv();
+    setCvBusy("remove");
+    const result = await settle(removeCv());
+    setCvBusy(null);
     if (!result.ok) { setError(result.error); return; }
     setPresent(false);
     setFilename(null);
@@ -695,8 +721,11 @@ function CvSection({
   };
 
   const download = async () => {
+    if (cvBusy) return;
     setError("");
-    const result = await getMyCvDownloadUrl();
+    setCvBusy("download");
+    const result = await settle(getMyCvDownloadUrl());
+    setCvBusy(null);
     if (!result.ok) { setError(result.error); return; }
     if (result.data) window.open(result.data, "_blank", "noopener");
   };
@@ -735,13 +764,15 @@ function CvSection({
                 replaced also never did on a plain page load. */}
             {ingestStatus && (
               <span className="mt-1 flex items-center gap-1.5 text-[0.75rem] text-text-muted">
-                {CV_INGEST_PROCESSING.includes(ingestStatus) && (
+                {!ingestCheckFailed && CV_INGEST_PROCESSING.includes(ingestStatus) && (
                   <span
                     aria-hidden
                     className="h-3 w-3 shrink-0 rounded-full border-2 border-current/30 border-t-current animate-spin"
                   />
                 )}
-                {CV_INGEST_PROCESSING.includes(ingestStatus)
+                {ingestCheckFailed
+                  ? "Couldn't check progress"
+                  : CV_INGEST_PROCESSING.includes(ingestStatus)
                   ? "Processing your CV…"
                   : ingestStatus === "ready"
                     ? "Processed"
@@ -762,8 +793,8 @@ function CvSection({
               on a narrow container, rather than each one individually
               fighting the filename column for space. */}
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={download} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
-              Download
+            <button type="button" onClick={download} disabled={cvBusy !== null} aria-busy={cvBusy === "download"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary disabled:cursor-wait disabled:opacity-60">
+              {cvBusy === "download" ? "Opening…" : "Download"}
             </button>
             <button type="button" onClick={() => setChanging(true)} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
               Change CV
@@ -772,8 +803,8 @@ function CvSection({
                 down to nothing isn't offered to them at all, and the RPC itself
                 also refuses it, so this is UX clarity, not the enforcement. */}
             {canRemove && (
-              <button type="button" onClick={remove} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080]">
-                Remove CV
+              <button type="button" onClick={remove} disabled={cvBusy !== null} aria-busy={cvBusy === "remove"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-wait disabled:opacity-60">
+                {cvBusy === "remove" ? "Removing…" : "Remove CV"}
               </button>
             )}
           </div>
@@ -924,18 +955,26 @@ function GithubSection({
 
   const dismissPrompt = async () => {
     setDismissing(true);
-    try {
-      const result = await dismissGithubShowcasePrompt();
-      if (result.ok) setNeedsReview(false);
-    } finally {
-      setDismissing(false);
-    }
+    setError("");
+    const result = await settle(dismissGithubShowcasePrompt());
+    setDismissing(false);
+    // B6: a failed dismiss used to do nothing at all.
+    if (result.ok) setNeedsReview(false);
+    else setError(result.error);
   };
 
+  const [savingNudges, setSavingNudges] = useState(false);
   const toggleNudges = async (enabled: boolean) => {
+    if (savingNudges) return;
     setNudgesEnabled(enabled);
-    const result = await setGithubNudges(enabled);
-    if (!result.ok) setNudgesEnabled(!enabled); // revert on failure
+    setSavingNudges(true);
+    setError("");
+    const result = await settle(setGithubNudges(enabled));
+    setSavingNudges(false);
+    if (!result.ok) {
+      setNudgesEnabled(!enabled); // revert on failure
+      setError("Couldn't save your email preference. Please try again.");
+    }
   };
 
   const statusLabel =
@@ -1079,6 +1118,8 @@ function GithubSection({
                 <input
                   type="checkbox"
                   checked={nudgesEnabled}
+                  disabled={savingNudges}
+                  aria-busy={savingNudges}
                   onChange={(event) => void toggleNudges(event.target.checked)}
                   className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--color-accent)]"
                 />

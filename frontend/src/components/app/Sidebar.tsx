@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import SignOutButton from "@/app/admin/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
 import { PendingBadge } from "@/components/connections/PendingBadge";
+import { MESSAGING_ENABLED } from "@/lib/features";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · App sidebar
@@ -182,7 +183,9 @@ const PRIMARY: Item[] = [
   { key: "members", href: "/members", label: "Members", icon: <Icon d={I.members} /> },
   { key: "foundryAi", href: "/foundry-ai", label: "Foundry AI", icon: <Icon d={I.foundryAi} /> },
   { key: "connections", href: "/connections", label: "Connections", icon: <Icon d={I.connections} /> },
-  { key: "messaging", href: "/messaging", label: "Messaging", icon: <Icon d={I.messaging} /> },
+  ...(MESSAGING_ENABLED
+    ? [{ key: "messaging", href: "/messaging", label: "Messaging", icon: <Icon d={I.messaging} /> } satisfies Item]
+    : []),
   { key: "opportunities", href: "/opportunities", label: "Opportunities", icon: <Icon d={I.opportunities} /> },
   { key: "events", href: "/events", label: "Events", icon: <Icon d={I.events} /> },
   { key: "vcs", href: "/vcs", label: "Grants & VCs", icon: <Icon d={I.vcs} /> },

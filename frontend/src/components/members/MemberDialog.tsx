@@ -5,6 +5,7 @@ import Link from "next/link";
 import SocialLinks from "@/components/SocialLinks";
 import { Dialog, closeDialog } from "@/components/ui/Dialog";
 import { browserClient } from "@/lib/supabase/browser";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ConnectControl } from "@/components/connections/ConnectControl";
 import { MemberPhoto } from "./MemberPhoto";
@@ -37,6 +38,9 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
   // members, so there is nothing extra to enforce here.
   const [full, setFull] = useState<FullProfile | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  // Bumped by "Try again" (B8): a failed load used to just leave out the
+  // full text and links, with no sign anything was missing.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +71,7 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
         },
       );
     return () => { cancelled = true; };
-  }, [m.id]);
+  }, [m.id, attempt]);
 
   return (
     <Dialog
@@ -106,6 +110,19 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
       </header>
 
       <div className="px-7 py-5 space-y-5">
+        {loadFailed && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+            <p role="alert" className="text-[0.8rem] text-text-muted">Couldn&apos;t load the full profile.</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => { setLoadFailed(false); setAttempt((n) => n + 1); }}
+            >
+              Try again
+            </Button>
+          </div>
+        )}
         {/* While the full text loads, show the preview the card already has
             rather than an empty box — the dialog opens with content, and the
             untruncated version replaces it in place. */}

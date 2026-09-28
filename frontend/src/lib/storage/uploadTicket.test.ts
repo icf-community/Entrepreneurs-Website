@@ -22,6 +22,9 @@ describe("upload tickets", () => {
     expect(claims?.sub).toBe(USER);
     expect(claims?.key).toBe(KEY);
     expect(claims?.purpose).toBe("post_image");
+    // B21: the gateway checks these; they must match server/app/auth.py.
+    expect(claims?.aud).toBe("foundry-gateway-upload");
+    expect(claims?.iss).toBe("foundry-web");
   });
 
   it("rejects a ticket whose payload was edited", () => {

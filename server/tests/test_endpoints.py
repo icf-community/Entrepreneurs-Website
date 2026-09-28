@@ -427,6 +427,21 @@ def test_delete_rejects_a_malformed_or_oversized_payload(client: TestClient) -> 
     )
 
 
+def test_delete_refuses_an_oversized_body_before_parsing_it(client: TestClient) -> None:
+    # B22: nginx's body limit was the only bound; the handler parsed any
+    # size into memory before counting items.
+    auth = {"Authorization": f"Bearer {SERVICE_TOKEN}", "Content-Type": "application/json"}
+    huge = '{"items": [], "pad": "' + ("x" * 200_000) + '"}'
+    assert client.post("/v1/blobs/delete", headers=auth, content=huge).status_code == 413
+    assert client.deleted == []  # type: ignore[attr-defined]
+
+
+def test_delete_answers_bad_json_with_400_not_500(client: TestClient) -> None:
+    auth = {"Authorization": f"Bearer {SERVICE_TOKEN}", "Content-Type": "application/json"}
+    assert client.post("/v1/blobs/delete", headers=auth, content="{not json").status_code == 400
+    assert client.post("/v1/blobs/delete", headers=auth, content="[1, 2]").status_code == 400
+
+
 def test_delete_rejects_an_unrecognised_container(client: TestClient) -> None:
     auth = {"Authorization": f"Bearer {SERVICE_TOKEN}"}
     res = client.post(

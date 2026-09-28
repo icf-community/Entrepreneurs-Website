@@ -1,4 +1,5 @@
 import "server-only";
+import { errorSummary } from "@/lib/errorSummary";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Deterministic CV text extraction
@@ -46,7 +47,7 @@ export async function extractCvText(bytes: Buffer): Promise<string | null> {
     // Malformed or unsupported bytes degrade to "no suggestions" — this
     // path runs on attacker-controllable input, so it must never throw
     // past this point.
-    console.error("CV text extraction failed:", e);
+    console.error("CV text extraction failed:", errorSummary(e));
     return null;
   }
 }

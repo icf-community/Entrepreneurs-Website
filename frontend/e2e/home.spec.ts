@@ -132,13 +132,16 @@ test.describe("home", () => {
     await expect(page.getByRole("heading", { name: /newest members/i })).toHaveCount(0);
   });
 
-  test("messaging is reachable and says so plainly", async ({ page }) => {
+  // B18 (owner, 2026-09-28): Messaging is hidden until it is built. No nav
+  // link, and an old bookmark lands on /home instead of a placeholder.
+  test("messaging is hidden until it is built", async ({ page }) => {
     await page.goto("/home");
-    await page.getByRole("navigation", { name: "Main" })
-      .getByRole("link", { name: "Messaging" }).click();
+    await expect(
+      page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Messaging" }),
+    ).toHaveCount(0);
 
-    await expect(page).toHaveURL(/\/messaging$/);
-    await expect(page.getByRole("heading", { name: "Coming Soon!" })).toBeVisible();
+    await page.goto("/messaging");
+    await expect(page).toHaveURL(/\/home$/);
   });
 
   // The cards used to point at /events/<id> and /opportunities/<id>, which
@@ -227,7 +230,6 @@ test.describe("home", () => {
     for (const [label, href] of [
       ["Home", "/home"],
       ["Members", "/members"],
-      ["Messaging", "/messaging"],
       ["Opportunities", "/opportunities"],
       ["Events", "/events"],
       ["Grants & VCs", "/vcs"],

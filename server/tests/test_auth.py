@@ -185,3 +185,52 @@ def test_service_token_comparison_accepts_only_the_real_token() -> None:
         verify_service_token("Bearer service-token-valu")
     with pytest.raises(InvalidTicket):
         verify_service_token("Bearer ")
+
+
+# B21: bind the ticket to its purpose and issuer, so a token signed with the
+# same secret for any other reason can't be replayed as an upload ticket.
+# Rolled out in two steps: accept tickets with or without the claims for one
+# release (old Next.js deploys are still minting), then require them.
+
+AUD = "foundry-gateway-upload"
+ISS = "foundry-web"
+
+
+def test_accepts_a_ticket_with_the_right_audience_and_issuer() -> None:
+    from app.auth import verify_ticket
+
+    assert verify_ticket(f"Bearer {make_ticket(aud=AUD, iss=ISS)}").key == KEY
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"aud": "something-else", "iss": ISS},
+        {"aud": AUD, "iss": "someone-else"},
+        {"aud": ["other", AUD], "iss": ISS},
+        {"aud": AUD},
+        {"iss": ISS},
+    ],
+)
+def test_rejects_a_wrong_or_partial_audience_or_issuer(overrides: dict[str, object]) -> None:
+    from app.auth import InvalidTicket, verify_ticket
+
+    with pytest.raises(InvalidTicket):
+        verify_ticket(f"Bearer {make_ticket(**overrides)}")
+
+
+def test_transition_still_accepts_a_ticket_without_the_claims() -> None:
+    from app.auth import verify_ticket
+
+    assert verify_ticket(f"Bearer {make_ticket()}").key == KEY
+
+
+def test_once_required_a_ticket_without_the_claims_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UPLOAD_TICKET_REQUIRE_AUDIENCE", "true")
+    from app.auth import InvalidTicket, verify_ticket
+    from app.config import settings
+
+    settings.cache_clear()
+    with pytest.raises(InvalidTicket):
+        verify_ticket(f"Bearer {make_ticket()}")
+    assert verify_ticket(f"Bearer {make_ticket(aud=AUD, iss=ISS)}").key == KEY

@@ -71,6 +71,11 @@ def is_valid_key(key: object, purpose: TicketPurpose) -> bool:
     return _KEY_PATTERN_FOR_PURPOSE[purpose].match(key) is not None
 
 
+# Must match frontend/src/lib/storage/uploadTicket.ts.
+TICKET_AUDIENCE = "foundry-gateway-upload"
+TICKET_ISSUER = "foundry-web"
+
+
 @dataclass(frozen=True)
 class Ticket:
     sub: str
@@ -93,14 +98,24 @@ def verify_ticket(authorization: str | None) -> Ticket:
         # algorithms is pinned to a single value. Leaving it open is the
         # algorithm-confusion bug — a forged token declaring "alg": "none",
         # or an RS256 token verified with the public key as an HMAC secret.
+        #
+        # aud/iss are checked by hand below rather than by PyJWT, because the
+        # rollout (B21) has to accept tickets without them for one release.
         claims = jwt.decode(
             token,
             settings().upload_ticket_secret,
             algorithms=["HS256"],
-            options={"require": ["exp", "sub"]},
+            options={"require": ["exp", "sub"], "verify_aud": False, "verify_iss": False},
         )
     except jwt.PyJWTError as exc:
         raise InvalidTicket("Ticket is invalid or has expired") from exc
+
+    # Binds the token to this use: something else signed with the same
+    # secret can't be replayed as an upload ticket. Both claims or neither
+    # (during the transition); exact strings, no audience lists.
+    if settings().require_ticket_audience or "aud" in claims or "iss" in claims:
+        if claims.get("aud") != TICKET_AUDIENCE or claims.get("iss") != TICKET_ISSUER:
+            raise InvalidTicket("Ticket was not issued for uploads")
 
     purpose = claims.get("purpose")
     if purpose not in ("post_image", "profile_picture", "cv"):

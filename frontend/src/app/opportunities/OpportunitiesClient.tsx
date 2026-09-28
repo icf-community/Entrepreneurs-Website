@@ -14,6 +14,8 @@ import { startLabel, locationLabel } from "@/lib/listings/format";
 import { toggleOpportunityBookmark } from "./actions";
 import type { Opportunity } from "@/lib/data/opportunities";
 import { externalHref } from "@/lib/safeUrl";
+import { settle } from "@/lib/settle";
+import { useToast } from "@/components/ui/Toast";
 
 export default function OpportunitiesClient({
   items, bookmarkedIds, appliedIds = [], removeOnUnbookmark = false,
@@ -68,7 +70,13 @@ export default function OpportunitiesClient({
     }
   };
 
+  const toast = useToast();
+  // B7: ids with a bookmark write in flight; a repeat click waits for it.
+  const inFlight = useRef<Set<string>>(new Set());
+
   const handleToggleBookmark = (id: string) => {
+    if (inFlight.current.has(id)) return;
+    inFlight.current.add(id);
     // Optimistic update — flip the in-memory set, then call the server
     // and revert on failure. The .catch() matters as much as the
     // `!res.ok` branch: an actual thrown rejection (network blip
@@ -83,14 +91,13 @@ export default function OpportunitiesClient({
     if (wasBookmarked && removeOnUnbookmark) {
       setDismissed((prev) => new Set(prev).add(id));
     }
-    void toggleOpportunityBookmark(id)
-      .then((res) => {
-        if (!res.ok) rollbackBookmark(id, wasBookmarked);
-      })
-      .catch((e) => {
-        console.error("Failed to toggle bookmark:", e);
+    void settle(toggleOpportunityBookmark(id)).then((res) => {
+      inFlight.current.delete(id);
+      if (!res.ok) {
         rollbackBookmark(id, wasBookmarked);
-      });
+        toast("Couldn't update your bookmark. Please try again.", "error");
+      }
+    });
   };
 
   return (
