@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import LoginClient from "./LoginClient";
+import { SiteBanner } from "@/components/SiteBanner";
+import { Skeleton, SkeletonRegion } from "@/components/ui/Skeleton";
 
 // A thin server wrapper, added 2026-09-08, for two reasons that both come
 // out of removing `force-dynamic` from the root layout (C2 Finding 6).
@@ -27,8 +29,26 @@ export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
-      <LoginClient />
-    </Suspense>
+    <>
+      <SiteBanner />
+      {/* C1: a form-shaped placeholder instead of a blank page while the
+          client half hydrates. */}
+      <Suspense fallback={<LoginSkeleton />}>
+        <LoginClient />
+      </Suspense>
+    </>
+  );
+}
+
+function LoginSkeleton() {
+  return (
+    <main id="main-content" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-bg-primary px-4">
+      <SkeletonRegion label="Loading sign in…" className="w-full max-w-[420px] space-y-4">
+        <Skeleton className="mx-auto h-8 w-40" />
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-11 w-full rounded-lg" />
+        <Skeleton className="h-11 w-full rounded-lg" />
+      </SkeletonRegion>
+    </main>
   );
 }

@@ -26,6 +26,10 @@ export const config = {
     // matches `$`, the negative lookahead fails, and the homepage is
     // skipped. Any other path has characters left, so `$` cannot match
     // there and nothing else is affected.
-    "/((?!_next/static|_next/image|favicon.ico|privacy|terms|cookies|$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|css|js)$).*)",
+    //
+    // Also skipped: /api/banner (F-x4). It reads no session and is CDN
+    // cached, so the proxy's getUser() would be an Auth round trip per
+    // page view for nothing.
+    "/((?!_next/static|_next/image|favicon.ico|privacy|terms|cookies|api/banner$|$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|css|js)$).*)",
   ],
 };

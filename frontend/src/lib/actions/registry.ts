@@ -64,6 +64,8 @@ export const ACTION_POLICIES: Record<string, ActionPolicy> = {
   "app/admin/opportunities/actions.ts#bulkApproveOpportunities": adminListing,
   "app/admin/opportunities/actions.ts#bulkRejectOpportunities": adminListing,
   "app/admin/reports/actions.ts#resolveReport": admin,
+  "app/admin/banner/actions.ts#publishSiteBanner": admin,
+  "app/admin/banner/actions.ts#clearSiteBanner": admin,
   "app/admin/users/actions.ts#approveUser": admin,
   "app/admin/users/actions.ts#rejectUser": admin,
   "app/admin/users/actions.ts#bulkApproveUsers": admin,

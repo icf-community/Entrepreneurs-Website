@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Sidebar, { type NavKey } from "./Sidebar";
+import { SiteBanner } from "@/components/SiteBanner";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · App shell
@@ -81,6 +82,7 @@ export default function AppShell({
           <span className="text-[0.8rem] text-text-secondary">Foundry</span>
         </header>
 
+        <SiteBanner />
         <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">
           {children}
         </main>

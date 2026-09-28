@@ -42,13 +42,13 @@ export default defineConfig({
     // Approved student session (from global-setup).
     {
       name: "member",
-      testMatch: /member\.spec\.ts|workflow\.spec\.ts|dialog\.spec\.ts|a11y\.spec\.ts|validation\.spec\.ts|urlfilters\.spec\.ts|home\.spec\.ts|community\.spec\.ts|github-showcase\.spec\.ts/,
+      testMatch: /member\.spec\.ts|resilience\.spec\.ts|workflow\.spec\.ts|dialog\.spec\.ts|a11y\.spec\.ts|validation\.spec\.ts|urlfilters\.spec\.ts|home\.spec\.ts|community\.spec\.ts|github-showcase\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: storageStatePath("student") },
     },
     // Admin session.
     {
       name: "admin",
-      testMatch: /admin\.spec\.ts|intake\.spec\.ts/,
+      testMatch: /admin\.spec\.ts|banner\.spec\.ts|intake\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: storageStatePath("admin") },
     },
     // Credential pipelines: email change, password change, password reset.

@@ -167,7 +167,7 @@ const VERSION = 1;
 
 export type CacheKey =
   | "directoryFacets" | "directoryFirstPage" | "directoryNewest"
-  | "vcs" | "lookups" | "skills" | "skillsDetailed" | "sectors";
+  | "vcs" | "lookups" | "skills" | "skillsDetailed" | "sectors" | "siteBanner";
 
 const key = (k: CacheKey) => `cache:v${VERSION}:${k}`;
 
@@ -202,6 +202,10 @@ const TTL_SECONDS: Record<CacheKey, number> = {
   skills: 3600,
   skillsDetailed: 3600,
   sectors: 3600,
+  // The incident banner (F-x4). Publishing and clearing invalidate it; the
+  // TTL only bounds a missed invalidation, and /api/banner adds 15s of CDN
+  // caching on top.
+  siteBanner: 60,
 };
 
 /**

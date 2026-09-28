@@ -1454,6 +1454,42 @@ export type Database = {
         }
         Relationships: []
       }
+      site_banner: {
+        Row: {
+          enabled: boolean
+          hide_after: string | null
+          id: string
+          link_url: string | null
+          message: string
+          severity: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          enabled?: boolean
+          hide_after?: string | null
+          id?: string
+          link_url?: string | null
+          message?: string
+          severity?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          enabled?: boolean
+          hide_after?: string | null
+          id?: string
+          link_url?: string | null
+          message?: string
+          severity?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
       skills: {
         Row: {
           aliases: string[]
@@ -1629,6 +1665,7 @@ export type Database = {
         Args: { p_member: string; p_note?: string }
         Returns: undefined
       }
+      admin_clear_site_banner: { Args: never; Returns: undefined }
       admin_connection_stats: {
         Args: never
         Returns: {
@@ -1736,6 +1773,19 @@ export type Database = {
         Returns: {
           email: string
           user_id: string
+        }[]
+      }
+      admin_get_site_banner: {
+        Args: never
+        Returns: {
+          enabled: boolean
+          hide_after: string
+          link_url: string
+          message: string
+          severity: string
+          updated_at: string
+          updated_by_name: string
+          version: number
         }[]
       }
       admin_list_connection_reports: {
@@ -1924,6 +1974,15 @@ export type Database = {
       admin_set_ingestion_enabled: {
         Args: { p_enabled: boolean }
         Returns: undefined
+      }
+      admin_set_site_banner: {
+        Args: {
+          p_hide_after?: string
+          p_link_url?: string
+          p_message: string
+          p_severity: string
+        }
+        Returns: number
       }
       admin_update_listing: {
         Args: {
@@ -2253,6 +2312,15 @@ export type Database = {
           id: string
           like_count: number
           liked_by_me: boolean
+        }[]
+      }
+      get_site_banner: {
+        Args: never
+        Returns: {
+          link_url: string
+          message: string
+          severity: string
+          version: number
         }[]
       }
       github_cv_ingestion_enabled: { Args: never; Returns: boolean }

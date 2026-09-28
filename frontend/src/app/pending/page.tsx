@@ -5,6 +5,7 @@ import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unava
 import SignOutButton from "@/app/admin/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
 import { redirectAwayFrom } from "@/lib/auth/status";
+import { SiteBanner } from "@/components/SiteBanner";
 
 export default async function PendingPage() {
   const supabase = await createClient();
@@ -34,6 +35,7 @@ export default async function PendingPage() {
 
   return (
     <div className="relative min-h-screen bg-bg-primary flex flex-col">
+      <SiteBanner />
       <header className="sticky top-0 z-40 px-8 py-5 bg-bg-primary/90 backdrop-blur-md border-b border-border-subtle">
         <div className="max-w-[1200px] mx-auto flex items-center justify-between">
           <Link href="/" className="no-underline">

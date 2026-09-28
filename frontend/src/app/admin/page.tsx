@@ -109,6 +109,7 @@ export default async function AdminPage() {
             <DiagLink href="/admin/graduates" label="Graduate cleanup" />
             <DiagLink href="/admin/reports" label="Reported posts · moderation queue" />
             <DiagLink href="/admin/connections" label="Connections · reports, throttles, pause" />
+            <DiagLink href="/admin/banner" label="Site banner · tell members about an outage" />
           </div>
         </div>
 

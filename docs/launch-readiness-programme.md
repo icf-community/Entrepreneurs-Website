@@ -439,6 +439,7 @@ A Vitest test asserts that the flag defaults off and that a production build wit
 3. `app_config` rows and seeds (any new cron URLs), with feature flags **off**.
 4. Frontend deploy via Vercel on merge.
 5. Gateway and worker deploys via GHCR. Verify the **running container digest**, not just CI or systemd status.
+   **Order matters for B21:** the gateway that accepts `aud`/`iss` must be live *before* the frontend that mints them, because an older gateway rejects any ticket carrying `aud`. So deploy the gateway first (step 5 before step 4 for this release), then the frontend, then, a release later, set `UPLOAD_TICKET_REQUIRE_AUDIENCE=true` on the gateway VM (owner).
 6. ACA executor (AI) with flags off.
 7. Smoke: `prod-smoke.mjs` plus a manual admin walkthrough.
 8. Turn on flags, one feature at a time, each followed by smoke.

@@ -826,6 +826,10 @@ declare
     -- 20260928000001: the four reads above in one call, for the Connect
     -- control. Composes them, so it inherits their 42501 self-defence.
     'connection_panel_state',
+    -- 20260928000003 incident banner (F-x4). get_site_banner is the one
+    -- deliberately anon-callable read (the /login page shows it); the
+    -- admin_* trio guard on is_admin() in-body.
+    'get_site_banner','admin_get_site_banner','admin_set_site_banner','admin_clear_site_banner',
     -- 20260917000007. Scoped to rows the caller BLOCKED (blocked_by =
     -- caller), never rows where they were blocked — there is deliberately
     -- no counterpart RPC, because a member must not be able to learn they
@@ -874,7 +878,7 @@ begin
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public'
    where p.proname = any (v_allowed)
-     and p.proname not in ('_set_caller', 'is_admin', 'is_approved')
+     and p.proname not in ('_set_caller', 'is_admin', 'is_approved', 'get_site_banner')
      and has_function_privilege('anon', p.oid, 'EXECUTE');
   if v_leaked is not null then
     raise exception
@@ -4759,6 +4763,65 @@ begin
     raise exception 'FAIL: the cohort delete was not audited against the calling admin';
   end if;
 end; $$;
+
+-- ─── F-x4. Incident banner: admins publish, everyone reads, members can't write ─
+-- (20260928000003). The whole file rolls back at the end, so nothing here
+-- needs undoing.
+do $$
+declare
+  v_admin  uuid := gen_random_uuid();
+  v_member uuid := gen_random_uuid();
+  v_v int; r record;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_admin, 'banneradmin@imperial.ac.uk', '{"first_name":"Ban","surname":"Ner","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.admins (user_id) values (v_admin) on conflict do nothing;
+
+  if has_function_privilege('anon', 'public.admin_set_site_banner(text,text,text,timestamptz)', 'execute')
+    then raise exception 'FAIL: anon can publish a banner'; end if;
+  if not has_function_privilege('anon', 'public.get_site_banner()', 'execute')
+    then raise exception 'FAIL: anon cannot read the banner (/login needs it)'; end if;
+  if has_table_privilege('authenticated', 'public.site_banner', 'update')
+     or has_table_privilege('anon', 'public.site_banner', 'select')
+    then raise exception 'FAIL: site_banner is directly reachable'; end if;
+
+  -- A non-admin caller is refused in-body.
+  perform _set_caller(v_member);
+  begin
+    perform public.admin_set_site_banner('x', 'info');
+    raise exception 'FAIL: a non-admin published a banner';
+  exception when insufficient_privilege then null;
+  end;
+
+  perform _set_caller(v_admin);
+  -- Validation: https only, 200 chars, known severity.
+  begin perform public.admin_set_site_banner('x', 'info', 'javascript:alert(1)');
+    raise exception 'FAIL: non-https link accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.admin_set_site_banner(repeat('a', 201), 'info');
+    raise exception 'FAIL: over-long message accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.admin_set_site_banner('x', 'loud');
+    raise exception 'FAIL: unknown severity accepted';
+  exception when invalid_parameter_value then null; end;
+
+  v_v := public.admin_set_site_banner('Sign-in is slow right now.', 'warning', 'https://example.com/status');
+  select * into r from public.get_site_banner();
+  if r.message <> 'Sign-in is slow right now.' or r.version <> v_v then
+    raise exception 'FAIL: published banner not readable';
+  end if;
+
+  perform public.admin_clear_site_banner();
+  if exists (select 1 from public.get_site_banner()) then raise exception 'FAIL: cleared banner still shows'; end if;
+
+  set local role postgres;
+  if (select count(*) from public.admin_actions
+       where admin_id = v_admin and action in ('site_banner_publish', 'site_banner_clear')) <> 2
+    then raise exception 'FAIL: banner publish/clear not both written to admin_actions'; end if;
+end;
+$$;
 
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
