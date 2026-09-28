@@ -92,6 +92,19 @@ const THINK_SECONDS = Number(__ENV.THINK_SECONDS ?? 2);
 const HOLD_SECONDS = Number(__ENV.HOLD_SECONDS ?? 120);
 const P95_MS = Number(__ENV.P95_MS ?? 5000);
 const GATE = __ENV.GATE !== "0";
+// E1b gates: Stage 1 runs with P95_MS=1000 P99_MS=3000, Stage 2 with
+// 2000/5000. 0 leaves p99 ungated, as before.
+const P99_MS = Number(__ENV.P99_MS ?? 0);
+// Signed-in iterations also write (E1b "realistic read/write mix"): a
+// bookmark on and off through the real server action, plus the two RPCs
+// the browser calls straight to PostgREST. WRITES=0 restores read-only.
+const WRITES = MODE !== "anon" && __ENV.WRITES !== "0";
+const SUPABASE_URL = __ENV.SUPABASE_URL || "http://127.0.0.1:54321";
+const ANON_KEY = __ENV.SUPABASE_ANON_KEY;
+if (WRITES && !ANON_KEY) {
+  throw new Error("Writes need SUPABASE_ANON_KEY (export $(supabase status -o env | xargs)), or set WRITES=0.");
+}
+if (!Number.isFinite(P99_MS) || P99_MS < 0) throw new Error("Invalid P99_MS.");
 if ((STAGE !== null && (!Number.isInteger(STAGE) || STAGE < 1)) ||
     !Number.isFinite(THINK_SECONDS) || THINK_SECONDS < 0 ||
     !Number.isFinite(HOLD_SECONDS) || HOLD_SECONDS < 1 ||
@@ -106,6 +119,17 @@ if (!["anon", "auth", "mixed"].includes(MODE)) {
 // SharedArray so 500 VUs share one copy of the tokens rather than each
 // parsing and holding their own. Loaded in init; open() is not available
 // anywhere else.
+// Server actions are addressed by per-build ids (scripts/loadtest-actions.mjs).
+const ACTIONS = WRITES ? (() => {
+  try {
+    return JSON.parse(open("./.loadtest-actions.json"));
+  } catch {
+    throw new Error("Writes need action ids for THIS build: run `node scripts/loadtest-actions.mjs` after `pnpm build`.");
+  }
+})() : {};
+const BOOKMARK_ACTION = "app/opportunities/actions.ts#toggleOpportunityBookmark";
+if (WRITES && !ACTIONS[BOOKMARK_ACTION]) throw new Error(`No action id for ${BOOKMARK_ACTION}; re-run loadtest-actions.mjs.`);
+
 const SESSIONS = new SharedArray("sessions", () => {
   if (MODE === "anon") return [];
   let file;
@@ -164,6 +188,12 @@ const routeLatency = {
   connections_pending_auth: new Trend("route_connections_pending_auth", true),
   connections_graph_auth: new Trend("route_connections_graph_auth", true),
 };
+const writeLatency = {
+  bookmark: new Trend("write_bookmark", true),
+  listing_event: new Trend("write_listing_event", true),
+  mark_read: new Trend("write_mark_read", true),
+};
+const writeErrors = new Rate("write_errors");
 const errors = new Rate("route_errors");
 const expectedRedirect = new Counter("expected_redirect");
 const authRedirect = new Counter("auth_redirect");
@@ -219,7 +249,12 @@ export const options = {
     checks: ["rate==1"],
     ...Object.fromEntries(Object.keys(routeLatency)
       .filter((name) => MODE === "mixed" || (MODE === "auth" ? name.endsWith("_auth") : !name.endsWith("_auth")))
-      .map((name) => [`route_${name}`, [`p(95)<${P95_MS}`]])),
+      .map((name) => [`route_${name}`, [`p(95)<${P95_MS}`, ...(P99_MS ? [`p(99)<${P99_MS}`] : [])]])),
+    ...(WRITES ? {
+      write_errors: ["rate==0"],
+      ...Object.fromEntries(Object.keys(writeLatency).map((name) =>
+        [`write_${name}`, [`p(95)<${P95_MS}`, ...(P99_MS ? [`p(99)<${P99_MS}`] : [])]])),
+    } : {}),
   } : {},
   // Redirects are the thing being measured on protected routes, so do
   // not let k6 silently follow them and time two requests as one.
@@ -235,6 +270,15 @@ export const options = {
 // Validate EVERY synthetic identity before adding load. A valid expiry
 // does not prove the session still exists or that its member is approved.
 export function setup() {
+  let opportunities = [];
+  if (WRITES) {
+    const res = http.get(`${SUPABASE_URL}/rest/v1/opportunities?select=id&status=eq.approved&limit=200`, {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${SESSIONS[0].accessToken}` },
+      tags: { route: "setup" },
+    });
+    opportunities = res.status === 200 ? res.json().map((r) => r.id) : [];
+    if (opportunities.length === 0) throw new Error("Writes need approved opportunities in the corpus to bookmark.");
+  }
   for (let i = 0; i < SESSIONS.length; i += 1) {
     const res = http.get(`${BASE}/home`, {
       headers: { Cookie: SESSIONS[i].cookie },
@@ -246,6 +290,7 @@ export function setup() {
       throw new Error(`Synthetic session ${i + 1} failed authenticated preflight; no load stage started.`);
     }
   }
+  return { opportunities };
 }
 
 // `session` is undefined for anonymous hits and a minted session for
@@ -258,7 +303,7 @@ function hit(name, path, session) {
   if (session) headers.Cookie = session.cookie;
 
   const res = http.get(`${BASE}${path}`, {
-    tags: { route: name }, headers,
+    tags: { route: name, kind: "read" }, headers,
     // Never merge a refreshed cookie from one response with the fixed
     // synthetic cookie supplied above. Each measurement uses that session.
     jar: new http.CookieJar(),
@@ -300,6 +345,56 @@ function hit(name, path, session) {
 // A session, not a single URL: a real visitor lands, reads the two
 // listing boards, and bounces off one gated page. Weighting matters —
 // /events is where an announcement points, so it is hit twice.
+// A server action as the browser sends it: POST to a page that hosts it,
+// the build's action id, the args as a JSON array, and a same-origin
+// Origin header (Next refuses cross-origin actions).
+function action(name, key, path, args, session) {
+  const res = http.post(`${BASE}${path}`, JSON.stringify(args), {
+    headers: {
+      "Next-Action": ACTIONS[key],
+      "Content-Type": "text/plain;charset=UTF-8",
+      Accept: "text/x-component",
+      Origin: BASE,
+      Cookie: session.cookie,
+    },
+    tags: { route: name, kind: "write" },
+    jar: new http.CookieJar(),
+  });
+  writeLatency[name].add(res.timings.duration);
+  (statusCodes[res.status] || statusOther).add(1);
+  const ok = res.status === 200 && typeof res.body === "string" && res.body.includes('"ok":true');
+  writeErrors.add(!ok);
+  check(res, { [`${name} succeeded`]: () => ok });
+  return ok;
+}
+
+// An RPC the browser calls directly, with the member's own token.
+function rpc(name, fn, body, session) {
+  const res = http.post(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, JSON.stringify(body), {
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
+    tags: { route: name, kind: "write" },
+  });
+  writeLatency[name].add(res.timings.duration);
+  (statusCodes[res.status] || statusOther).add(1);
+  const ok = res.status >= 200 && res.status < 300;
+  writeErrors.add(!ok);
+  check(res, { [`${name} succeeded`]: () => ok });
+}
+
+function writeBurst(session, opportunities) {
+  const opp = opportunities[Math.floor(Math.random() * opportunities.length)];
+  group("signed-in writes", () => {
+    // On, then off: net zero per iteration, so after the run the synthetic
+    // members hold no bookmarks. Anything left over is a lost or doubled
+    // write (checked by the E1b runbook query, not here).
+    action("bookmark", BOOKMARK_ACTION, "/opportunities", [opp], session);
+    action("bookmark", BOOKMARK_ACTION, "/opportunities", [opp], session);
+    rpc("listing_event", "record_listing_event", { p_kind: "opportunity", p_id: opp, p_event_type: "expand" }, session);
+    rpc("mark_read", "mark_notifications_read", {}, session);
+    if (THINK_SECONDS > 0) sleep(THINK_SECONDS);
+  });
+}
+
 function anonymousBurst() {
   group("anonymous burst", () => {
     hit("home", "/");
@@ -353,21 +448,24 @@ function signedInBurst(session) {
 // shape rather than a laptop millisecond. A concurrency number for it
 // would have to come from a staging database that can be thrown away.
 
-export default function loadIteration() {
+export default function loadIteration(data) {
   // Spread VUs across the minted members rather than reusing one: a
   // single auth.uid() gets unrealistically warm plans and page caches.
   const session = SESSIONS.length ? SESSIONS[(__VU - 1) % SESSIONS.length] : null;
 
   if (MODE === "auth") {
     signedInBurst(session);
+    if (WRITES) writeBurst(session, data.opportunities);
     return;
   }
   if (MODE === "mixed") {
     // Alternate by VU, not by iteration, so each VU keeps one identity
     // for the whole run and the two populations stay evenly sized at
     // every ramp level.
-    if (__VU % 2 === 0) signedInBurst(session);
-    else anonymousBurst();
+    if (__VU % 2 === 0) {
+      signedInBurst(session);
+      if (WRITES) writeBurst(session, data.opportunities);
+    } else anonymousBurst();
     return;
   }
   anonymousBurst();
@@ -423,7 +521,14 @@ export function handleSummary(data) {
   if (MODE !== "anon" && authSamples === 0) out += "\nNo authenticated stage samples: this is NOT a capacity result.\n";
   out += `\nAuthenticated content/transport failures: ${m.auth_content_errors?.values.count || 0}\n`;
   out += `Pacing: ${THINK_SECONDS}s per page; distinct sessions: ${SESSIONS.length}; gate: ${GATE}\n`;
-  out += "HTTP-only: excludes browser effects, graph animation, images, login and mutations.\n";
+  if (WRITES) {
+    out += `\n── writes (ms) ──\n`;
+    for (const name of Object.keys(writeLatency)) {
+      out += `${pad(name, 22)}${pad(g(`write_${name}`, "med"), 10)}${pad(g(`write_${name}`, "p(95)"), 10)}${pad(g(`write_${name}`, "p(99)"), 10)}${g(`write_${name}`, "max")}\n`;
+    }
+    out += `write error rate: ${m.write_errors ? (m.write_errors.values.rate * 100).toFixed(2) : "0"}%\n`;
+  }
+  out += `HTTP-only: excludes browser effects, graph animation, images and login${WRITES ? "" : " and mutations"}.\n`;
 
   out += `\nRead the RANKING, not the milliseconds — this ran on a laptop`;
   out += `\nsharing cores with Postgres and k6 itself.\n`;

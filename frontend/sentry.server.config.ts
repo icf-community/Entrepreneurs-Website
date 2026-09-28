@@ -16,6 +16,8 @@ if (dsn) {
     tracesSampleRate: 0,
     // Don't phone home in development.
     enabled: process.env.NODE_ENV === "production",
-    environment: process.env.NODE_ENV,
+    // G6: production / preview / development, so a preview deploy's errors
+    // never read as production's.
+    environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   });
 }

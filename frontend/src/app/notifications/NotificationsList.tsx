@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/Toast";
 import { browserClient } from "@/lib/supabase/browser";
 import { invalidateUnreadBadge } from "@/components/notifications/UnreadBadge";
 import type { Notification } from "@/lib/data/notifications";
+import { track } from "@/components/analytics/PostHogProvider";
 
 function when(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
@@ -31,6 +32,7 @@ export default function NotificationsList({ initial }: { initial: Notification[]
     setMarking(true);
     try {
       await markRead(null);
+      track("notifications_marked_read");
     } catch {
       toast("Couldn't mark your notifications as read. Please try again.", "error");
     } finally {

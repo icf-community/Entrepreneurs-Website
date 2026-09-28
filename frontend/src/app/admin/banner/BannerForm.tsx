@@ -7,6 +7,7 @@ import { ErrorBanner } from "@/components/forms/Banners";
 import { useToast } from "@/components/ui/Toast";
 import { settle } from "@/lib/settle";
 import { publishSiteBanner, clearSiteBanner } from "./actions";
+import { track } from "@/components/analytics/PostHogProvider";
 
 type Severity = "info" | "warning" | "critical";
 
@@ -60,6 +61,7 @@ export default function BannerForm({ current }: { current: Current }) {
     }));
     setBusy(null);
     if (!res.ok) { setError(res.error); return; }
+    track("site_banner_published", { severity });
     toast("Banner published. It shows everywhere within a few seconds.", "success");
     router.refresh();
   }
@@ -70,6 +72,7 @@ export default function BannerForm({ current }: { current: Current }) {
     const res = await settle(clearSiteBanner());
     setBusy(null);
     if (!res.ok) { setError(res.error); return; }
+    track("site_banner_cleared");
     toast("Banner cleared.", "success");
     router.refresh();
   }

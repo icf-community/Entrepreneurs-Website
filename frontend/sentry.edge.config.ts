@@ -11,6 +11,8 @@ if (dsn) {
     // error quota without consuming the separate performance budget).
     tracesSampleRate: 0,
     enabled: process.env.NODE_ENV === "production",
-    environment: process.env.NODE_ENV,
+    // G6: production / preview / development, so a preview deploy's errors
+    // never read as production's.
+    environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   });
 }

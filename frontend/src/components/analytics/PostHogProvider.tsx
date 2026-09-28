@@ -13,7 +13,9 @@
 
 import { useEffect } from "react";
 import posthog from "posthog-js";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
+import { isSyntheticEmail } from "@/lib/observability/synthetic";
 
 const KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com";
@@ -47,16 +49,28 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
 
     const supabase = createClient();
 
+    // G8: a load-test or prod-window test account never reaches PostHog.
+    // Checked before identify, so not even its id is sent.
+    const identify = (user: { id: string; email?: string }) => {
+      if (isSyntheticEmail(user.email)) {
+        posthog.opt_out_capturing();
+        Sentry.setTag("synthetic", "true");
+        return;
+      }
+      posthog.identify(user.id);
+    };
+
     // Identify the current session immediately, then track changes.
     void supabase.auth.getUser().then(({ data }) => {
-      if (data.user) posthog.identify(data.user.id);
+      if (data.user) identify(data.user);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
         posthog.reset();
+        Sentry.setTag("synthetic", undefined);
       } else if (session?.user) {
-        posthog.identify(session.user.id);
+        identify(session.user);
       }
     });
 

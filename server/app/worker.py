@@ -20,7 +20,6 @@ See server/README.md.
 from __future__ import annotations
 
 import logging
-import os
 import signal
 import time
 import types
@@ -29,7 +28,7 @@ import uuid
 import psycopg
 from psycopg.types.json import Jsonb
 
-from . import cv_pipeline, github_pipeline
+from . import cv_pipeline, github_pipeline, observability
 from .config import worker_settings
 from .cv_pipeline import SkillMatch
 from .cv_sanitise import ExtractionFailed, SanitisedCv, UnsupportedContentType, sanitise_cv
@@ -77,34 +76,23 @@ LOOP_FAILURE_REPORT_EVERY = 60
 
 # ─── Error reporting ────────────────────────────────────────────────
 # Until now main()'s catch-all only logged, so a crash-looping worker was
-# invisible unless someone happened to read journalctl — and with the
-# worker started by hand there was not even a journal to read. Sentry is
-# an OPTIONAL import on purpose: the package is pinned in
-# requirements.txt so the container has it, but a local dev run or a test
-# environment without SENTRY_DSN set degrades to logging alone rather
-# than failing to start. No secret fallback (see config.py's header) —
-# absent DSN means disabled, not a placeholder.
-try:  # pragma: no cover — import-availability branch
-    import sentry_sdk
-except ImportError:  # pragma: no cover
-    sentry_sdk = None  # type: ignore[assignment]
-
-_sentry_ready = False
+# invisible unless someone happened to read journalctl. Sentry setup, and
+# the scrubbing that keeps CV text out of it, lives in observability.py so
+# the gateway and the worker share one set of privacy settings. Absent
+# SENTRY_DSN means logging only, never a placeholder.
+#
+# The heartbeat (G3) is what catches a worker that is simply not running:
+# nothing errors then. It checks in after a healthy loop iteration, at
+# most every HEARTBEAT_MINUTES, so a DB outage also misses check-ins.
+HEARTBEAT_MINUTES = 5
 
 
 def _init_error_reporting() -> None:
-    global _sentry_ready
-    dsn = os.environ.get("SENTRY_DSN")
-    if not dsn or sentry_sdk is None:
-        log.info("Sentry not configured; worker errors will be logged only")
-        return
-    sentry_sdk.init(dsn=dsn, traces_sample_rate=0.0)
-    _sentry_ready = True
+    observability.init_sentry("worker")
 
 
 def _capture(exc: BaseException) -> None:
-    if _sentry_ready and sentry_sdk is not None:
-        sentry_sdk.capture_exception(exc)
+    observability.capture(exc)
 
 
 def _claim_job(conn: psycopg.Connection) -> tuple[uuid.UUID, str, dict, int, int] | None:
@@ -879,6 +867,7 @@ def main() -> None:
 
     log.info("CV ingest worker starting, polling every %ss", POLL_INTERVAL_SECONDS)
     consecutive_failures = 0
+    last_heartbeat = float("-inf")
     while not _stopping:
         try:
             worked = run_once()
@@ -894,6 +883,9 @@ def main() -> None:
             continue
 
         consecutive_failures = 0
+        if time.monotonic() - last_heartbeat >= HEARTBEAT_MINUTES * 60:
+            observability.heartbeat("cv-worker", HEARTBEAT_MINUTES)
+            last_heartbeat = time.monotonic()
         if not worked and not _stopping:
             time.sleep(POLL_INTERVAL_SECONDS)
 

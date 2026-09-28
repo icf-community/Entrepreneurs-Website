@@ -338,6 +338,35 @@ begin
   end loop;
   raise notice 'OK  7g connections cron jobs registered and active';
 
+  -- 7h. Launch-programme objects (20260928000001-6). A missing one means
+  --     a migration didn't apply; the frontend calling it would 404.
+  for v_bad in
+    select x.want from (values
+      ('connection_panel_state'), ('get_site_banner'), ('admin_set_site_banner'),
+      ('list_my_notifications'), ('mark_notifications_read'), ('export_my_data'),
+      ('app_health_snapshot'), ('cron_health_check')
+    ) as x(want)
+    where not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = x.want)
+  loop
+    raise exception 'MISSING function: %', v_bad;
+  end loop;
+  for v_bad in
+    select x.want from (values ('purge-old-notifications-daily'), ('health-check')) as x(want)
+    where not exists (select 1 from cron.job j where j.jobname = x.want and j.active)
+  loop
+    raise exception 'MISSING or INACTIVE cron job: %', v_bad;
+  end loop;
+  raise notice 'OK  7h launch-programme functions and cron jobs present';
+
+  -- 7h-ii. health_url is deployment config like the digest URL. Without
+  --     it the health check never runs; the Sentry monitor's missed
+  --     check-in is the backstop, but on PROD this line must read OK.
+  if not exists (select 1 from public.app_config where key = 'health_url') then
+    raise notice 'WARN 7h-ii health_url MISSING — expected locally; on PROD run snippets/seed_app_config.sql';
+  else
+    raise notice 'OK  7h-ii health_url present';
+  end if;
+
   raise notice '─── ALL ASSERTIONS PASSED ───';
 end $$;
 

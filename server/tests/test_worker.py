@@ -679,6 +679,7 @@ def test_main_resets_the_failure_streak_after_a_success() -> None:
         patch.object(worker, "signal"),
     ):
         fake_time.sleep.side_effect = sleeps.append
+        fake_time.monotonic.return_value = 0.0
         worker._stopping = False
         try:
             worker.main()
@@ -688,3 +689,39 @@ def test_main_resets_the_failure_streak_after_a_success() -> None:
     # 2s, 4s for the first streak; the success resets it, so the third
     # failure backs off from 2s again rather than continuing to 8s.
     assert sleeps == [2.0, 4.0, 2.0], sleeps
+
+
+def test_main_heartbeats_only_after_healthy_iterations() -> None:
+    """G3: a worker that can't reach the DB must miss check-ins, so the
+    monitor alerts; a healthy one checks in at most every HEARTBEAT_MINUTES."""
+    outcomes = [OSError("down"), OSError("down"), False, False, True]
+    # Beating reads the clock twice (check, then record).
+    clock = iter([0.0, 0.0, 100.0, 200.0, 250.0, 260.0])
+
+    def scripted() -> bool:
+        if not outcomes:
+            worker._stopping = True
+            return False
+        result = outcomes.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    with (
+        patch.object(worker, "run_once", side_effect=scripted),
+        patch.object(worker, "time") as fake_time,
+        patch.object(worker, "_capture"),
+        patch.object(worker, "_init_error_reporting"),
+        patch.object(worker, "signal"),
+        patch.object(worker.observability, "heartbeat") as beat,
+    ):
+        fake_time.monotonic.side_effect = lambda: next(clock)
+        worker._stopping = False
+        try:
+            worker.main()
+        finally:
+            worker._stopping = False
+
+    # First healthy iteration beats; the next two are inside the window.
+    assert beat.call_count == 1
+    beat.assert_called_with("cv-worker", worker.HEARTBEAT_MINUTES)

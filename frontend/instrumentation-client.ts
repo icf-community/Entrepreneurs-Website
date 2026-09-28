@@ -14,7 +14,9 @@ if (dsn) {
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 0,
     enabled: process.env.NODE_ENV === "production",
-    environment: process.env.NODE_ENV,
+    // G6: production / preview / development, so a preview deploy's errors
+    // never read as production's.
+    environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
   });
 }
 

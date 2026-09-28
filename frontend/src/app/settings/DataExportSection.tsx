@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { settle } from "@/lib/settle";
 import { exportMyData } from "./actions";
+import { track } from "@/components/analytics/PostHogProvider";
 
 // Settings → "Download my data" (launch programme F-x2). The server action
 // returns the JSON; the browser saves it as a file, so nothing is stored
@@ -19,6 +20,7 @@ export default function DataExportSection() {
     const res = await settle(exportMyData());
     setPending(false);
     if (!res.ok) { setError(res.error); return; }
+    track("data_export_downloaded");
     const url = URL.createObjectURL(new Blob([res.json], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;

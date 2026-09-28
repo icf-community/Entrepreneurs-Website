@@ -25,6 +25,7 @@ from fastapi import FastAPI, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from . import observability
 from .auth import InvalidTicket, TicketPurpose, is_valid_key, verify_service_token, verify_ticket
 from .config import settings
 from .documents import RejectedDocument
@@ -34,6 +35,10 @@ from .images import sanitise as sanitise_image
 from .storage import BlobAlreadyExists, delete_blob, put_blob
 
 log = logging.getLogger("foundry.gateway")
+
+# G2: errors only, with request bodies, headers and blob keys scrubbed
+# (observability.py). No SENTRY_DSN, no Sentry.
+observability.init_sentry("gateway")
 
 # docs_url/redoc_url only hide the Swagger/ReDoc UI — openapi_url is a
 # separate FastAPI setting and defaults to serving the raw schema

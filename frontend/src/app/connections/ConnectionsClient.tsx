@@ -35,6 +35,7 @@ import type {
 } from "@/lib/data/connections";
 import { settle } from "@/lib/settle";
 import { Updating } from "@/components/ui/Updating";
+import { track } from "@/components/analytics/PostHogProvider";
 
 // d3-force is ~30 KB and is used by one optional view that is not the
 // default. Loaded on demand so it never enters the card-view bundle and
@@ -657,7 +658,10 @@ function PendingTab({
               consentVersion,
             })
           }
-          onSuccess={() => drop(declining.connectionId)}
+          onSuccess={() => {
+            track("connection_declined");
+            drop(declining.connectionId);
+          }}
           onClose={() => setDeclining(null)}
         />
       )}

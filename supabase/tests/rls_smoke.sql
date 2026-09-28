@@ -4943,6 +4943,34 @@ begin
 end;
 $$;
 
+-- ─── G3/G4. Health snapshot: service-only, reports once then hourly ──
+-- (20260928000006). Rolled back with the rest of the file.
+do $$
+declare
+  v_first  boolean;
+  v_second boolean;
+begin
+  set local role postgres;
+  if has_function_privilege('authenticated', 'public.app_health_snapshot()', 'execute')
+     or has_function_privilege('anon', 'public.app_health_snapshot()', 'execute')
+    then raise exception 'FAIL: app_health_snapshot callable by members'; end if;
+  if has_function_privilege('authenticated', 'public.cron_health_check()', 'execute')
+    then raise exception 'FAIL: cron_health_check callable by members'; end if;
+  if has_table_privilege('authenticated', 'public.app_health_state', 'select')
+    then raise exception 'FAIL: app_health_state readable by members'; end if;
+
+  -- Force a failing check (no health_url), then confirm the throttle.
+  delete from public.app_config where key = 'health_url';
+  delete from public.app_health_state;
+  select (c->>'report')::boolean into v_first
+    from jsonb_array_elements(public.app_health_snapshot()) c where c->>'check' = 'config_missing';
+  select (c->>'report')::boolean into v_second
+    from jsonb_array_elements(public.app_health_snapshot()) c where c->>'check' = 'config_missing';
+  if v_first is not true then raise exception 'FAIL: a newly failing check was not reported'; end if;
+  if v_second is not false then raise exception 'FAIL: a still-failing check was re-reported within the hour'; end if;
+end;
+$$;
+
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
 -- above), so reset to the owner role before dropping the helper function.

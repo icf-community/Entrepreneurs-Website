@@ -97,6 +97,24 @@ export type Database = {
         }
         Relationships: []
       }
+      app_health_state: {
+        Row: {
+          check_name: string
+          failing_since: string | null
+          last_reported_at: string | null
+        }
+        Insert: {
+          check_name: string
+          failing_since?: string | null
+          last_reported_at?: string | null
+        }
+        Update: {
+          check_name?: string
+          failing_since?: string | null
+          last_reported_at?: string | null
+        }
+        Relationships: []
+      }
       blob_deletion_queue: {
         Row: {
           attempts: number
@@ -2028,6 +2046,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      app_health_snapshot: { Args: never; Returns: Json }
       apply_listing_edit_payload: {
         Args: {
           p_kind: Database["public"]["Enums"]["listing_event_kind"]
@@ -2186,6 +2205,7 @@ export type Database = {
       cron_drain_blob_deletions: { Args: never; Returns: undefined }
       cron_drain_outbound_email: { Args: never; Returns: undefined }
       cron_github_showcase_nudge: { Args: never; Returns: undefined }
+      cron_health_check: { Args: never; Returns: undefined }
       defer_intake: { Args: never; Returns: undefined }
       delete_my_account: { Args: never; Returns: undefined }
       delete_my_post: { Args: { p_post_id: string }; Returns: undefined }

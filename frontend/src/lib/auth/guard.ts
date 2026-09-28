@@ -6,6 +6,8 @@ import type { Database } from "@/lib/database.overrides";
 import type { UserStatus } from "@/lib/database.overrides";
 import { destinationForStatus, postApprovalDestination } from "@/lib/auth/status";
 import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
+import * as Sentry from "@sentry/nextjs";
+import { isSyntheticEmail } from "@/lib/observability/synthetic";
 
 // Auth + onboarding-status gating used by every authenticated page.
 // Centralised so swapping Supabase for a different backend later (e.g.
@@ -94,6 +96,9 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
   // than bouncing a signed-in member to a login form that will fail too.
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect(await loginRedirectPath());
+  // G8: server errors from a load-test account are tagged, so alert rules
+  // can skip them.
+  if (isSyntheticEmail(user.email)) Sentry.getIsolationScope().setTag("synthetic", "true");
 
   const [adminRes, profileRes] = await Promise.all([
     supabase.rpc("is_admin"),

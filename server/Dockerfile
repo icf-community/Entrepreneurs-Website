@@ -33,6 +33,12 @@ USER gateway
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
+# G2: Sentry names the image that raised an event. The deploy workflows
+# pass the commit SHA the GHCR tag is built from; a local build leaves it
+# empty, and observability.py then sends no release.
+ARG GIT_SHA=""
+ENV SENTRY_RELEASE=$GIT_SHA
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \

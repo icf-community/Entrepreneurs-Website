@@ -5,6 +5,7 @@ import { Dialog, closeDialog, dialogCloser } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { respondToConnectionRequest } from "@/app/connections/actions";
 import { settle } from "@/lib/settle";
+import { track } from "@/components/analytics/PostHogProvider";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · The accept dialog — the consent moment
@@ -79,6 +80,7 @@ export function AcceptDialog({
       setError(res.error);
       return;
     }
+    track("connection_accepted");
     onAccepted();
     close();
   }

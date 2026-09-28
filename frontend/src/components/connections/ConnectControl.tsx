@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/connections/ConfirmDialog";
 import { browserClient } from "@/lib/supabase/browser";
 import { sendConnectionRequest, unblockMember, withdrawConnectionRequest } from "@/app/connections/actions";
 import { CONNECTION_NOTE_MAX, cleanNote, noteLength } from "@/lib/validation/connections";
+import { track } from "@/components/analytics/PostHogProvider";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · The Connect control, inside the member dialog
@@ -197,6 +198,7 @@ export function ConnectControl({
       setError(res.error);
       return;
     }
+    track("connection_request_sent", { with_note: note.trim().length > 0 });
     // The RPC accepts on the spot when they already had a request out to
     // you — two people agreeing is not a conflict — so the outcome is not
     // always "pending". Re-read rather than assuming.

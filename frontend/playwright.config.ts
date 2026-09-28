@@ -38,7 +38,7 @@ export default defineConfig({
   },
   projects: [
     // Logged-out surface + access control + auth entry flows.
-    { name: "public", testMatch: /(public|auth)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
+    { name: "public", testMatch: /(public|auth|health)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     // Approved student session (from global-setup).
     {
       name: "member",
