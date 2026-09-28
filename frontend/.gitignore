@@ -24,6 +24,7 @@
 /scripts/.loadtest-sessions.json
 /scripts/.loadtest-actions.json
 /loadtest-summary.json
+/scripts/loadtest-summary.json
 
 # next.js
 /.next/

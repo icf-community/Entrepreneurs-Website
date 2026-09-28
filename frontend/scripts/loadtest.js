@@ -84,6 +84,10 @@ import { SharedArray } from "k6/data";
 import { Trend, Rate, Counter } from "k6/metrics";
 
 const BASE = __ENV.BASE || "http://127.0.0.1:3100";
+// Several local app instances (perf-serve.sh PERF_INSTANCES), one per VU
+// in turn, the way production spreads load over serverless instances.
+const BASES = (__ENV.BASES || BASE).split(",").map((b) => b.trim()).filter(Boolean);
+const baseFor = () => BASES[(__VU - 1) % BASES.length];
 const STAGE = __ENV.STAGE ? Number(__ENV.STAGE) : null;
 const MODE = __ENV.MODE || "anon";
 // Default to browsing pace. THINK_SECONDS=0 explicitly opts into a stress
@@ -216,7 +220,7 @@ const requiredContent = {
 // all — those look identical in the error-rate number but need opposite
 // fixes, so the raw status codes are broken out to tell them apart.
 const statusCodes = {};
-for (const code of [200, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
+for (const code of [200, 204, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
   statusCodes[code] = new Counter(`status_${code}`);
 }
 const statusOther = new Counter("status_other");
@@ -302,7 +306,7 @@ function hit(name, path, session) {
   const headers = { "Accept-Encoding": "gzip" };
   if (session) headers.Cookie = session.cookie;
 
-  const res = http.get(`${BASE}${path}`, {
+  const res = http.get(`${baseFor()}${path}`, {
     tags: { route: name, kind: "read" }, headers,
     // Never merge a refreshed cookie from one response with the fixed
     // synthetic cookie supplied above. Each measurement uses that session.
@@ -349,12 +353,13 @@ function hit(name, path, session) {
 // the build's action id, the args as a JSON array, and a same-origin
 // Origin header (Next refuses cross-origin actions).
 function action(name, key, path, args, session) {
-  const res = http.post(`${BASE}${path}`, JSON.stringify(args), {
+  const base = baseFor();
+  const res = http.post(`${base}${path}`, JSON.stringify(args), {
     headers: {
       "Next-Action": ACTIONS[key],
       "Content-Type": "text/plain;charset=UTF-8",
       Accept: "text/x-component",
-      Origin: BASE,
+      Origin: base,
       Cookie: session.cookie,
     },
     tags: { route: name, kind: "write" },
@@ -504,7 +509,7 @@ export function handleSummary(data) {
   out += `   expected redirects: ${m.expected_redirect ? m.expected_redirect.values.count : 0}\n`;
 
   out += `\n── status code breakdown ──\n`;
-  for (const code of [200, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
+  for (const code of [200, 204, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
     const n = m[`status_${code}`] ? m[`status_${code}`].values.count : 0;
     if (n > 0) out += `  ${code === 0 ? "conn error/timeout" : code}: ${n}\n`;
   }

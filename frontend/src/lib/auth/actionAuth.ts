@@ -2,7 +2,8 @@ import "server-only";
 import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import { isInfraAuthError, isInfraStatus, isServiceUnavailable, UNREACHABLE_MESSAGE } from "@/lib/supabase/unavailable";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { currentUser, type AuthUser } from "@/lib/auth/currentUser";
 import type { Database } from "@/lib/database.overrides";
 import type { UserStatus } from "@/lib/database.overrides";
 
@@ -21,7 +22,7 @@ import type { UserStatus } from "@/lib/database.overrides";
 
 export type ActionAuth = {
   supabase: SupabaseClient<Database>;
-  user: User | null;
+  user: AuthUser | null;
   isAdmin: boolean;
   status: UserStatus | null;
   unreachable: boolean;
@@ -34,22 +35,20 @@ function unreachableAuth(supabase: SupabaseClient<Database>, what: string, error
 
 export async function getActionAuth(): Promise<ActionAuth> {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { user, error: authError } = await currentUser(supabase);
   if (isInfraAuthError(authError)) return unreachableAuth(supabase, "session", authError);
   if (!user) return { supabase, user: null, isAdmin: false, status: null, unreachable: false };
 
-  const [adminRes, profileRes] = await Promise.all([
-    supabase.rpc("is_admin"),
-    supabase.from("profiles").select("status").eq("id", user.id).maybeSingle(),
-  ]);
-  if (adminRes.error && isInfraStatus(adminRes.status)) return unreachableAuth(supabase, "is_admin", adminRes.error);
-  if (profileRes.error && isInfraStatus(profileRes.status)) return unreachableAuth(supabase, "profile", profileRes.error);
+  // One call for is_admin + status (B26), as in the page guard.
+  const gateRes = await supabase.rpc("my_gate_state");
+  if (gateRes.error && isInfraStatus(gateRes.status)) return unreachableAuth(supabase, "gate", gateRes.error);
+  const gate = gateRes.data?.[0] ?? null;
 
   return {
     supabase,
     user,
-    isAdmin: !!adminRes.data,
-    status: (profileRes.data?.status ?? null) as ActionAuth["status"],
+    isAdmin: !!gate?.is_admin,
+    status: (gate?.status ?? null) as ActionAuth["status"],
     unreachable: false,
   };
 }

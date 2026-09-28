@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { currentUser, type AuthUser } from "@/lib/auth/currentUser";
 import type { Database } from "@/lib/database.overrides";
 import type { UserStatus } from "@/lib/database.overrides";
 import { destinationForStatus, postApprovalDestination } from "@/lib/auth/status";
@@ -39,7 +40,7 @@ export type GateOptions = {
 };
 
 export type GateResult = {
-  user: User;
+  user: AuthUser;
   isAdmin: boolean;
   status: UserStatus | null;
   displayName: string;
@@ -91,7 +92,7 @@ export function computeDisplayName(
 export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateResult> {
   const supabase = await createClient();
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { user, error: authError } = await currentUser(supabase);
   // An outage is not a signed-out visitor: throw to the error page rather
   // than bouncing a signed-in member to a login form that will fail too.
   throwIfAuthUnreachable("session", authError);
@@ -100,21 +101,17 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
   // can skip them.
   if (isSyntheticEmail(user.email)) Sentry.getIsolationScope().setTag("synthetic", "true");
 
-  const [adminRes, profileRes] = await Promise.all([
-    supabase.rpc("is_admin"),
-    supabase
-      .from("profiles")
-      .select("status, profile_version, intake_deferred_at, first_name, surname, preferred_name")
-      .eq("id", user.id)
-      .single(),
-  ]);
-  // Before either result is trusted: a failed is_admin would otherwise read
-  // as "not an admin", and a failed profile read as "no profile".
-  throwIfUnreachable("is_admin", adminRes);
-  throwIfUnreachable("profile", profileRes);
-  const profile = profileRes.data;
+  // is_admin and the caller's own profile in one call (B26): the gate
+  // runs on every page, and two calls here were ~40% of all PostgREST
+  // traffic under load.
+  const gateRes = await supabase.rpc("my_gate_state");
+  // Before the result is trusted: a failed read would otherwise look like
+  // "not an admin" and "no profile".
+  throwIfUnreachable("gate", gateRes);
+  const gate = gateRes.data?.[0] ?? null;
+  const profile = gate?.status ? gate : null;
 
-  const isAdmin = !!adminRes.data;
+  const isAdmin = !!gate?.is_admin;
 
   // Now genuinely "no row" (PGRST116) or a rejected token — signed out.
   if (!profile) redirect(await loginRedirectPath());
@@ -148,27 +145,20 @@ export async function requireApprovedUser(opts: GateOptions = {}): Promise<GateR
  */
 export async function requireSignedInUser(): Promise<GateResult> {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { user, error: authError } = await currentUser(supabase);
   // An outage is not a signed-out visitor: throw to the error page rather
   // than bouncing a signed-in member to a login form that will fail too.
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect(await loginRedirectPath());
 
-  const [adminRes, profileRes] = await Promise.all([
-    supabase.rpc("is_admin"),
-    supabase
-      .from("profiles")
-      .select("status, first_name, surname, preferred_name")
-      .eq("id", user.id)
-      .maybeSingle(),
-  ]);
-  throwIfUnreachable("is_admin", adminRes);
-  throwIfUnreachable("profile", profileRes);
-  const profile = profileRes.data;
+  const gateRes = await supabase.rpc("my_gate_state");
+  throwIfUnreachable("gate", gateRes);
+  const gate = gateRes.data?.[0] ?? null;
+  const profile = gate?.status ? gate : null;
 
   return {
     user,
-    isAdmin: !!adminRes.data,
+    isAdmin: !!gate?.is_admin,
     status: (profile?.status ?? null) as GateResult["status"],
     displayName: computeDisplayName(profile),
     supabase,

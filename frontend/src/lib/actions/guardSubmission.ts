@@ -5,7 +5,8 @@ import * as Sentry from "@sentry/nextjs";
 import { check } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { ok, err, type Result } from "@/lib/result";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AuthUser } from "@/lib/auth/currentUser";
 import type { Database } from "@/lib/database.overrides";
 
 export type SubmissionMode = "user" | "admin";
@@ -27,7 +28,7 @@ export async function guardSubmission(args: {
   /** Completes "You must be signed in to post …". */
   noun: string;
   turnstileToken?: string;
-}): Promise<Result<{ supabase: SupabaseClient<Database>; user: User }>> {
+}): Promise<Result<{ supabase: SupabaseClient<Database>; user: AuthUser }>> {
   // `mode` comes from the browser. Any value other than the two real modes
   // used to fall through both branches below and skip Turnstile, the
   // `submit` limit and the approval check.

@@ -85,6 +85,47 @@ describe("cached()", () => {
   });
 });
 
+describe("concurrent misses (E1b)", () => {
+  // At 250 members a cold or unreachable cache sent every request to the
+  // 1.4 s facets query at once. One loader per key per process is enough.
+  it("share one loader call and one write", async () => {
+    const { cached } = await load();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const loader = vi.fn(async () => { await gate; return { total: 5 }; });
+    const calls = Array.from({ length: 20 }, () => cached("directoryFacets", loader));
+    release();
+    const values = await Promise.all(calls);
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(values.every((v) => v.total === 5)).toBe(true);
+    expect(redis.set).toHaveBeenCalledTimes(1);
+  });
+
+  it("still share one call when Redis is not configured", async () => {
+    const { cached } = await load({ UPSTASH_REDIS_REST_URL: undefined, UPSTASH_REDIS_REST_TOKEN: undefined });
+    const loader = vi.fn(async () => ({ total: 1 }));
+    await Promise.all([cached("directoryFacets", loader), cached("directoryFacets", loader)]);
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it("run again once the first has settled, and never share an admin's read", async () => {
+    const { cached } = await load({ UPSTASH_REDIS_REST_URL: undefined, UPSTASH_REDIS_REST_TOKEN: undefined });
+    const loader = vi.fn(async () => ({ total: 1 }));
+    await cached("directoryFacets", loader);
+    await cached("directoryFacets", loader);
+    await Promise.all([cached("directoryFacets", loader, { skip: true }), cached("directoryFacets", loader, { skip: true })]);
+    expect(loader).toHaveBeenCalledTimes(4);
+  });
+
+  it("a failed load reaches every waiter and is not kept", async () => {
+    const { cached } = await load({ UPSTASH_REDIS_REST_URL: undefined, UPSTASH_REDIS_REST_TOKEN: undefined });
+    const loader = vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue({ total: 2 });
+    const both = await Promise.allSettled([cached("directoryFacets", loader), cached("directoryFacets", loader)]);
+    expect(both.every((r) => r.status === "rejected")).toBe(true);
+    expect(await cached("directoryFacets", loader)).toEqual({ total: 2 });
+  });
+});
+
 describe("invalidate()", () => {
   it("drops the key so the next read re-runs the loader", async () => {
     const { cached, invalidate } = await load();

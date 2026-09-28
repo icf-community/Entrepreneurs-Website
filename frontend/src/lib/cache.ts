@@ -234,7 +234,8 @@ export async function cached<T>(
   } = {},
 ): Promise<T> {
   const isCacheable = opts.isCacheable ?? (() => true);
-  if (!redis || opts.skip || breakerOpen()) return loader();
+  if (opts.skip) return loader();
+  if (!redis || breakerOpen()) return fill(name, loader, isCacheable);
 
   try {
     const hit = await withDeadline(redis.get<T>(key(name)), READ_TIMEOUT_MS);
@@ -248,22 +249,41 @@ export async function cached<T>(
     noteFailure(`read failed for ${name}`, e);
   }
 
-  const value = await loader();
+  return fill(name, loader, isCacheable);
+}
 
-  if (isCacheable(value)) {
-    // after() runs this once the response has been sent, so populating the
-    // cache never shows up in the user's time-to-first-byte. Awaiting it
-    // here would make the *first* visitor after an invalidation pay for
-    // everyone else's speed-up.
-    after(async () => {
-      try {
-        await redis.set(key(name), value, { ex: TTL_SECONDS[name] });
-      } catch (e) {
-        noteFailure(`write failed for ${name}`, e);
-      }
-    });
-  }
-  return value;
+// Loads in flight in this process, one per key (E1b). A shared key holds
+// the same value for every member, so a request that misses while another
+// is already loading it waits for that load instead of starting its own.
+// Without this a cold key, or a cache the breaker has paused, sent every
+// concurrent request to the database at once: at 250 members that was the
+// 1.4 s facets query, 526 times in four minutes. Admin reads (skip) never
+// come through here.
+const inFlight = new Map<CacheKey, Promise<unknown>>();
+
+function fill<T>(name: CacheKey, loader: () => Promise<T>, isCacheable: (value: T) => boolean): Promise<T> {
+  const running = inFlight.get(name);
+  if (running) return running as Promise<T>;
+  const load = (async () => {
+    const value = await loader();
+    // One write per load, not one per waiter. after() runs it once the
+    // response has been sent, so populating the cache never shows up in the
+    // user's time-to-first-byte: awaiting it here would make the first
+    // visitor after an invalidation pay for everyone else's speed-up.
+    if (redis && !breakerOpen() && isCacheable(value)) {
+      const r = redis;
+      after(async () => {
+        try {
+          await r.set(key(name), value, { ex: TTL_SECONDS[name] });
+        } catch (e) {
+          noteFailure(`write failed for ${name}`, e);
+        }
+      });
+    }
+    return value;
+  })().finally(() => inFlight.delete(name));
+  inFlight.set(name, load);
+  return load;
 }
 
 /**

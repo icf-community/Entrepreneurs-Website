@@ -835,6 +835,8 @@ declare
     'list_my_notifications','my_unread_notification_count','mark_notifications_read',
     -- 20260928000005 data export (F-x2): no parameters, keyed on auth.uid().
     'export_my_data',
+    -- 20260928000008 page gate (B26): is_admin + own profile, on auth.uid().
+    'my_gate_state',
     -- 20260917000007. Scoped to rows the caller BLOCKED (blocked_by =
     -- caller), never rows where they were blocked — there is deliberately
     -- no counterpart RPC, because a member must not be able to learn they
@@ -4968,6 +4970,38 @@ begin
     from jsonb_array_elements(public.app_health_snapshot()) c where c->>'check' = 'config_missing';
   if v_first is not true then raise exception 'FAIL: a newly failing check was not reported'; end if;
   if v_second is not false then raise exception 'FAIL: a still-failing check was re-reported within the hour'; end if;
+end;
+$$;
+
+-- ─── B26. my_gate_state: the caller's own gate row, nobody else's ────
+-- (20260928000008). Rolled back with the rest of the file.
+do $$
+declare
+  v_a uuid := gen_random_uuid();
+  v_b uuid := gen_random_uuid();
+  v_row record;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_a, 'gate-a@imperial.ac.uk', '{"first_name":"Gia","surname":"Alpha","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_b, 'gate-b@imperial.ac.uk', '{"first_name":"Gib","surname":"Beta","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.admins (user_id) values (v_b);
+
+  if has_function_privilege('anon', 'public.my_gate_state()', 'execute')
+    then raise exception 'FAIL: anon can call my_gate_state'; end if;
+
+  perform _set_caller(v_a);
+  select * into v_row from public.my_gate_state();
+  if v_row.is_admin or v_row.first_name is distinct from 'Gia'
+    then raise exception 'FAIL: my_gate_state returned the wrong row for a member'; end if;
+  if (select count(*) from public.my_gate_state()) <> 1
+    then raise exception 'FAIL: my_gate_state returned more than one row'; end if;
+
+  perform _set_caller(v_b);
+  select * into v_row from public.my_gate_state();
+  if not v_row.is_admin or v_row.first_name is distinct from 'Gib'
+    then raise exception 'FAIL: my_gate_state missed the admin flag'; end if;
 end;
 $$;
 

@@ -6,9 +6,9 @@ import { submitListing, updateOwnListing } from "@/lib/listings/user";
 
 // Used only by toggleOpportunityBookmark below, which is opportunity-only
 // (bookmarks exist for no other listing type) and so stays here.
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
+import { currentUser } from "@/lib/auth/currentUser";
 
 // Thin "use server" wrappers. The logic lives in lib/listings/user.ts,
 // once for all three types, and what differs between them is in
@@ -37,7 +37,7 @@ type ToggleResult =
 
 export async function toggleOpportunityBookmark(opportunityId: string): Promise<ToggleResult> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await currentUser(supabase);
   if (!user) return { ok: false, error: "Not signed in." };
 
   // Look up current state — single round trip is cheap and lets us
@@ -58,7 +58,6 @@ export async function toggleOpportunityBookmark(opportunityId: string): Promise<
       .eq("user_id", user.id)
       .eq("opportunity_id", opportunityId);
     if (error) return { ok: false, error: describeSupabaseError(error) };
-    revalidatePath("/my-bookmarks");
     return { ok: true, bookmarked: false };
   }
 
@@ -66,6 +65,10 @@ export async function toggleOpportunityBookmark(opportunityId: string): Promise<
     .from("opportunity_bookmarks")
     .insert({ user_id: user.id, opportunity_id: opportunityId });
   if (error) return { ok: false, error: describeSupabaseError(error) };
-  revalidatePath("/my-bookmarks");
+  // No revalidatePath: in a server action it re-renders the CALLING page
+  // into the response, so every bookmark click re-ran the whole
+  // /opportunities listing (262 KB, E1b Stage 1). Nothing needs it: both
+  // callers update optimistically, /my-bookmarks drops the card itself,
+  // and a Link navigation always refetches a dynamic page.
   return { ok: true, bookmarked: true };
 }

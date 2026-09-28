@@ -2834,6 +2834,18 @@ export type Database = {
           open_to_connections: boolean
         }[]
       }
+      my_gate_state: {
+        Args: never
+        Returns: {
+          first_name: string
+          intake_deferred_at: string
+          is_admin: boolean
+          preferred_name: string
+          profile_version: number
+          status: Database["public"]["Enums"]["user_status"]
+          surname: string
+        }[]
+      }
       my_pending_connection_count: { Args: never; Returns: number }
       my_unread_notification_count: { Args: never; Returns: number }
       notification_name: { Args: { p_user: string }; Returns: string }

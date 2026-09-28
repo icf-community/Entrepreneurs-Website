@@ -17,8 +17,22 @@ function setup(opts: { user: unknown; authError?: unknown; isAdmin?: Res; profil
   };
   vi.doMock("@/lib/supabase/server", () => ({
     createClient: async () => ({
-      auth: { getUser: async () => ({ data: { user: opts.user }, error: opts.authError ?? null }) },
-      rpc: async () => opts.isAdmin ?? { data: true, error: null, status: 200 },
+      // B26: getActionAuth verifies the JWT locally (getClaims), not via getUser.
+      auth: {
+        getClaims: async () => {
+          const u = opts.user as { id: string; email?: string } | null;
+          return { data: u ? { claims: { sub: u.id, email: u.email } } : null, error: opts.authError ?? null };
+        },
+      },
+      // B26: is_admin and status arrive together from my_gate_state.
+      rpc: async (fn: string) => {
+        if (fn !== "my_gate_state") throw new Error(`unexpected rpc ${fn}`);
+        const admin = opts.isAdmin ?? { data: true, error: null, status: 200 };
+        if (admin.error) return admin;
+        const profile = await q.maybeSingle();
+        if (profile.error) return profile;
+        return { data: [{ is_admin: admin.data, status: (profile.data as { status?: string } | null)?.status ?? null }], error: null, status: 200 };
+      },
       from: () => q,
     }),
   }));
