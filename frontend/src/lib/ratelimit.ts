@@ -39,6 +39,7 @@ export type RateBucket =
   | "githubShowcase"
   | "connectionRequest"
   | "connectionRespond"
+  | "listingEdit"
   | "otpVerify";
 
 // ─── Key namespace ──────────────────────────────────────────────────
@@ -238,6 +239,14 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // typo-prone human: 10 tries in 10 minutes.
   otpVerify: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: p("otp"), analytics: false }),
+  // B23: a member editing a published listing. Every staged edit emails the
+  // admins immediately, and before this bucket the only ceiling was the
+  // fail-open 60/min backstop, so a loop could spend the shared Resend
+  // quota that sign-in codes depend on. 20/hour is several edits per
+  // listing with room for typo fixes. Its own bucket, not `submit`, so
+  // fixing a listing never uses up the allowance for posting a new one.
+  listingEdit: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(20, "1 h"), prefix: p("edit"), analytics: false }),
 };
 
 const instances = new Map<RateBucket, Ratelimit>();
@@ -287,7 +296,8 @@ function instance(bucket: RateBucket): Ratelimit | null {
 // instance, both far above real use.
 const FAIL_CLOSED: readonly RateBucket[] = [
   "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload",
-  "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "otpVerify",
+  "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "listingEdit",
+  "otpVerify",
 ];
 
 export function failOpen(bucket: RateBucket): boolean {
@@ -341,6 +351,7 @@ const WINDOW_MS: Record<RateBucket, number> = {
   githubShowcase: 3_600_000,
   connectionRequest: 86_400_000,
   connectionRespond: 86_400_000,
+  listingEdit: 3_600_000,
   otpVerify: 600_000,
 };
 
@@ -357,6 +368,7 @@ const LIMIT: Record<RateBucket, number> = {
   githubShowcase: 10,
   connectionRequest: 15,
   connectionRespond: 100,
+  listingEdit: 20,
   otpVerify: 10,
 };
 

@@ -88,3 +88,5 @@ azure-clerk-migration-playbook.md
 # rotation. Delete it once the rotation is done — this entry is a safety
 # net for the window it exists in, not permission to keep it around.
 envs.txt
+# Full logical backups from scripts/db-backup.sh (auth tokens + PII).
+/backups/

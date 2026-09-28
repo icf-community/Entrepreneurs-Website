@@ -153,10 +153,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     # Spinning up the Supabase stack is slow, so only pay it on pushes to
-    # main, PRs that touch DB/server/E2E surfaces (changes.outputs.db), or
-    # PRs explicitly labelled `db`.
+    # main, every PR INTO main (B14: the release PR runs everything,
+    # whatever its paths), PRs that touch DB/server/E2E surfaces
+    # (changes.outputs.db), or PRs explicitly labelled `db`.
     if: >
       github.event_name == 'push' ||
+      github.base_ref == 'main' ||
       needs.changes.outputs.db == 'true' ||
       contains(github.event.pull_request.labels.*.name, 'db')
     steps:
@@ -193,6 +195,20 @@ jobs:
           DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/admission_roles.sql
 
+      # B14: these existed but never ran anywhere. adversarial_edges probes
+      # the edge cases rls_smoke doesn't (hostile inputs to member RPCs);
+      # verify_prod_schema is the post-deploy check, run here against a
+      # fresh stack so a migration that breaks it is caught before prod.
+      - name: Run adversarial edge tests
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/adversarial_edges.sql
+
+      - name: Run schema verification
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/verify_prod_schema.sql
+
       # Piggybacks on the stack this job already booted rather than paying the
       # `supabase start` cost again in a job of its own. Fails when a migration
       # lands without regenerating types, which is the drift that silently
@@ -219,6 +235,7 @@ jobs:
     # pushes to main, PRs touching DB/server/E2E surfaces, or PRs labelled `e2e`.
     if: >
       github.event_name == 'push' ||
+      github.base_ref == 'main' ||
       needs.changes.outputs.db == 'true' ||
       contains(github.event.pull_request.labels.*.name, 'e2e')
     env:
@@ -300,6 +317,7 @@ jobs:
     needs: changes
     if: >
       github.event_name == 'push' ||
+      github.base_ref == 'main' ||
       needs.changes.outputs.db == 'true' ||
       contains(github.event.pull_request.labels.*.name, 'e2e')
     # Real Upstash REST surface: SRH speaks the Upstash REST API in front of
@@ -313,7 +331,9 @@ jobs:
           --health-timeout 3s
           --health-retries 10
       srh:
-        image: hiett/serverless-redis-http:latest
+        # Pinned by digest (B14): `latest` could change under a green run.
+        # This is the digest `latest` resolved to when pinned (2026-09-28).
+        image: hiett/serverless-redis-http:latest@sha256:5b0bb9239fce53abf87b2018a7a0deb9ec7bd900c5360738fe5fbeeb426f9150
         env:
           SRH_MODE: env
           SRH_TOKEN: e2e-rl-token

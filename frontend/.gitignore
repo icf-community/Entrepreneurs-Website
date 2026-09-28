@@ -51,3 +51,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local load-test measurements (E1c); never committed.
+/.perf/

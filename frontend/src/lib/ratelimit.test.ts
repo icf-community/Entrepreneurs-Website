@@ -26,6 +26,8 @@ const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
   githubShowcase: "closed",
   connectionRequest: "closed",
   connectionRespond: "closed",
+  // Fail-closed: each staged edit emails the admins (B23).
+  listingEdit: "closed",
   otpVerify: "closed",
 };
 
