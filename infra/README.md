@@ -130,3 +130,26 @@ it did.
 is implemented — both this workflow and a manual `deploy.sh` call it, so the
 two paths can't drift apart. `infra/azure/provision.sh` is never run
 automatically; new Azure resources stay a deliberate, human-run action.
+
+## Rollback
+
+The gateway and worker units run `:latest` and re-pull it on every start
+(including a crash or reboot), so **asking a VM to run an older tag is not a
+rollback**: the restart pulls `:latest` again. Point `:latest` at the build
+you want first, then release it:
+
+1. Find the last good commit SHA (GHCR keeps every SHA-tagged image).
+2. Retag it as `:latest` in the registry. With a token that can write
+   packages:
+   `docker buildx imagetools create -t ghcr.io/icf-community/foundry-gateway:latest ghcr.io/icf-community/foundry-gateway:<sha>`
+   (or run the deploy workflow via `workflow_dispatch` from a branch at that
+   commit, which rebuilds and pushes it as `:latest`).
+3. Release it: `foundry-release ghcr.io/icf-community/foundry-gateway:<sha>`
+   on the gateway VM, `foundry-worker-release …:<sha>` on the worker VM
+   (`az vm run-command`, as the workflow does).
+
+Both release scripts compare the image the running container(s) actually use
+with the requested ref and **fail** if they differ, so a step 3 without step
+2 reports an error instead of a false `FOUNDRY_DEPLOY_OK` (D5, 2026-10-05).
+After changing either script, copy it to `/usr/local/sbin/` on its VM.
+
