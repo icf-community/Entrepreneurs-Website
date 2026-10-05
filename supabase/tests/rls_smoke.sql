@@ -5084,6 +5084,34 @@ begin
 end;
 $$;
 
+-- ─── D6. An open post report outlives its 12-month clock ────────────
+-- The privacy page: "A report that is still open when the 12 months are up
+-- is kept until it is resolved." connection_reports already did that;
+-- post_reports did not (20260928000012).
+do $$
+declare
+  v_open uuid := gen_random_uuid();
+  v_done uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  insert into public.post_reports (id, post_title_snapshot, category, reason, status, purge_after, resolved_at)
+  values (v_open, 'd6 open', 'spam', 'still being looked at', 'open', now() - interval '1 day', null);
+  -- resolved_by is required once resolved; any existing auth user will do.
+  insert into public.post_reports (id, post_title_snapshot, category, reason, status, purge_after, resolved_at, resolved_by)
+  values (v_done, 'd6 dismissed', 'spam', 'looked at', 'dismissed', now() - interval '1 day', now(),
+          (select id from auth.users limit 1));
+
+  perform public.purge_moderation_records();
+
+  if not exists (select 1 from public.post_reports where id = v_open) then
+    raise exception 'FAIL: an open post report was purged at 12 months';
+  end if;
+  if exists (select 1 from public.post_reports where id = v_done) then
+    raise exception 'FAIL: a resolved post report past its purge date survived';
+  end if;
+end;
+$$;
+
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
 -- above), so reset to the owner role before dropping the helper function.
