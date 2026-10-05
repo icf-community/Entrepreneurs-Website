@@ -24,7 +24,7 @@ jobs:
       db: ${{ steps.filter.outputs.db }}
     steps:
       - uses: actions/checkout@v5
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 11
 
@@ -141,7 +141,7 @@ jobs:
       # aquasecurity/setup-trivy release that GitHub no longer resolves —
       # confirmed by running this job; v0.36.0 is the latest tag as of this
       # fix and resolves cleanly.
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: foundry-gateway:ci
           severity: HIGH,CRITICAL
@@ -164,7 +164,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: supabase/setup-cli@v2
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
         with:
           # Pinned: 2.106.0 (2026-06-11) regressed the local stack's default
           # table grants — a fresh `supabase start` no longer grants SELECT to
@@ -246,7 +246,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: supabase/setup-cli@v2
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
         with:
           # Pinned: 2.106.0 (2026-06-11) regressed the local stack's default
           # table grants — a fresh `supabase start` no longer grants SELECT to
@@ -268,7 +268,7 @@ jobs:
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SRK" >> "$GITHUB_ENV"
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 11
 
@@ -324,7 +324,7 @@ jobs:
     # a Redis, so @upstash/ratelimit actually enforces.
     services:
       redis:
-        image: redis:7-alpine
+        image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
@@ -346,7 +346,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: supabase/setup-cli@v2
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
         with:
           # Pinned: 2.106.0 (2026-06-11) regressed the local stack's default
           # table grants — a fresh `supabase start` no longer grants SELECT to
@@ -384,7 +384,7 @@ jobs:
           done
           echo "SRH did not become ready"; exit 1
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 11
       - uses: actions/setup-node@v5
