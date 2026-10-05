@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth/currentUser";
 import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 
 // Server-side admin gate. notFound() renders the same 404 page as any
@@ -9,7 +10,7 @@ import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unava
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { user, error: authError } = await currentUser(supabase);
   // An outage must reach the error page, not a 404 telling an admin their
   // own panel does not exist.
   throwIfAuthUnreachable("session", authError);

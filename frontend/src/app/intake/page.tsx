@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth/currentUser";
 import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { listSkillsDetailed, listSectors } from "@/lib/data/taxonomy";
 import { newestMembers } from "@/lib/data/directory";
@@ -21,10 +22,7 @@ export const metadata = { robots: { index: false, follow: false } };
 export default async function IntakePage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const { user, error: authError } = await currentUser(supabase);
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 

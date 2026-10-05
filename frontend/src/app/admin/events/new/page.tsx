@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth/currentUser";
 import { throwIfAuthUnreachable } from "@/lib/supabase/unavailable";
 import { posterName } from "@/lib/data/profiles";
 import EventForm from "@/app/events/new/EventForm";
 
 export default async function AdminNewEventPage() {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { user, error: authError } = await currentUser(supabase);
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 

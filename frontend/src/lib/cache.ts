@@ -167,7 +167,8 @@ const VERSION = 1;
 
 export type CacheKey =
   | "directoryFacets" | "directoryFirstPage" | "directoryNewest"
-  | "vcs" | "lookups" | "skills" | "skillsDetailed" | "sectors" | "siteBanner";
+  | "vcs" | "lookups" | "skills" | "skillsDetailed" | "sectors" | "siteBanner"
+  | "adminConnectionStats";
 
 const key = (k: CacheKey) => `cache:v${VERSION}:${k}`;
 
@@ -206,6 +207,13 @@ const TTL_SECONDS: Record<CacheKey, number> = {
   // TTL only bounds a missed invalidation, and /api/banner adds 15s of CDN
   // caching on top.
   siteBanner: 60,
+  // Three whole-network aggregates for /admin/connections (D1: ~200 ms at
+  // 5k members and 220k connections, growing with the edge count). The
+  // exception to "admins never populate a shared key": this key is read
+  // only by that admin page, the RPC refuses non-admins, and the value
+  // holds no per-member data. Nothing invalidates it; a statistic ten
+  // minutes old is fine.
+  adminConnectionStats: 600,
 };
 
 /**

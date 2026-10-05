@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth/currentUser";
 import { sendContactConfirmation, sendContactTicket } from "@/lib/email";
 import { contactSchema } from "@/lib/validation/contact";
 import { validate } from "@/lib/validation/listings";
@@ -29,7 +30,7 @@ export async function submitContactTicket(input: unknown): Promise<Result> {
   // Anonymous campus visitors share one public IP, but contact volume is
   // low and the 60/min/IP middleware bucket is the coarse backstop.
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await currentUser(supabase);
   const rlKey = user?.id ?? clientIp(await headers());
   const decision = await check("submit", rlKey);
   if (decision === "limited") {

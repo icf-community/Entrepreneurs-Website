@@ -12,6 +12,11 @@ import { recordListingEvent } from "@/lib/analytics";
 import { formatDateWeekday, formatTime } from "@/lib/dates";
 import type { FoundryEvent } from "@/lib/data/events";
 import { externalHref } from "@/lib/safeUrl";
+import { Button } from "@/components/ui/Button";
+
+// D1: same cap as OpportunitiesClient — only the first PAGE matches render
+// and hydrate; search and filters still cover every event.
+const PAGE = 30;
 
 const MODES = [
   { value: "all",       label: "All" },
@@ -69,6 +74,12 @@ export default function EventsClient({
     });
   }, [items, query, mode, from, to, dismissed]);
 
+  // The count belongs to the filters it was raised under; changing any of
+  // them starts from one page again.
+  const view = `${query}|${mode}|${from}|${to}`;
+  const [paging, setPaging] = useState({ view, n: PAGE });
+  const shown = paging.view === view ? paging.n : PAGE;
+
   const activeFilterCount = (mode !== "all" ? 1 : 0) + (from ? 1 : 0) + (to ? 1 : 0);
 
   const dismiss = (id: string) => setDismissed((prev) => new Set(prev).add(id));
@@ -117,7 +128,14 @@ export default function EventsClient({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filtered.map((e) => <EventCard key={e.id} ev={e} going={goingSet.has(e.id)} onDismiss={() => dismiss(e.id)} />)}
+          {filtered.slice(0, shown).map((e) => <EventCard key={e.id} ev={e} going={goingSet.has(e.id)} onDismiss={() => dismiss(e.id)} />)}
+        </div>
+      )}
+      {filtered.length > shown && (
+        <div className="mt-6 flex justify-center">
+          <Button variant="ghost" size="sm" onClick={() => setPaging({ view, n: shown + PAGE })}>
+            Show more ({filtered.length - shown} more)
+          </Button>
         </div>
       )}
     </>

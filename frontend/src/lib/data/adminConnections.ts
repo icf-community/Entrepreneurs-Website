@@ -1,4 +1,5 @@
 import { rows, type Db } from "@/lib/data/query";
+import { cached } from "@/lib/cache";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Admin reads for Connections
@@ -114,12 +115,16 @@ export type ConnectionStats = {
  * show who knows whom.
  */
 export async function adminConnectionStats(db: Db): Promise<ConnectionStats | null> {
-  const data = await rows("admin_connection_stats", () => db.rpc("admin_connection_stats"));
-  const r = data[0];
-  if (!r) return null;
-  return {
-    totalConnections: Number(r.total_connections ?? 0),
-    medianPerMember: Number(r.median_per_member ?? 0),
-    crossCohortPct: Number(r.cross_cohort_pct ?? 0),
-  };
+  // Cached for every admin (lib/cache.ts TTL_SECONDS says why that is safe
+  // for this key). A failed read (null) is never stored.
+  return cached("adminConnectionStats", async () => {
+    const data = await rows("admin_connection_stats", () => db.rpc("admin_connection_stats"));
+    const r = data[0];
+    if (!r) return null;
+    return {
+      totalConnections: Number(r.total_connections ?? 0),
+      medianPerMember: Number(r.median_per_member ?? 0),
+      crossCohortPct: Number(r.cross_cohort_pct ?? 0),
+    };
+  }, { isCacheable: (v) => v !== null });
 }

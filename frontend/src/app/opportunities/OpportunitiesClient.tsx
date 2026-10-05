@@ -16,6 +16,12 @@ import type { Opportunity } from "@/lib/data/opportunities";
 import { externalHref } from "@/lib/safeUrl";
 import { settle } from "@/lib/settle";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/Button";
+
+// D1: every open role is rendered and hydrated as its own card, so a long
+// board cost seconds of main thread on a mid-range phone (268 roles in the
+// 10k corpus). Only the first PAGE matches render; search still covers all.
+const PAGE = 30;
 
 export default function OpportunitiesClient({
   items, bookmarkedIds, appliedIds = [], removeOnUnbookmark = false,
@@ -52,6 +58,11 @@ export default function OpportunitiesClient({
       return hay.includes(q);
     });
   }, [items, query, dismissed]);
+
+  // The count belongs to the search it was raised under; a new search
+  // starts from one page again.
+  const [paging, setPaging] = useState({ query, n: PAGE });
+  const shown = paging.query === query ? paging.n : PAGE;
 
   const dismiss = (id: string) => setDismissed((prev) => new Set(prev).add(id));
 
@@ -116,7 +127,7 @@ export default function OpportunitiesClient({
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((o) => (
+          {filtered.slice(0, shown).map((o) => (
             <OpportunityCard
               key={o.id}
               opportunity={o}
@@ -126,6 +137,13 @@ export default function OpportunitiesClient({
               onDismiss={() => dismiss(o.id)}
             />
           ))}
+        </div>
+      )}
+      {filtered.length > shown && (
+        <div className="mt-6 flex justify-center">
+          <Button variant="ghost" size="sm" onClick={() => setPaging({ query, n: shown + PAGE })}>
+            Show more ({filtered.length - shown} more)
+          </Button>
         </div>
       )}
     </>

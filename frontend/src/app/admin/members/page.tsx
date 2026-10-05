@@ -59,12 +59,14 @@ export default async function AdminCommunityPage({
             <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">
               All members
             </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2">
+            {/* div, not p: the skeleton is a div, and a div inside a p
+                breaks hydration (see ListingPageShell). */}
+            <div className="text-[0.85rem] text-text-muted mt-2">
               <Suspense fallback={<Skeleton className="h-3 w-16 inline-block align-middle" />}>
                 <MemberTotal data={data} />
               </Suspense>{" "}
               Filter by role, status, course, year, interests, or skills. Deletion is permanent and notifies the user by email.
-            </p>
+            </div>
           </div>
           <Link
             href="/admin"

@@ -22,6 +22,6 @@ select
   left(regexp_replace(s.query, '\s+', ' ', 'g'), 160)        as query
 from pg_stat_statements s
 join pg_database d on d.oid = s.dbid and d.datname = current_database()
-where s.query !~* 'pg_stat_statements|pg_catalog\.|information_schema|pg_timezone_names|base_types|pg_namespace'
+where s.query !~* 'pg_stat_statements|pg_catalog\.pg_|information_schema|pg_timezone_names|base_types|pg_namespace'
 order by s.total_exec_time desc
 limit 20;

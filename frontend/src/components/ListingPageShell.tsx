@@ -49,7 +49,12 @@ export default function ListingPageShell({
                 <h1 className="text-[clamp(1.8rem,3.4vw,2.6rem)] font-semibold leading-[1.06] tracking-[-0.03em] text-text-primary">
                   {title}
                 </h1>
-                <p className="mt-3 text-[0.875rem] leading-relaxed text-text-muted">{summary}</p>
+                {/* A div, not a p: while the count streams in, `summary` is a
+                    block skeleton, and a div inside a p is re-parented by the
+                    browser. React then finds different HTML from the server's,
+                    throws hydration error #418 and re-renders the whole page
+                    on the client (D1: LCP 0.9 s → 3.7 s on a mid-range phone). */}
+                <div className="mt-3 text-[0.875rem] leading-relaxed text-text-muted">{summary}</div>
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 {actions}
