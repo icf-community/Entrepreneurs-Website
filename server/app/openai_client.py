@@ -17,6 +17,7 @@ from typing import Any
 
 from openai import OpenAI
 
+from . import fake_provider
 from .config import worker_settings
 
 # ─── B2.8 load-test stub ────────────────────────────────────────────
@@ -67,9 +68,21 @@ class _StubOpenAI:
         self.embeddings = _StubEmbeddings(latency)
 
 
+# A0.1 (AI-plan §9, F6): an explicit timeout and no SDK retries. The SDK
+# default (two silent retries on 429/5xx) made every call up to three
+# billable attempts with nothing in the ledger knowing; a retry is now a
+# decision the job queue makes, with its own backoff and its own
+# reservation. Ingestion is background work, so the timeout is generous.
+REQUEST_TIMEOUT_SECONDS = 90.0
+
+
 @lru_cache(maxsize=1)
 def client() -> OpenAI:
     stub_latency = os.environ.get("OPENAI_STUB_LATENCY_SECONDS")
     if stub_latency is not None:
         return _StubOpenAI(float(stub_latency))  # type: ignore[return-value]
-    return OpenAI(api_key=worker_settings().openai_api_key)
+    if fake_provider.enabled():
+        # Local and E2E only: refuses unless the database is on this machine.
+        fake_provider.assert_local(worker_settings().database_url)
+        return fake_provider.FakeOpenAI()  # type: ignore[return-value]
+    return OpenAI(api_key=worker_settings().openai_api_key, timeout=REQUEST_TIMEOUT_SECONDS, max_retries=0)

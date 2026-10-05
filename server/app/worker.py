@@ -28,7 +28,7 @@ import uuid
 import psycopg
 from psycopg.types.json import Jsonb
 
-from . import cv_pipeline, github_pipeline, observability
+from . import cv_pipeline, github_pipeline, ledger, observability, privacy, projection
 from .config import worker_settings
 from .cv_pipeline import SkillMatch
 from .cv_sanitise import ExtractionFailed, SanitisedCv, UnsupportedContentType, sanitise_cv
@@ -42,6 +42,9 @@ log = logging.getLogger("foundry.ingest_worker")
 logging.basicConfig(level=logging.INFO)
 
 POLL_INTERVAL_SECONDS = 2.0
+# The most CV text the privacy boundary passes on to moderation and
+# extraction (AI-plan §3: strict byte bounds on every outbound payload).
+MAX_OUTBOUND_CV_CHARS = 60_000
 # Attempt 1 waits 2s, attempt 2 waits 4s, attempt 3 waits 8s, ... —
 # cv-matchmaker-spec.md's "retry with exponential backoff" requirement.
 BACKOFF_BASE_SECONDS = 2.0
@@ -307,15 +310,20 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
         # pointed at it, not created for it). Reactivating onto such a
         # row leaves nothing for update_cv_currency to mark current,
         # silently orphaning is_current on every cv_profiles row.
+        #
+        # Version-aware (AI-plan §3): the earlier profile is reused only if
+        # it was built by the current extractor under the current privacy
+        # policy. Anything older is processed again, never reactivated.
         cur.execute(
             """
             select c.id from public.cvs c
              where c.member_id = %s and c.raw_text_hash = %s and c.status = 'ready' and c.id != %s
-               and exists (select 1 from public.cv_profiles cp where cp.cv_id = c.id)
+               and exists (select 1 from public.cv_profiles cp
+                            where cp.cv_id = c.id and cp.prompt_version = %s and cp.policy_version = %s)
              order by c.created_at desc
              limit 1
             """,
-            (member_id, sanitised.raw_text_hash, cv_id),
+            (member_id, sanitised.raw_text_hash, cv_id, cv_pipeline.EXTRACTION_PROMPT_VERSION, privacy.POLICY_VERSION),
         )
         existing = cur.fetchone()
         if existing is not None:
@@ -327,7 +335,15 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
         _set_cv_status(cv_id, "flagged", failure_reason="; ".join(sanitised.flag_reasons))
         return
 
-    moderation = moderate_cv(sanitised.raw_text)
+    # The privacy boundary (AI-plan §3), before the first provider call:
+    # the member's own names, contact details, links and anything shaped
+    # like a secret come out here. Links the profile needs are parsed
+    # locally below instead of asking the model to recreate them.
+    outbound = privacy.minimise(
+        sanitised.raw_text, ledger.current_identifiers(), max_chars=MAX_OUTBOUND_CV_CHARS
+    ).text
+
+    moderation = moderate_cv(outbound)
     if moderation.flagged:
         log.warning("cv %s flagged by moderation: %s", cv_id, moderation.categories)
         _set_cv_status(cv_id, "flagged", failure_reason="; ".join(moderation.categories))
@@ -346,31 +362,34 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
     # moderation/sanitisation failure: a clear, immediate, member-visible
     # 'failed' status they can see and act on (re-upload) right away.
     try:
-        extraction = cv_pipeline.extract_profile(sanitised.raw_text)
+        extraction = cv_pipeline.extract_profile(outbound)
     except cv_pipeline.ExtractionError as exc:
         log.warning("cv %s extraction failed: %s", cv_id, exc)
         _set_cv_status(cv_id, "failed", failure_reason=str(exc))
         return
 
+    profile = {**extraction.profile, "links": privacy.extract_links(sanitised.raw_text)}
+
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            insert into public.cv_profiles (cv_id, profile, summary, model_name, prompt_version)
-            values (%s, %s, %s, %s, %s)
+            insert into public.cv_profiles (cv_id, profile, summary, model_name, prompt_version, policy_version)
+            values (%s, %s, %s, %s, %s, %s)
             """,
             (
                 cv_id,
-                Jsonb(extraction.profile),
+                Jsonb(profile),
                 extraction.summary,
                 extraction.model_name,
                 extraction.prompt_version,
+                privacy.POLICY_VERSION,
             ),
         )
 
-        matches = cv_pipeline.normalise_skills(extraction.profile.get("skills_raw", []), conn)
+        matches = cv_pipeline.normalise_skills(profile.get("skills_raw", []), conn)
         _replace_member_skills(conn, member_id, matches, source="cv")
 
-        for chunk in cv_pipeline.chunk_and_embed(extraction.profile):
+        for chunk in cv_pipeline.chunk_and_embed(profile):
             cur.execute(
                 """
                 insert into public.cv_chunks (cv_id, member_id, chunk_type, content, embedding, embedding_model)
@@ -804,8 +823,57 @@ def _process_job(kind: str, payload: dict) -> None:
         process_refresh_github_summary(uuid.UUID(payload["member_id"]))
     elif kind == "revoke_github_token":
         process_revoke_github_token(payload)
+    elif kind == "refresh_member_ai":
+        projection.process_refresh_member_ai(uuid.UUID(payload["member_id"]))
+    elif kind == "refresh_job_ai":
+        projection.process_refresh_job_ai(uuid.UUID(payload["opportunity_id"]))
     else:
         raise ValueError(f"Unknown job kind: {kind}")
+
+
+def _job_member(kind: str, payload: dict) -> uuid.UUID | None:
+    """Whose data the job processes, for the ledger and the privacy
+    boundary. A projection job reads identifiers from its own snapshot."""
+    if kind in ("scan_github", "refresh_github_summary", "refresh_member_ai") and payload.get("member_id"):
+        return uuid.UUID(payload["member_id"])
+    if kind == "ingest_cv" and payload.get("cv_id"):
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("select member_id from public.cvs where id = %s", (payload["cv_id"],))
+            row = cur.fetchone()
+        return row[0] if row else None
+    return None
+
+
+def _member_identifiers(member_id: uuid.UUID | None) -> privacy.Identifiers:
+    if member_id is None:
+        return privacy.Identifiers()
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("select * from ai_private.worker_member_identifiers(%s)", (member_id,))
+        row = cur.fetchone()
+        names = [c.name for c in cur.description] if cur.description else []
+    return privacy.Identifiers.from_row(dict(zip(names, row)) if row else None)
+
+
+def _defer_job_until_tomorrow(job_id: uuid.UUID, kind: str, payload: dict) -> None:
+    """Today's ingestion budget is spent (the ledger refused before any
+    call). Not a failure of the job: it waits for the next UTC day without
+    using up a retry."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            update public.jobs
+               set status = 'pending', last_error = 'budget_exhausted',
+                   next_attempt_at = date_trunc('day', now() at time zone 'utc') at time zone 'utc'
+                                     + interval '1 day 5 minutes'
+             where id = %s
+            """,
+            (job_id,),
+        )
+        if kind == "ingest_cv" and payload.get("cv_id"):
+            cur.execute(
+                "update public.cvs set status = 'failed', failure_reason = %s where id = %s and status <> 'ready'",
+                ("Processing is paused for today. We'll try again automatically tomorrow.", payload["cv_id"]),
+            )
 
 
 def run_once() -> bool:
@@ -818,7 +886,22 @@ def run_once() -> bool:
 
     job_id, kind, payload, attempts, max_attempts = claimed
     try:
-        _process_job(kind, payload)
+        member_id = _job_member(kind, payload)
+        with ledger.job_context(job_id, member_id, _member_identifiers(member_id)):
+            _process_job(kind, payload)
+    except ledger.BudgetExhausted:
+        log.warning("job %s (%s) deferred: ingestion budget exhausted", job_id, kind)
+        _defer_job_until_tomorrow(job_id, kind, payload)
+        return True
+    except privacy.OutboundPolicyError as exc:
+        # The assembled payload still held something that must not leave.
+        # Retrying sends nothing new, so it is dead-lettered at once; a CV
+        # goes to admin review rather than silently failing.
+        log.warning("job %s (%s) refused by the outbound policy: %s", job_id, kind, exc.kinds)
+        if kind == "ingest_cv" and payload.get("cv_id"):
+            _set_cv_status(uuid.UUID(payload["cv_id"]), "flagged", failure_reason="outbound policy: " + ", ".join(exc.kinds))
+        _fail_job(job_id, kind, payload, max_attempts, max_attempts, str(exc))
+        return True
     except Exception as exc:  # noqa: BLE001 — any failure here is a retryable job failure
         log.exception("job %s (%s) failed", job_id, kind)
         _capture(exc)

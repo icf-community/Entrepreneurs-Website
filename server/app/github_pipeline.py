@@ -31,18 +31,30 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 
+import contextvars
+import re
+
 import requests
 from openai import RateLimitError
 
+from . import ledger
 from .cv_pipeline import EXTRACTION_MODEL
 from .openai_client import client
+from .schema_validate import SchemaError, validate
 
 # Overridable only for the B2.8 load-test harness (server/scripts/b28_load_test.py),
 # which points a real worker subprocess at a local mock server so it exercises the
 # real claim/dispatch path rather than an in-process monkeypatch. Default is
 # unchanged in every other context, including production.
 GITHUB_API = os.environ.get("GITHUB_API_BASE", "https://api.github.com")
-SUMMARY_PROMPT_VERSION = "github-summary-v15"
+SUMMARY_PROMPT_VERSION = "github-summary-v16"
+# A0.1 output bounds per call (a reasoning model counts reasoning too).
+_MAX_OUTPUT_TOKENS = {
+    "repo_exclusions": 1500,
+    "repo_shortlist": 2000,
+    "repo_selection": 3000,
+    "combined_summary": 2500,
+}
 PER_PAGE = 100
 # Hard cap, not a real pagination limit — a member with more than 300
 # owned repos is far outside what this feature needs to handle well, and
@@ -414,6 +426,50 @@ _EXCLUSION_SCHEMA = {
 }
 
 
+# ─── The privacy boundary for GitHub payloads (AI-plan §3) ────────────
+# Free text (descriptions, READMEs, the profile README) is minimised for
+# the member before it is sent. Repo names are kept, since the model must
+# name repos back, but the account's own username is swapped for "owner"
+# inside them and swapped back in whatever the model returns, so a repo
+# called janedoe.github.io never carries the handle out.
+_owner: contextvars.ContextVar[str | None] = contextvars.ContextVar("github_owner", default=None)
+_OWNER_ALIAS = "owner"
+
+
+def _out_name(name: str | None) -> str | None:
+    owner = _owner.get() or ledger.current_identifiers().github_username
+    if not name or not owner:
+        return name
+    return re.sub(re.escape(owner), _OWNER_ALIAS, name, flags=re.I)
+
+
+def _restore_names(names: list, candidates: list[dict]) -> set[str]:
+    """Model output names → real repo names. A name the model invented
+    matches nothing and is dropped, as before."""
+    lookup = {_out_name(repo["name"]): repo["name"] for repo in candidates}
+    return {lookup[name] for name in names if isinstance(name, str) and name in lookup}
+
+
+def _restore_text(text: str, names: list[str]) -> str:
+    for name in sorted(names, key=len, reverse=True):
+        alias = _out_name(name)
+        if alias and alias != name:
+            text = text.replace(alias, name)
+    return text
+
+
+def _parsed(content: str | None, schema: dict) -> dict | None:
+    """Full nested validation (AI-plan §3 step 4); None on any mismatch."""
+    if content is None:
+        return None
+    try:
+        value = json.loads(content)
+        validate(value, schema)
+    except (json.JSONDecodeError, SchemaError):
+        return None
+    return value
+
+
 def _create_chat_completion(**kwargs):
     """Wraps client().chat.completions.create with the same treatment
     GithubScanError already gives GitHub's own primary rate limit (see its
@@ -427,10 +483,20 @@ def _create_chat_completion(**kwargs):
     transient capacity issue. retryable_by_rescan=True instead lets the
     already-hourly enqueue_github_rescans() cron pick it back up on its
     own, exactly as it does for GitHub's rate limit."""
+    name = kwargs["response_format"]["json_schema"]["name"]
+    max_output = _MAX_OUTPUT_TOKENS[name]
+    payload = "\n".join(str(m["content"]) for m in kwargs["messages"])
     try:
-        return client().chat.completions.create(**kwargs)
+        with ledger.metered(f"github_{name}", kwargs["model"], payload=payload, max_output_tokens=max_output) as meter:
+            meter.dispatched()
+            response = client().chat.completions.create(**kwargs, max_completion_tokens=max_output)
+            meter.record(getattr(response, "usage", None))
+            return response
     except RateLimitError as exc:
         raise GithubScanError(f"OpenAI rate limit exceeded: {exc}", retryable_by_rescan=True) from exc
+    except ledger.BudgetExhausted as exc:
+        # Today's ingestion budget is spent; the hourly rescan picks it up.
+        raise GithubScanError(f"AI processing budget reached: {exc}", retryable_by_rescan=True) from exc
 
 
 def _classify_exclusions(candidates: list[dict]) -> set[str]:
@@ -448,9 +514,9 @@ def _classify_exclusions(candidates: list[dict]) -> set[str]:
     # reads them.
     payload = [
         {
-            "name": repo["name"],
-            "description": repo.get("description"),
-            "readme_excerpt": (repo.get("readme_excerpt") or "")[:EXCLUSION_EXCERPT_CHARS] or None,
+            "name": _out_name(repo["name"]),
+            "description": ledger.outbound(repo.get("description")),
+            "readme_excerpt": ledger.outbound((repo.get("readme_excerpt") or "")[:EXCLUSION_EXCERPT_CHARS] or None),
         }
         for repo in candidates
     ]
@@ -465,10 +531,10 @@ def _classify_exclusions(candidates: list[dict]) -> set[str]:
             "json_schema": {"name": "repo_exclusions", "strict": True, "schema": _EXCLUSION_SCHEMA},
         },
     )
-    content = response.choices[0].message.content
-    if content is None:
+    parsed = _parsed(response.choices[0].message.content, _EXCLUSION_SCHEMA)
+    if parsed is None:
         return set()
-    return set(json.loads(content).get("excluded", []))
+    return _restore_names(parsed["excluded"], candidates)
 
 
 # ─── Stage 2: depth-judgment + theme extraction, over the survivors only ──
@@ -619,11 +685,11 @@ _SHORTLIST_SCHEMA = {
 def _selection_payload(repos: list[dict]) -> list[dict]:
     return [
         {
-            "name": repo["name"],
-            "description": repo.get("description"),
+            "name": _out_name(repo["name"]),
+            "description": ledger.outbound(repo.get("description")),
             "language": repo.get("language"),
             "stargazers_count": repo.get("stargazers_count", 0),
-            "readme_excerpt": repo.get("readme_excerpt"),
+            "readme_excerpt": ledger.outbound(repo.get("readme_excerpt")),
         }
         for repo in repos
     ]
@@ -640,15 +706,15 @@ def _shortlist_by_metadata(candidates: list[dict]) -> list[dict]:
     nothing would be far worse than one built from the cheap signal."""
     payload = [
         {
-            "name": repo["name"],
-            "description": repo.get("description"),
+            "name": _out_name(repo["name"]),
+            "description": ledger.outbound(repo.get("description")),
             "language": repo.get("language"),
             "stargazers_count": repo.get("stargazers_count", 0),
         }
         for repo in candidates
     ]
     try:
-        response = client().chat.completions.create(
+        response = _create_chat_completion(
             model=EXTRACTION_MODEL,
             messages=[
                 {"role": "system", "content": _SHORTLIST_INSTRUCTIONS},
@@ -659,8 +725,8 @@ def _shortlist_by_metadata(candidates: list[dict]) -> list[dict]:
                 "json_schema": {"name": "repo_shortlist", "strict": True, "schema": _SHORTLIST_SCHEMA},
             },
         )
-        content = response.choices[0].message.content
-        names = set(json.loads(content)["shortlist"]) if content else set()
+        parsed = _parsed(response.choices[0].message.content, _SHORTLIST_SCHEMA)
+        names = _restore_names(parsed["shortlist"], candidates) if parsed else set()
     except Exception:  # noqa: BLE001 — a failed shortlist must degrade, not fail the scan
         names = set()
 
@@ -754,7 +820,7 @@ def _select_impressive_repos(candidates: list[dict], profile_readme: str | None 
 
     user_content = f"<candidate_repos>\n{json.dumps(payload)}\n</candidate_repos>"
     if profile_readme:
-        user_content = f"<profile_readme>\n{profile_readme}\n</profile_readme>\n{user_content}"
+        user_content = f"<profile_readme>\n{ledger.outbound(profile_readme)}\n</profile_readme>\n{user_content}"
 
     _guard_prompt_size(user_content)
 
@@ -769,19 +835,18 @@ def _select_impressive_repos(candidates: list[dict], profile_readme: str | None 
             "json_schema": {"name": "repo_selection", "strict": True, "schema": _REPO_SELECTION_SCHEMA},
         },
     )
-    content = response.choices[0].message.content
-    if content is None:
+    parsed = _parsed(response.choices[0].message.content, _REPO_SELECTION_SCHEMA)
+    if parsed is None:
         # Fail open to the ordering signal rather than lose the scan.
         return _RepoJudgment(selected=eligible[:TOP_REPOS_KEPT], themes=[])
 
-    parsed = json.loads(content)
-    selected_names = set(parsed["selected"])
+    selected_names = _restore_names(parsed["selected"], eligible)
     selected = [repo for repo in eligible if repo["name"] in selected_names]
     # A deliberate empty `selected` (the model judged nothing clears the
     # bar) must stay empty — only pad if the model named repos but NONE of
     # them matched a real candidate name, which means the response was
     # unusable (a hallucinated/mismatched name), not a valid "select none".
-    if selected_names and not selected:
+    if parsed["selected"] and not selected:
         selected = eligible[:TOP_REPOS_KEPT]
     selected = selected[:TOP_REPOS_KEPT]
 
@@ -826,7 +891,11 @@ def fetch_github_signal(
         access_token, f"{username}/{username}", max_chars=PROFILE_README_EXCERPT_CHARS
     )
 
-    judgment = _select_impressive_repos(candidates, profile_readme)
+    owner_token = _owner.set(username)
+    try:
+        judgment = _select_impressive_repos(candidates, profile_readme)
+    finally:
+        _owner.reset(owner_token)
     top_repos = [
         {
             "name": repo["name"],
@@ -962,6 +1031,7 @@ def synthesize_combined_summary(profile: dict, github_signal: dict) -> str:
     job, this time with GitHub evidence folded in. Only the summary text
     is regenerated — education/roles/projects/skills_raw are untouched,
     so the caller only needs to re-embed the one 'summary' chunk."""
+    repo_names = [r.get("name") for r in github_signal.get("top_repos") or [] if r.get("name")]
     response = _create_chat_completion(
         model=EXTRACTION_MODEL,
         messages=[
@@ -969,8 +1039,8 @@ def synthesize_combined_summary(profile: dict, github_signal: dict) -> str:
             {
                 "role": "user",
                 "content": (
-                    f"<profile>\n{json.dumps(profile)}\n</profile>\n"
-                    f"<github_signal>\n{json.dumps(github_signal)}\n</github_signal>"
+                    f"<profile>\n{json.dumps(_summary_profile(profile))}\n</profile>\n"
+                    f"<github_signal>\n{json.dumps(_summary_signal(github_signal))}\n</github_signal>"
                 ),
             },
         ],
@@ -979,8 +1049,59 @@ def synthesize_combined_summary(profile: dict, github_signal: dict) -> str:
             "json_schema": {"name": "combined_summary", "strict": True, "schema": _SUMMARY_SCHEMA},
         },
     )
-    content = response.choices[0].message.content
-    if content is None:
-        raise GithubScanError("Model returned no content")
+    parsed = _parsed(response.choices[0].message.content, _SUMMARY_SCHEMA)
+    if parsed is None:
+        raise GithubScanError("Model returned no usable summary")
 
-    return json.loads(content)["summary"]
+    return _restore_text(parsed["summary"], repo_names)
+
+
+# Allowlisted fields for the summary call (AI-plan §3 step 2). The summary
+# never names institutions and mentions employers only in passing, so
+# neither is sent; links never are.
+def _summary_profile(profile: dict) -> dict:
+    return {
+        "education": [
+            {"course": e.get("course"), "level": e.get("level")} for e in profile.get("education") or []
+        ],
+        "roles": [
+            {
+                "title": ledger.outbound(r.get("title")),
+                "start_date": r.get("start_date"),
+                "end_date": r.get("end_date"),
+                "description": ledger.outbound(r.get("description")),
+                "is_current": r.get("is_current"),
+            }
+            for r in profile.get("roles") or []
+        ],
+        "projects": [
+            {
+                "name": ledger.outbound(p.get("name")),
+                "description": ledger.outbound(p.get("description")),
+                "role": ledger.outbound(p.get("role")),
+                "technologies": p.get("technologies") or [],
+            }
+            for p in profile.get("projects") or []
+        ],
+        "skills_raw": profile.get("skills_raw") or [],
+        "languages": profile.get("languages") or [],
+        "summary": ledger.outbound(profile.get("summary")),
+    }
+
+
+def _summary_signal(github_signal: dict) -> dict:
+    return {
+        "languages": github_signal.get("languages") or [],
+        "repo_count": github_signal.get("repo_count"),
+        "themes": github_signal.get("themes") or [],
+        "profile_readme": ledger.outbound(github_signal.get("profile_readme")),
+        "top_repos": [
+            {
+                "name": _out_name(r.get("name")),
+                "description": ledger.outbound(r.get("description")),
+                "language": r.get("language"),
+                "stargazers_count": r.get("stargazers_count", 0),
+            }
+            for r in github_signal.get("top_repos") or []
+        ],
+    }

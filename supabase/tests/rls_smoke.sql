@@ -58,6 +58,12 @@ begin
 
   insert into public.admins (user_id) values (v_admin) on conflict do nothing;
 
+  -- Every fixture member is a current student, so a job for students or
+  -- both is theirs to see (20261006000002: audience comes from education).
+  insert into public.member_education (member_id, currently_enrolled, has_completed_degree)
+  values (v_user_a, true, false), (v_user_b, true, false), (v_admin, true, false)
+  on conflict (member_id) do nothing;
+
   -- A pending opportunity owned by A, an approved one owned by B.
   -- approved_at / approved_by must be set inline: the opportunities_approval_metadata
   -- CHECK rejects an 'approved' row with null approval metadata, so we can't insert
@@ -65,18 +71,18 @@ begin
   insert into public.opportunities (
     id, posted_by, status, position_name, company, pay, location_type,
     description, start_month, start_year, application_deadline,
-    contact_email, apply_method, approved_at, approved_by
+    contact_email, apply_method, approved_at, approved_by, eligible_audience
   ) values
     (v_opp_a, v_user_a, 'pending',
      'A''s role', 'Co', '£50k', 'remote',
      'Description that is at least twenty chars long.',
      1, 2027, current_date + 30,
-     'a@imperial.ac.uk', 'email', null, null),
+     'a@imperial.ac.uk', 'email', null, null, 'both'),
     (v_opp_b, v_user_b, 'approved',
      'B''s approved role', 'Co', '£50k', 'remote',
      'Description that is at least twenty chars long.',
      1, 2027, current_date + 30,
-     'b@imperial.ac.uk', 'email', now(), v_admin);
+     'b@imperial.ac.uk', 'email', now(), v_admin, 'both');
 
   -- Stash UUIDs so the test blocks below can find them.
   create temporary table _test_ctx (k text, v uuid);
@@ -855,6 +861,24 @@ declare
     -- expire_connection_requests, purge_removed_connections,
     -- purge_connection_records, cron_connection_digest,
     -- claim_connection_digests, purge_sent_outbound_email.
+    -- 20261006000002 education + job audience: the member's own education
+    -- facts (auth.uid()), the viewer predicate the opportunities RLS uses,
+    -- the ID-specific detail read (same gate as the list), and the admin
+    -- audience queue (is_admin() in-body).
+    'get_my_education','set_my_education','viewer_admits_audience','get_approved_opportunity',
+    'admin_list_opportunities_needing_audience','admin_set_opportunity_audience',
+    -- 20261006000001/3/4 AI. Flag and operator readers; the member's own
+    -- settings, the concept labels, and the conversation/turn RPCs (each on
+    -- auth.uid() and is_approved()). The executor's functions live in
+    -- ai_private, a schema PostgREST does not expose, and appear nowhere
+    -- here. admin_ai_overview guards on is_admin(); the three operator
+    -- controls on is_ai_operator().
+    'ai_mode_enabled','is_ai_operator','ai_list_concepts','get_my_ai_settings','set_my_ai_settings',
+    'ai_preview_my_projection','ai_state','ai_list_conversations','ai_get_conversation','ai_submit_turn',
+    'ai_turn_status','ai_cancel_turn','ai_edit_spec','ai_delete_conversation','ai_delete_all_history',
+    'ai_forget_message','ai_save_findings','ai_result_cards','ai_get_job_requirements',
+    'ai_confirm_job_requirements','admin_ai_overview','admin_set_ai_flag','admin_set_ai_limits',
+    'admin_ai_rebuild_index',
     -- this test's OWN role-impersonation helper (created near the top of this
     -- file, dropped in cleanup below). Not an app RPC — it only exists during
     -- the test run, where Supabase default privileges make it anon-callable;
@@ -1412,9 +1436,11 @@ declare
   v_listing  uuid;
   v_rows     int;
 begin
-  select id into v_member   from public.profiles where status = 'approved' limit 1;
+  -- A member and a job that member's audience can see: a view of a job
+  -- outside the audience is deliberately not recorded (20261006000002).
+  v_member  := (select v from _test_ctx where k = 'user_a');
+  v_listing := (select v from _test_ctx where k = 'opp_b');
   select id into v_rejected from public.profiles where status = 'rejected' limit 1;
-  select id into v_listing  from public.opportunities where status = 'approved' limit 1;
   if v_member is null or v_listing is null then
     raise exception 'FAIL: fixture missing (approved profile / approved opportunity)';
   end if;
@@ -2940,6 +2966,10 @@ begin
   create temporary table _conn_ctx (k text, v uuid);
   insert into _conn_ctx (k, v)
     select v_keys[i], v_ids[i] from generate_series(1,9) i;
+  -- Current students, so jobs for students or both are visible to them.
+  insert into public.member_education (member_id, currently_enrolled, has_completed_degree)
+    select v_ids[i], true, false from generate_series(1,9) i
+  on conflict (member_id) do nothing;
   grant select on _conn_ctx to authenticated;
 end;
 $$;
@@ -4467,11 +4497,11 @@ begin
   insert into public.opportunities (
     id, posted_by, status, position_name, company, pay, location_type,
     description, start_month, start_year, application_deadline,
-    contact_email, contact_email_visible, apply_method, approved_at, approved_by
+    contact_email, contact_email_visible, apply_method, approved_at, approved_by, eligible_audience
   ) values (
     v_opp, v_poster, 'approved', 'L1 role', 'Co', '£1', 'remote',
     'Description that is at least twenty chars long.', 1, 2027, current_date + 30,
-    'l1-hidden@imperial.ac.uk', false, 'email', now(), v_admin
+    'l1-hidden@imperial.ac.uk', false, 'email', now(), v_admin, 'both'
   );
   insert into public.events (
     id, posted_by, status, title, description, luma_link,

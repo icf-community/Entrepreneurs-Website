@@ -200,8 +200,12 @@ def test_process_ingest_cv_hash_match_query_excludes_orphaned_currency_targets()
     assert fake_reactivate.call_args.args[3] == existing_cv_id
     fake_moderate.assert_not_called()
 
-    sql = hash_cur.execute.call_args_list[-1].args[0]
-    assert "exists (select 1 from public.cv_profiles cp where cp.cv_id = c.id)" in sql
+    sql, params = hash_cur.execute.call_args_list[-1].args
+    assert "exists (select 1 from public.cv_profiles cp" in sql
+    assert "where cp.cv_id = c.id and cp.prompt_version = %s and cp.policy_version = %s" in sql
+    # Version-aware dedupe (AI-plan §3): only a profile built by the
+    # current extractor under the current privacy policy is reused.
+    assert params[-2:] == (worker.cv_pipeline.EXTRACTION_PROMPT_VERSION, worker.privacy.POLICY_VERSION)
 
 
 # ─── _revert_to_cv_only_summary ──────────────────────────────────────────

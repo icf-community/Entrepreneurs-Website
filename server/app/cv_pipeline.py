@@ -18,11 +18,19 @@ from dataclasses import dataclass, field
 
 import psycopg
 
+from . import ledger
 from .openai_client import client
+from .schema_validate import SchemaError, validate
 
 EXTRACTION_MODEL = "gpt-5.4-mini"
-EXTRACTION_PROMPT_VERSION = "extract-v7"
+# v8: the model now sees text the privacy boundary has minimised (names,
+# contact details and links removed; links are parsed locally instead).
+EXTRACTION_PROMPT_VERSION = "extract-v8"
 EMBEDDING_MODEL = "text-embedding-3-small"
+# A0.1 output bounds. A reasoning model counts its reasoning against this
+# too, so it is generous; a truncated response fails validation, never
+# half-parses.
+EXTRACTION_MAX_OUTPUT_TOKENS = 8000
 
 # cv-matchmaker-spec.md, step 5: "accept above a cosine threshold (start
 # around 0.8, tune it)".
@@ -200,17 +208,27 @@ def extract_profile(raw_text: str) -> ExtractionResult:
     here since this function never uses it (it's pure text-in,
     structure-out); the worker attaches cv_id when it persists the result.
     """
-    response = client().chat.completions.create(
-        model=EXTRACTION_MODEL,
-        messages=[
-            {"role": "system", "content": _EXTRACTION_INSTRUCTIONS},
-            {"role": "user", "content": f"<cv_content>\n{raw_text}\n</cv_content>"},
-        ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {"name": "cv_profile", "strict": True, "schema": _PROFILE_SCHEMA},
-        },
-    )
+    messages = [
+        {"role": "system", "content": _EXTRACTION_INSTRUCTIONS},
+        {"role": "user", "content": f"<cv_content>\n{raw_text}\n</cv_content>"},
+    ]
+    with ledger.metered(
+        "cv_extract",
+        EXTRACTION_MODEL,
+        payload="\n".join(m["content"] for m in messages),
+        max_output_tokens=EXTRACTION_MAX_OUTPUT_TOKENS,
+    ) as meter:
+        meter.dispatched()
+        response = client().chat.completions.create(
+            model=EXTRACTION_MODEL,
+            messages=messages,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "cv_profile", "strict": True, "schema": _PROFILE_SCHEMA},
+            },
+            max_completion_tokens=EXTRACTION_MAX_OUTPUT_TOKENS,
+        )
+        meter.record(getattr(response, "usage", None))
     content = response.choices[0].message.content
     if content is None:
         raise ExtractionError("Model returned no content")
@@ -218,15 +236,22 @@ def extract_profile(raw_text: str) -> ExtractionResult:
     # Structured Outputs strict mode makes a schema-shaped response the
     # contract, not a guarantee — validated here regardless, per the
     # spec's "must validate the returned object against the schema
-    # regardless of strict mode."
+    # regardless of strict mode." Every level, not just the top-level keys
+    # (AI-plan §3 step 4).
     try:
         profile = json.loads(content)
     except json.JSONDecodeError as exc:
         raise ExtractionError("Model response was not valid JSON") from exc
 
+    if not isinstance(profile, dict):
+        raise ExtractionError("Model response was not an object")
     missing = set(_PROFILE_SCHEMA["required"]) - profile.keys()
     if missing:
         raise ExtractionError(f"Model response is missing required fields: {sorted(missing)}")
+    try:
+        validate(profile, _PROFILE_SCHEMA)
+    except SchemaError as exc:
+        raise ExtractionError(f"Model response did not match the schema: {exc}") from exc
 
     return ExtractionResult(
         profile=profile,
@@ -251,7 +276,10 @@ class SkillMatch:
 def _embed(texts: list[str]) -> list[list[float]]:
     """One batched call, per the spec's cost-model section: batch the
     embedding calls, one call per CV rather than one call per chunk."""
-    response = client().embeddings.create(model=EMBEDDING_MODEL, input=texts)
+    with ledger.metered("embed", EMBEDDING_MODEL, payload="\n".join(texts), max_output_tokens=0) as meter:
+        meter.dispatched()
+        response = client().embeddings.create(model=EMBEDDING_MODEL, input=texts)
+        meter.record(getattr(response, "usage", None))
     return [item.embedding for item in response.data]
 
 

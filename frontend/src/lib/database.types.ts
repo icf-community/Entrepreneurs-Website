@@ -356,6 +356,7 @@ export type Database = {
           id: string
           is_current: boolean
           model_name: string
+          policy_version: string | null
           profile: Json
           prompt_version: string
           summary: string
@@ -368,6 +369,7 @@ export type Database = {
           id?: string
           is_current?: boolean
           model_name: string
+          policy_version?: string | null
           profile: Json
           prompt_version: string
           summary: string
@@ -380,6 +382,7 @@ export type Database = {
           id?: string
           is_current?: boolean
           model_name?: string
+          policy_version?: string | null
           profile?: Json
           prompt_version?: string
           summary?: string
@@ -738,6 +741,41 @@ export type Database = {
         }
         Relationships: []
       }
+      member_education: {
+        Row: {
+          confirmed_at: string
+          currently_enrolled: boolean | null
+          has_completed_degree: boolean | null
+          member_id: string
+          source: string
+          version: number
+        }
+        Insert: {
+          confirmed_at?: string
+          currently_enrolled?: boolean | null
+          has_completed_degree?: boolean | null
+          member_id: string
+          source?: string
+          version?: number
+        }
+        Update: {
+          confirmed_at?: string
+          currently_enrolled?: boolean | null
+          has_completed_degree?: boolean | null
+          member_id?: string
+          source?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_education_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_skills: {
         Row: {
           confidence: number | null
@@ -826,11 +864,15 @@ export type Database = {
           apply_url: string | null
           approved_at: string | null
           approved_by: string | null
+          audience_version: number
           company: string
           contact_email: string
           contact_email_visible: boolean
+          content_version: number
           created_at: string
+          creation_source: string
           description: string
+          eligible_audience: string | null
           id: string
           location_text: string | null
           location_type: Database["public"]["Enums"]["location_type"]
@@ -849,11 +891,15 @@ export type Database = {
           apply_url?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          audience_version?: number
           company: string
           contact_email: string
           contact_email_visible?: boolean
+          content_version?: number
           created_at?: string
+          creation_source?: string
           description: string
+          eligible_audience?: string | null
           id?: string
           location_text?: string | null
           location_type: Database["public"]["Enums"]["location_type"]
@@ -872,11 +918,15 @@ export type Database = {
           apply_url?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          audience_version?: number
           company?: string
           contact_email?: string
           contact_email_visible?: boolean
+          content_version?: number
           created_at?: string
+          creation_source?: string
           description?: string
+          eligible_audience?: string | null
           id?: string
           location_text?: string | null
           location_type?: Database["public"]["Enums"]["location_type"]
@@ -1706,6 +1756,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_ai_overview: { Args: never; Returns: Json }
+      admin_ai_rebuild_index: { Args: never; Returns: number }
       admin_apply_listing_edit: {
         Args: { p_edit_id: string }
         Returns: {
@@ -1751,6 +1803,7 @@ export type Database = {
           p_contact_email: string
           p_contact_email_visible: boolean
           p_description: string
+          p_eligible_audience: string
           p_location_text: string
           p_location_type: Database["public"]["Enums"]["location_type"]
           p_pay: string
@@ -1889,6 +1942,18 @@ export type Database = {
           proposed_by_name: string
         }[]
       }
+      admin_list_opportunities_needing_audience: {
+        Args: never
+        Returns: {
+          application_deadline: string
+          company: string
+          created_at: string
+          id: string
+          position_name: string
+          poster_first_name: string
+          poster_surname: string
+        }[]
+      }
       admin_list_pending_profiles: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: {
@@ -2013,6 +2078,19 @@ export type Database = {
         Args: { p_report_id: string }
         Returns: string
       }
+      admin_set_ai_flag: {
+        Args: { p_enabled: boolean; p_key: string; p_reason: string }
+        Returns: undefined
+      }
+      admin_set_ai_limits: {
+        Args: {
+          p_active_turn_ceiling: number
+          p_matching_daily_cap_micro: number
+          p_member_daily_cap_micro: number
+          p_reason: string
+        }
+        Returns: undefined
+      }
       admin_set_committee: {
         Args: {
           p_committee_role?: string
@@ -2027,6 +2105,10 @@ export type Database = {
       }
       admin_set_ingestion_enabled: {
         Args: { p_enabled: boolean }
+        Returns: undefined
+      }
+      admin_set_opportunity_audience: {
+        Args: { p_audience: string; p_id: string }
         Returns: undefined
       }
       admin_set_site_banner: {
@@ -2045,6 +2127,115 @@ export type Database = {
           p_payload: Json
         }
         Returns: undefined
+      }
+      ai_cancel_turn: { Args: { p_turn: string }; Returns: undefined }
+      ai_confirm_job_requirements: {
+        Args: { p_atoms: Json; p_opportunity: string }
+        Returns: undefined
+      }
+      ai_delete_all_history: { Args: never; Returns: undefined }
+      ai_delete_conversation: {
+        Args: { p_conversation: string }
+        Returns: undefined
+      }
+      ai_edit_spec: {
+        Args: {
+          p_conversation: string
+          p_expected_revision: number
+          p_ops: Json
+        }
+        Returns: {
+          spec: Json
+          spec_revision: number
+        }[]
+      }
+      ai_forget_message: { Args: { p_message: string }; Returns: undefined }
+      ai_get_conversation: { Args: { p_conversation: string }; Returns: Json }
+      ai_get_job_requirements: {
+        Args: { p_opportunity: string }
+        Returns: Json
+      }
+      ai_list_concepts: {
+        Args: { p_kinds?: string[] }
+        Returns: {
+          kind: string
+          label: string
+          slug: string
+        }[]
+      }
+      ai_list_conversations: {
+        Args: { p_mode: string }
+        Returns: {
+          expires_at: string
+          id: string
+          last_activity_at: string
+          opportunity_id: string
+          temporary: boolean
+          title: string
+        }[]
+      }
+      ai_mode_enabled: { Args: { p_mode: string }; Returns: boolean }
+      ai_preview_my_projection: {
+        Args: { p_purpose: string }
+        Returns: {
+          built_at: string
+          concepts: string[]
+          from_cv: boolean
+          source_kind: string
+          text: string
+        }[]
+      }
+      ai_result_cards: {
+        Args: { p_turn: string }
+        Returns: {
+          avatar_path: string
+          change: string
+          components: Json
+          coverage: Json
+          evidence: Json
+          exact_tier: number
+          extra: Json
+          kind: string
+          score: number
+          slot: number
+          stale: boolean
+          subtitle: string
+          target_id: string
+          tier: string
+          title: string
+        }[]
+      }
+      ai_save_findings: { Args: { p_turn: string }; Returns: undefined }
+      ai_state: { Args: never; Returns: Json }
+      ai_submit_turn: {
+        Args: {
+          p_conversation: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_kind: string
+          p_message: string
+          p_mode: string
+          p_opportunity: string
+          p_temporary?: boolean
+        }
+        Returns: {
+          conversation_id: string
+          outcome: string
+          retry_at: string
+          turn_id: string
+        }[]
+      }
+      ai_turn_status: {
+        Args: { p_turn: string }
+        Returns: {
+          conversation_id: string
+          finished: boolean
+          outcome: string
+          result_count: number
+          revision: number
+          stage: string
+          status: string
+        }[]
       }
       app_health_snapshot: { Args: never; Returns: Json }
       apply_listing_edit_payload: {
@@ -2074,6 +2265,7 @@ export type Database = {
         Args: { p_id: string; p_notes?: string }
         Returns: undefined
       }
+      assert_audience: { Args: { p_audience: string }; Returns: undefined }
       block_member: { Args: { p_member: string }; Returns: undefined }
       claim_blob_deletion_batch: {
         Args: { p_limit?: number }
@@ -2237,6 +2429,34 @@ export type Database = {
       expire_opportunities: { Args: never; Returns: number }
       expire_vcs_grants: { Args: never; Returns: number }
       export_my_data: { Args: never; Returns: Json }
+      get_approved_opportunity: {
+        Args: { p_id: string }
+        Returns: {
+          application_deadline: string
+          apply_method: Database["public"]["Enums"]["apply_method"]
+          apply_url: string
+          company: string
+          contact_email: string
+          contact_email_visible: boolean
+          created_at: string
+          description: string
+          eligible_audience: string
+          id: string
+          location_text: string
+          location_type: Database["public"]["Enums"]["location_type"]
+          pay: string
+          position_name: string
+          posted_by: string
+          poster_avatar_path: string
+          poster_first_name: string
+          poster_linkedin_url: string
+          poster_surname: string
+          sector_names: string[]
+          skill_names: string[]
+          start_month: number
+          start_year: number
+        }[]
+      }
       get_event_for_edit: {
         Args: { p_id: string }
         Returns: {
@@ -2267,6 +2487,21 @@ export type Database = {
           url: string
         }[]
       }
+      get_my_ai_settings: {
+        Args: never
+        Returns: {
+          consent_version: string
+          evidence_sharing: boolean
+          network_discoverable: boolean
+          network_offers: string[]
+          network_seeks: string[]
+          pref_location_types: string[]
+          pref_role_types: string[]
+          recruiter_discoverable: boolean
+          updated_at: string
+          use_chat_memory: boolean
+        }[]
+      }
       get_my_cv_info: {
         Args: never
         Returns: {
@@ -2289,6 +2524,15 @@ export type Database = {
         Returns: {
           failure_reason: string
           status: Database["public"]["Enums"]["cv_status"]
+        }[]
+      }
+      get_my_education: {
+        Args: never
+        Returns: {
+          confirmed_at: string
+          currently_enrolled: boolean
+          has_completed_degree: boolean
+          known: boolean
         }[]
       }
       get_my_github_showcase: {
@@ -2352,6 +2596,7 @@ export type Database = {
           contact_email: string
           contact_email_visible: boolean
           description: string
+          eligible_audience: string
           id: string
           location_text: string
           location_type: Database["public"]["Enums"]["location_type"]
@@ -2382,6 +2627,7 @@ export type Database = {
       }
       github_cv_ingestion_enabled: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_ai_operator: { Args: never; Returns: boolean }
       is_approved: { Args: never; Returns: boolean }
       is_imperial_email: { Args: { p_email: string }; Returns: boolean }
       issue_upload_ticket: { Args: { p_purpose?: string }; Returns: string }
@@ -2416,12 +2662,14 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          eligible_audience: string
           id: string
           location_text: string
           location_type: Database["public"]["Enums"]["location_type"]
           pay: string
           position_name: string
           posted_by: string
+          poster_avatar_path: string
           poster_first_name: string
           poster_linkedin_url: string
           poster_surname: string
@@ -2562,12 +2810,14 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          eligible_audience: string
           id: string
           location_text: string
           location_type: Database["public"]["Enums"]["location_type"]
           pay: string
           position_name: string
           posted_by: string
+          poster_avatar_path: string
           poster_first_name: string
           poster_linkedin_url: string
           poster_surname: string
@@ -2814,6 +3064,10 @@ export type Database = {
         Returns: undefined
       }
       mark_notifications_read: { Args: { p_ids?: string[] }; Returns: number }
+      member_admits_audience: {
+        Args: { p_audience: string; p_member: string }
+        Returns: boolean
+      }
       my_connection_quota: {
         Args: never
         Returns: {
@@ -2958,6 +3212,24 @@ export type Database = {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: undefined
       }
+      set_my_ai_settings: {
+        Args: {
+          p_consent_version: string
+          p_evidence_sharing: boolean
+          p_network_discoverable: boolean
+          p_network_offers: string[]
+          p_network_seeks: string[]
+          p_pref_location_types: string[]
+          p_pref_role_types: string[]
+          p_recruiter_discoverable: boolean
+          p_use_chat_memory: boolean
+        }
+        Returns: undefined
+      }
+      set_my_education: {
+        Args: { p_currently_enrolled: boolean; p_has_completed_degree: boolean }
+        Returns: undefined
+      }
       set_my_github_nudges: { Args: { p_enabled: boolean }; Returns: undefined }
       set_my_github_showcase: { Args: { p_picks: Json }; Returns: undefined }
       set_my_linkedin: { Args: { p_linkedin_url: string }; Returns: undefined }
@@ -3025,6 +3297,7 @@ export type Database = {
           p_contact_email: string
           p_contact_email_visible: boolean
           p_description: string
+          p_eligible_audience: string
           p_location_text: string
           p_location_type: Database["public"]["Enums"]["location_type"]
           p_pay: string
@@ -3088,6 +3361,7 @@ export type Database = {
           p_contact_email: string
           p_contact_email_visible: boolean
           p_description: string
+          p_eligible_audience: string
           p_id: string
           p_location_text: string
           p_location_type: Database["public"]["Enums"]["location_type"]
@@ -3142,6 +3416,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      viewer_admits_audience: { Args: { p_audience: string }; Returns: boolean }
       withdraw_connection_request: {
         Args: { p_id: string }
         Returns: undefined
