@@ -66,7 +66,7 @@ so this is an identifier, not a secret) plus its own vars, all fail-loud via `co
 |---|---|
 | `AZURE_STORAGE_ACCOUNT` | Same value as the gateway's — not a secret, Storage access is via managed identity |
 | `AZURE_CV_CONTAINER` | The one blob container this process ever reads (member-uploaded CVs) — not a secret, just an identifier |
-| `DATABASE_URL` | Direct Postgres connection. Local Supabase: `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+| `DATABASE_URL` | Postgres as the scoped `cv_worker` role (F25, migration 20260928000013), never `postgres`. TLS is required unless the DSN sets `sslmode` (B13), so the local stack, which has no TLS, opts out. Local: run `alter role cv_worker password 'cv_worker-local';` once in the local SQL editor, then `postgresql://cv_worker:cv_worker-local@127.0.0.1:54322/postgres?sslmode=disable`. Production: the session pooler, user `cv_worker.<project-ref>` (see `infra/vm/bootstrap-worker.sh`). A query that needs a new grant goes in the migration and in `supabase/tests/cv_worker_role.sql`. |
 | `OPENAI_API_KEY` | Used for moderation, extraction, and embedding calls. Not `server/.env`'s key — see below |
 | `GITHUB_TOKEN_ENCRYPTION_KEY` | Decrypts `github_connections.access_token_encrypted` (pgcrypto `pgp_sym_decrypt`). Must be the exact same value as the Next.js app's `GITHUB_TOKEN_ENCRYPTION_KEY` (it's what encrypted the token in the first place) — never persisted in the database itself |
 
