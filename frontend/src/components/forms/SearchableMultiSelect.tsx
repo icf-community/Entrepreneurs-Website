@@ -80,7 +80,7 @@ export default function SearchableMultiSelect({
       <div className="text-[0.75rem] text-text-muted mb-2">
         {label}
         {selected.size > 0 && (
-          <span className="ml-2 text-text-muted/70">— {selected.size} selected</span>
+          <span className="ml-2 text-text-muted">— {selected.size} selected</span>
         )}
       </div>
 

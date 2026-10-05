@@ -28,7 +28,7 @@ export default function PrivacyPage() {
           </p>
         </div>
 
-        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed">
+        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
           <Section title="1. Who we are">
             <p>
               Foundry is a private community platform for Imperial College London students and alumni
@@ -91,7 +91,7 @@ export default function PrivacyPage() {
               <li><strong>Exchanging your email address when you connect with a member</strong> — your consent, given by sending a request or by accepting one, and withdrawable by removing the connection. See section 7a.</li>
               <li><strong>Sending you service / transactional emails</strong> (sign-in and password reset, decisions on your application and listings, account and content notices, a summary of connection requests waiting for you, and replies when you contact us) — necessary to perform our contract with you and our legitimate interest in operating the platform. You can turn the connection summary off in Settings.</li>
               <li><strong>Keeping the platform secure</strong> (anti-bot challenges, rate limiting, abuse prevention) — our legitimate interest in protecting members and the service.</li>
-              <li><strong>Understanding how the product is used</strong> (cookieless, pseudonymous analytics) — our legitimate interest in improving Foundry. See our <Link href="/cookies" className="text-accent hover:text-accent-light no-underline">Cookie Policy</Link>.</li>
+              <li><strong>Understanding how the product is used</strong> (cookieless, pseudonymous analytics) — our legitimate interest in improving Foundry. See our <Link href="/cookies" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Cookie Policy</Link>.</li>
             </ul>
             <p className="mt-2">
               We do not use your data for advertising, we do not sell it, and we do not carry out automated
@@ -244,7 +244,7 @@ export default function PrivacyPage() {
             <p>
               We use only strictly necessary cookies (for your sign-in session and security) and run our analytics
               cookielessly, so we do not show a cookie banner. Full details are in our{" "}
-              <Link href="/cookies" className="text-accent hover:text-accent-light no-underline">Cookie Policy</Link>.
+              <Link href="/cookies" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Cookie Policy</Link>.
             </p>
           </Section>
 
@@ -267,7 +267,7 @@ export default function PrivacyPage() {
               Contact us about your data at <strong>contact@imperialentrepreneurs.com</strong>. If you are
               unhappy with how we have handled your data you can complain to the UK Information Commissioner&rsquo;s
               Office (ICO) at{" "}
-              <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noopener noreferrer" className="text-accent hover:text-accent-light no-underline">ico.org.uk/make-a-complaint</a>{" "}
+              <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-[3px] hover:text-accent-light">ico.org.uk/make-a-complaint</a>{" "}
               or by calling 0303 123 1113. We would appreciate the chance to resolve it with you first.
             </p>
           </Section>

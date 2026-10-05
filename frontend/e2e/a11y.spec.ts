@@ -66,3 +66,39 @@ test("the skip link is first in the tab order and moves focus into <main>", asyn
     .poll(() => page.evaluate(() => document.activeElement?.tagName))
     .toBe("MAIN");
 });
+
+// D4: a core flow completed with the keyboard alone — no clicks. Creating a
+// post exercises a disclosure button, two labelled fields and a submit.
+test("a member can create a post using only the keyboard", async ({ page }) => {
+  const title = `kbd post ${Date.now()}`;
+  await page.goto("/community");
+  const open = page.getByRole("button", { name: "Create a post" });
+  await open.waitFor();
+  // Reach the button by tabbing, not by focusing it directly.
+  for (let i = 0; i < 60 && !(await open.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(open).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByLabel("Title")).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Title")).toBeFocused();
+  await page.keyboard.type(title);
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Post", { exact: true })).toBeFocused();
+  await page.keyboard.type("Written without touching the mouse.");
+
+  const post = page.getByRole("button", { name: "Post", exact: true });
+  for (let i = 0; i < 10 && !(await post.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(post).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+
+  const { createClient } = await import("@supabase/supabase-js");
+  await createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  }).from("posts").delete().eq("title", title);
+});

@@ -104,7 +104,7 @@ function FormPreview() {
         </div>
 
         <div className="flex justify-end border-t border-border-subtle pt-5">
-          <span className="rounded-lg bg-accent px-4 py-1.5 text-[0.775rem] font-semibold text-bg-primary opacity-40">
+          <span className="rounded-lg border border-border px-4 py-1.5 text-[0.775rem] font-semibold text-text-muted">
             Continue →
           </span>
         </div>

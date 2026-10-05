@@ -56,7 +56,7 @@ export default function ListingPageShell({
                     on the client (D1: LCP 0.9 s → 3.7 s on a mid-range phone). */}
                 <div className="mt-3 text-[0.875rem] leading-relaxed text-text-muted">{summary}</div>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 {actions}
                 <Link
                   href={cta.href}

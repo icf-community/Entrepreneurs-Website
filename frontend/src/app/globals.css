@@ -42,8 +42,13 @@
      (#5a5855) was 2.8:1 and was used for input placeholders, which need the
      same 4.5:1 as body text. #7a7a82 itself later measured 4.40:1 against
      bg-card specifically (used app-wide for card metadata, e.g. member card
-     subtitles) — just under AA. Lightened by 6 across the board, same tint. */
-  --color-text-muted:    #808088;
+     subtitles) — just under AA. Lightened by 6 across the board, same tint.
+     #808088 then measured 4.48:1 on the dashed upload boxes (#19191b) and
+     4.15:1 on raised rows (#202022) in the D4 axe pass. #8a8a92 clears
+     4.5:1 on every dark surface up to #202022 (4.75:1) and stays below
+     --color-text-secondary. Muted text is never drawn with an alpha
+     (text-text-muted/70 measured 2.95:1). */
+  --color-text-muted:    #8a8a92;
 
   /* ── Accent ───────────────────────────────── */
   /* The logo's ink. A white fill on black is the strongest control this

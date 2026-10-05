@@ -57,7 +57,7 @@ export default function CookiesPage() {
           </p>
         </div>
 
-        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed">
+        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
           <Section title="1. The short version">
             <p>
               Foundry is operated under the name &ldquo;Imperial Entrepreneurs&rdquo; by <strong>IC Founders Ltd</strong>,
@@ -81,7 +81,9 @@ export default function CookiesPage() {
           </Section>
 
           <Section title="3. The cookies we set">
-            <div className="overflow-x-auto mt-2 rounded-xl border border-border-subtle">
+            {/* Focusable so a keyboard user can scroll the table sideways on a
+                phone (axe scrollable-region-focusable, D4). */}
+            <div tabIndex={0} role="region" aria-label="The cookies we set" className="overflow-x-auto mt-2 rounded-xl border border-border-subtle">
               <table className="w-full text-left text-[0.8rem] border-collapse">
                 <thead>
                   <tr className="bg-bg-card text-text-primary">
@@ -137,7 +139,7 @@ export default function CookiesPage() {
             <p>
               We may update this policy if our use of cookies changes. For questions, contact{" "}
               <strong>contact@imperialentrepreneurs.com</strong>. See also our{" "}
-              <Link href="/privacy" className="text-accent hover:text-accent-light no-underline">Privacy Policy</Link>.
+              <Link href="/privacy" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Privacy Policy</Link>.
             </p>
           </Section>
         </article>

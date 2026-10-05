@@ -308,7 +308,7 @@ function LinksStep({
           LinkedIn URL{" "}
           {role !== "student"
             ? <span className="text-[#ff6b6b]">*</span>
-            : <span className="text-text-muted/70 ml-1">— optional</span>}
+            : <span className="text-text-muted ml-1">— optional</span>}
         </label>
         <input
           id="linkedin"
@@ -323,7 +323,7 @@ function LinksStep({
       </div>
       <div>
         <label htmlFor="github" className="block text-[0.75rem] text-text-muted mb-1.5">
-          GitHub URL <span className="text-text-muted/70 ml-1">— optional</span>
+          GitHub URL <span className="text-text-muted ml-1">— optional</span>
         </label>
         <input
           id="github"
@@ -337,7 +337,7 @@ function LinksStep({
       </div>
       <div>
         <label htmlFor="portfolio" className="block text-[0.75rem] text-text-muted mb-1.5">
-          Portfolio URL <span className="text-text-muted/70 ml-1">— optional</span>
+          Portfolio URL <span className="text-text-muted ml-1">— optional</span>
         </label>
         <input
           id="portfolio"

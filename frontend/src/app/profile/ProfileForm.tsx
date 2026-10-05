@@ -310,7 +310,7 @@ export default function ProfileForm(props: Props) {
 
         <div>
           <label htmlFor="preferred-name" className="block text-[0.75rem] text-text-muted mb-1.5">
-            What people call you <span className="text-text-muted/70 ml-1">— optional</span>
+            What people call you <span className="text-text-muted ml-1">— optional</span>
           </label>
           <input id="preferred-name" type="text" value={preferredName} onChange={(e) => setPreferredName(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} />
         </div>
@@ -340,35 +340,35 @@ export default function ProfileForm(props: Props) {
         <div>
           <label htmlFor="linkedin" className="block text-[0.75rem] text-text-muted mb-1.5">
             LinkedIn URL{" "}
-            {props.role === "student" && <span className="text-text-muted/70 ml-1">— optional</span>}
+            {props.role === "student" && <span className="text-text-muted ml-1">— optional</span>}
           </label>
           <input id="linkedin" type="url" placeholder="https://linkedin.com/in/your-handle" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} className={inputCls} maxLength={512} required={props.role !== "student"} />
         </div>
 
         <div>
           <label htmlFor="github" className="block text-[0.75rem] text-text-muted mb-1.5">
-            GitHub URL <span className="text-text-muted/70 ml-1">— optional</span>
+            GitHub URL <span className="text-text-muted ml-1">— optional</span>
           </label>
           <input id="github" type="url" placeholder="https://github.com/your-handle" value={github} onChange={(e) => setGithub(e.target.value)} className={inputCls} maxLength={512} />
         </div>
 
         <div>
           <label htmlFor="portfolio" className="block text-[0.75rem] text-text-muted mb-1.5">
-            Portfolio URL <span className="text-text-muted/70 ml-1">— optional</span>
+            Portfolio URL <span className="text-text-muted ml-1">— optional</span>
           </label>
           <input id="portfolio" type="url" placeholder="https://yourportfolio.com" value={portfolio} onChange={(e) => setPortfolio(e.target.value)} className={inputCls} maxLength={512} />
         </div>
 
         <div>
           <label htmlFor="bio-focus" className="block text-[0.75rem] text-text-muted mb-1.5">
-            What are you working on, or into? <span className="text-text-muted/70 ml-2">{bioFocus.length}/500</span>
+            What are you working on, or into? <span className="text-text-muted ml-2">{bioFocus.length}/500</span>
           </label>
           <textarea id="bio-focus" rows={3} value={bioFocus} onChange={(e) => setBioFocus(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
         </div>
 
         <div>
           <label htmlFor="bio-hobbies" className="block text-[0.75rem] text-text-muted mb-1.5">
-            And outside of that? <span className="text-text-muted/70 ml-2">{bioHobbies.length}/500</span>
+            And outside of that? <span className="text-text-muted ml-2">{bioHobbies.length}/500</span>
           </label>
           <textarea id="bio-hobbies" rows={2} value={bioHobbies} onChange={(e) => setBioHobbies(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
         </div>

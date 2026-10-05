@@ -254,7 +254,9 @@ function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalIte
         {grid.map((cell, idx) => (
           <div
             key={idx}
-            className={`min-h-[88px] p-2 bg-bg-card ${cell.inMonth ? "" : "opacity-40"}`}
+            // Out-of-month days sit on the page colour rather than at reduced
+            // opacity: opacity-40 took their dates to 1.8:1 contrast (D4).
+            className={`min-h-[88px] p-2 ${cell.inMonth ? "bg-bg-card" : "bg-bg-primary"}`}
           >
             <div
               className={
