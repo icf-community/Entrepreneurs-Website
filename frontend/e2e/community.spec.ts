@@ -172,3 +172,26 @@ test("the feed is marked noindex", async ({ page }) => {
   await page.goto("/community");
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 });
+
+// D3: a double click on Post must create one post. The button only
+// disables after React re-renders with `pending`, so two clicks landing
+// before that render would otherwise send two create_post calls.
+test("a double click on Post creates one post", async ({ page }) => {
+  const title = unique("e2e double");
+
+  await page.goto("/community");
+  await page.getByRole("button", { name: "Create a post" }).click();
+  await page.getByLabel("Title").fill(title);
+  await page.getByLabel("Post", { exact: true }).fill("Two clicks, one post, please.");
+  await page.getByRole("button", { name: "Post", exact: true }).dblclick();
+
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await page.waitForTimeout(1500);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: title })).toHaveCount(1);
+
+  const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  await db.from("posts").delete().eq("title", title);
+});

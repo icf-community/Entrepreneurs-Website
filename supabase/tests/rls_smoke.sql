@@ -4669,8 +4669,8 @@ begin
   insert into public.connections (id, requester_id, addressee_id, status, consent_version, decided_at)
   values (v_conn, v_g1, v_keep, 'accepted', public.connection_consent_version(), now());
 
-  -- An admin_actions row authored BY a doomed graduate: admin_id has no
-  -- cascade, so the function has to clear it or the auth delete fails.
+  -- An admin_actions row authored BY a doomed graduate: it must survive the
+  -- delete with admin_id set to NULL (20260928000011).
   insert into public.admin_actions (admin_id, action, target_table, target_id, notes)
   values (v_g1, 'test_fixture', 'profiles', v_keep, 'authored by a doomed graduate');
 
@@ -4703,6 +4703,10 @@ begin
   if (select count(*) from public.admin_actions
        where action = 'admin_delete_graduate' and target_id in (v_g1, v_g2)) <> 2 then
     raise exception 'FAIL: the cohort delete was not audited one row per graduate';
+  end if;
+  if not exists (select 1 from public.admin_actions
+                  where action = 'test_fixture' and target_id = v_keep and admin_id is null) then
+    raise exception 'FAIL: the cohort delete erased an admin_actions row a graduate authored';
   end if;
 
   -- Re-entrancy: the temp table is `on commit drop`, so a second call in
@@ -5032,6 +5036,50 @@ begin
      and pg_get_functiondef(p.oid) !~* 'insert\s+into\s+(public\.)?admin_actions';
   if v_missing is not null then
     raise exception 'FAIL: admin RPCs that write no admin_actions row: %', v_missing;
+  end if;
+end;
+$$;
+
+-- ─── D3. Deleting an account keeps the admin audit trail ────────────
+-- (20260928000011). Self-delete and an admin deleting another admin both
+-- used to delete the deleted person's admin_actions rows.
+do $$
+declare
+  v_a uuid := gen_random_uuid();   -- admin who later deletes their account
+  v_b uuid := gen_random_uuid();   -- admin who deletes another admin
+  v_c uuid := gen_random_uuid();   -- admin deleted by v_b
+  v_t uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_a, 'audit-a@imperial.ac.uk', '{"first_name":"Ada","surname":"Audit","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_b, 'audit-b@imperial.ac.uk', '{"first_name":"Bo","surname":"Audit","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_c, 'audit-c@imperial.ac.uk', '{"first_name":"Cy","surname":"Audit","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.admins (user_id) values (v_a), (v_b), (v_c);
+  insert into public.admin_actions (admin_id, action, target_table, target_id, notes) values
+    (v_a, 'd3_fixture_a', 'profiles', v_t, 'by a'),
+    (v_c, 'd3_fixture_c', 'profiles', v_t, 'by c');
+
+  perform _set_caller(v_a);
+  perform public.delete_my_account();
+  set local role postgres;
+  if exists (select 1 from auth.users where id = v_a) then
+    raise exception 'FAIL: delete_my_account left the auth row';
+  end if;
+  if not exists (select 1 from public.admin_actions where action = 'd3_fixture_a' and admin_id is null) then
+    raise exception 'FAIL: deleting an admin account erased their admin_actions';
+  end if;
+
+  perform _set_caller(v_b);
+  perform public.admin_delete_user(v_c, 'D3 audit-trail test');
+  set local role postgres;
+  if not exists (select 1 from public.admin_actions where action = 'd3_fixture_c' and admin_id is null) then
+    raise exception 'FAIL: admin_delete_user erased the deleted admin''s admin_actions';
+  end if;
+  if not exists (select 1 from public.admin_actions
+                  where action = 'admin_delete_user' and admin_id = v_b and target_id = v_c) then
+    raise exception 'FAIL: admin_delete_user did not log the deletion';
   end if;
 end;
 $$;

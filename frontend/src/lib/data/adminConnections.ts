@@ -1,4 +1,4 @@
-import { rows, type Db } from "@/lib/data/query";
+import { rows, rowsOrThrow, type Db } from "@/lib/data/query";
 import { cached } from "@/lib/cache";
 
 // ════════════════════════════════════════════════════════════════════
@@ -46,7 +46,9 @@ export async function adminConnectionReportsPage(
   db: Db,
   filters: { status: string; page: number },
 ): Promise<{ reports: ConnectionReport[]; matching: number }> {
-  const data = await rows("admin_list_connection_reports", () =>
+  // B4/D3: a moderation queue that failed to load must not read as
+  // "nothing to review"; it throws to admin/error.tsx with Try again.
+  const data = await rowsOrThrow("admin_list_connection_reports", () =>
     db.rpc("admin_list_connection_reports", {
       p_status: filters.status,
       p_limit: CONNECTION_REPORTS_PAGE_SIZE,
@@ -87,7 +89,9 @@ export type FlaggedSender = {
 };
 
 export async function adminFlaggedSenders(db: Db): Promise<FlaggedSender[]> {
-  const data = await rows("admin_list_flagged_senders", () =>
+  // B4/D3: a moderation queue that failed to load must not read as
+  // "nothing to review"; it throws to admin/error.tsx with Try again.
+  const data = await rowsOrThrow("admin_list_flagged_senders", () =>
     db.rpc("admin_list_flagged_senders", { p_limit: 50 }),
   );
 

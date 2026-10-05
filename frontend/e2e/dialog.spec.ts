@@ -125,9 +125,16 @@ test("the dialog loads the full profile the list deliberately doesn't carry", as
 
   await bio.fill(long);
   await expect(bio).toHaveValue(long);
+  // Wait for the update_profile RPC itself to succeed. The field's value is
+  // no signal: it holds what was just typed whether or not the save landed,
+  // and navigating away while the RPC is in flight cancels it (D3: this
+  // failed once with the directory showing "0 of 6").
+  const saved = page.waitForResponse(
+    (r) => r.url().includes("/rest/v1/rpc/update_profile") && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Save changes" }).click();
-  // The save is a client-side RPC followed by a router.refresh(), so wait for
-  // the value to have actually round-tripped rather than for a banner.
+  expect((await saved).ok()).toBe(true);
+  await expect(page.getByText("Saved.")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByLabel(/^What are you working on, or into\?/)).toHaveValue(long, { timeout: 15_000 });
 
   // Search for this run's stamp rather than taking the first "Bio " card
