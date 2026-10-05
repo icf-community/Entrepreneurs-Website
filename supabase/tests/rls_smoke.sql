@@ -5005,6 +5005,37 @@ begin
 end;
 $$;
 
+-- ─── D2. Every admin write leaves an admin_actions row ──────────────
+-- Every committee member becomes an admin at launch, so the audit log is
+-- the only record of who deleted, banned or approved what. Any volatile
+-- admin RPC (admin_*, approve_*, reject_*) must insert into admin_actions,
+-- unless it is a read listed here on purpose. A new admin mutation that
+-- forgets to log fails this; a new volatile admin read needs adding below.
+-- Static (it reads the live function body, like the postdeploy checks):
+-- calling every destructive RPC here is not an option.
+do $$
+declare
+  v_reads text[] := array[
+    'admin_connection_stats', 'admin_get_connections_status',
+    'admin_get_ingestion_status', 'admin_get_signup_emails',
+    'admin_list_connection_reports', 'admin_list_flagged_senders',
+    'admin_outbound_email_stats'];
+  v_missing text;
+begin
+  set local role postgres;
+  select string_agg(p.oid::regprocedure::text, ', ' order by p.proname) into v_missing
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.provolatile = 'v'
+     and (p.proname like 'admin\_%' or p.proname like 'approve\_%' or p.proname like 'reject\_%')
+     and p.proname <> all (v_reads)
+     and pg_get_functiondef(p.oid) !~* 'insert\s+into\s+(public\.)?admin_actions';
+  if v_missing is not null then
+    raise exception 'FAIL: admin RPCs that write no admin_actions row: %', v_missing;
+  end if;
+end;
+$$;
+
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
 -- above), so reset to the owner role before dropping the helper function.

@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { Skeleton, FilterBarSkeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import {
   adminMemberPage,
@@ -9,6 +8,7 @@ import {
   type AdminMemberPage,
 } from "@/lib/data/admin";
 import MembersAdminClient from "./MembersAdminClient";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 type SearchParams = {
   q?: string; role?: string; status?: string; course?: string;
@@ -44,7 +44,7 @@ export default async function AdminCommunityPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const supabase = await createClient();
+  const { supabase } = await requireAdminPage();
   const filters = parseFilters(await searchParams);
 
   // Started, not awaited: the header renders while the query is in flight.

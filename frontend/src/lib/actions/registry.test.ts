@@ -73,4 +73,45 @@ describe("server-action policy registry", () => {
     }
     expect(open).toEqual([]);
   });
+  // D2: every member action establishes who is calling before it does
+  // anything. Most do it through a file-local guard (community's
+  // guardMember, say) rather than inline, so a helper counts when its own
+  // body reaches one of the auth calls — worked out to a fixpoint. RLS and
+  // the RPCs' auth.uid() checks still stand behind this; the point is that
+  // no action hands an anonymous caller's request to the database at all.
+  it("checks the session in every member action", () => {
+    const AUTH = /\b(getActionAuth|currentUser|requireAdmin|requireApprovedUser)\(/;
+    const decls = (text: string) => {
+      const out = new Map<string, string>();
+      for (const part of text.split(/\n(?=(?:export )?(?:async )?function \w|(?:export )?const \w+ = )/)) {
+        const name = /^(?:export )?(?:async )?function (\w+)|^(?:export )?const (\w+) = /.exec(part);
+        if (name) out.set(name[1] ?? name[2], part);
+      }
+      return out;
+    };
+    const reaching = (text: string) => {
+      const all = decls(text);
+      const ok = new Set<string>();
+      for (let changed = true; changed; ) {
+        changed = false;
+        for (const [name, body] of all) {
+          if (ok.has(name)) continue;
+          if (AUTH.test(body) || [...ok].some((h) => new RegExp(`\\b${h}\\(`).test(body))) {
+            ok.add(name);
+            changed = true;
+          }
+        }
+      }
+      return ok;
+    };
+    const unchecked: string[] = [];
+    for (const [key, policy] of Object.entries(ACTION_POLICIES)) {
+      if (policy.kind === "admin" || policy.kind === "public") continue;
+      const [file, name] = key.split("#");
+      const ok = reaching(readFileSync(join(SRC, file), "utf8"));
+      const viaOk = policy.via && AUTH.test(readFileSync(join(SRC, policy.via), "utf8"));
+      if (!ok.has(name) && !viaOk) unchecked.push(key);
+    }
+    expect(unchecked).toEqual([]);
+  });
 });

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { maybeRow } from "@/lib/data/query";
 import BannerForm from "./BannerForm";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/banner (launch programme F-x4)
@@ -14,7 +14,7 @@ import BannerForm from "./BannerForm";
 export const metadata = { title: "Site banner" };
 
 export default async function AdminBannerPage() {
-  const supabase = await createClient();
+  const { supabase } = await requireAdminPage();
   const current = await maybeRow("admin_get_site_banner", () =>
     supabase.rpc("admin_get_site_banner").maybeSingle(),
   );

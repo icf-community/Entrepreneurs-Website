@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { listPendingVcs } from "@/lib/data/admin";
 import VcsReview from "./VcsReview";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 // bulkApproveVcGrants/bulkRejectVcGrants are one SECURITY DEFINER RPC
 // call per id (see runBulk's own comment on why that's sequential, not
@@ -15,7 +15,7 @@ import VcsReview from "./VcsReview";
 export const maxDuration = 60;
 
 export default async function AdminVcsPage() {
-  const supabase = await createClient();
+  const { supabase } = await requireAdminPage();
 
   const pending = await listPendingVcs(supabase);
 

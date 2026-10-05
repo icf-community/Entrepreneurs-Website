@@ -1,4 +1,5 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -164,3 +165,29 @@ export async function requireSignedInUser(): Promise<GateResult> {
     supabase,
   };
 }
+
+/**
+ * The admin gate, called by admin/layout.tsx AND by every /admin page.
+ *
+ * The layout alone is not enough (D2): layouts are not re-rendered on
+ * client navigation, so a request for just the page segment never runs
+ * the layout's check (Next's authentication guide, "Layouts"). The DB is
+ * still the boundary — every admin RPC checks is_admin() in its body —
+ * but the page must not render its shell for a non-admin either.
+ * cache() makes the layout and the page share one check per request.
+ * notFound(), not a redirect: a non-admin can't tell /admin exists.
+ */
+export const requireAdminPage = cache(async () => {
+  const supabase = await createClient();
+  const { user, error: authError } = await currentUser(supabase);
+  // An outage must reach the error page, not a 404 telling an admin their
+  // own panel does not exist.
+  throwIfAuthUnreachable("session", authError);
+  if (!user) notFound();
+
+  const adminRes = await supabase.rpc("is_admin");
+  throwIfUnreachable("is_admin", adminRes);
+  if (!adminRes.data) notFound();
+
+  return { supabase, user };
+});

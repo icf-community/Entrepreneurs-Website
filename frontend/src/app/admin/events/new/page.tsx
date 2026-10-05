@@ -1,16 +1,10 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { currentUser } from "@/lib/auth/currentUser";
-import { throwIfAuthUnreachable } from "@/lib/supabase/unavailable";
 import { posterName } from "@/lib/data/profiles";
 import EventForm from "@/app/events/new/EventForm";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 export default async function AdminNewEventPage() {
-  const supabase = await createClient();
-  const { user, error: authError } = await currentUser(supabase);
-  throwIfAuthUnreachable("session", authError);
-  if (!user) redirect("/login");
+  const { supabase, user } = await requireAdminPage();
 
   const poster = await posterName(supabase, user.id);
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { adminReportsPage, REPORTS_PAGE_SIZE } from "@/lib/data/posts";
 import ReportsClient from "./ReportsClient";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/reports
@@ -26,7 +26,7 @@ export default async function AdminReportsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const sp = await searchParams;
-  const supabase = await createClient();
+  const { supabase } = await requireAdminPage();
 
   // An unrecognised ?status= narrows to the default rather than being
   // handed to the RPC as if it were a status.

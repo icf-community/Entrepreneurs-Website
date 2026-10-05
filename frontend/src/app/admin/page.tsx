@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { pendingCounts } from "@/lib/data/admin";
 import SignOutButton from "./SignOutButton";
 import IngestionToggle from "./IngestionToggle";
 import { getIngestionStatus } from "./actions";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 export default async function AdminPage() {
-  const supabase = await createClient();
+  const { supabase } = await requireAdminPage();
 
   const [counts, ingestionStatus] = await Promise.all([
     pendingCounts(supabase),

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/community → /admin/members
@@ -22,6 +23,7 @@ export default async function AdminCommunityRedirect({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireAdminPage();
   const sp = await searchParams;
   const qs = new URLSearchParams();
   for (const [key, value] of Object.entries(sp)) {

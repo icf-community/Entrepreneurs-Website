@@ -1,12 +1,14 @@
 import Link from "next/link";
 import GraduatesClient from "./GraduatesClient";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 // Default cutoff = last calendar year. The admin can override.
 function defaultCutoff(): number {
   return new Date().getFullYear() - 1;
 }
 
-export default function AdminGraduatesPage() {
+export default async function AdminGraduatesPage() {
+  await requireAdminPage();
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
       <div className="max-w-[820px] mx-auto">

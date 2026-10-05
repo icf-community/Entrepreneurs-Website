@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { listPendingEvents } from "@/lib/data/admin";
 import EventsReview from "./EventsReview";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 // bulkApproveEvents/bulkRejectEvents are one SECURITY DEFINER RPC call
 // per id (see runBulk's own comment on why that's sequential, not
@@ -15,7 +15,7 @@ import EventsReview from "./EventsReview";
 export const maxDuration = 60;
 
 export default async function AdminEventsPage() {
-  const supabase = await createClient();
+  const { supabase } = await requireAdminPage();
 
   const pending = await listPendingEvents(supabase);
 

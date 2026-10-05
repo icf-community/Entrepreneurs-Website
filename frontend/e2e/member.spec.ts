@@ -35,6 +35,39 @@ test("non-admin student gets a 404 on /admin (existence stays hidden)", async ({
   await expect(page.getByText("Foundry control panel")).toHaveCount(0);
 });
 
+// D2: a soft navigation fetches only the page segment, so the admin
+// layout's gate never runs for it. Every admin page carries the gate
+// itself (requireAdminPage). The request is captured from a real admin's
+// in-app navigation, so the test follows whatever Next sends, then replayed
+// with this student's session: it must not render the admin page.
+test("non-admin student can't fetch an admin page segment by soft navigation", async ({ page, browser }) => {
+  const adminCtx = await browser.newContext({ storageState: storageStatePath("admin") });
+  const adminPage = await adminCtx.newPage();
+  let nav: { url: string; headers: Record<string, string> } | null = null;
+  adminPage.on("request", (r) => {
+    const h = r.headers();
+    if (new URL(r.url()).pathname === "/admin/reports" && h["rsc"] && !h["next-router-prefetch"]) {
+      nav = { url: r.url(), headers: h };
+    }
+  });
+  await adminPage.goto("/admin");
+  await adminPage.locator('a[href="/admin/reports"]').first().click();
+  await adminPage.waitForURL(/\/admin\/reports/);
+  await expect(adminPage.getByText("Reported posts").first()).toBeVisible();
+  await adminCtx.close();
+  expect(nav, "captured the admin's soft-navigation request").not.toBeNull();
+
+  const { url, headers } = nav!;
+  const { cookie: _adminCookie, ...replay } = headers;
+  void _adminCookie;
+  const res = await page.request.get(url, { headers: replay, maxRedirects: 0 });
+  const body = await res.text();
+  expect(body).not.toContain("Reported posts");
+  // A soft navigation answers 200 and carries the 404 inside the payload,
+  // so the notFound() digest is what shows the gate ran.
+  expect(body).toContain("NEXT_HTTP_ERROR_FALLBACK;404");
+});
+
 // ════════════════════════════════════════════════════════════════════
 // The three member pages that had no coverage at all.
 //
