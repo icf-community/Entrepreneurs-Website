@@ -11,6 +11,14 @@ objects (first six when longer). Focus is derived from the migration purpose in 
 All 134 source paths occur in the Graphify graph; path coverage alone does not prove graph content
 freshness, so conclusions use the fingerprinted source. No secrets or production data were read.
 
+**Revision 2026-10-05 (programme B30).** Every file/line citation in this ledger and in
+`AI-data-audit.md` was re-checked against the tree: all resolve. 13 migrations added by the
+launch-readiness programme (`20260928000001`–`20260928000013`) are appended below,
+and the latest-definition table was recomputed from the files (3 functions moved to a
+newer migration). None adds an AI data source; relevant to the AI plan: `export_my_data`
+(includes CV-derived data), `cv_worker` (F25; F26 extends its grants), and
+`admin_delete_graduates`, whose latest definition no longer deletes the cohort's audit rows.
+
 | Migration / review focus | Lines | SHA-256 prefix | Declared or altered objects |
 |---|---:|---|---|
 | [20260527000001_initial_schema.sql](../supabase/migrations/20260527000001_initial_schema.sql) — initial schema | 350 | `56c2b3ea8b2e` | `user_role`, `user_status`, `listing_status`, `location_type`, `vc_grant_kind`, `skills`; +16 more |
@@ -147,6 +155,19 @@ freshness, so conclusions use the fingerprinted source. No secrets or production
 | [20260917000017_connections_directional_cooldown.sql](../supabase/migrations/20260917000017_connections_directional_cooldown.sql) — connections directional cooldown | 639 | `b43cc6fdf95d` | `send_connection_request`, `connection_state_with`, `block_member`, `purge_removed_connections`, `my_connection_quota` |
 | [20260917000018_listing_feeds_set_based.sql](../supabase/migrations/20260917000018_listing_feeds_set_based.sql) — listing feeds set based | 156 | `7ac1d931f91d` | `list_approved_opportunities`, `list_approved_events` |
 | [20260917000019_home_newest_listings.sql](../supabase/migrations/20260917000019_home_newest_listings.sql) — home newest listings | 71 | `64c5233eaf63` | `list_newest_events`, `list_newest_opportunities` |
+| [20260928000001_connection_panel_state.sql](../supabase/migrations/20260928000001_connection_panel_state.sql) — connection panel state | 61 | `d18ae967779f` | `connection_panel_state` |
+| [20260928000002_listing_feeds_revoke_anon.sql](../supabase/migrations/20260928000002_listing_feeds_revoke_anon.sql) — listing feeds revoke anon | 19 | `ec436bee2472` | Policies / grants / indexes / data or scheduler changes; see source |
+| [20260928000003_site_banner.sql](../supabase/migrations/20260928000003_site_banner.sql) — site banner | 173 | `99823b6e3f03` | `site_banner`, `get_site_banner`, `admin_get_site_banner`, `admin_set_site_banner`, `admin_clear_site_banner` |
+| [20260928000004_notifications.sql](../supabase/migrations/20260928000004_notifications.sql) — notifications | 367 | `3b669aaf7e3c` | `notifications`, `notifications_user_created_idx`, `notifications_user_unread_idx`, `notifications_ref_idx`, `notify`, `notification_name`; +9 more |
+| [20260928000005_export_my_data.sql](../supabase/migrations/20260928000005_export_my_data.sql) — export my data | 170 | `bbbaccb2518a` | `export_my_data` |
+| [20260928000006_app_health_snapshot.sql](../supabase/migrations/20260928000006_app_health_snapshot.sql) — app health snapshot | 186 | `2f94a9c38623` | `app_health_state`, `app_health_snapshot`, `cron_health_check` |
+| [20260928000007_directory_facets_fast.sql](../supabase/migrations/20260928000007_directory_facets_fast.sql) — directory facets fast | 61 | `8498e24e4479` | `list_directory_facets` |
+| [20260928000008_my_gate_state.sql](../supabase/migrations/20260928000008_my_gate_state.sql) — my gate state | 36 | `cae71082d24f` | `my_gate_state` |
+| [20260928000009_connection_facets_fast.sql](../supabase/migrations/20260928000009_connection_facets_fast.sql) — connection facets fast | 49 | `b843f0b768b5` | `list_my_connection_facets` |
+| [20260928000010_flagged_senders_fast.sql](../supabase/migrations/20260928000010_flagged_senders_fast.sql) — flagged senders fast | 122 | `ebfc29b65bb6` | `connection_events_event_created_idx`, `admin_list_flagged_senders` |
+| [20260928000011_admin_actions_survive_deletion.sql](../supabase/migrations/20260928000011_admin_actions_survive_deletion.sql) — admin actions survive deletion | 247 | `b9079b70dcf1` | `delete_my_account`, `admin_delete_user`, `admin_delete_graduates`, `reject_user`, `admin_actions` |
+| [20260928000012_purge_keeps_open_post_reports.sql](../supabase/migrations/20260928000012_purge_keeps_open_post_reports.sql) — purge keeps open post reports | 56 | `1390b485529f` | `purge_moderation_records` |
+| [20260928000013_cv_worker_role.sql](../supabase/migrations/20260928000013_cv_worker_role.sql) — cv worker role | 90 | `b6217530c8da` | `cv_worker`, `cv_worker_jobs`, `cv_worker_cvs`, `cv_worker_github_connections`, `cv_worker_member_skills`, `cv_worker_cv_profiles`; +2 more |
 
 ## Latest named function definitions used in the feature review
 
@@ -159,10 +180,10 @@ Implementation must separately verify dropped overloads, signatures, policies an
 | `_apply_intake_fields` | [20260901000006_submit_intake.sql](../supabase/migrations/20260901000006_submit_intake.sql) |
 | `submit_intake` | [20260901000013_intake_role_gates.sql](../supabase/migrations/20260901000013_intake_role_gates.sql) |
 | `set_my_affiliation` | [20260828000004_self_service_affiliation.sql](../supabase/migrations/20260828000004_self_service_affiliation.sql) |
-| `admin_delete_graduates` | [20260917000009_admin_delete_graduates_never_deletes_caller.sql](../supabase/migrations/20260917000009_admin_delete_graduates_never_deletes_caller.sql) |
-| `delete_my_account` | [20260529000004_delete_my_account_full_cleanup.sql](../supabase/migrations/20260529000004_delete_my_account_full_cleanup.sql) |
+| `admin_delete_graduates` | [20260928000011_admin_actions_survive_deletion.sql](../supabase/migrations/20260928000011_admin_actions_survive_deletion.sql) |
+| `delete_my_account` | [20260928000011_admin_actions_survive_deletion.sql](../supabase/migrations/20260928000011_admin_actions_survive_deletion.sql) |
 | `list_directory_cards` | [20260908000001_directory_search_hoist.sql](../supabase/migrations/20260908000001_directory_search_hoist.sql) |
-| `list_directory_facets` | [20260826000003_directory_pagination.sql](../supabase/migrations/20260826000003_directory_pagination.sql) |
+| `list_directory_facets` | [20260928000007_directory_facets_fast.sql](../supabase/migrations/20260928000007_directory_facets_fast.sql) |
 | `get_my_cv_profile` | [20260911000002_dedupe_cv_profile_skills.sql](../supabase/migrations/20260911000002_dedupe_cv_profile_skills.sql) |
 | `remove_my_cv` | [20260912000001_students_cv_required.sql](../supabase/migrations/20260912000001_students_cv_required.sql) |
 | `update_cv_currency` | [20260906000001_cv_matchmaker_pipeline.sql](../supabase/migrations/20260906000001_cv_matchmaker_pipeline.sql) |

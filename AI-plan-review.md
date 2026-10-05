@@ -237,3 +237,21 @@ Read the revised plan, then implement A0 followed by A1. The plan retains volunt
 making participation compulsory would be a new product/legal decision, not an assumed instruction.
 Legal/provider configuration sign-off gates member rollout; local implementation can proceed once
 the corrected design is accepted without treating every operational choice as another approval.
+
+## B30 — line-by-line check of the AI source docs (2026-10-05)
+
+`AI-data-audit.md` (32 citations) and `docs/ai-migration-inventory.md` (171 citations) were
+checked mechanically: every cited file and line exists. Every verifiable factual claim in the data
+audit was then checked against the code and schema; all hold (list in the audit's revision note).
+Corrections made in place:
+
+| # | Doc | Finding | Correction |
+| --- | --- | --- | --- |
+| B30-1 | inventory | 13 programme migrations (`20260928000001`–`013`) were missing, so "complete" was no longer true | Rows appended (lines, SHA-256 prefix, objects); revision note |
+| B30-2 | inventory | Latest-definition table stale for 3 functions: `admin_delete_graduates`, `delete_my_account` → `20260928000011`; `list_directory_facets` → `20260928000007` | Recomputed from `create … function` statements |
+| B30-3 | data audit §6 | Cited `20260917000009` as the latest `admin_delete_graduates` | Now `20260928000011`; the cohort selection is unchanged, and it now keeps the cohort's audit rows |
+| B30-4 | data audit | "134 migrations" | 147, noted in the revision |
+
+No finding changes the AI plan's design. For A0: build on `cv_worker` (F25) when the F26
+projection jobs need grants, and on `export_my_data` when AI history joins the export (F-x2).
+

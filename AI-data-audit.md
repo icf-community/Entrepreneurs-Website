@@ -12,6 +12,15 @@ queries and focused node explanations, then inspected SQL definitions and their 
 for the relevant schema, grants, lifecycle and read/write paths. Also checked the CV/GitHub
 producers: migrations alone cannot establish the shape or reliability of JSONB contents.
 
+**Revision 2026-10-05 (programme B30):** every claim below that can be checked against code or
+schema was re-verified on the current tree and holds: the 3-core-skill cap, the 0.8 similarity
+threshold, the broad-category aliases (including GCP's clinical-trials meaning), the external
+`cv_skills` seed, languages-only GitHub normalisation with Shell/YAML/Markdown/HCL excluded,
+approved-member reads of the scalar intake columns, owner/admin-only interests and intents,
+`get_my_cv_profile()` joining the current CV, and `open_to_connections`. Two facts had drifted and
+are corrected in place: the migration count (now 147, the 13 programme migrations are in the
+inventory) and the latest `admin_delete_graduates` definition (§6).
+
 The [complete migration inventory](docs/ai-migration-inventory.md) records each file's fingerprint,
 objects and review role. This is static feature/data-flow review, not execution of every migration
 or certification that production matches the repository. Graphify contains historical definitions
@@ -196,9 +205,9 @@ product boundary, updating profile/intake reads and regression tests. Do not bro
 to make AI retrieval easier. No claim that public disclosures have already been corrected.
 
 **Graduation lifecycle currently conflicts with retaining graduates.** The latest
-[admin_delete_graduates](supabase/migrations/20260917000009_admin_delete_graduates_never_deletes_caller.sql)
+[admin_delete_graduates](supabase/migrations/20260928000011_admin_actions_survive_deletion.sql)
 selects approved students with `grad_year <= cutoff`, deletes their postings and then their auth
-accounts. It is reachable from the admin Graduate cleanup UI; this is a manual action, not an
+accounts (since 2026-10-05 it keeps their `admin_actions` rows, with `admin_id` set to NULL). It is reachable from the admin Graduate cleanup UI; this is a manual action, not an
 observed scheduled deletion. A0 must reconcile it with the confirmed graduate-member product:
 recommend retire the graduation-year bulk-delete workflow and replace it with status confirmation/
 transition, preserving actual account-deletion rights. Do not auto-complete a degree on a date.
