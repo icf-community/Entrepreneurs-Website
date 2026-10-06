@@ -99,6 +99,7 @@ test.describe("listing detail and edit pages", () => {
     const inAYear = new Date(Date.now() + 365 * 86_400_000);
 
     const o = await s.from("opportunities").insert({
+      eligible_audience: "both",
       ...approved, position_name: "Axe Engineer", company: "Axe Co", pay: "£1", location_type: "remote",
       description: "Seeded for the accessibility scan.", start_month: 1, start_year: 2030,
       application_deadline: inAYear.toISOString().slice(0, 10), apply_method: "email", contact_email: USERS.student.email,

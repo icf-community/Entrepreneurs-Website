@@ -131,6 +131,12 @@ begin
   v := ai_private.apply_spec_ops(v, '[{"op":"add","kind":"tool","concept":"pytorch"}]', 'recruiter',
                                  'pytorch again', gen_random_uuid(), now() + interval '1 day', false);
   if jsonb_array_length(v->'atoms') <> 1 then raise exception 'FAIL: duplicate criterion added'; end if;
+  -- restating it as a must-have upgrades it rather than being dropped
+  v := ai_private.apply_spec_ops(v, '[{"op":"add","kind":"tool","concept":"pytorch","required":true}]', 'recruiter',
+                                 'must have pytorch', gen_random_uuid(), now() + interval '1 day', false);
+  if jsonb_array_length(v->'atoms') <> 1 or not (v->'atoms'->0->>'required')::boolean then
+    raise exception 'FAIL: a stronger restatement did not make the criterion required';
+  end if;
 
   -- a concept the message doesn't mention is refused
   begin

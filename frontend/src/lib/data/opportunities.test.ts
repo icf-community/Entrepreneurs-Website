@@ -21,11 +21,14 @@ const row = {
   apply_method: "link" as const,
   apply_url: "https://acme.com/jobs",
   created_at: "2026-07-15T09:00:00Z",
+  posted_by: "u1",
   poster_first_name: "Ada",
   poster_surname: "Lovelace",
   poster_linkedin_url: "https://linkedin.com/in/ada",
+  poster_avatar_path: null,
   skill_names: ["TypeScript"],
   sector_names: ["Fintech"],
+  eligible_audience: "both",
 };
 
 describe("toOpportunity", () => {
@@ -45,9 +48,10 @@ describe("toOpportunity", () => {
       applyMethod: "link",
       applyUrl: "https://acme.com/jobs",
       createdAt: "2026-07-15T09:00:00Z",
-      postedBy: { firstName: "Ada", surname: "Lovelace", linkedinUrl: "https://linkedin.com/in/ada" },
+      postedBy: { id: "u1", firstName: "Ada", surname: "Lovelace", linkedinUrl: "https://linkedin.com/in/ada", avatarPath: null },
       skills: ["TypeScript"],
       sectors: ["Fintech"],
+      audience: "both",
     });
   });
 

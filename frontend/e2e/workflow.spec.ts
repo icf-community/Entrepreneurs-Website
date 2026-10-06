@@ -47,6 +47,7 @@ const KINDS: Kind[] = [
       await page.getByLabel(/^Job description/).fill("Automated end-to-end coverage listing.");
       await page.locator('input[type="date"]').fill(futureDate());
       // Apply method defaults to "Contact me directly" (email) — no URL needed.
+      await page.getByRole("radio", { name: "Both" }).check();
     },
   },
   {

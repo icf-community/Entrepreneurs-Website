@@ -22,11 +22,14 @@ for f in .env.local .env.production.local .env.production .env; do
   done
 done
 
-eval "$(supabase status -o env --workdir .. 2>/dev/null | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
+eval "$(supabase status -o env --workdir .. 2>/dev/null | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=')"
 [[ "${API_URL:-}" =~ ^http://(127\.0\.0\.1|localhost) ]] || { echo "Local Supabase is not running (supabase start)." >&2; exit 1; }
 export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
 export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
 export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
 export CRON_SECRET="e2e-cron-secret"
+# The AI spec starts the executor and the projection worker against this
+# database with the fake provider, which refuses any non-local host.
+export E2E_DB_URL="${DB_URL:-}"
 
 node scripts/assert-local-env.mjs --mode production

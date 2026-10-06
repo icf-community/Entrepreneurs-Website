@@ -290,3 +290,19 @@ export async function directoryPage(
     matching: cards[0]?.total_count ?? 0,
   };
 }
+
+/**
+ * One approved member's card, for View profile from a job's "Posted by"
+ * row or an AI result (AI-plan §2, §12). Null when the member isn't
+ * approved or the viewer may not see them.
+ */
+export async function memberCard(db: Db, id: string): Promise<DirectoryMember | null> {
+  const data = await rows("get_member_card", () => db.rpc("get_member_card", { p_id: id }));
+  const r = data[0];
+  if (!r) return null;
+  const lookingFor = await openRolesByPoster(db, [r.id]);
+  const [member] = await withAvatarUrls([
+    toDirectoryMember({ ...(r as Omit<CardRow, "total_count">), total_count: 1 }, lookingFor.get(r.id) ?? []),
+  ]);
+  return member;
+}

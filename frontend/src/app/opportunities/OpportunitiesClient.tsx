@@ -1,4 +1,6 @@
 "use client";
+import { ViewProfileButton } from "@/components/members/ViewProfileButton";
+import { audienceLabel } from "@/lib/listings/audience";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlFilters, useSearchDraft } from "@/lib/filters/useUrlFilters";
@@ -202,6 +204,7 @@ function OpportunityCard({
             </div>
             <div className="text-[0.8rem] text-text-muted mt-1">
               {o.company} · {location} · Starts {start}
+              {audienceLabel(o.audience) && <> · {audienceLabel(o.audience)}</>}
             </div>
           </div>
           <div className="text-[0.75rem] text-accent-light shrink-0">
@@ -243,16 +246,19 @@ function OpportunityCard({
               <div className="text-text-secondary">
                 {o.postedBy.firstName} {o.postedBy.surname}
               </div>
-              {o.postedBy.linkedinUrl && (
-                <a
-                  href={externalHref(o.postedBy.linkedinUrl)}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
-                >
-                  LinkedIn ↗
-                </a>
-              )}
+              <div className="mt-1.5 flex flex-wrap items-center gap-3">
+                <ViewProfileButton memberId={o.postedBy.id} />
+                {o.postedBy.linkedinUrl && (
+                  <a
+                    href={externalHref(o.postedBy.linkedinUrl)}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
+                  >
+                    LinkedIn ↗
+                  </a>
+                )}
+              </div>
             </div>
             <div>
               <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Apply by</div>

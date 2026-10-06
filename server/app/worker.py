@@ -20,6 +20,7 @@ See server/README.md.
 from __future__ import annotations
 
 import logging
+import os
 import signal
 import time
 import types
@@ -98,17 +99,29 @@ def _capture(exc: BaseException) -> None:
     observability.capture(exc)
 
 
+# WORKER_JOB_KINDS (optional, comma-separated) limits which job kinds this
+# process claims, so projection work can run on its own instance and the
+# E2E run can process AI projections without touching CV ingest. Unset
+# means every kind, as before.
+def _job_kinds() -> list[str] | None:
+    raw = os.environ.get("WORKER_JOB_KINDS", "").strip()
+    return [k.strip() for k in raw.split(",") if k.strip()] or None
+
+
 def _claim_job(conn: psycopg.Connection) -> tuple[uuid.UUID, str, dict, int, int] | None:
+    kinds = _job_kinds()
     with conn.cursor() as cur:
         cur.execute(
             """
             select id, kind, payload, attempts, max_attempts
               from public.jobs
              where status = 'pending' and next_attempt_at <= now()
+               and (%s::text[] is null or kind = any(%s::text[]))
              order by created_at
              limit 1
              for update skip locked
-            """
+            """,
+            (kinds, kinds),
         )
         row = cur.fetchone()
         if row is None:

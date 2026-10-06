@@ -33,7 +33,17 @@ export type OpportunityInitialValues = {
   applyUrl: string;
   skillIds: number[];
   sectorIds: number[];
+  /** Null for a job approved before audiences existed: the poster chooses on edit. */
+  eligibleAudience: Audience | null;
 };
+
+type Audience = "students" | "graduates" | "both";
+
+const AUDIENCES: { value: Audience; label: string }[] = [
+  { value: "students", label: "Students" },
+  { value: "graduates", label: "Graduates" },
+  { value: "both", label: "Both" },
+];
 
 type Props = {
   signupEmail: string;
@@ -80,6 +90,7 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
   const [applyUrl, setApplyUrl] = useState(iv?.applyUrl ?? "");
   const [skillIds, setSkillIds] = useState<Set<number>>(new Set(iv?.skillIds ?? []));
   const [sectorIds, setSectorIds] = useState<Set<number>>(new Set(iv?.sectorIds ?? []));
+  const [eligibleAudience, setEligibleAudience] = useState<Audience | "">(iv?.eligibleAudience ?? "");
 
   const [isLoading, setIsLoading] = useState(false);
   // Set once the server confirms the edit was staged rather than applied.
@@ -126,6 +137,7 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
       applyUrl:            applyMethod === "link" ? applyUrl.trim() : null,
       skillIds:            Array.from(skillIds),
       sectorIds:           Array.from(sectorIds),
+      eligibleAudience:    eligibleAudience || undefined,
     });
     if (!parsed.ok) {
       // Schema-level rules that aren't tied to one field still need somewhere
@@ -269,6 +281,22 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
           </div>
         )}
       </div>
+
+      <fieldset className="pt-2 border-t border-border-subtle" data-invalid={fieldErrors.eligibleAudience ? "" : undefined}>
+        <legend className="text-[0.85rem] text-text-primary mb-1 mt-3">Who is this job for? <span className="text-text-muted">*</span></legend>
+        <p className="text-[0.75rem] text-text-muted leading-relaxed mb-3">
+          Graduates means anyone who has finished a degree, whatever their role here.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {AUDIENCES.map((a) => (
+            <label key={a.value} className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${eligibleAudience === a.value ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-white/[0.02] border-border text-text-secondary hover:border-accent"}`}>
+              <input type="radio" name="eligible-audience" value={a.value} checked={eligibleAudience === a.value} onChange={() => setEligibleAudience(a.value)} className="mr-2" />
+              {a.label}
+            </label>
+          ))}
+        </div>
+        <FieldError>{fieldErrors.eligibleAudience}</FieldError>
+      </fieldset>
 
       <ChipGroup label="Skills" hint="optional" items={skills} selected={skillIds} onToggle={(id) => toggle(skillIds, id, setSkillIds)} />
       <ChipGroup label="Sectors" hint="optional" items={sectors} selected={sectorIds} onToggle={(id) => toggle(sectorIds, id, setSectorIds)} />

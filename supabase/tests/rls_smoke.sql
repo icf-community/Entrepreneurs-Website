@@ -879,6 +879,9 @@ declare
     'ai_forget_message','ai_save_findings','ai_result_cards','ai_get_job_requirements',
     'ai_confirm_job_requirements','admin_ai_overview','admin_set_ai_flag','admin_set_ai_limits',
     'admin_ai_rebuild_index',
+    -- 20261006000006: one approved member's directory card, for View
+    -- profile; same visibility as the profiles RLS the dialog already uses.
+    'get_member_card',
     -- this test's OWN role-impersonation helper (created near the top of this
     -- file, dropped in cleanup below). Not an app RPC — it only exists during
     -- the test run, where Supabase default privileges make it anon-callable;

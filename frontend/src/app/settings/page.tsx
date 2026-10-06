@@ -12,6 +12,10 @@ import DataExportSection from "./DataExportSection";
 import ConnectionSettings from "./ConnectionSettings";
 import BlockedMembers from "./BlockedMembers";
 import { myConnectionSettings } from "@/lib/data/connections";
+import { myEducation } from "@/lib/data/opportunities";
+import { anyAiModeEnabled, listConcepts, myAiSettings } from "@/lib/ai/data";
+import { EducationForm } from "@/components/forms/EducationForm";
+import AiSettingsCard from "./AiSettingsCard";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -34,8 +38,14 @@ export default async function SettingsPage() {
   // Read after the gate rather than alongside it: the RPC requires an
   // approved member, and a member still in review has no connections
   // surface to configure.
-  const connectionSettings =
-    profileRes.data?.status === "approved" ? await myConnectionSettings(supabase) : null;
+  const approved = profileRes.data?.status === "approved";
+  const connectionSettings = approved ? await myConnectionSettings(supabase) : null;
+  const [education, aiOn] = approved
+    ? await Promise.all([myEducation(supabase), anyAiModeEnabled(supabase)])
+    : [null, false];
+  const [aiSettings, concepts] = aiOn
+    ? await Promise.all([myAiSettings(supabase), listConcepts(supabase, ["tool", "method", "area", "language", "interest"])])
+    : [null, []];
 
   const profile = profileRes.data;
   const isAdmin = !!isAdminRes.data;
@@ -111,6 +121,16 @@ export default async function SettingsPage() {
             )}
 
             {connectionSettings && <BlockedMembers />}
+
+            {education && (
+              <section id="education" className="rounded-2xl border border-border bg-bg-card p-6">
+                <h2 className="text-[0.95rem] font-medium text-text-primary">Education status</h2>
+                <p className="mt-1 mb-4 text-[0.75rem] text-text-muted">Jobs are for students, graduates or both; this decides which you see.</p>
+                <EducationForm initialEnrolled={education.enrolled} initialGraduated={education.graduated} />
+              </section>
+            )}
+
+            {aiSettings && <AiSettingsCard initial={aiSettings} concepts={concepts} />}
 
             <EmailChangeForm currentEmail={user.email ?? ""} role={profile.role} />
 

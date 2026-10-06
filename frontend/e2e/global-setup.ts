@@ -223,6 +223,14 @@ async function seedUser(admin: SupabaseClient, user: SeedUser): Promise<string> 
     .eq("id", userId);
   if (pErr) throw new Error(`approve profile ${user.email}: ${pErr.message}`);
 
+  // Jobs are for students, graduates or both (20261006000002), and a member
+  // with no education status sees none. Every seeded member is a current
+  // student; specs about the confirm-status prompt clear this themselves.
+  const { error: eErr } = await admin
+    .from("member_education")
+    .upsert({ member_id: userId, currently_enrolled: true, has_completed_degree: false }, { onConflict: "member_id" });
+  if (eErr) throw new Error(`education ${user.email}: ${eErr.message}`);
+
   if (user.isAdmin) {
     const { error: aErr } = await admin
       .from("admins")

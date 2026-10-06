@@ -13,6 +13,7 @@ test("all failing fields report at once, beside themselves, focus on the first",
   await page.getByLabel("Company").fill("E2E Co");
   await page.getByLabel("Salary / compensation").fill("£80k");
   await page.getByLabel("City / region").fill("London");
+  await page.getByRole("radio", { name: "Both" }).check();
   await page.getByRole("button", { name: "Submit for review" }).click();
 
   // Still on the form — nothing was submitted.

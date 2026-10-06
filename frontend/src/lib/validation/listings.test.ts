@@ -22,9 +22,15 @@ const validOpportunity = {
   applyUrl: "https://acme.com/apply",
   skillIds: [1, 2],
   sectorIds: [3],
+  eligibleAudience: "both" as const,
 };
 
 describe("opportunitySchema", () => {
+  it("requires who the job is for (AI-plan §7.2)", () => {
+    expect(validate(opportunitySchema, { ...validOpportunity, eligibleAudience: undefined }).ok).toBe(false);
+    expect(validate(opportunitySchema, { ...validOpportunity, eligibleAudience: "alumni" }).ok).toBe(false);
+  });
+
   it("accepts a well-formed opportunity", () => {
     const r = validate(opportunitySchema, validOpportunity);
     expect(r.ok).toBe(true);

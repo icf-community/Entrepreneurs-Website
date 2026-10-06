@@ -110,6 +110,7 @@ export default async function AdminPage() {
             <DiagLink href="/admin/reports" label="Reported posts · moderation queue" />
             <DiagLink href="/admin/connections" label="Connections · reports, throttles, pause" />
             <DiagLink href="/admin/banner" label="Site banner · tell members about an outage" />
+            <DiagLink href="/admin/ai" label="AI · health, limits, job audiences" />
           </div>
         </div>
 

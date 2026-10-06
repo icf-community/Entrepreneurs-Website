@@ -135,6 +135,32 @@ export const ACTION_POLICIES: Record<string, ActionPolicy> = {
   "app/profile/mediaActions.ts#getMyGithubStatus": read,
   "app/profile/mediaActions.ts#getMyGithubShowcase": read,
 
+  // ── Foundry AI (AI-plan §9.1) ─────────────────────────────────────────
+  // A search admits a paid turn: its own fail-closed bucket, with the
+  // authoritative quotas and money caps inside ai_submit_turn.
+  "app/foundry-ai/actions.ts#submitTurn": { kind: "write-costly", bucket: "aiSubmit" },
+  "app/foundry-ai/actions.ts#editSpec": { kind: "write-cheap", bucket: "aiEdit" },
+  "app/foundry-ai/actions.ts#confirmRequirements": { kind: "write-cheap", bucket: "aiEdit" },
+  "app/foundry-ai/actions.ts#loadConversation": { kind: "read", bucket: "aiRead" },
+  "app/foundry-ai/actions.ts#loadResults": { kind: "read", bucket: "aiRead" },
+  "app/foundry-ai/actions.ts#loadConversations": read,
+  "app/foundry-ai/actions.ts#loadJobRequirements": read,
+  // Owner-scoped deletes and controls; never rate-limited past the backstop,
+  // so a member can always delete their own history (§9.1).
+  "app/foundry-ai/actions.ts#cancelTurn": cheap,
+  "app/foundry-ai/actions.ts#deleteConversation": cheap,
+  "app/foundry-ai/actions.ts#deleteAllAiHistory": cheap,
+  "app/foundry-ai/actions.ts#forgetMessage": cheap,
+  "app/foundry-ai/actions.ts#saveFindings": cheap,
+  "app/members/actions.ts#getMemberCard": read,
+  "app/settings/actions.ts#setMyEducation": cheap,
+  "app/settings/actions.ts#saveAiSettings": cheap,
+  "app/settings/actions.ts#previewMyProjection": read,
+  "app/admin/ai/actions.ts#setAiFlag": admin,
+  "app/admin/ai/actions.ts#setAiLimits": admin,
+  "app/admin/ai/actions.ts#rebuildAiIndex": admin,
+  "app/admin/ai/actions.ts#setOpportunityAudience": admin,
+
   // ── public ──────────────────────────────────────────────────────────
   "app/contact/actions.ts#submitContactTicket": { kind: "public", bucket: "submit" },
   "lib/auth/verifyOtpGate.ts#checkOtpVerifyRateLimit": { kind: "public", bucket: "otpVerify" },

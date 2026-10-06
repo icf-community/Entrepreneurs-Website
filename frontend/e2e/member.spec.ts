@@ -115,6 +115,7 @@ test.describe("member pages that read per-user data", () => {
     const { data: opp, error: oppErr } = await db
       .from("opportunities")
       .insert({
+        eligible_audience: "both",
         ...approved,
         position_name: OPP,
         company: "Bookmark Co",
@@ -483,6 +484,7 @@ test.describe("opportunities board renders one page at a time", () => {
     const { data, error } = await db
       .from("opportunities")
       .insert(Array.from({ length: 31 }, (_, i) => ({
+        eligible_audience: "both",
         status: "approved" as const,
         approved_at: new Date().toISOString(),
         approved_by: approver,

@@ -49,6 +49,7 @@ export default async function EditOpportunityPage({ params }: { params: Promise<
     applyUrl:            src.apply_url == null ? "" : String(src.apply_url),
     skillIds:            (p.skill_ids  as number[] | undefined) ?? selected.skillIds,
     sectorIds:           (p.sector_ids as number[] | undefined) ?? selected.sectorIds,
+    eligibleAudience:    (src.eligible_audience as OpportunityInitialValues["eligibleAudience"]) ?? null,
   };
 
   return (

@@ -177,6 +177,7 @@ function opportunityRpcArgs(p: OpportunityPayload) {
     p_apply_url:             p.applyUrl,
     p_skill_ids:             p.skillIds,
     p_sector_ids:            p.sectorIds,
+    p_eligible_audience:     p.eligibleAudience,
   };
 }
 

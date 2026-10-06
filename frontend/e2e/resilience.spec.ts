@@ -105,6 +105,7 @@ test.describe("with a live opportunity", () => {
     const { data, error } = await db
       .from("opportunities")
       .insert({
+        eligible_audience: "both",
         status: "approved",
         approved_at: new Date().toISOString(),
         approved_by: approver,

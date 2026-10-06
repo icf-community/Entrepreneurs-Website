@@ -41,7 +41,10 @@ export type RateBucket =
   | "connectionRespond"
   | "listingEdit"
   | "dataExport"
-  | "otpVerify";
+  | "otpVerify"
+  | "aiSubmit"
+  | "aiEdit"
+  | "aiRead";
 
 // ─── Key namespace ──────────────────────────────────────────────────
 //
@@ -253,6 +256,23 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // there so a script can't turn it into a DB load generator.
   dataExport: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "1 d"), prefix: p("export"), analytics: false }),
+  // Foundry AI (AI-plan §9.1). The authority is Postgres: ai_submit_turn
+  // enforces 5 a minute and 40 a rolling day per member, the queue bound
+  // and the money caps, atomically. This is the coarse outer guard, set
+  // above the database's own minute limit so a member meets the specific
+  // message, and FAIL-CLOSED (F6): an Upstash outage must not become an
+  // unmetered path to paid work, even though the database would still stop it.
+  aiSubmit: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 m"), prefix: p("ai:sub"), analytics: false }),
+  // Chip edits: no model call, capped at 200 a day in the database; 30 a
+  // minute here (§9.1). Fail-open: a Redis blip must not lock a member out
+  // of tidying their own criteria.
+  aiEdit: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(30, "1 m"), prefix: p("ai:edit"), analytics: false }),
+  // Status polls and result reads, 60 a minute (§9.1). The poller already
+  // backs off and keeps one request in flight; this stops a runaway tab.
+  aiRead: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(60, "1 m"), prefix: p("ai:read"), analytics: false }),
 };
 
 const instances = new Map<RateBucket, Ratelimit>();
@@ -303,7 +323,7 @@ function instance(bucket: RateBucket): Ratelimit | null {
 const FAIL_CLOSED: readonly RateBucket[] = [
   "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload",
   "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "listingEdit",
-  "dataExport", "otpVerify",
+  "dataExport", "otpVerify", "aiSubmit",
 ];
 
 export function failOpen(bucket: RateBucket): boolean {
@@ -360,6 +380,9 @@ const WINDOW_MS: Record<RateBucket, number> = {
   listingEdit: 3_600_000,
   dataExport: 86_400_000,
   otpVerify: 600_000,
+  aiSubmit: 60_000,
+  aiEdit: 60_000,
+  aiRead: 60_000,
 };
 
 const LIMIT: Record<RateBucket, number> = {
@@ -378,6 +401,9 @@ const LIMIT: Record<RateBucket, number> = {
   listingEdit: 20,
   dataExport: 5,
   otpVerify: 10,
+  aiSubmit: 10,
+  aiEdit: 30,
+  aiRead: 60,
 };
 
 type LocalEntry = { count: number; resetAt: number };

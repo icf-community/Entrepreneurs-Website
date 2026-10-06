@@ -1,3 +1,5 @@
+import { ViewProfileButton } from "@/components/members/ViewProfileButton";
+import { audienceLabel } from "@/lib/listings/audience";
 import ListingDetailShell, {
   ListingGone, Fact, Description,
 } from "@/components/ListingDetailShell";
@@ -86,6 +88,7 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
         <Fact label="Apply by">{formatDate(o.applicationDeadline)}</Fact>
         <Fact label="Starts">{startLabel(o)}</Fact>
         <Fact label="Location">{locationLabel(o)}</Fact>
+        {audienceLabel(o.audience) && <Fact label="Who can apply">{audienceLabel(o.audience)}</Fact>}
         <Fact label="Posted by">
           {posterName}
           {o.postedBy.linkedinUrl && (
@@ -101,6 +104,9 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
               </a>
             </>
           )}
+          <div className="mt-2">
+            <ViewProfileButton memberId={o.postedBy.id} />
+          </div>
         </Fact>
       </div>
 

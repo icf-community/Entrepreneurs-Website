@@ -69,6 +69,15 @@ export default defineConfig({
       testMatch: /connections\.spec\.ts|notifications\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
+    // Foundry AI end to end (AI-plan §14.4, F32). The spec starts the
+    // executor and the projection worker itself, with the fake provider,
+    // against this run's local database, and switches the AI flags on only
+    // for its own duration.
+    {
+      name: "ai",
+      testMatch: /ai\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], storageState: storageStatePath("student") },
+    },
     // Live rate-limit enforcement. Deliberately NOT run by the main e2e job
     // (which scopes to public/member/admin) — it only runs in the isolated
     // `e2e-ratelimit` CI job that wires Upstash via an SRH sidecar, so the

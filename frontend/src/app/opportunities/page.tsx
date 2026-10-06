@@ -8,8 +8,10 @@ import { markedIds } from "@/lib/data/activity";
 import {
   listApprovedOpportunities,
   bookmarkedOpportunityIds,
+  myEducation,
   type Opportunity,
 } from "@/lib/data/opportunities";
+import { EducationForm } from "@/components/forms/EducationForm";
 import type { Db } from "@/lib/data/query";
 import OpportunitiesClient from "./OpportunitiesClient";
 
@@ -33,6 +35,10 @@ export default async function OpportunitiesPage({
 
   // Started, not awaited — see the note in app/vcs/page.tsx.
   const data = loadOpportunities(supabase, user.id);
+  // Jobs are for students, graduates or both (AI-plan §7.2). Until a member
+  // says which they are, they see none, so ask rather than show an empty
+  // board (F29). Admins see every job anyway.
+  const education = isAdmin ? null : await myEducation(supabase);
 
   return (
     <ListingPageShell
@@ -54,6 +60,13 @@ export default async function OpportunitiesPage({
         </Suspense>
       }
     >
+      {education && !education.known && (
+        <section className="mb-8 rounded-2xl border border-border bg-bg-card p-6" aria-labelledby="confirm-status">
+          <h2 id="confirm-status" className="text-[0.95rem] font-medium text-text-primary">Confirm your status to see jobs</h2>
+          <p className="mt-1 mb-4 text-[0.8rem] text-text-muted">Each job is for students, graduates or both.</p>
+          <EducationForm initialEnrolled={null} initialGraduated={null} compact />
+        </section>
+      )}
       <Suspense
         fallback={
           <>

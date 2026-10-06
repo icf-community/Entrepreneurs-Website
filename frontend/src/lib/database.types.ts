@@ -2473,6 +2473,23 @@ export type Database = {
           title: string
         }[]
       }
+      get_member_card: {
+        Args: { p_id: string }
+        Returns: {
+          avatar_path: string
+          bio_focus: string
+          bio_hobbies: string
+          course: string
+          created_at: string
+          first_name: string
+          grad_year: number
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          sector_names: string[]
+          skill_names: string[]
+          surname: string
+        }[]
+      }
       get_my_activity: {
         Args: never
         Returns: {

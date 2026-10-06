@@ -289,6 +289,21 @@ jobs:
           echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SRK" >> "$GITHUB_ENV"
+          # e2e/ai.spec.ts starts the AI executor and the projection worker
+          # against this stack, with the fake provider (AI-plan §14.4, F32).
+          DBU=$(grep '^DB_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          echo "E2E_DB_URL=$DBU" >> "$GITHUB_ENV"
+
+      # Python for the AI executor and worker the AI spec runs (F32).
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - name: Install server deps
+        run: |
+          python -m pip install -r server/requirements.txt
+          echo "E2E_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
 
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
@@ -320,7 +335,7 @@ jobs:
         # still alive after 20 minutes — see scripts/ci-playwright.sh.
         env:
           PW_LIMIT_SECONDS: "1200"
-        run: scripts/ci-playwright.sh --project=public --project=member --project=admin --project=pipelines --project=connections
+        run: scripts/ci-playwright.sh --project=public --project=member --project=admin --project=pipelines --project=connections --project=ai
 
       - if: always()
         run: supabase stop || true

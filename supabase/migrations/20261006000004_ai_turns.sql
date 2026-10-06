@@ -543,11 +543,24 @@ begin
         raise exception 'empty_atom' using errcode = '22023';
       end if;
 
-      -- The same criterion twice is one criterion.
+      -- The same criterion twice is one criterion. Restating it more
+      -- strongly ("must also like chess" after "chess") upgrades it to
+      -- required; restating it negated turns it into an exclusion.
       if exists (select 1 from jsonb_array_elements(v_atoms) a
                   where coalesce(a->>'concept', '') = coalesce(v_concept, '')
                     and lower(coalesce(a->>'free_text', '')) = lower(coalesce(v_free, ''))
                     and a->>'kind' = v_kind) then
+        v_atoms := (select jsonb_agg(case
+                      when coalesce(a->>'concept', '') = coalesce(v_concept, '')
+                       and lower(coalesce(a->>'free_text', '')) = lower(coalesce(v_free, ''))
+                       and a->>'kind' = v_kind
+                      then a || jsonb_build_object(
+                             'required', coalesce((a->>'required')::boolean, false)
+                                         or coalesce((op->>'required')::boolean, false)
+                                         or coalesce((op->>'negated')::boolean, false),
+                             'negated', coalesce((op->>'negated')::boolean, (a->>'negated')::boolean, false))
+                      else a end)
+                      from jsonb_array_elements(v_atoms) a);
         continue;
       end if;
 

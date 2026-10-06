@@ -53,6 +53,11 @@ export const opportunitySchema = z
     applyUrl: httpUrl.nullable(),
     skillIds: z.array(z.number().int()).max(50),
     sectorIds: z.array(z.number().int()).max(50),
+    // Who may see and apply (AI-plan §7.2): students, graduates (any
+    // affiliation) or both. Required on every new or edited job.
+    eligibleAudience: z.enum(["students", "graduates", "both"], {
+      message: "Choose who this job is for.",
+    }),
   })
   .refine((v) => v.locationType === "remote" || !!v.locationText, {
     message: "Please provide a location for hybrid or onsite roles.",

@@ -23,9 +23,12 @@ export type Opportunity = {
   applyUrl: string | null;
   /** When the row was added, not its deadline. /home sorts on it. */
   createdAt: string;
-  postedBy: { firstName: string; surname: string; linkedinUrl: string | null };
+  /** id and avatar for "Posted by" + View profile (AI-plan §2); Connect stays inside the dialog. */
+  postedBy: { id: string; firstName: string; surname: string; linkedinUrl: string | null; avatarPath: string | null };
   skills: string[];
   sectors: string[];
+  /** Who may see and apply: students, graduates or both (AI-plan §7.2). */
+  audience: "students" | "graduates" | "both" | null;
 };
 
 /**
@@ -51,11 +54,14 @@ type Row = {
   apply_method: "email" | "link";
   apply_url: string | null;
   created_at: string;
+  posted_by: string;
   poster_first_name: string | null;
   poster_surname: string | null;
   poster_linkedin_url: string | null;
+  poster_avatar_path: string | null;
   skill_names: string[] | null;
   sector_names: string[] | null;
+  eligible_audience: string | null;
 };
 
 export function toOpportunity(r: Row): Opportunity {
@@ -77,12 +83,15 @@ export function toOpportunity(r: Row): Opportunity {
     applyUrl: r.apply_url,
     createdAt: r.created_at,
     postedBy: {
+      id:          r.posted_by,
       firstName:   r.poster_first_name ?? "",
       surname:     r.poster_surname    ?? "",
       linkedinUrl: r.poster_linkedin_url,
+      avatarPath:  r.poster_avatar_path,
     },
     skills:  r.skill_names  ?? [],
     sectors: r.sector_names ?? [],
+    audience: (r.eligible_audience as Opportunity["audience"]) ?? null,
   };
 }
 
@@ -163,17 +172,22 @@ export async function opportunityForEdit(db: Db, id: string) {
 }
 
 /**
- * One approved, still-open opportunity, or null.
+ * One approved, still-open opportunity the viewer may see, or null.
  *
- * Reads through listApprovedOpportunities rather than selecting the row
- * directly, because the RPC is what masks contact_email from anyone who
- * isn't the poster or an admin — a table read here would hand out an
- * address the poster chose to hide. The list is already bounded by
- * application_deadline >= current_date, so a closed role is a miss, and
- * /opportunities/[id] renders that as "no longer available" rather than
- * pretending the role is live.
+ * An ID-specific read (AI-plan §7.2): the old list-and-find missed jobs
+ * past the list's 1,000-row cap. Same SECURITY DEFINER contract as the
+ * list — contact_email masked, the audience applied — so a closed role, a
+ * job outside the viewer's audience and an unknown id all come back null,
+ * and /opportunities/[id] renders "no longer available".
  */
 export async function approvedOpportunity(db: Db, id: string): Promise<Opportunity | null> {
-  const items = await listApprovedOpportunities(db);
-  return items.find((o) => o.id === id) ?? null;
+  const data = await rows("get_approved_opportunity", () => db.rpc("get_approved_opportunity", { p_id: id }));
+  return data[0] ? toOpportunity(data[0]) : null;
+}
+
+/** The viewer's own education status (AI-plan §7.2): unknown means no audience job is visible yet. */
+export async function myEducation(db: Db): Promise<{ known: boolean; enrolled: boolean | null; graduated: boolean | null }> {
+  const data = await rows("get_my_education", () => db.rpc("get_my_education"));
+  const r = data[0];
+  return { known: !!r?.known, enrolled: r?.currently_enrolled ?? null, graduated: r?.has_completed_degree ?? null };
 }

@@ -159,6 +159,7 @@ test.describe("an opportunity's own page", () => {
     const { data, error } = await admin
       .from("opportunities")
       .insert({
+        eligible_audience: "both",
         posted_by: poster,
         status: "approved",
         approved_at: new Date().toISOString(),

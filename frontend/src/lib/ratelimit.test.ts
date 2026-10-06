@@ -31,6 +31,9 @@ const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
   // Fail-closed: a whole-account read, capped so it is not a load generator (F-x2).
   dataExport: "closed",
   otpVerify: "closed",
+  aiSubmit: "closed",
+  aiEdit: "open",
+  aiRead: "open",
 };
 
 const EVERY_BUCKET = Object.keys(CLASSIFICATION) as RateBucket[];

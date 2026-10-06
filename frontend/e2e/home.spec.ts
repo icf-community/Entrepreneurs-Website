@@ -59,6 +59,7 @@ test.describe("home", () => {
     seeded.events = ev!.id as string;
 
     const { data: opp, error: oppErr } = await db.from("opportunities").insert({
+      eligible_audience: "both",
       ...approved,
       position_name: TITLES.opp,
       company: "Home Card Co",
