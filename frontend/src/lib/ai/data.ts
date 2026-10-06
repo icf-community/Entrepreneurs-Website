@@ -89,6 +89,7 @@ export async function myAiSettings(db: Db): Promise<AiSettings> {
     networkSeeks: r?.network_seeks ?? [],
     prefRoleTypes: r?.pref_role_types ?? [],
     prefLocationTypes: r?.pref_location_types ?? [],
+    selfReported: r?.self_reported ?? "",
   };
 }
 

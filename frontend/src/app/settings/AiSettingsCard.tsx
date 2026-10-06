@@ -26,6 +26,7 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ purpose: string; items: ProjectionPreviewItem[] } | null>(null);
+  const [note, setNote] = useState(initial.selfReported);
 
   const save = async (next: AiSettings) => {
     const before = s;
@@ -73,6 +74,17 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
           onChange={(v) => save({ ...s, prefRoleTypes: v })} />
         <Checks label="Where I'd like to work" options={LOCATIONS} value={s.prefLocationTypes} disabled={saving}
           onChange={(v) => save({ ...s, prefLocationTypes: v })} />
+        <div>
+          <label htmlFor="ai-self-reported" className="text-[0.85rem] text-text-primary">Projects and experience</label>
+          <p className="mt-0.5 text-[0.75rem] text-text-muted">Useful if you haven&apos;t uploaded a CV. Shown as self-reported.</p>
+          <textarea id="ai-self-reported" rows={4} maxLength={1200} value={note} onChange={(e) => setNote(e.target.value)}
+            className="mt-2 w-full resize-none rounded-lg border border-border bg-white/[0.03] px-3 py-2 text-[0.8rem] text-text-primary" />
+          <div className="mt-1 flex items-center justify-between">
+            <span className="text-[0.7rem] text-text-muted">{note.length}/1200</span>
+            <Button size="sm" variant="ghost" loading={saving} disabled={note === s.selfReported}
+              onClick={() => save({ ...s, selfReported: note })}>Save</Button>
+          </div>
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2 border-t border-border-subtle pt-5">

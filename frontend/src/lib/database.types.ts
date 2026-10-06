@@ -2515,6 +2515,7 @@ export type Database = {
           pref_location_types: string[]
           pref_role_types: string[]
           recruiter_discoverable: boolean
+          self_reported: string
           updated_at: string
           use_chat_memory: boolean
         }[]
@@ -3239,6 +3240,7 @@ export type Database = {
           p_pref_location_types: string[]
           p_pref_role_types: string[]
           p_recruiter_discoverable: boolean
+          p_self_reported?: string
           p_use_chat_memory: boolean
         }
         Returns: undefined

@@ -74,3 +74,13 @@ def test_projection_hash_changes_with_content_only() -> None:
     b, _ = build_member_docs(_source(), D)
     c, _ = build_member_docs(_source(bio_focus="Building React apps"), D)
     assert a[0]["projection_hash"] == b[0]["projection_hash"] != c[0]["projection_hash"]
+
+
+def test_self_reported_experience_is_labelled_and_minimised() -> None:
+    src = _source(cv=None, settings={"recruiter_discoverable": True, "network_discoverable": False, "consent_epoch": 1,
+                                     "self_reported": "Led a FastAPI backend at a startup. Email jane@x.com for details."})
+    docs, rows = build_member_docs(src, D)
+    lines = [r for r in rows if r["source_kind"] == "self_reported"]
+    assert lines and all(r["text"].startswith("Self-reported:") for r in lines)
+    assert not any("jane@x.com" in r["text"] for r in lines)
+    assert not any(r["from_cv"] for r in lines)

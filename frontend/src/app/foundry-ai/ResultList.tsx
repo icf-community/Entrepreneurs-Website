@@ -140,7 +140,7 @@ function Card({ mode, card }: { mode: AiMode; card: ResultCard }) {
           {card.evidence.map((e, i) => (
             <li key={i} className="text-[0.8rem] text-text-secondary">
               <span className="mr-1 text-[0.65rem] uppercase tracking-wider text-text-muted">
-                {e.from_cv ? "From CV" : e.kind.startsWith("github") ? "GitHub" : "Profile"}
+                {e.from_cv ? "From CV" : e.kind.startsWith("github") ? "GitHub" : e.kind === "self_reported" ? "Self-reported" : "Profile"}
               </span>
               {e.text}
             </li>

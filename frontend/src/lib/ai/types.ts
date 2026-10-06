@@ -154,6 +154,8 @@ export type AiSettings = {
   networkSeeks: string[];
   prefRoleTypes: string[];
   prefLocationTypes: string[];
+  /** Owner-private note on projects and experience, labelled self-reported (AI-plan §7.1). */
+  selfReported: string;
 };
 
 export type Concept = { slug: string; label: string; kind: string };

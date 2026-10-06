@@ -72,6 +72,7 @@ export type AiSettingsInput = {
   networkSeeks: string[];
   prefRoleTypes: string[];
   prefLocationTypes: string[];
+  selfReported: string;
 };
 
 /**
@@ -93,6 +94,9 @@ export async function saveAiSettings(input: AiSettingsInput): Promise<Result> {
       || !Array.isArray(input.prefLocationTypes) || input.prefLocationTypes.some((l) => !LOCATION_TYPES.has(l))) {
     return err("That change isn't valid.");
   }
+  if (typeof input.selfReported !== "string" || input.selfReported.length > 1200) {
+    return err("Keep your projects and experience under 1,200 characters.");
+  }
   const { error } = await supabase.rpc("set_my_ai_settings", {
     p_recruiter_discoverable: input.recruiterDiscoverable,
     p_network_discoverable: input.networkDiscoverable,
@@ -103,6 +107,7 @@ export async function saveAiSettings(input: AiSettingsInput): Promise<Result> {
     p_pref_role_types: input.prefRoleTypes,
     p_pref_location_types: input.prefLocationTypes,
     p_consent_version: AI_CONSENT_VERSION,
+    p_self_reported: input.selfReported,
   });
   if (error) return err("We couldn't save your AI settings. Please try again.");
   revalidatePath("/settings");

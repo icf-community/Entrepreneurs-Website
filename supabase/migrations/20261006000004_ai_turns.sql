@@ -771,6 +771,12 @@ begin
     v_msg := null;
   end if;
 
+  -- One admission at a time per member, held to commit: concurrent tabs
+  -- or retries cannot each see the same counts and all pass the per-member
+  -- limits, and a repeated idempotency key finds the first turn instead of
+  -- racing it to the unique constraint.
+  perform pg_advisory_xact_lock(hashtext('ai_submit_member'), hashtext(v_uid::text));
+
   v_digest := encode(sha256(convert_to(concat_ws('|', p_mode, p_conversation, p_opportunity, p_kind, v_msg,
                                                  p_expected_revision, p_temporary), 'utf8')), 'hex');
   select * into v_existing from ai_private.turns t where t.owner_id = v_uid and t.idempotency_key = p_idempotency_key;
@@ -893,6 +899,10 @@ begin
   end if;
 
   -- Queue bound (§9): refuse before any provider call, keep the draft.
+  -- Serialised across members from here to commit, so a burst can't all
+  -- read the same queue length; the lock is held only for the few
+  -- milliseconds left in this transaction.
+  perform pg_advisory_xact_lock(hashtext('ai_submit_queue'));
   select * into v_cfg from ai_private.settings where id = 1;
   if (select count(*) from ai_private.turns t where t.status = 'queued') >= v_cfg.queue_capacity then
     return query select null::uuid, p_conversation, 'queue_full'::text, now() + interval '1 minute';
@@ -1392,6 +1402,10 @@ begin
      set status = 'expired', outcome = 'queue_timeout', stage = 'done', finished_at = now(), revision = revision + 1
    where status = 'queued' and created_at < now() - make_interval(secs => v_cfg.max_queue_wait_seconds);
 
+  -- Claims are serialised across replicas to commit, so N replicas can't
+  -- each see room under the ceiling and all claim (the same race the
+  -- admission burst test caught).
+  perform pg_advisory_xact_lock(hashtext('ai_claim'));
   if (select count(*) from ai_private.turns where status = 'running' and lease_expires_at > now())
      >= v_cfg.active_turn_ceiling then
     return null;
@@ -1504,7 +1518,9 @@ begin
   end if;
   select * into v_cfg from ai_private.settings where id = 1;
   -- In-flight provider requests have their own cap, separate from active
-  -- turns (F3).
+  -- turns (F3). Counted under the ledger's own lock (spend_reserve takes
+  -- the same one), so concurrent batches can't all pass the count.
+  perform pg_advisory_xact_lock(hashtext('ai_private.spend'));
   if (select count(*) from ai_private.spend s
        where s.status = 'reserved' and s.purpose = 'matching' and s.created_at > now() - interval '2 minutes')
      >= v_cfg.provider_request_ceiling then

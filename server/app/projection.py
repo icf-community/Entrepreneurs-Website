@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -183,6 +184,13 @@ def build_member_evidence(src: dict, d: Dictionary) -> list[Evidence]:
         add(everyone, "bio_focus", f"Working on: {src['working_on']}")
     if src.get("bio_hobbies"):
         add(("network",), "bio_hobbies", f"Outside work: {src['bio_hobbies']}")
+    # The member's own note on projects and experience (§7.1), for members
+    # without a CV. Always labelled self-reported; at most four lines.
+    note = (settings.get("self_reported") or "").strip()
+    if note:
+        parts = [p.strip() for p in re.split(r"(?:\n+|(?<=[.!?])\s+)", note) if p.strip()]
+        for part in parts[:4]:
+            add(everyone, "self_reported", f"Self-reported: {part}")
 
     cv = src.get("cv")
     if cv:
