@@ -396,5 +396,50 @@ begin
   end if;
 end $$;
 
+-- ─── 9. Admin deletion and job deletion with AI rows present (F30) ──
+do $$
+declare
+  v_student uuid := (select v from t where k = 'student');
+  v_poster  uuid := (select v from t where k = 'poster');
+  v_admin   uuid := (select v from t where k = 'admin');
+  v_sjob    uuid := (select v from t where k = 'students_job');
+  v_conv    uuid;
+  v_turn    uuid;
+begin
+  perform pg_temp.as_owner();
+  -- The student is a result in the poster's recruiter search, has
+  -- projections and a cached assessment; the poster's job has job docs.
+  insert into ai_private.member_docs (member_id, purpose, source_version, consent_epoch, policy_version, projection_hash, body)
+  values (v_student, 'recruiter', 1, 1, 'v', repeat('b', 64), 'PyTorch');
+  insert into ai_private.member_evidence (member_id, purpose, source_version, source_kind, text)
+  values (v_student, 'recruiter', 1, 'cv_skill', 'CV skill: PyTorch');
+  insert into ai_private.assessments (cache_key, target_member, purpose, projection_hash, verdict, expires_at)
+  values (repeat('c', 64), v_student, 'recruiter', repeat('b', 64), '{}', now() + interval '1 day');
+  insert into ai_private.job_docs (opportunity_id, content_version, body) values (v_sjob, 1, 'Student role');
+  insert into ai_private.job_requirements (opportunity_id, content_version, status) values (v_sjob, 1, 'parsed');
+  insert into ai_private.conversations (owner_id, mode, opportunity_id) values (v_poster, 'recruiter', v_sjob)
+  returning id into v_conv;
+  insert into ai_private.turns (conversation_id, owner_id, mode, opportunity_id, kind, idempotency_key, body_digest,
+                                expected_revision, status)
+  values (v_conv, v_poster, 'recruiter', v_sjob, 'run', 'key-f30-0001', 'd', 0, 'completed') returning id into v_turn;
+  insert into ai_private.results (turn_id, slot, target_member, score, tier) values (v_turn, 1, v_student, 80, 'meets');
+
+  perform pg_temp.as_member(v_admin);
+  perform public.admin_delete_user(v_student, 'ai_smoke F30');
+  perform pg_temp.as_owner();
+  if exists (select 1 from public.profiles where id = v_student)
+     or exists (select 1 from ai_private.member_docs where member_id = v_student)
+     or exists (select 1 from ai_private.results where target_member = v_student)
+     or exists (select 1 from ai_private.assessments where target_member = v_student) then
+    raise exception 'FAIL: admin deletion left the member or AI rows naming them';
+  end if;
+
+  delete from public.opportunities where id = v_sjob;
+  if exists (select 1 from ai_private.job_docs where opportunity_id = v_sjob)
+     or exists (select 1 from ai_private.conversations where id = v_conv) then
+    raise exception 'FAIL: deleting a job left its AI rows';
+  end if;
+end $$;
+
 select 'ai_smoke: all checks passed' as result;
 rollback;

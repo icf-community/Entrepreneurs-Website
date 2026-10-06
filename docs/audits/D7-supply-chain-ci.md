@@ -26,6 +26,7 @@ From `ci.yml`, `codeql.yml` and `secret-scan.yml`, which all run on pull request
 - `Lint · Typecheck · Build · Test`
 - `Upload gateway (pytest)`
 - `Upload gateway (docker build + scan)`
+- `AI executor (docker build + scan)` (added with the AI build, 2026-10-06)
 - `RLS smoke (Supabase)`
 - `E2E (Playwright)`
 - `E2E rate-limit enforcement (SRH)`

@@ -47,6 +47,10 @@ Owner decisions from that pass are recorded in §1. All limits are collected in 
 [launch-readiness programme](docs/launch-readiness-programme.md) (phase 6, after the current-app
 fixes). "Staging" in this document means what F33 defines (§10.1).
 
+**Status (2026-10-06): A0–A3 built and tested locally against the fake provider; nothing deployed
+and no flag on. What exists, the evidence, the gates still open and the deviations are in
+[docs/ai-build.md](docs/ai-build.md).** The paragraph below is the original review status.
+
 **Status: reviewed and corrected design; no feature implementation or deployment in this review.**
 Material flaws were found, so the owner's conditional instruction to implement if the
 review found no problems did not trigger. The controls below are requirements, not claims

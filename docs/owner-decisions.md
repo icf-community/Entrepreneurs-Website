@@ -41,6 +41,35 @@ Claude: these are dashboard settings, legal wording, spend, or production steps.
 12. **Monitoring:** Sentry alert rules (G5), uptime monitor on `/api/health` (F-x1), source-map
     env vars plus one prod test error with a readable trace (G6). Detail: `docs/observability.md`.
 
+## Foundry AI (built locally; nothing switched on)
+
+Detail: [ai-build.md](ai-build.md). In this order:
+
+13. **Existing jobs need an audience before members can see them.** From the db push on, every job is
+    for students, graduates or both, and a job without one is hidden from members (admins still see
+    it). `/admin/ai` lists them with one-click Students / Graduates / Both.
+14. **Members' education status.** Members who haven't answered see a "Confirm your status to see
+    jobs" prompt on /opportunities (your F29 decision: enforce immediately). Intake now asks it too.
+15. **Confirm model prices** against OpenAI's pricing page and mark them confirmed
+    (`ai_private.model_prices`; the SQL is printed by `infra/azure/provision-ai.sh --print-only`). The
+    seeded values are pessimistic placeholders; the executor refuses to start until they're confirmed.
+    Ingestion keeps working meanwhile and is metered at the placeholder prices.
+16. **A separate OpenAI project and key for matching**, with its own spend alert (not the ingestion key).
+17. **Azure:** run `infra/azure/provision-ai.sh`, set the three Key Vault secrets and the
+    `ai_service` password, set `AZURE_AI_APP_NAME`, then run the "Deploy AI executor" workflow.
+18. **Make yourself an AI operator** (SQL insert, printed by the script). Only operators can switch AI
+    on or change limits; any admin can see `/admin/ai`.
+19. **Legal (A0.2):** wording for `/ai-notice` (factual draft in place), the DPIA, the processor
+    register/ROPA lines for OpenAI matching, and the lawful basis per purpose. No flag before sign-off.
+20. **Limits:** confirm the starting caps ($5/day matching, $0.50/day per member, 20 active turns) or
+    set others in `/admin/ai`.
+21. **One product call:** the pre-model screen refuses searches that name a protected characteristic.
+    It also refuses "founders building products for women's health" (a domain, not a filter on
+    people). Keep it strict, or have it narrowed?
+22. **Required checks on `main`:** add "AI executor (docker build + scan)" to the D7 list.
+23. **First live smoke:** a small capped run (`python -m evals run --live …`) before switching a mode
+    on, to confirm the model accepts the schemas and to measure cost per turn.
+
 ## Also on the list (from `tasks/todo.md`)
 
 - Live grant dump in prod after db push, diffed against local (`supabase/checks/grant_dump.sql`).
