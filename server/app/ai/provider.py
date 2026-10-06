@@ -103,9 +103,9 @@ class OpenAIProvider:
 
 # ─── The fake ───────────────────────────────────────────────────────
 _OFF_TASK = re.compile(
-    r"^\s*(explain|what is|what's|what are|why|how do|how does|how to|write|solve|calculate|compute|summari[sz]e|"
-    r"translate|tell me|give me a|define|prove)\b|\b(write (?:me )?(?:a |some )?(?:code|function|essay|poem|script)|"
-    r"reverse a linked list|homework|joke)\b",
+    r"(?:^|\b(?:and|also|then|but)\s+|[,;.]\s*)(explain|what is|what's|what are|why|how do|how does|how to|write|"
+    r"solve|calculate|compute|summari[sz]e|translate|tell me|give me a|define|prove)\b|"
+    r"\b(write (?:me )?(?:a |some )?(?:code|function|essay|poem|script)|reverse a linked list|homework|joke)\b",
     re.I,
 )
 _SEARCH = re.compile(r"\b(find|people|someone|somebody|anyone|members?|candidates?|who|jobs?|roles?|internships?|"

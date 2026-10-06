@@ -16,6 +16,7 @@ import type { PostHog } from "posthog-js";
 import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
 import { isSyntheticEmail } from "@/lib/observability/synthetic";
+import { sanitiseAnalyticsEvent } from "@/lib/observability/analyticsUrls";
 
 const KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com";
@@ -69,6 +70,8 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         autocapture: false,
         // EU residency is enforced by api_host; disable cross-region GeoIP.
         disable_session_recording: true,
+        // F19: no AI conversation or job ids in page URLs sent with an identity.
+        before_send: (event) => sanitiseAnalyticsEvent(event),
       });
 
       // A test account that signs in later in this tab is opted out before

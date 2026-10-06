@@ -14,7 +14,8 @@ Launch programme Part G. Errors and health only in production: Sentry `tracesSam
 | DB-only pg_cron jobs (expire, purge, reap) | none (no route) | `cron_failures` check reads `cron.job_run_details` |
 | Upload gateway | `server/app/observability.py` (`component: gateway`) | F-x1 uptime monitor on `/api/health`; gateway liveness via its Docker healthcheck |
 | CV/GitHub worker | `server/app/observability.py` (`component: worker`) | Sentry cron monitor **`cv-worker`** (interval 5 min, created on first check-in); `worker_backlog` check |
-| AI executor (A0+) | Same module, `component: ai` | G9 tracing in `ai_private`; its queue joins the health check |
+| AI executor (`python -m app.ai`) | Same module, `component: ai-executor` | Sentry cron monitor **`ai-executor`** (interval 5 min); `ai_queue_age`, `ai_turn_failures`, `ai_unreconciled_24h`, `ai_spend_80pct` checks; per-call trace spans in `ai_private.trace_spans` (G9, metadata only) |
+| AI pg_cron jobs (`ai-reap` every minute, `ai-purge` hourly) | none (no route) | `cron_failures` check |
 
 Python privacy settings: `send_default_pii=False`, no request bodies, `include_local_variables=False` (frame locals hold CV text), and a `before_send` scrubber that drops payloads and auth headers, redacts blob keys and truncates long exception text. `server/tests/test_observability.py` pins it.
 
@@ -31,6 +32,10 @@ Python privacy settings: `send_default_pii=False`, no request bodies, `include_l
 | `cron_failures` | a pg_cron job failed in the last 70 min |
 | `cron_http_failures` | a cron HTTP call got a non-2xx, timed out or errored in the last 70 min (wrong secret, apex 307) |
 | `config_missing` | a cron driver's `app_config` row is missing (the digest/nudge silent-failure class) |
+| `ai_queue_age` | an AI turn has waited over 3 min (the executor isn't claiming) |
+| `ai_unreconciled_24h` | a provider call in the last 24 h ended without settled usage (counted at its upper bound) |
+| `ai_spend_80pct` | matching, ingestion or controller spend today reached 80% of its daily cap (AI-plan §9 alert) |
+| `ai_turn_failures` | at least 5, and over a fifth, of the last hour's AI turns failed (budget and cancellations excluded) |
 
 A failing check is reported as its own Sentry issue (`health: <check>`), on its first failing run and then at most hourly, so an incident can't use up the quota.
 
@@ -41,7 +46,7 @@ All alerts go by email to the owner only. Every rule filters out `synthetic:true
 1. A new issue in any project goes to email.
 2. A regression (a resolved issue that comes back) goes to email.
 3. More than 50 events in 10 minutes on one issue goes to email.
-4. Cron monitors `app-health` and `cv-worker`: a missed or failed check-in goes to email. They appear after their first check-in in prod.
+4. Cron monitors `app-health`, `cv-worker` and `ai-executor`: a missed or failed check-in goes to email. They appear after their first check-in in prod.
 5. Uptime (F-x1): `https://www.imperialentrepreneurs.com/api/health` every 1 min; 2 consecutive failures go to email.
 6. Turn on spike protection, and check the plan quotas (D8).
 
@@ -68,6 +73,9 @@ Properties are enums or booleans only: never PII, never another member's id, nev
 | `data_export_downloaded` | none | Settings |
 | `site_banner_published` | `severity` | /admin/banner |
 | `site_banner_cleared` | none | /admin/banner |
+| `ai_search_submitted` | `mode`, `kind` (message, run, confirm, rescan) | /foundry-ai |
+| `ai_search_refused` | `mode`, `kind`, `stage` (admission) | /foundry-ai |
+| `ai_search_finished` | `mode`, `status`, `results` (none, few, many) | /foundry-ai |
 
 **Owner, PostHog dashboards:**
 - a signup → onboarding_completed → intake_completed funnel;
@@ -75,9 +83,7 @@ Properties are enums or booleans only: never PII, never another member's id, nev
 - Connections activity (sent / accepted / declined);
 - AI usage by mode, once A1 ships.
 
-**Still to build:**
-- AI events: enum-only, added with A1;
-- a `before_send` URL sanitiser for `/foundry-ai` conversation IDs (F19), added with the AI page, since today there are none to strip.
+`before_send` (`lib/observability/analyticsUrls.ts`) strips the conversation and job ids from `/foundry-ai` URLs, keeping only the mode (F19). Turn ids never appear in a URL or an event.
 
 Admin moderation decisions are deliberately **not** PostHog events. Every one is already written to `admin_actions` in our own database, with who decided, what and when. Queue age is also watched by `moderation_age`. Query that table instead of duplicating it.
 

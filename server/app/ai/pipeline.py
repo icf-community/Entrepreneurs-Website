@@ -24,7 +24,7 @@ import psycopg
 
 from .. import privacy
 from ..concepts import Dictionary
-from . import grammar
+from . import grammar, policy
 from .db import Db
 from .provider import ProviderError
 from .schemas import (
@@ -204,6 +204,11 @@ class Turn:
         if not message:
             await self.apply("clarify", [])
             return None
+        # Deterministic refusals cost no model call (§9.1 admission order).
+        refused = policy.screen(message)
+        if refused:
+            await self.apply(refused, [])
+            return None
         ops = grammar.parse(message, self.mode, self.dictionary)
         decision = "apply"
         if ops is None:
@@ -258,47 +263,7 @@ class Turn:
         return value["decision"], self._ground(value.get("ops") or [], message, candidates, spec)
 
     def _ground(self, ops: list[dict], message: str, candidates: dict, spec: dict) -> list[dict]:
-        """Keep only operations grounded in this message or the current spec
-        (§4: no fuzzy grounding). The database checks again."""
-        atom_ids = {a.get("id") for a in spec.get("atoms") or []}
-        spec_concepts = {a.get("concept") for a in spec.get("atoms") or [] if a.get("concept")}
-        allowed = _ALLOWED_KINDS[self.mode]
-        out: list[dict] = []
-        for op in ops[:12]:
-            kind = op.get("op")
-            if kind == "clear":
-                out.append({"op": "clear"})
-            elif kind in ("remove", "set_required"):
-                if op.get("atom") in atom_ids:
-                    item = {"op": kind, "atom": op["atom"]}
-                    if kind == "set_required":
-                        item["required"] = bool(op.get("required"))
-                    out.append(item)
-            elif kind == "add":
-                concept = op.get("concept")
-                if concept:
-                    if concept not in candidates and concept not in spec_concepts:
-                        continue
-                    ckind = self.dictionary.concepts[concept].kind if concept in self.dictionary.concepts else None
-                    atom_kind = op.get("kind") if op.get("kind") in ("seek", "offer") else ckind
-                    if atom_kind not in allowed:
-                        continue
-                    out.append({"op": "add", "kind": atom_kind, "concept": concept,
-                                "required": bool(op.get("required")), "negated": bool(op.get("negated")),
-                                "group": op.get("group")})
-                else:
-                    free = (op.get("free_text") or "").strip()
-                    start, end = op.get("span_start"), op.get("span_end")
-                    if (not free or start is None or end is None or message[start:end] != free
-                            or len(free) > 80):
-                        continue
-                    atom_kind = op.get("kind") if op.get("kind") in ("seek", "offer") else "free"
-                    if atom_kind not in allowed:
-                        continue
-                    out.append({"op": "add", "kind": atom_kind, "free_text": free, "span": [start, end],
-                                "required": bool(op.get("required")), "negated": bool(op.get("negated")),
-                                "group": op.get("group")})
-        return out
+        return ground_ops(ops, message, candidates, spec, self.mode, self.dictionary)
 
     @staticmethod
     def _atoms(spec: dict) -> list[Atom]:
@@ -640,6 +605,50 @@ class Turn:
             await self.call("select ai_private.exec_finish(%s, %s, %s, %s)", (self.id, self.lease, status, outcome))
         except (LeaseLost, Stop):
             pass
+
+
+def ground_ops(ops: list[dict], message: str, candidates: dict, spec: dict, mode: str, dictionary: Dictionary) -> list[dict]:
+    """Keep only operations grounded in this message or the current spec
+    (§4: no fuzzy grounding). The database checks again."""
+    atom_ids = {a.get("id") for a in spec.get("atoms") or []}
+    spec_concepts = {a.get("concept") for a in spec.get("atoms") or [] if a.get("concept")}
+    allowed = _ALLOWED_KINDS[mode]
+    out: list[dict] = []
+    for op in ops[:12]:
+        kind = op.get("op")
+        if kind == "clear":
+            out.append({"op": "clear"})
+        elif kind in ("remove", "set_required"):
+            if op.get("atom") in atom_ids:
+                item = {"op": kind, "atom": op["atom"]}
+                if kind == "set_required":
+                    item["required"] = bool(op.get("required"))
+                out.append(item)
+        elif kind == "add":
+            concept = op.get("concept")
+            if concept:
+                if concept not in candidates and concept not in spec_concepts:
+                    continue
+                ckind = dictionary.concepts[concept].kind if concept in dictionary.concepts else None
+                atom_kind = op.get("kind") if op.get("kind") in ("seek", "offer") else ckind
+                if atom_kind not in allowed:
+                    continue
+                out.append({"op": "add", "kind": atom_kind, "concept": concept,
+                            "required": bool(op.get("required")), "negated": bool(op.get("negated")),
+                            "group": op.get("group")})
+            else:
+                free = (op.get("free_text") or "").strip()
+                start, end = op.get("span_start"), op.get("span_end")
+                if (not free or start is None or end is None or message[start:end] != free
+                        or len(free) > 80):
+                    continue
+                atom_kind = op.get("kind") if op.get("kind") in ("seek", "offer") else "free"
+                if atom_kind not in allowed:
+                    continue
+                out.append({"op": "add", "kind": atom_kind, "free_text": free, "span": [start, end],
+                            "required": bool(op.get("required")), "negated": bool(op.get("negated")),
+                            "group": op.get("group")})
+    return out
 
 
 def _preference(prefs: list[Atom], saved: dict, body: str) -> str:

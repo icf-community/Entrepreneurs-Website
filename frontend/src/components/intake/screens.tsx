@@ -697,6 +697,14 @@ export function InterestsScreen({ s, patch, sectors }: ScreenProps) {
   );
 }
 
+// Jobs are for students, graduates or both; these two answers decide which
+// a member sees (AI-plan §7.2). Optional here like everything else, and
+// /opportunities asks again if they're skipped.
+const YES_NO: { value: "yes" | "no"; label: string }[] = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
+
 // ─── 06 · Where you're at ────────────────────────────────────────────
 
 export function WhereScreen({ s, patch }: ScreenProps) {
@@ -715,6 +723,26 @@ export function WhereScreen({ s, patch }: ScreenProps) {
           options={CURRENT_FOCUS}
           value={s.currentFocus || null}
           onChange={(v) => patch({ currentFocus: v })}
+        />
+      </Field>
+
+      <Field label="Are you currently enrolled on a degree course?">
+        <ChoiceCards
+          name="Currently enrolled"
+          columns={2}
+          options={YES_NO}
+          value={s.currentlyEnrolled || null}
+          onChange={(v) => patch({ currentlyEnrolled: v })}
+        />
+      </Field>
+
+      <Field label="Have you completed a degree?">
+        <ChoiceCards
+          name="Completed a degree"
+          columns={2}
+          options={YES_NO}
+          value={s.completedDegree || null}
+          onChange={(v) => patch({ completedDegree: v })}
         />
       </Field>
 

@@ -545,8 +545,17 @@ export default function IntakeFlow({
       p_hobbies: s.hobbies,
       p_intents: s.intents,
     });
+    if (rpcError) { setBusy(false); setError(describeSupabaseError(rpcError)); bounceIfSessionExpired(rpcError); return; }
+    // Saved separately and best-effort: a failure here must not lose the
+    // intake that just succeeded, and /opportunities asks again.
+    if (s.currentlyEnrolled && s.completedDegree) {
+      const { error: eduError } = await supabase.rpc("set_my_education", {
+        p_currently_enrolled: s.currentlyEnrolled === "yes",
+        p_has_completed_degree: s.completedDegree === "yes",
+      });
+      if (eduError) console.error("Failed to save education status:", eduError);
+    }
     setBusy(false);
-    if (rpcError) { setError(describeSupabaseError(rpcError)); bounceIfSessionExpired(rpcError); return; }
     clearDraft();
     track("intake_completed");
     setDone(true);

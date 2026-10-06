@@ -1,0 +1,23 @@
+# The AI executor's pinned closure (python -m app.ai), a strict subset of
+# requirements.txt: no Azure, GitHub, image or document libraries, so the
+# slim image cannot import the worker's storage or CV code by accident
+# (AI-plan §4, §10). Same pins as requirements.txt; keep them in step.
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.7.22
+h11==0.16.0
+httpcore2==2.12.0
+httpx2==2.12.0
+idna==3.19
+jiter==0.16.0
+openai==3.8.0
+psycopg==3.3.5
+psycopg-binary==3.3.5
+pydantic==2.13.5
+pydantic_core==2.46.5
+sentry-sdk==2.68.1
+sniffio==1.3.1
+truststore==0.10.4
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+urllib3==2.8.0

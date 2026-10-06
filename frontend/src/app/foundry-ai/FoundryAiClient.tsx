@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { track } from "@/components/analytics/PostHogProvider";
 import { ConfirmDialog } from "@/components/connections/ConfirmDialog";
 import { outcomeMessage, stageLabel } from "@/lib/ai/outcomes";
 import type {
@@ -163,10 +164,15 @@ export default function FoundryAiClient({ state, initialMode, initialJobId, init
   };
 
   const onTurnFinished = useCallback((s: TurnStatusResponse) => {
+    track("ai_search_finished", {
+      mode,
+      status: s.status,
+      results: s.resultCount === 0 ? "none" : s.resultCount < 5 ? "few" : "many",
+    });
     setActiveTurnId(null);
     void refreshConversation(s.conversationId);
     void refreshConversations();
-  }, [refreshConversation, refreshConversations]);
+  }, [mode, refreshConversation, refreshConversations]);
 
   const status = useTurnPolling(activeTurnId, onTurnFinished);
   const running = !!activeTurnId;
@@ -194,12 +200,17 @@ export default function FoundryAiClient({ state, initialMode, initialJobId, init
     });
     setSending(false);
     if (!res.ok) {
+      // Enum-only (F19, G7): mode and kind, never criteria, ids or scores.
+      track("ai_search_refused", { mode, kind, stage: "admission" });
       const when = res.error.retryAt ? ` (${new Date(res.error.retryAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})` : "";
       setError(res.error.message + when);
       return;
     }
     keyRef.current = newKey();
-    if (!res.data.duplicate) setUsed((n) => n + 1);
+    if (!res.data.duplicate) {
+      setUsed((n) => n + 1);
+      track("ai_search_submitted", { mode, kind });
+    }
     if (kind === "message") setDraft("");
     setDirty(false);
     setActiveTurnId(res.data.turnId);

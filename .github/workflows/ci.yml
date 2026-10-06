@@ -148,6 +148,23 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
 
+  ai-docker:
+    name: AI executor (docker build + scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f server/Dockerfile.ai -t foundry-ai:ci server
+      # The slim image must import the executor and nothing else (the
+      # import-boundary test pins the same thing statically).
+      - run: docker run --rm foundry-ai:ci python -c "import app.ai.runner, app.ai.pipeline"
+      # Same policy as the gateway image: HIGH/CRITICAL with a fix fails.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: foundry-ai:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
   rls-smoke:
     name: RLS smoke (Supabase)
     runs-on: ubuntu-latest
@@ -286,13 +303,16 @@ jobs:
           API_URL=$(grep '^API_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           ANON=$(grep '^ANON_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           SRK=$(grep '^SERVICE_ROLE_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
-          echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
-          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON" >> "$GITHUB_ENV"
-          echo "SUPABASE_SERVICE_ROLE_KEY=$SRK" >> "$GITHUB_ENV"
-          # e2e/ai.spec.ts starts the AI executor and the projection worker
-          # against this stack, with the fake provider (AI-plan §14.4, F32).
+          # E2E_DB_URL: e2e/ai.spec.ts starts the AI executor and the
+          # projection worker against this stack, with the fake provider
+          # (AI-plan §14.4, F32).
           DBU=$(grep '^DB_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
-          echo "E2E_DB_URL=$DBU" >> "$GITHUB_ENV"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SRK"
+            echo "E2E_DB_URL=$DBU"
+          } >> "$GITHUB_ENV"
 
       # Python for the AI executor and worker the AI spec runs (F32).
       - uses: actions/setup-python@v7
