@@ -4,7 +4,7 @@
 
 export type Role =
   | "student" | "admin" | "reauth" | "emailchange"
-  | "connector" | "connectee";
+  | "connector" | "connectee" | "graduate";
 
 export type SeedUser = {
   role: Role;
@@ -90,6 +90,16 @@ export const USERS: Record<Role, SeedUser> = {
     surname: "Connectee",
     isAdmin: false,
     intakeComplete: true,
+  },
+  // Dedicated to graduates.spec.ts: confirming graduation turns this
+  // student into a recent graduate for the rest of the run.
+  graduate: {
+    role: "graduate",
+    email: "e2e-graduate@imperial.ac.uk",
+    password: "E2e-Graduate-Pw-123!",
+    firstName: "Gus",
+    surname: "Graduate",
+    isAdmin: false,
   },
 };
 

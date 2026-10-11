@@ -1435,6 +1435,8 @@ export type Database = {
           first_name: string
           github_url: string | null
           grad_year: number | null
+          graduation_confirmed_at: string | null
+          graduation_prompted_at: string | null
           id: string
           intake_completed_at: string | null
           intake_deferred_at: string | null
@@ -1476,6 +1478,8 @@ export type Database = {
           first_name?: string
           github_url?: string | null
           grad_year?: number | null
+          graduation_confirmed_at?: string | null
+          graduation_prompted_at?: string | null
           id: string
           intake_completed_at?: string | null
           intake_deferred_at?: string | null
@@ -1517,6 +1521,8 @@ export type Database = {
           first_name?: string
           github_url?: string | null
           grad_year?: number | null
+          graduation_confirmed_at?: string | null
+          graduation_prompted_at?: string | null
           id?: string
           intake_completed_at?: string | null
           intake_deferred_at?: string | null
@@ -2074,6 +2080,10 @@ export type Database = {
           post_title: string
         }[]
       }
+      admin_prompt_graduates: {
+        Args: { p_cutoff_year: number }
+        Returns: { email: string; first_name: string; user_id: string }[]
+      }
       admin_reveal_connection_note: {
         Args: { p_report_id: string }
         Returns: string
@@ -2303,6 +2313,10 @@ export type Database = {
       complete_connection_digests: {
         Args: { p_claim_id: string; p_emails: Json }
         Returns: number
+      }
+      confirm_my_graduation: {
+        Args: { p_graduated: boolean; p_new_grad_year?: number; p_still_enrolled?: boolean }
+        Returns: string
       }
       confirm_avatar_upload: {
         Args: { p_blob_key: string }

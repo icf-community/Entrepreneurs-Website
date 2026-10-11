@@ -1,0 +1,21 @@
+-- ════════════════════════════════════════════════════════════════════
+-- Foundry · Re-apply account deletions after a restore (S1)
+--
+-- A restore brings back every account deleted since that backup was taken,
+-- and the deleted_accounts tombstones with it are just as old. So:
+--
+--   1. BEFORE restoring, export the tombstones from the live database
+--      (it is small; it holds only SHA-256 hashes and times):
+--        \copy (select id_hash, deleted_at from public.deleted_accounts) to 'tombstones.csv' csv
+--   2. Restore.
+--   3. Load them back and replay, in the SQL editor or psql, as postgres:
+--        \copy public.deleted_accounts (id_hash, deleted_at) from 'tombstones.csv' csv
+--        -- (rows the backup already had are skipped by the next statement)
+--      then run this file.
+--
+-- If the live database is gone entirely, step 1 is impossible: deletions
+-- after the restored backup cannot be replayed automatically. Reconcile
+-- them by hand from the deletion confirmations in the appeals inbox.
+-- See docs/ops/restore-deletion-replay.md.
+-- ════════════════════════════════════════════════════════════════════
+select public.replay_account_deletions() as accounts_deleted_again;

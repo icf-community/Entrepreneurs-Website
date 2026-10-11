@@ -266,29 +266,25 @@ export async function sendAccountRemovalEmail(opts: {
   await enqueueEmail({ to: opts.to, subject, text, html, replyTo: appealsInbox() });
 }
 
-// ─── Graduation congrats + reapply-as-alum ──────────────────────────
-// Two exports: the single-recipient helper for any future ad-hoc use,
-// and a render helper used by the bulk-enqueue path in
-// /admin/graduates/actions.ts so it can produce N rows without
-// rebuilding the template logic.
-export function renderGraduationEmail(opts: {
+// ─── Graduation prompt ──────────────────────────────────────────────
+// Rendered for the bulk-enqueue path in /admin/graduates/actions.ts.
+// Graduates keep their account (20261011000005): this asks them to
+// confirm, and to add a personal email before their Imperial address is
+// switched off, because sign-in codes go to that address.
+export function renderGraduationPromptEmail(opts: {
   firstName: string | null;
-  alumSignupUrl: string;
+  homeUrl: string;
 }): { subject: string; text: string; html: string } {
   const greeting = opts.firstName ? `Hi ${escapeName(opts.firstName)},` : "Hi,";
-  const subject = "Congratulations on graduating from Imperial!";
+  const subject = "Have you graduated? Keep your Foundry account";
   const text = [
     greeting,
     "",
-    "Congratulations on graduating from Imperial College London — we wish you the very best for whatever you go on to build.",
+    "If you've graduated from Imperial, confirm it in Foundry to keep your account and see roles for graduates:",
     "",
-    "Foundry's student community is for current Imperial students, so your account will be removed shortly. If you'd like to stay involved as an alum, you're warmly welcome to reapply for an alumni account using a personal email — just visit:",
+    opts.homeUrl,
     "",
-    opts.alumSignupUrl,
-    "",
-    "Alumni applications are reviewed by an admin before access is granted; bring your strongest LinkedIn link.",
-    "",
-    "Thank you for being part of Foundry as a student — keep us posted on what you build next.",
+    "Sign-in codes go to your Imperial address, so add a personal email in Settings before it's switched off.",
     "",
     "— The Foundry team",
   ].join("\n");
@@ -296,30 +292,16 @@ export function renderGraduationEmail(opts: {
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; line-height: 1.6;">
       <p>${escapeHtml(greeting)}</p>
-      <p>Congratulations on graduating from Imperial College London — we wish you the very best for whatever you go on to build.</p>
-      <p>Foundry's student community is for current Imperial students, so your account will be removed shortly. If you'd like to stay involved as an alum, you're warmly welcome to reapply for an alumni account using a personal email:</p>
+      <p>If you've graduated from Imperial, confirm it in Foundry to keep your account and see roles for graduates.</p>
       <p style="margin: 16px 0;">
-        <a href="${escapeHtml(opts.alumSignupUrl)}" style="display: inline-block; padding: 10px 18px; border-radius: 8px; background: #c9a84c; color: #0c0c0b; text-decoration: none; font-weight: 500;">Apply as an alum →</a>
+        <a href="${escapeHtml(opts.homeUrl)}" style="display: inline-block; padding: 10px 18px; border-radius: 8px; background: #0c0c0b; color: #ffffff; text-decoration: none; font-weight: 500;">Confirm in Foundry →</a>
       </p>
-      <p>Alumni applications are reviewed by an admin before access is granted; bring your strongest LinkedIn link.</p>
-      <p>Thank you for being part of Foundry as a student — keep us posted on what you build next.</p>
+      <p>Sign-in codes go to your Imperial address, so add a personal email in Settings before it's switched off.</p>
       <p style="color: #5a5855; margin-top: 32px;">— The Foundry team</p>
     </div>
   `;
 
   return { subject, text, html };
-}
-
-export async function sendGraduationEmail(opts: {
-  to: string;
-  firstName: string | null;
-  alumSignupUrl: string;
-}): Promise<void> {
-  const { subject, text, html } = renderGraduationEmail({
-    firstName:     opts.firstName,
-    alumSignupUrl: opts.alumSignupUrl,
-  });
-  await enqueueEmail({ to: opts.to, subject, text, html, replyTo: contactInbox() });
 }
 
 // ─── Listing rejection ──────────────────────────────────────────────

@@ -866,6 +866,9 @@ declare
     -- the ID-specific detail read (same gate as the list), and the admin
     -- audience queue (is_admin() in-body).
     'get_my_education','set_my_education','viewer_admits_audience','get_approved_opportunity',
+    -- 20261011000005 graduates: admin prompt (is_admin() in-body, audited);
+    -- the member's own answer (caller-only, approved students only).
+    'admin_prompt_graduates','confirm_my_graduation',
     'admin_list_opportunities_needing_audience','admin_set_opportunity_audience',
     -- 20261006000001/3/4 AI. Flag and operator readers; the member's own
     -- settings, the concept labels, and the conversation/turn RPCs (each on
@@ -1415,11 +1418,17 @@ begin
      and (p.proname ~ '^(admin|approve|reject)_'
           or p.proname in ('list_pending_opportunities_admin',
                            'list_pending_events_admin'))
+     -- Retired on purpose (20261011000005): graduates transition instead.
+     and p.proname <> 'admin_delete_graduates'
      and not has_function_privilege('authenticated', p.oid, 'EXECUTE');
   if v_locked is not null then
     raise exception
       'FAIL: admin RPC(s) no longer EXECUTE-able by authenticated: % — the revoke '
       'took the admin console with it', v_locked;
+  end if;
+  -- ...and the retired bulk delete stays unreachable.
+  if has_function_privilege('authenticated', 'public.admin_delete_graduates(integer)', 'EXECUTE') then
+    raise exception 'FAIL: admin_delete_graduates is executable again; graduates must transition, not be deleted';
   end if;
 end;
 $$;
@@ -4660,152 +4669,105 @@ begin
 end; $$;
 
 
--- ─── 38. admin_delete_graduates deletes a NON-EMPTY cohort ───────────
--- The function returns early on an empty cohort, and that early return is
--- precisely what hid "column reference user_id is ambiguous" for four
--- months (docs/audits/C3-connections-benchmark-gate.md, Finding 2). Every
--- assertion here is therefore on a cohort with rows in it.
---
--- The fixture graduates are seeded at grad_year 1951 and the cutoff is
--- 1951, so this cannot reach the file's own 2025-2027 fixtures.
+-- ─── 38. Graduates transition; nobody is deleted (20261011000005) ────
+-- admin_delete_graduates is retired (its grant revoked; §"admin RPCs"
+-- above pins that). admin_prompt_graduates stamps the due cohort once and
+-- audits each; confirm_my_graduation is the member's own answer. Fixture
+-- graduates are at grad_year 1950 so the file's own fixtures (and the E2E
+-- graduate, at 1951) are out of reach, and the admin running it is in the cohort on purpose.
 do $$
 declare
-  v_admin uuid := (select v from _test_ctx where k = 'admin');
+  v_admin uuid := gen_random_uuid();
   v_g1    uuid := gen_random_uuid();
   v_g2    uuid := gen_random_uuid();
   v_keep  uuid := gen_random_uuid();
+  v_conn  uuid := gen_random_uuid();
   v_rows  int;
-  v_conn  uuid;
+  v_role  text;
   r       record;
 begin
   set local role postgres;
   perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
-
   insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
-    (v_g1,   'grad1@imperial.ac.uk', '{"first_name":"Gee","surname":"One","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
-    (v_g2,   'grad2@imperial.ac.uk', '{"first_name":"Gee","surname":"Two","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
-    (v_keep, 'keep1@imperial.ac.uk', '{"first_name":"Kee","surname":"Per","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
-
+    (v_admin, 'gradadmin@imperial.ac.uk', '{"first_name":"Grad","surname":"Admin","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_g1,    'grad1@imperial.ac.uk', '{"first_name":"Gee","surname":"One","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_g2,    'grad2@imperial.ac.uk', '{"first_name":"Gee","surname":"Two","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_keep,  'keep1@imperial.ac.uk', '{"first_name":"Kee","surname":"Per","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
   insert into public.profiles (id, role, status, first_name, surname, course, grad_year, profile_version)
   values
-    (v_g1,   'student', 'approved', 'Gee', 'One', 'MEng Computing', 1951, 2),
-    (v_g2,   'student', 'approved', 'Gee', 'Two', 'MEng Computing', 1951, 2),
-    (v_keep, 'student', 'approved', 'Kee', 'Per', 'MEng Computing', 2099, 2)
+    (v_admin, 'student', 'approved', 'Grad', 'Admin', 'MEng Computing', 1950, 2),
+    (v_g1,    'student', 'approved', 'Gee',  'One',   'MEng Computing', 1950, 2),
+    (v_g2,    'student', 'approved', 'Gee',  'Two',   'MEng Computing', 1950, 2),
+    (v_keep,  'student', 'approved', 'Kee',  'Per',   'MEng Computing', 2099, 2)
   on conflict (id) do update set
     status = excluded.status, course = excluded.course,
     grad_year = excluded.grad_year, profile_version = excluded.profile_version;
-
-  -- A connection between a doomed graduate and a survivor. Both FK columns
-  -- are on delete cascade, and the row must go with the graduate -- this is
-  -- the deletion path the connections index list exists for.
-  v_conn := gen_random_uuid();
+  insert into public.admins (user_id) values (v_admin);
   insert into public.connections (id, requester_id, addressee_id, status, consent_version, decided_at)
   values (v_conn, v_g1, v_keep, 'accepted', public.connection_consent_version(), now());
 
-  -- An admin_actions row authored BY a doomed graduate: it must survive the
-  -- delete with admin_id set to NULL (20260928000011).
-  insert into public.admin_actions (admin_id, action, target_table, target_id, notes)
-  values (v_g1, 'test_fixture', 'profiles', v_keep, 'authored by a doomed graduate');
-
   perform _set_caller(v_admin);
-
   v_rows := 0;
-  for r in select * from public.admin_delete_graduates(1951) loop
+  for r in select * from public.admin_prompt_graduates(1950) loop
     v_rows := v_rows + 1;
     if r.user_id not in (v_g1, v_g2) then
-      raise exception 'FAIL: admin_delete_graduates returned an unexpected member %', r.user_id;
+      raise exception 'FAIL: admin_prompt_graduates prompted an unexpected member %', r.user_id;
     end if;
-    if r.email is null or r.first_name is null then
-      raise exception 'FAIL: admin_delete_graduates returned a null identity for %', r.user_id;
+    if r.email is null then
+      raise exception 'FAIL: admin_prompt_graduates returned no address for %', r.user_id;
     end if;
   end loop;
   if v_rows <> 2 then
-    raise exception 'FAIL: expected 2 deleted graduates, got %', v_rows;
+    raise exception 'FAIL: expected 2 prompted graduates (never the admin running it), got %', v_rows;
+  end if;
+  if (select count(*) from public.admin_prompt_graduates(1950)) <> 0 then
+    raise exception 'FAIL: a second run prompted the same graduates again';
   end if;
 
   set local role postgres;
-  if exists (select 1 from auth.users where id in (v_g1, v_g2)) then
-    raise exception 'FAIL: a graduate survived the cohort delete';
+  if (select count(*) from auth.users where id in (v_admin, v_g1, v_g2, v_keep)) <> 4 then
+    raise exception 'FAIL: prompting graduates deleted an account';
   end if;
-  if not exists (select 1 from auth.users where id = v_keep) then
-    raise exception 'FAIL: the cohort delete reached outside the cutoff';
-  end if;
-  if exists (select 1 from public.connections where id = v_conn) then
-    raise exception 'FAIL: the connection did not cascade with the deleted graduate';
-  end if;
-  if (select count(*) from public.admin_actions
-       where action = 'admin_delete_graduate' and target_id in (v_g1, v_g2)) <> 2 then
-    raise exception 'FAIL: the cohort delete was not audited one row per graduate';
-  end if;
-  if not exists (select 1 from public.admin_actions
-                  where action = 'test_fixture' and target_id = v_keep and admin_id is null) then
-    raise exception 'FAIL: the cohort delete erased an admin_actions row a graduate authored';
+  if (select count(*) from public.admin_actions where action = 'admin_prompt_graduate' and target_id in (v_g1, v_g2)) <> 2 then
+    raise exception 'FAIL: the prompt was not audited one row per graduate';
   end if;
 
-  -- Re-entrancy: the temp table is `on commit drop`, so a second call in
-  -- this same transaction used to fail with "relation already exists".
-  perform _set_caller(v_admin);
-  perform public.admin_delete_graduates(1951);
-end; $$;
-
--- ─── 38b. The cleanup never deletes the admin running it ─────────────
--- Admins here ARE members: admin is granted by email after onboarding, so
--- a committee member who is an admin and whose graduation year has passed
--- lands in their own cohort. Before 20260917000009 the annual cleanup
--- deleted the person running it -- and then failed on
--- admin_actions_admin_id_fkey while writing the audit row against an
--- auth.users row it had just removed, rolling the WHOLE cleanup back with
--- nothing logged to say it had been attempted.
---
--- admin_delete_user has refused this for a single target since
--- 20260529000007 ("Use the self-service Delete Account flow"); this is the
--- bulk variant inheriting the same rule.
-do $$
-declare
-  v_selfadmin uuid := gen_random_uuid();
-  v_other     uuid := gen_random_uuid();
-  v_rows      int;
-begin
+  -- Graduated (not studying further): recent graduate, Graduates audience,
+  -- connections and account intact.
+  perform _set_caller(v_g1);
+  v_role := public.confirm_my_graduation(true, false, null);
   set local role postgres;
-  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  if v_role <> 'recent_grad' or (select role::text from public.profiles where id = v_g1) <> 'recent_grad' then
+    raise exception 'FAIL: confirming graduation did not make the member a recent graduate';
+  end if;
+  if not exists (select 1 from public.member_education where member_id = v_g1
+                  and has_completed_degree and not currently_enrolled) then
+    raise exception 'FAIL: confirming graduation did not record the completed degree';
+  end if;
+  if not exists (select 1 from public.connections where id = v_conn) then
+    raise exception 'FAIL: graduating removed the member''s connections';
+  end if;
+  if current_setting('foundry.affiliation_change', true) = 'true' then
+    raise exception 'FAIL: confirm_my_graduation left the affiliation marker raised';
+  end if;
 
-  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
-    (v_selfadmin, 'gradadmin@imperial.ac.uk', '{"first_name":"Grad","surname":"Admin","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
-    (v_other,     'grad3@imperial.ac.uk',     '{"first_name":"Gee","surname":"Three","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
-
-  insert into public.profiles (id, role, status, first_name, surname, course, grad_year, profile_version)
-  values
-    (v_selfadmin, 'student', 'approved', 'Grad', 'Admin', 'MEng Computing', 1952, 2),
-    (v_other,     'student', 'approved', 'Gee',  'Three', 'MEng Computing', 1952, 2)
-  -- on_auth_user_created has already inserted a bare profile row, so this
-  -- is an update in practice and `course` has to be set here or the
-  -- post-onboarding check constraint rejects the approved status.
-  on conflict (id) do update set
-    status = excluded.status, course = excluded.course,
-    grad_year = excluded.grad_year, profile_version = excluded.profile_version;
-
-  insert into public.admins (user_id) values (v_selfadmin) on conflict do nothing;
-
-  perform _set_caller(v_selfadmin);
-  select count(*) into v_rows from public.admin_delete_graduates(1952);
-
+  -- Not yet: a new expected year, still a student, prompt cleared.
+  perform _set_caller(v_g2);
+  v_role := public.confirm_my_graduation(false, null, extract(year from now())::int + 1);
   set local role postgres;
-  if v_rows <> 1 then
-    raise exception 'FAIL: expected 1 deleted graduate, got % (the caller was probably included)', v_rows;
+  if v_role <> 'student' or exists (select 1 from public.profiles where id = v_g2
+                                     and (graduation_prompted_at is not null or role <> 'student')) then
+    raise exception 'FAIL: "not yet" did not keep a student and clear the prompt';
   end if;
-  if not exists (select 1 from auth.users where id = v_selfadmin) then
-    raise exception 'FAIL: the graduate cleanup deleted the admin who ran it';
-  end if;
-  if exists (select 1 from auth.users where id = v_other) then
-    raise exception 'FAIL: the cohort delete did not remove the other graduate';
-  end if;
-  -- The audit is written BEFORE the destruction, so it exists whatever
-  -- happens later in the statement.
-  if not exists (select 1 from public.admin_actions
-                  where action = 'admin_delete_graduate'
-                    and admin_id = v_selfadmin and target_id = v_other) then
-    raise exception 'FAIL: the cohort delete was not audited against the calling admin';
-  end if;
+
+  -- Only an approved student can answer.
+  perform _set_caller(v_g1);
+  begin
+    perform public.confirm_my_graduation(true, false, null);
+    raise exception 'FAIL: a recent graduate confirmed graduation again';
+  exception when insufficient_privilege then null;
+  end;
+  set local role postgres;
 end; $$;
 
 -- ─── F-x4. Incident banner: admins publish, everyone reads, members can't write ─
@@ -5199,6 +5161,51 @@ begin
   end if;
   if not exists (select 1 from public.post_reports where id = v_report and status = 'dismissed') then
     raise exception 'FAIL: the report the deleted admin resolved did not stay resolved';
+  end if;
+end;
+$$;
+
+-- ─── S1. Deleted accounts stay deleted after a restore ──────────────
+-- (20261011000005). Every auth.users deletion leaves a hash-only
+-- tombstone; nobody but the service can read it; replaying it after a
+-- restore deletes the restored account again.
+do $$
+declare
+  v_id   uuid := gen_random_uuid();
+  v_hash text;
+  v_n    int;
+begin
+  set local role postgres;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_id, 'tomb@imperial.ac.uk', '{"first_name":"Tom","surname":"Stone","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  perform _set_caller(v_id);
+  perform public.delete_my_account();
+  set local role postgres;
+
+  v_hash := encode(extensions.digest(v_id::text, 'sha256'), 'hex');
+  if not exists (select 1 from public.deleted_accounts where id_hash = v_hash) then
+    raise exception 'FAIL: deleting an account left no tombstone';
+  end if;
+  if exists (select 1 from public.deleted_accounts where id_hash like '%tomb%' or id_hash = v_id::text) then
+    raise exception 'FAIL: a tombstone holds identity, not a hash';
+  end if;
+  if has_table_privilege('authenticated', 'public.deleted_accounts', 'SELECT')
+     or has_table_privilege('anon', 'public.deleted_accounts', 'SELECT')
+     or has_function_privilege('authenticated', 'public.replay_account_deletions()', 'EXECUTE') then
+    raise exception 'FAIL: tombstones or the replay are reachable by members';
+  end if;
+
+  -- A restore brings the account back (data loads with triggers off)...
+  set local session_replication_role = replica;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_id, 'tomb@imperial.ac.uk', '{"first_name":"Tom","surname":"Stone","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.profiles (id, role, status, first_name, surname) values (v_id, 'student', 'pending_onboarding', 'Tom', 'Stone');
+  set local session_replication_role = origin;
+  -- ...and the replay removes it again.
+  v_n := public.replay_account_deletions();
+  if v_n < 1 or exists (select 1 from auth.users where id = v_id) then
+    raise exception 'FAIL: replaying tombstones did not delete the restored account (replayed %, still there %)',
+      v_n, exists (select 1 from auth.users where id = v_id);
   end if;
 end;
 $$;
