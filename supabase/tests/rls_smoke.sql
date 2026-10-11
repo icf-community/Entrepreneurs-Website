@@ -5165,6 +5165,64 @@ begin
 end;
 $$;
 
+-- ─── S0. No policy calls a function its roles cannot execute ────────
+-- (20261011000006). Postgres checks EXECUTE when it plans a policy, so a
+-- revoked helper inside one makes every write it guards fail with
+-- "permission denied" — bookmarking a job did, for every member. The
+-- local image segfaults instead of raising, which is why this is a scan
+-- and not a call-and-catch.
+do $$
+declare
+  v_bad text;
+begin
+  set local role postgres;
+  select string_agg(distinct format('%s.%s → %s (%s)', c.relname, p.polname, f.proname, r.rolname), '; ') into v_bad
+    from pg_policy p
+    join pg_class c on c.oid = p.polrelid
+    join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+    cross join lateral regexp_matches(
+      coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), ''),
+      '(?:public\.)?([a-z_][a-z0-9_]*)\(', 'g') as m(fn)
+    join pg_proc f on f.proname = m.fn[1]
+    join pg_namespace fn on fn.oid = f.pronamespace and fn.nspname = 'public'
+    join pg_roles r on r.rolname in ('authenticated', 'anon')
+                   and (r.oid = any(p.polroles) or p.polroles = '{0}')
+   where not has_function_privilege(r.rolname, f.oid, 'EXECUTE');
+  if v_bad is not null then
+    raise exception 'FAIL: a policy calls a function its role cannot execute: %', v_bad;
+  end if;
+end;
+$$;
+
+-- And the write that broke, done for real as a student.
+do $$
+declare
+  v_student uuid := gen_random_uuid();
+  v_poster  uuid := gen_random_uuid();
+  v_opp     uuid;
+begin
+  set local role postgres;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_student, 's0-bm@imperial.ac.uk', '{"first_name":"Bo","surname":"Mark","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_poster,  's0-bp@imperial.ac.uk', '{"first_name":"Po","surname":"Ster","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  update public.profiles set status = 'approved', course = 'Computing', grad_year = 2028 where id in (v_student, v_poster);
+  insert into public.member_education (member_id, currently_enrolled, has_completed_degree) values (v_student, true, false);
+  insert into public.opportunities (posted_by, status, position_name, company, pay, location_type, description,
+    start_month, start_year, application_deadline, contact_email, apply_method, approved_at, approved_by, eligible_audience)
+  values (v_poster, 'approved', 'S0 bookmark role', 'S0 Co', 'Paid', 'remote', 'A role a student bookmarks in the S0 test.',
+    6, 2027, current_date + 30, 's0@test.invalid', 'email', now(), v_poster, 'students')
+  returning id into v_opp;
+
+  perform _set_caller(v_student);
+  insert into public.opportunity_bookmarks (user_id, opportunity_id) values (v_student, v_opp);
+  set local role postgres;
+  if not exists (select 1 from public.opportunity_bookmarks where user_id = v_student and opportunity_id = v_opp) then
+    raise exception 'FAIL: a student could not bookmark a job open to students';
+  end if;
+end;
+$$;
+
 -- ─── S1. Deleted accounts stay deleted after a restore ──────────────
 -- (20261011000005). Every auth.users deletion leaves a hash-only
 -- tombstone; nobody but the service can read it; replaying it after a

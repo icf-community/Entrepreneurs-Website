@@ -112,7 +112,24 @@ resolutions. All were left behind by the pre-fix race tests earlier the same day
 deleted test admins, about 6 ms apart), which confirms it catches exactly this damage. After
 cleanup it is clean. Run it after every load run, and by the owner in the prod window.
 
+## Double submits (every write action)
+
+`src/lib/actions/doubleSubmit.test.ts` makes every write action in the server-action registry
+declare why a second call is safe: a named database guarantee (proven by the tests above), or a
+named browser test. A new write action fails it until it does. 79 actions are classified.
+
+`e2e/double-submit.spec.ts` holds every server action for 1.5 s and double-clicks (plus Enter) the
+controls that rely on the browser:
+
+- each listing type is created once;
+- a bookmark tapped twice ends bookmarked once.
+
+**It found a real bug.** Migration `20261006000002`'s bookmark insert policy called
+`member_admits_audience`, which members can't execute, so every bookmark failed in production with
+"permission denied". No test had checked a successful bookmark write since. Fixed in
+`20261011000006`. `rls_smoke` now scans every policy for a function its roles can't execute, and
+bookmarks a job as a student.
+
 ## Still to do in S0 (tracked in tasks/todo.md)
 
-The double-submit pass on every mutating control (Playwright, with a registry coverage test); DB
-CPU per request down to ≤ 4.5 ms; a mixed read/write k6 run followed by the invariants.
+DB CPU per request down to ≤ 4.5 ms; a mixed read/write k6 run followed by the invariants.
