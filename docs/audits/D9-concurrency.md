@@ -81,7 +81,38 @@ Outside the migration:
   dedicated edit counter and a signature change across four forms. Owner can ask for it.
 - **E2E leaves `revoke_github_token` jobs** in the local database. Local only; prod has no E2E.
 
+## Under prod-like latency (2026-10-11)
+
+`scripts/perf/latency-up.sh` puts Toxiproxy in front of the local Supabase API (about 20 ms ±10
+per round trip, matching fra1 ↔ London). `E2E_LATENCY=1 scripts/e2e-local.sh` builds and tests
+through it, so the server, the browser and the fixtures all see the delay.
+
+- **Full suite: 259/262 on the first run.**
+- The three failures were test budgets set for a zero-latency machine: the 20-page 320 px reflow
+  walk (120 s) and two email-change tests waiting on Mailpit (30 s).
+- Re-run with a longer budget: **7/7 pass**. No app fault surfaced.
+- The latency pass runs with `--timeout=300000` in `scripts/verify-all.sh`.
+
+## Post-load invariants
+
+`supabase/checks/invariants.sql` (read-only) checks the outcomes concurrency can break:
+
+- one decision per listing or member;
+- one removal per post and one resolution per report;
+- one CV and one ingestion job per upload ticket;
+- one pending job per target;
+- no stuck jobs;
+- connection daily caps held;
+- no abandoned outbox claims;
+- AI leases, queue age, result counts, results only for retrieved candidates;
+- money caps and the surfaced cap.
+
+On its first run it flagged 17 double decisions, 3 double post removals and 3 double report
+resolutions. All were left behind by the pre-fix race tests earlier the same day (both rows by
+deleted test admins, about 6 ms apart), which confirms it catches exactly this damage. After
+cleanup it is clean. Run it after every load run, and by the owner in the prod window.
+
 ## Still to do in S0 (tracked in tasks/todo.md)
 
-Latency injection (Toxiproxy) with the double-submit pass on every mutating control; DB CPU per
-request down to ≤ 4.5 ms; `supabase/checks/invariants.sql` after a mixed read/write k6 run.
+The double-submit pass on every mutating control (Playwright, with a registry coverage test); DB
+CPU per request down to ≤ 4.5 ms; a mixed read/write k6 run followed by the invariants.

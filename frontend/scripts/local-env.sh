@@ -25,6 +25,14 @@ done
 eval "$(supabase status -o env --workdir .. 2>/dev/null | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=')"
 [[ "${API_URL:-}" =~ ^http://(127\.0\.0\.1|localhost) ]] || { echo "Local Supabase is not running (supabase start)." >&2; exit 1; }
 export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+# E2E_LATENCY=1: build and test through scripts/perf/latency-up.sh's proxy,
+# which adds a prod-like ~20 ms per round trip (S0). The server, the
+# browser and the test fixtures all reach Supabase through it.
+if [[ "${E2E_LATENCY:-}" == "1" ]]; then
+  curl -sf -o /dev/null -H "apikey: $ANON_KEY" http://127.0.0.1:54331/rest/v1/ ||
+    { echo "E2E_LATENCY=1 but the latency proxy is not up (scripts/perf/latency-up.sh)." >&2; exit 1; }
+  export NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54331"
+fi
 export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
 export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
 export CRON_SECRET="e2e-cron-secret"
