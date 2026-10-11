@@ -208,15 +208,21 @@ export async function loadJobRequirements(opportunityId: string): Promise<Result
 
 export type ConfirmAtom = { id?: string; concept?: string; kind?: string; required: boolean };
 
-export async function confirmRequirements(opportunityId: string, atoms: ConfirmAtom[]): Promise<Result> {
+export async function confirmRequirements(opportunityId: string, atoms: ConfirmAtom[], version: number): Promise<Result> {
   const m = await member();
   if (!m.ok) return m;
-  if (!UUID.test(opportunityId) || !Array.isArray(atoms) || atoms.length > 12) return err("That list isn't valid.");
+  if (!UUID.test(opportunityId) || !Array.isArray(atoms) || atoms.length > 12 || !Number.isInteger(version)) {
+    return err("That list isn't valid.");
+  }
   const decision = await check("aiEdit", m.data.userId);
   if (decision === "limited") return err(outcomeMessage("limited"));
   const { error } = await m.data.supabase.rpc("ai_confirm_job_requirements", {
     p_opportunity: opportunityId,
     p_atoms: atoms as never,
+    // The job version the poster was shown: if an edit was applied since,
+    // the database refuses rather than confirm outdated criteria (S1, R9).
+    p_expected_version: version,
   });
+  if (error?.message?.includes("requirements_outdated")) return err(outcomeMessage("requirements_outdated"));
   return error ? err("We couldn't save these requirements. Check them and try again.") : ok();
 }

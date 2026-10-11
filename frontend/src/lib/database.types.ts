@@ -2130,7 +2130,7 @@ export type Database = {
       }
       ai_cancel_turn: { Args: { p_turn: string }; Returns: undefined }
       ai_confirm_job_requirements: {
-        Args: { p_atoms: Json; p_opportunity: string }
+        Args: { p_atoms: Json; p_expected_version?: number; p_opportunity: string }
         Returns: undefined
       }
       ai_delete_all_history: { Args: never; Returns: undefined }

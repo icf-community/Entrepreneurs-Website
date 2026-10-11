@@ -143,6 +143,8 @@ export type JobRequirements = {
   role_level: string | null;
   atoms: SpecAtom[];
   confirmed_at: string | null;
+  /** The job version these requirements describe; sent back on confirm. */
+  content_version: number;
 } | null;
 
 export type AiSettings = {

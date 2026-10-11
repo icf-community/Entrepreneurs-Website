@@ -246,8 +246,12 @@ class Turn:
                                                "start": m.start})
         memory = []
         if self.ctx.get("use_memory"):
-            rows = await self.call("select * from ai_private.exec_memory(%s, %s, %s)",
-                                   (self.id, self.lease, message), many=True)
+            # Keyword plus vector search over the member's own earlier chats
+            # (§5.1). The message's embedding is stored on its own row so a
+            # later chat can find it; it expires and is forgotten with it.
+            embedding = await self._message_embedding(message)
+            rows = await self.call("select * from ai_private.exec_memory(%s, %s, %s, %s)",
+                                   (self.id, self.lease, message, embedding), many=True)
             memory = [privacy.minimise(r["body"], max_chars=600).text for r in rows]
         current = [
             {"atom": a.get("id"), "kind": a.get("kind"), "label": self.dictionary.label(a["concept"])
@@ -326,6 +330,36 @@ class Turn:
         await self.span("query_embedding", model, None, result.input_tokens, 0, cost, started, "ok", 1)
         literal = "[" + ",".join(repr(float(x)) for x in result.vectors[0]) + "]"
         await self.db.one("select ai_private.exec_embedding_put(%s, %s, %s)", (key, literal, model))
+        return literal
+
+    async def _message_embedding(self, message: str) -> str | None:
+        """Embed the member's own (minimised) message for memory search.
+        Not the shared query cache: a chat message's vector is personal data
+        and lives only on that message's row. Metered like every call; a
+        failure falls back to keyword memory."""
+        text = privacy.minimise(message, max_chars=1000).text
+        model = self.settings.embedding_model
+        timeout = min(10.0, self.remaining())
+        if not text.strip() or timeout < MIN_ATTEMPT_SECONDS:
+            return None
+        reservation = await self.call(
+            "select ai_private.exec_reserve(%s, %s, %s, %s, %s, %s)",
+            (self.id, self.lease, "memory_embedding", model, max(1, len(text) // 3) + 20, 0),
+        )
+        started = time.monotonic()
+        try:
+            result = await asyncio.wait_for(
+                self.provider.embed(reservation, model=model, texts=[text], timeout=timeout), timeout + 1)
+        except (ProviderError, asyncio.TimeoutError):
+            await self._abandon(reservation)
+            await self.span("memory_embedding", model, None, None, None, None, started, "provider_error", 1)
+            return None
+        cost = await self.db.one("select ai_private.exec_settle(%s, %s, %s, %s)",
+                                 (self.id, reservation, result.input_tokens, 0))
+        await self.span("memory_embedding", model, None, result.input_tokens, 0, cost, started, "ok", 1)
+        literal = "[" + ",".join(repr(float(x)) for x in result.vectors[0]) + "]"
+        await self.call("select ai_private.exec_message_embedding(%s, %s, %s, %s)",
+                        (self.id, self.lease, literal, model))
         return literal
 
     # ─── Stage 3: assess ───────────────────────────────────────────────

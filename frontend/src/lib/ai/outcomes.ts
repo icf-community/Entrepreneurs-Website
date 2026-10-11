@@ -7,6 +7,7 @@ const MESSAGES: Record<string, string> = {
   idempotency_conflict: "That search was already sent. Refresh the page and try again.",
   job_not_eligible: "Recruiter search is for open jobs you posted yourself.",
   requirements_unconfirmed: "Confirm this job's requirements before searching.",
+  requirements_outdated: "This job changed since you opened it. Reload to see its current requirements.",
   not_found: "That conversation is no longer available.",
   stale_revision: "Your criteria changed in another tab. Refresh to see the latest.",
   thread_full: "This conversation has reached 15 searches. Start a new one to continue.",

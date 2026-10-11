@@ -23,7 +23,7 @@ INVENTORY = {
     ("moderation.py", "moderate_cv"): "minimised CV text → moderation",
     ("github_pipeline.py", "_create_chat_completion"): "minimised repo metadata/READMEs, summary inputs",
     ("projection.py", "parse_requirements"): "minimised job advert → requirement list",
-    ("ai/provider.py", "OpenAIProvider._call"): "AI executor: interpretation, assessment, query embedding",
+    ("ai/provider.py", "OpenAIProvider._call"): "AI executor: interpretation, assessment, query and memory embeddings",
 }
 
 _SDK_ATTRS = {"completions", "embeddings", "moderations", "responses"}
