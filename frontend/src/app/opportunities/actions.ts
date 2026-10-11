@@ -64,7 +64,9 @@ export async function toggleOpportunityBookmark(opportunityId: string): Promise<
   const { error } = await supabase
     .from("opportunity_bookmarks")
     .insert({ user_id: user.id, opportunity_id: opportunityId });
-  if (error) return { ok: false, error: describeSupabaseError(error) };
+  // 23505: a concurrent tap (another tab) inserted it between the lookup
+  // and here. The bookmark exists, which is what was asked for (S0).
+  if (error && error.code !== "23505") return { ok: false, error: describeSupabaseError(error) };
   // No revalidatePath: in a server action it re-renders the CALLING page
   // into the response, so every bookmark click re-ran the whole
   // /opportunities listing (262 KB, E1b Stage 1). Nothing needs it: both

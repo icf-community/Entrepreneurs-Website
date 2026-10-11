@@ -5145,6 +5145,64 @@ begin
 end;
 $$;
 
+-- ─── S0. A decider can leave: approvals and resolutions survive it ──
+-- (20261011000001). approved_by / resolved_by are ON DELETE SET NULL, and
+-- CHECKs demanded them non-null, so an admin who had approved a listing or
+-- resolved a report could not delete their account. The scan makes the
+-- whole pattern fail here, not just the tables known today.
+do $$
+declare
+  v_bad text;
+begin
+  set local role postgres;
+  select string_agg(format('%s.%s (%s)', k.conrelid::regclass, a.attname, c.conname), ', ') into v_bad
+    from pg_constraint k
+    join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any(k.conkey)
+    join pg_constraint c on c.conrelid = k.conrelid and c.contype = 'c'
+   where k.contype = 'f' and k.confdeltype = 'n'
+     and pg_get_constraintdef(c.oid) ~ ('\m' || a.attname || '\M IS NOT NULL');
+  if v_bad is not null then
+    raise exception 'FAIL: a CHECK requires a column its foreign key sets to NULL on delete: %', v_bad;
+  end if;
+end;
+$$;
+
+do $$
+declare
+  v_admin  uuid := gen_random_uuid();
+  v_poster uuid := gen_random_uuid();
+  v_opp    uuid;
+  v_report uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_admin,  's0-admin@imperial.ac.uk',  '{"first_name":"Dee","surname":"Cider","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_poster, 's0-poster@imperial.ac.uk', '{"first_name":"Po","surname":"Ster","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.admins (user_id) values (v_admin);
+  insert into public.opportunities (posted_by, status, position_name, company, pay, location_type, description,
+    start_month, start_year, application_deadline, contact_email, apply_method, approved_at, approved_by,
+    eligible_audience)
+  values (v_poster, 'approved', 'S0 role', 'S0 Co', 'Paid', 'remote', 'A role used by the S0 deletion test.',
+    6, 2027, current_date + 30, 's0@test.invalid', 'email', now(), v_admin, 'both')
+  returning id into v_opp;
+  insert into public.post_reports (id, post_title_snapshot, category, reason, status, resolved_at, resolved_by)
+  values (v_report, 's0 report', 'spam', 'looked at', 'dismissed', now(), v_admin);
+
+  perform _set_caller(v_admin);
+  perform public.delete_my_account();
+  set local role postgres;
+  if exists (select 1 from auth.users where id = v_admin) then
+    raise exception 'FAIL: an admin who approved a listing could not delete their account';
+  end if;
+  if not exists (select 1 from public.opportunities where id = v_opp and status = 'approved' and approved_by is null) then
+    raise exception 'FAIL: the listing the deleted admin approved did not stay approved';
+  end if;
+  if not exists (select 1 from public.post_reports where id = v_report and status = 'dismissed') then
+    raise exception 'FAIL: the report the deleted admin resolved did not stay resolved';
+  end if;
+end;
+$$;
+
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
 -- above), so reset to the owner role before dropping the helper function.

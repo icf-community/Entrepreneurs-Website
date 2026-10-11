@@ -172,6 +172,26 @@ export type CacheKey =
 
 const key = (k: CacheKey) => `cache:v${VERSION}:${k}`;
 
+// S0: a load that started before a write must not store what it read
+// after the write's invalidate() ran — that pinned the old value for the
+// whole TTL. invalidate() bumps a per-key generation; a load notes the
+// generation before it queries and its write-back is a compare-and-set
+// that only stores while the generation is unchanged.
+const genKey = (k: CacheKey) => `cache:v${VERSION}:gen:${k}`;
+const lockKey = (k: CacheKey) => `cache:v${VERSION}:lock:${k}`;
+const SET_IF_UNCHANGED =
+  "local g = redis.call('GET', KEYS[2]) " +
+  "if (g == false and ARGV[2] == '') or g == ARGV[2] then " +
+  "redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[3]) return 1 end return 0";
+
+// Keys whose loader is expensive enough that every instance missing at
+// once is a database spike (the facets query is the slowest directory
+// read). One instance loads; the others wait briefly for its result.
+const SLOW: ReadonlySet<CacheKey> = new Set(["directoryFacets"]);
+const PEER_WAIT_STEPS = 6;
+const PEER_WAIT_STEP_MS = 100;
+const FILL_LOCK_MS = 3_000;
+
 /**
  * TTLs are the safety net, not the mechanism. Writes invalidate
  * explicitly (see invalidate() and its callers); these bound how long a
@@ -273,16 +293,27 @@ function fill<T>(name: CacheKey, loader: () => Promise<T>, isCacheable: (value: 
   const running = inFlight.get(name);
   if (running) return running as Promise<T>;
   const load = (async () => {
+    const live = redis && !breakerOpen() ? redis : null;
+    // Read before the query, so a write that commits during it is seen as
+    // a changed generation. Unknown (Redis slow or down) means don't store.
+    const before = live ? await readGeneration(live, name) : null;
+    let holdsLock = false;
+    if (live && SLOW.has(name)) {
+      const peer = await waitForPeer<T>(live, name);
+      if (peer.value !== undefined) return peer.value;
+      holdsLock = peer.holdsLock;
+    }
     const value = await loader();
     // One write per load, not one per waiter. after() runs it once the
     // response has been sent, so populating the cache never shows up in the
     // user's time-to-first-byte: awaiting it here would make the first
     // visitor after an invalidation pay for everyone else's speed-up.
-    if (redis && !breakerOpen() && isCacheable(value)) {
-      const r = redis;
+    if (live && before !== null && isCacheable(value)) {
       after(async () => {
         try {
-          await r.set(key(name), value, { ex: TTL_SECONDS[name] });
+          await live.eval(SET_IF_UNCHANGED, [key(name), genKey(name)],
+            [JSON.stringify(value), before, String(TTL_SECONDS[name])]);
+          if (holdsLock) await live.del(lockKey(name));
         } catch (e) {
           noteFailure(`write failed for ${name}`, e);
         }
@@ -292,6 +323,36 @@ function fill<T>(name: CacheKey, loader: () => Promise<T>, isCacheable: (value: 
   })().finally(() => inFlight.delete(name));
   inFlight.set(name, load);
   return load;
+}
+
+async function readGeneration(r: Redis, name: CacheKey): Promise<string | null> {
+  try {
+    const g = await withDeadline(r.get<string | number>(genKey(name)), READ_TIMEOUT_MS);
+    return g === null || g === undefined ? "" : String(g);
+  } catch (e) {
+    noteFailure(`generation read failed for ${name}`, e);
+    return null;
+  }
+}
+
+/**
+ * Take the fill lock, or wait up to ~600ms for the instance holding it to
+ * store the value. Never blocks longer than that: past it, load anyway —
+ * a duplicate query is better than a slow page.
+ */
+async function waitForPeer<T>(r: Redis, name: CacheKey): Promise<{ value?: T; holdsLock: boolean }> {
+  try {
+    const got = await withDeadline(r.set(lockKey(name), "1", { nx: true, px: FILL_LOCK_MS }), READ_TIMEOUT_MS);
+    if (got === "OK") return { holdsLock: true };
+    for (let i = 0; i < PEER_WAIT_STEPS; i++) {
+      await new Promise((resolve) => setTimeout(resolve, PEER_WAIT_STEP_MS));
+      const hit = await withDeadline(r.get<T>(key(name)), READ_TIMEOUT_MS);
+      if (hit !== null && hit !== undefined) return { value: hit, holdsLock: false };
+    }
+  } catch (e) {
+    noteFailure(`fill lock failed for ${name}`, e);
+  }
+  return { holdsLock: false };
 }
 
 /**
@@ -319,7 +380,12 @@ export async function invalidate(...requested: CacheKey[]): Promise<void> {
     // render must not be able to read the entry we are deleting.
     // Deliberately not behind the breaker either — dropping a stale key
     // matters more than conserving commands.
-    await redis.del(...names.map(key));
+    // The generation bump is what stops a load already in flight from
+    // writing the old value back (see SET_IF_UNCHANGED).
+    const p = redis.pipeline();
+    p.del(...names.map(key));
+    for (const n of names) p.incr(genKey(n));
+    await p.exec();
   } catch (e) {
     // Worst case the TTL expires it. Log rather than fail the write —
     // the user's action has already committed at this point.

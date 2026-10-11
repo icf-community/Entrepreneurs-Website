@@ -367,6 +367,39 @@ begin
     raise notice 'OK  7h-ii health_url present';
   end if;
 
+  -- 8. Statement/lock timeouts on every login that reaches the database
+  --    (20261011000002 for the two service logins; Supabase's own for
+  --    anon/authenticated). Without them a stuck query holds its locks
+  --    and its pooler slot indefinitely.
+  declare
+    v_missing text;
+  begin
+    select string_agg(r.rolname || ':' || s.setting, ', ') into v_missing
+      from (values ('anon', 'statement_timeout'), ('authenticated', 'statement_timeout'),
+                   ('ai_service', 'statement_timeout'), ('ai_service', 'lock_timeout'),
+                   ('ai_service', 'idle_in_transaction_session_timeout'),
+                   ('cv_worker', 'statement_timeout'), ('cv_worker', 'lock_timeout'),
+                   ('cv_worker', 'idle_in_transaction_session_timeout')) as s(rolname, setting)
+      join pg_roles r on r.rolname = s.rolname
+     where not exists (select 1 from unnest(coalesce(r.rolconfig, '{}')) c where c like s.setting || '=%');
+    if v_missing is not null then
+      raise exception 'FAIL 8 timeouts missing on: %', v_missing;
+    end if;
+    raise notice 'OK  8  statement/lock/idle timeouts on anon, authenticated, ai_service, cv_worker';
+  end;
+
+  -- 9. A decider can leave (20261011000001): no CHECK requires a column its
+  --    foreign key sets to NULL on delete.
+  if exists (
+    select 1 from pg_constraint k
+      join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any(k.conkey)
+      join pg_constraint c on c.conrelid = k.conrelid and c.contype = 'c'
+     where k.contype = 'f' and k.confdeltype = 'n'
+       and pg_get_constraintdef(c.oid) ~ ('\m' || a.attname || '\M IS NOT NULL')) then
+    raise exception 'FAIL 9 a CHECK requires a column its foreign key sets to NULL on delete';
+  end if;
+  raise notice 'OK  9  no CHECK blocks account deletion through a SET NULL foreign key';
+
   raise notice '─── ALL ASSERTIONS PASSED ───';
 end $$;
 

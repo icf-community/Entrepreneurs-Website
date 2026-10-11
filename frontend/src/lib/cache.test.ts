@@ -7,8 +7,32 @@ const ENV = { UPSTASH_REDIS_REST_URL: "https://example.upstash.io", UPSTASH_REDI
 const store = new Map<string, unknown>();
 const redis = {
   get: vi.fn(async (k: string) => (store.has(k) ? store.get(k) : null)),
-  set: vi.fn(async (k: string, v: unknown) => { store.set(k, v); return "OK"; }),
+  set: vi.fn(async (k: string, v: unknown, opts?: { nx?: boolean }) => {
+    if (opts?.nx && store.has(k)) return null;
+    store.set(k, v);
+    return "OK";
+  }),
   del: vi.fn(async (...ks: string[]) => { ks.forEach((k) => store.delete(k)); return ks.length; }),
+  incr: vi.fn(async (k: string) => { const n = Number(store.get(k) ?? 0) + 1; store.set(k, n); return n; }),
+  // The one script cache.ts runs: SET KEYS[1] only while KEYS[2] (the
+  // generation) still equals ARGV[2].
+  eval: vi.fn(async (_script: string, keys: string[], args: string[]) => {
+    const g = store.get(keys[1]);
+    if ((g === undefined && args[1] === "") || String(g) === args[1]) {
+      store.set(keys[0], JSON.parse(args[0]));
+      return 1;
+    }
+    return 0;
+  }),
+  pipeline: vi.fn(() => {
+    const ops: (() => Promise<unknown>)[] = [];
+    const p = {
+      del: (...ks: string[]) => { ops.push(() => redis.del(...ks)); return p; },
+      incr: (k: string) => { ops.push(() => redis.incr(k)); return p; },
+      exec: async () => { const out = []; for (const op of ops) out.push(await op()); return out; },
+    };
+    return p;
+  }),
 };
 
 // A class, not vi.fn(() => redis): the module is constructed with `new`,
@@ -53,14 +77,14 @@ describe("cached()", () => {
     await cached("vcs", loader, { isCacheable: (v) => v.length > 0 });
     await cached("vcs", loader, { isCacheable: (v) => v.length > 0 });
     expect(loader).toHaveBeenCalledTimes(2);
-    expect(redis.set).not.toHaveBeenCalled();
+    expect(redis.eval).not.toHaveBeenCalled();
   });
 
   it("skip bypasses both the read and the write, so an admin can't populate a shared key", async () => {
     const { cached } = await load();
     await cached("directoryFacets", async () => "admin-view", { skip: true });
     expect(redis.get).not.toHaveBeenCalled();
-    expect(redis.set).not.toHaveBeenCalled();
+    expect(redis.eval).not.toHaveBeenCalled();
   });
 
   it("falls back to the loader when Redis read fails", async () => {
@@ -71,7 +95,7 @@ describe("cached()", () => {
 
   it("still returns the value when the Redis write fails", async () => {
     const { cached } = await load();
-    redis.set.mockRejectedValueOnce(new Error("upstash down"));
+    redis.eval.mockRejectedValueOnce(new Error("upstash down"));
     expect(await cached("vcs", async () => "live")).toBe("live");
   });
 
@@ -98,7 +122,7 @@ describe("concurrent misses (E1b)", () => {
     const values = await Promise.all(calls);
     expect(loader).toHaveBeenCalledTimes(1);
     expect(values.every((v) => v.total === 5)).toBe(true);
-    expect(redis.set).toHaveBeenCalledTimes(1);
+    expect(redis.eval).toHaveBeenCalledTimes(1);
   });
 
   it("still share one call when Redis is not configured", async () => {
@@ -198,8 +222,8 @@ describe("latency guards", () => {
   it("does not block the response on the cache write", async () => {
     const { cached } = await load();
     let released: () => void = () => {};
-    redis.set.mockImplementationOnce(
-      () => new Promise<string>((resolve) => { released = () => resolve("OK"); }),
+    redis.eval.mockImplementationOnce(
+      () => new Promise<0 | 1>((resolve) => { released = () => resolve(1); }),
     );
 
     // Resolves even though the write is still outstanding.
@@ -248,5 +272,51 @@ describe("configuration", () => {
       UPSTASH_CACHE_REDIS_REST_TOKEN: "t2",
     });
     expect(split.cacheSharesRateLimitDb).toBe(false);
+  });
+});
+
+describe("S0: races between loads and writes", () => {
+  // The breaker tests above leave a permanent rejection on get().
+  beforeEach(() => { redis.get.mockImplementation(async (k: string) => (store.has(k) ? store.get(k) : null)); });
+
+  it("a load that started before an invalidation does not store the old value", async () => {
+    const { cached, invalidate } = await load();
+    let finishLoad: (v: string[]) => void = () => {};
+    const slowLoad = cached("vcs", () => new Promise<string[]>((resolve) => { finishLoad = resolve; }));
+    // While the old read is in flight, a write commits and invalidates.
+    await new Promise((r) => setTimeout(r, 20));
+    await invalidate("vcs");
+    finishLoad(["old"]);
+    expect(await slowLoad).toEqual(["old"]);
+    await new Promise((r) => setTimeout(r, 0));
+    // The next reader must go to the database, not get the stale copy.
+    const next = vi.fn(async () => ["new"]);
+    expect(await cached("vcs", next)).toEqual(["new"]);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("invalidation bumps the key's generation", async () => {
+    const { invalidate } = await load();
+    await invalidate("vcs");
+    await invalidate("vcs");
+    expect(store.get("cache:v1:gen:vcs")).toBe(2);
+  });
+
+  it("a slow key waits for the instance already loading it instead of querying too", async () => {
+    const { cached } = await load();
+    // Another instance holds the fill lock and stores its value shortly.
+    store.set("cache:v1:lock:directoryFacets", "1");
+    setTimeout(() => store.set("cache:v1:directoryFacets", { courses: ["Computing"] }), 150);
+    const loader = vi.fn(async () => ({ courses: [] as string[] }));
+    expect(await cached("directoryFacets", loader)).toEqual({ courses: ["Computing"] });
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("a slow key loads anyway when the lock holder never delivers", async () => {
+    const { cached } = await load();
+    store.set("cache:v1:lock:directoryFacets", "1");
+    const loader = vi.fn(async () => ({ courses: ["Physics"] }));
+    expect(await cached("directoryFacets", loader)).toEqual({ courses: ["Physics"] });
+    expect(loader).toHaveBeenCalledTimes(1);
   });
 });
