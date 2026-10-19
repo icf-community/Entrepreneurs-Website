@@ -342,7 +342,7 @@ begin
   begin
     perform public.update_event(v_ev, 'Hijacked',
       'Description that is at least twenty chars long.', 'https://lu.ma/adv',
-      now() + interval '30 days', 'Elsewhere', 'Own Er', 'owner@imperial.ac.uk', false);
+      now() + interval '30 days', 'Elsewhere', 'Own Er', 'owner@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
     v_ok := true;
   exception when others then null;
   end;

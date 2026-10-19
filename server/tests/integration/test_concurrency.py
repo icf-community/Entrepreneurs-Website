@@ -288,16 +288,21 @@ def test_an_avatar_ticket_is_consumed_once(db):
 def test_a_double_submitted_post_is_posted_once(db):
     """The duplicate check exists for exactly this (a double click on a
     slow connection) and missed it whenever the two requests overlapped."""
-    m = db.member("poster")
-    title = f"Hello {uuid.uuid4().hex[:6]}"
-    _, second = hold_then_race(
-        lambda cur: _one(cur, "select id from public.create_post(%s, 'Body text', '[]'::jsonb)", (title,)),
-        lambda cur: _one(cur, "select id from public.create_post(%s, 'Body text', '[]'::jsonb)", (title,)),
-        first_as=m, second_as=m,
-    )
-    assert isinstance(second, psycopg.Error)
-    assert db.execute("select count(*) from public.posts where author_id = %s and title = %s",
-                      (m, title)).fetchone()[0] == 1
+    saved = db.execute("select value from public.app_config where key='community_posts_enabled'").fetchone()[0]
+    db.execute("update public.app_config set value='true' where key='community_posts_enabled'")
+    try:
+        m = db.member("poster")
+        title = f"Hello {uuid.uuid4().hex[:6]}"
+        _, second = hold_then_race(
+            lambda cur: _one(cur, "select id from public.create_post(%s, 'Body text', '[]'::jsonb)", (title,)),
+            lambda cur: _one(cur, "select id from public.create_post(%s, 'Body text', '[]'::jsonb)", (title,)),
+            first_as=m, second_as=m,
+        )
+        assert isinstance(second, psycopg.Error)
+        assert db.execute("select count(*) from public.posts where author_id = %s and title = %s",
+                          (m, title)).fetchone()[0] == 1
+    finally:
+        db.execute("update public.app_config set value=%s where key='community_posts_enabled'", (saved,))
 
 
 def test_concurrent_like_toggles_never_error(db):
@@ -344,6 +349,8 @@ def test_an_edit_racing_approval_goes_through_review(db, admins, kind):
         edit = ("""select public.update_vc_grant(%s, 'vc', 'Edited title', 'Edited description of the fund for founders.', 'https://vc.test',
                      null, null, null)""", (listing,))
         table, column, original = "vcs_grants", "name", "Seed fund"
+    version = db.execute(f"select edit_version from public.{table} where id=%s", (listing,)).fetchone()[0]
+    edit = (edit[0][:-1] + f", p_expected_version => {version})", edit[1])
     _, second = hold_then_race(
         lambda cur: _one(cur, *approve),
         lambda cur: _one(cur, *edit),

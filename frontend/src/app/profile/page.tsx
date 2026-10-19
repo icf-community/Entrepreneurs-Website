@@ -1,3 +1,4 @@
+import type { Database } from "@/lib/database.overrides";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -6,7 +7,7 @@ import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unava
 import { computeDisplayName } from "@/lib/auth/guard";
 import { destinationForStatus } from "@/lib/auth/status";
 import AppShell from "@/components/app/AppShell";
-import { listSkillsDetailed, listSectors, profileIntakeData } from "@/lib/data/taxonomy";
+import { listSkillsDetailed, listSectors, type ProfileIntakeData } from "@/lib/data/taxonomy";
 import { signedImageUrls } from "@/lib/storage/blobRead";
 import AffiliationSection from "./AffiliationSection";
 import ProfileForm from "./ProfileForm";
@@ -18,21 +19,10 @@ export default async function ProfilePage() {
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
-  const [profileRes, skillTaxonomy, sectors, selected, isAdminRes, cvInfoRes, githubStatusRes, ingestionEnabledRes] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select(`
-        role, status, first_name, surname, course, grad_year,
-        linkedin_url, github_url, portfolio_url,
-        preferred_name, bio_focus, bio_hobbies, avatar_path,
-        current_focus, venture_stage, venture_name, venture_url, venture_one_liner,
-        recruiting_status, intent_urgency, availability_hours
-      `)
-      .eq("id", user.id)
-      .single(),
+  const [profileRes, skillTaxonomy, sectors, isAdminRes, cvInfoRes, githubStatusRes, ingestionEnabledRes] = await Promise.all([
+    supabase.rpc("get_my_profile_edit"),
     listSkillsDetailed(supabase),
     listSectors(supabase),
-    profileIntakeData(supabase, user.id),
     supabase.rpc("is_admin"),
     supabase.rpc("get_my_cv_info").maybeSingle(),
     supabase.rpc("get_my_github_status").maybeSingle(),
@@ -47,9 +37,12 @@ export default async function ProfilePage() {
   throwIfUnreachable("get_my_cv_info", cvInfoRes);
   throwIfUnreachable("get_my_github_status", githubStatusRes);
   throwIfUnreachable("github_cv_ingestion_enabled", ingestionEnabledRes);
-  const profile = profileRes.data;
+  if (profileRes.error) throw new Error("Failed to load profile edit snapshot");
+  const snapshot = profileRes.data as { profile: Database["public"]["Tables"]["profiles"]["Row"]; selected: ProfileIntakeData } | null;
+  const profile = snapshot?.profile;
+  const selected = snapshot?.selected;
   const isAdmin = !!isAdminRes.data;
-  if (!profile) redirect("/login");
+  if (!profile || !selected) redirect("/login");
   // Admins bypass the status gate so they can browse the user-facing UI for
   // diagnostics. Every non-approved status redirects (not just
   // pending_onboarding) — a member who is rejected or still in the review
@@ -95,6 +88,7 @@ export default async function ProfilePage() {
           </div>
 
           <ProfileForm
+            editVersion={profile.edit_version}
             role={profile.role}
             firstName={profile.first_name}
             surname={profile.surname}

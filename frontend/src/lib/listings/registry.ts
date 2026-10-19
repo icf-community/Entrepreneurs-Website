@@ -72,7 +72,7 @@ export type ListingDef = {
    * so `p` is precisely typed at the point the RPC arguments are built.
    */
   create: (db: Db, mode: SubmissionMode, payload: unknown) => Promise<Result>;
-  update: (db: Db, id: string, payload: unknown) => Promise<Result>;
+  update: (db: Db, id: string, payload: unknown, editVersion?: number) => Promise<Result>;
 };
 
 export const LISTINGS = {
@@ -94,11 +94,11 @@ export const LISTINGS = {
       const { error } = await db.rpc(rpc, opportunityRpcArgs(parsed.data));
       return error ? err(describeSupabaseError(error)) : ok();
     },
-    update: async (db, id, payload) => {
+    update: async (db, id, payload, editVersion) => {
       const parsed = validate(opportunitySchema, payload);
       if (!parsed.ok) return parsed;
       const { error } = await db.rpc("update_opportunity", {
-        p_id: id, ...opportunityRpcArgs(parsed.data),
+        p_id: id, p_expected_version: editVersion, ...opportunityRpcArgs(parsed.data),
       });
       return error ? err(describeSupabaseError(error)) : ok();
     },
@@ -126,10 +126,10 @@ export const LISTINGS = {
         : await db.rpc("submit_event", args);
       return error ? err(describeSupabaseError(error)) : ok();
     },
-    update: async (db, id, payload) => {
+    update: async (db, id, payload, editVersion) => {
       const parsed = validate(eventSchema, payload);
       if (!parsed.ok) return parsed;
-      const { error } = await db.rpc("update_event", { p_id: id, ...eventRpcArgs(parsed.data) });
+      const { error } = await db.rpc("update_event", { p_id: id, p_expected_version: editVersion, ...eventRpcArgs(parsed.data) });
       return error ? err(describeSupabaseError(error)) : ok();
     },
   },
@@ -148,10 +148,10 @@ export const LISTINGS = {
       const { error } = await db.rpc(rpc, vcGrantRpcArgs(parsed.data));
       return error ? err(describeSupabaseError(error)) : ok();
     },
-    update: async (db, id, payload) => {
+    update: async (db, id, payload, editVersion) => {
       const parsed = validate(vcGrantSchema, payload);
       if (!parsed.ok) return parsed;
-      const { error } = await db.rpc("update_vc_grant", { p_id: id, ...vcGrantRpcArgs(parsed.data) });
+      const { error } = await db.rpc("update_vc_grant", { p_id: id, p_expected_version: editVersion, ...vcGrantRpcArgs(parsed.data) });
       return error ? err(describeSupabaseError(error)) : ok();
     },
   },

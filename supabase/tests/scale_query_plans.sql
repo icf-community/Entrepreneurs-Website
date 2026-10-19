@@ -593,16 +593,97 @@ rollback to savepoint before_single_delete;
 -- Until 20260917000006 the RPC call below raised
 -- "column reference user_id is ambiguous" on any non-empty cohort —
 -- see docs/audits/C3-connections-benchmark-gate.md, Finding 2.
-savepoint before_cohort_rpc;
+--
+-- 20261011000005 retired admin_delete_graduates (S1: graduates transition
+-- status instead of being bulk-deleted) and revoked its EXECUTE grant
+-- from every client role, keeping the function only for history. It is
+-- no longer reachable from the app, so there is no "RPC itself" call to
+-- make here any more — calling a revoked SECURITY DEFINER function as
+-- `authenticated` is also known to segfault the local Supabase CLI 2.116
+-- image (docs/audits/D9-concurrency.md), so this step is skipped rather
+-- than worked around. The FK-cascade cost it used to measure through the
+-- RPC is still measured below, decomposed, because admin_delete_user can
+-- still be called many times in a tight admin loop and each call pays
+-- the same per-row RI check against `connections`.
+
+\echo ''
+\echo '════════════════════════════════════════════════════════════'
+\echo ' 9. update_profile under edit_version (20261011000007)'
+\echo '════════════════════════════════════════════════════════════'
+-- The optimistic-concurrency trigger (tg_edit_version, tg_related_edit_version)
+-- is new code with no prior scale measurement. The cost to watch:
+--   1. the row lock + version read add one extra column read, not a scan;
+--   2. tg_related_edit_version fires on every profile_skills/profile_sectors/
+--      profile_interests/profile_intents change and does an UPDATE on the
+--      parent profiles row — at 2000 members with ~12k profile_skills rows,
+--      a skill-set rewrite (delete-all + insert) must not turn into one
+--      UPDATE per inserted skill row rather than one net bump.
+-- Rolled back like every other write section here.
+savepoint before_profile_update;
+select edit_version as before_version from public.profiles where id = :'caller_id' \gset
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', :'admin_id', 'role', 'authenticated')::text, true);
+  json_build_object('sub', :'caller_id', 'role', 'authenticated')::text, true);
 
-select count(*) as rpc_deleted_graduates
-  from public.admin_delete_graduates(2021);
+explain (analyze, buffers)
+select public.update_profile('Scale', 'Prober', 'Computing', 2027, null, null, null,
+  p_expected_version => :before_version);
 
-rollback to savepoint before_cohort_rpc;
+set local role none;
+select edit_version - :before_version as version_delta from public.profiles where id = :'caller_id';
+rollback to savepoint before_profile_update;
+
+\echo ''
+\echo '--- 9b. a stale expected_version is refused, not a scan ---'
+-- Not EXPLAIN ANALYZE: the refusal is a RAISE EXCEPTION, which aborts the
+-- enclosing (sub)transaction on reaching the client — there is no plan to
+-- read past the row lock already timed in §9 above. This only confirms
+-- the refusal still fires at this corpus size.
+savepoint before_stale_update;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', :'caller_id', 'role', 'authenticated')::text, true);
+do $$
+begin
+  perform public.update_profile('Scale', 'Prober', 'Computing', 2027, null, null, null,
+    p_expected_version => -1);
+  raise exception 'expected PT409, got no error';
+exception when sqlstate 'PT409' then
+  raise notice 'ok 9b stale expected_version refused: %', sqlerrm;
+end $$;
+rollback to savepoint before_stale_update;
+
+\echo ''
+\echo '════════════════════════════════════════════════════════════'
+\echo ' 10. AI memory — per-member exact scan at the ~280-message ceiling'
+\echo '════════════════════════════════════════════════════════════'
+-- exec_memory (20261011000004) is deliberately an exact owner-scoped scan,
+-- not an ANN index, on the stated reasoning that a member accumulates at
+-- most about 280 live messages. This measures that ceiling directly: it
+-- does not need the 2000-member corpus (ai_private.messages is owner-
+-- scoped, so cross-member row count never enters the plan), only one
+-- member with enough rows to find out whether 280 rows times vector(1536)
+-- is still cheap under RLS. Rolled back; owner_id is the isolate so
+-- nothing here can collide with a live conversation.
+savepoint before_memory_seed;
+set local role none;
+insert into ai_private.conversations (id, owner_id, mode)
+  values (:'isolate_id'::uuid, :'isolate_id'::uuid, 'network')
+  on conflict (id) do nothing;
+insert into ai_private.messages (owner_id, conversation_id, role, kind, body, embedding, embedding_model)
+select :'isolate_id'::uuid, :'isolate_id'::uuid, 'member', 'message', 'scale probe message ' || gs,
+       (select ('[' || string_agg(round((random()*2-1)::numeric,4)::text, ',') || ']')::vector
+          from generate_series(1,1536)),
+       'text-embedding-3-small'
+  from generate_series(1,280) gs;
+
+explain (analyze, buffers)
+select id from ai_private.messages
+ where owner_id = :'isolate_id'::uuid
+ order by (embedding <=> (select embedding from ai_private.messages where owner_id = :'isolate_id'::uuid limit 1))
+ limit 12;
+rollback to savepoint before_memory_seed;
 
 set local role none;
 

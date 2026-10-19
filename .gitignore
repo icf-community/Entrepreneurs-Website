@@ -90,3 +90,5 @@ azure-clerk-migration-playbook.md
 envs.txt
 # Full logical backups from scripts/db-backup.sh (auth tokens + PII).
 /backups/
+# scripts/audit-local-schema.py output: a point-in-time local DB snapshot.
+/docs/verification/

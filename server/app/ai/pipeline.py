@@ -320,10 +320,10 @@ class Turn:
         try:
             result = await asyncio.wait_for(
                 self.provider.embed(reservation, model=model, texts=[text], timeout=timeout), timeout + 1)
-        except (ProviderError, asyncio.TimeoutError):
+        except (ProviderError, asyncio.TimeoutError) as exc:
             # Retrieval still runs on exact and lexical matches.
             await self._abandon(reservation)
-            await self.span("query_embedding", model, None, None, None, None, started, "provider_error", 1)
+            await self.span("query_embedding", model, None, None, None, None, started, exc.outcome if isinstance(exc, ProviderError) else "timeout", 1)
             return None
         cost = await self.db.one("select ai_private.exec_settle(%s, %s, %s, %s)",
                                  (self.id, reservation, result.input_tokens, 0))
@@ -350,9 +350,9 @@ class Turn:
         try:
             result = await asyncio.wait_for(
                 self.provider.embed(reservation, model=model, texts=[text], timeout=timeout), timeout + 1)
-        except (ProviderError, asyncio.TimeoutError):
+        except (ProviderError, asyncio.TimeoutError) as exc:
             await self._abandon(reservation)
-            await self.span("memory_embedding", model, None, None, None, None, started, "provider_error", 1)
+            await self.span("memory_embedding", model, None, None, None, None, started, exc.outcome if isinstance(exc, ProviderError) else "timeout", 1)
             return None
         cost = await self.db.one("select ai_private.exec_settle(%s, %s, %s, %s)",
                                  (self.id, reservation, result.input_tokens, 0))
@@ -734,7 +734,7 @@ async def run_turn(db: Db, provider, settings, dictionary: Dictionary, ctx: dict
         log.warning("turn %s: outbound policy refused a payload: %s", turn.id, exc.kinds)
         await turn.finish("failed", "error")
     except ProviderError as exc:
-        await turn.finish("failed", "unavailable" if exc.outcome in ("provider_error", "timeout") else "error")
+        await turn.finish("failed", "unavailable" if exc.outcome in ("provider_error", "timeout", "rate_limit", "server_error") else "error")
     except Exception:  # noqa: BLE001 — one turn's failure must not take down the runner
         log.exception("turn %s failed", turn.id)
         await turn.finish("failed", "error")

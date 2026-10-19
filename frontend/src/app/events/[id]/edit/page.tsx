@@ -3,10 +3,9 @@ import { notFound } from "next/navigation";
 import AppShell from "@/components/app/AppShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { posterName } from "@/lib/data/profiles";
-import { eventForEdit } from "@/lib/data/events";
+import { listingEditSnapshot } from "@/lib/listings/editSnapshot";
 import EventForm, { type EventInitialValues } from "../../new/EventForm";
 import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditStatusNote";
-import { pendingRevision } from "@/lib/listings/pendingRevision";
 
 type Params = { id: string };
 
@@ -31,7 +30,8 @@ export default async function EditEventPage({ params }: { params: Promise<Params
 
   // The RPC checks caller = poster, so a listing someone else posted
   // comes back empty and 404s here. Status still gates editability.
-  const row = await eventForEdit(supabase, id);
+  const snapshot = await listingEditSnapshot(supabase, "event", id);
+  const row = snapshot?.row;
   if (!row) notFound();
   // Rejected and expired listings stay closed — there is nothing
   // published to revise. Approved ones are editable now, through the
@@ -41,9 +41,7 @@ export default async function EditEventPage({ params }: { params: Promise<Params
   // When a revision is already queued, the form starts from *that*, not
   // from the live row — otherwise opening the page and saving would
   // silently throw away the change still waiting for review.
-  const revision = row.status === "approved"
-    ? await pendingRevision(supabase, "event", id)
-    : null;
+  const revision = snapshot?.revision;
   const src = { ...row, ...(revision?.proposed ?? {}) };
 
   const initialValues: EventInitialValues = {
@@ -79,6 +77,7 @@ export default async function EditEventPage({ params }: { params: Promise<Params
             defaultOrganiser={defaultOrganiser}
             mode="user"
             editingId={id}
+            editVersion={row.edit_version}
             initialValues={initialValues}
             reviewOnSave={row.status === "approved"}
           />

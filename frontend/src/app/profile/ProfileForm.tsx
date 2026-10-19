@@ -51,6 +51,7 @@ import { startPoll } from "@/lib/poll";
 // ════════════════════════════════════════════════════════════════════
 
 type Props = {
+  editVersion: number;
   role: Affiliation;
   firstName: string;
   surname: string;
@@ -99,6 +100,8 @@ export default function ProfileForm(props: Props) {
   const router = useRouter();
   const supabase = createClient();
 
+  const [editVersion, setEditVersion] = useState(props.editVersion);
+  const submitting = useRef(false);
   const [firstName, setFirstName] = useState(props.firstName);
   const [surname, setSurname] = useState(props.surname);
   const [course, setCourse] = useState(props.course);
@@ -159,6 +162,7 @@ export default function ProfileForm(props: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
     setError("");
     setSaved(false);
 
@@ -216,8 +220,10 @@ export default function ProfileForm(props: Props) {
       return;
     }
 
+    submitting.current = true;
     setIsLoading(true);
-    const { error: rpcError } = await supabase.rpc("update_profile", {
+    const { data: nextVersion, error: rpcError } = await supabase.rpc("update_profile", {
+      p_expected_version: editVersion,
       p_first_name:    trimmedFirst,
       p_surname:       trimmedSurname,
       p_course:        cleanedCourse,
@@ -244,6 +250,7 @@ export default function ProfileForm(props: Props) {
       p_intents:            intents,
     });
 
+    submitting.current = false;
     if (rpcError) {
       setError(describeSupabaseError(rpcError));
       setIsLoading(false);
@@ -258,6 +265,7 @@ export default function ProfileForm(props: Props) {
       return;
     }
 
+    setEditVersion(nextVersion!);
     setSaved(true);
     setIsLoading(false);
     await invalidateDirectoryCache();

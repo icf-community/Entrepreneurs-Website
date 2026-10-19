@@ -21,6 +21,6 @@ export async function submitVcGrant(
   return submitListing("vc_grant", args);
 }
 
-export async function updateOwnVcGrant(id: string, payload: unknown): Promise<Result<{ staged: boolean }>> {
-  return updateOwnListing("vc_grant", id, payload);
+export async function updateOwnVcGrant(id: string, payload: unknown, editVersion?: number): Promise<Result<{ staged: boolean }>> {
+  return updateOwnListing("vc_grant", id, payload, editVersion);
 }

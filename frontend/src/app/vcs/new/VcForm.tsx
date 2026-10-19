@@ -26,10 +26,11 @@ export type VcInitialValues = {
 };
 
 export default function VcForm({
-  mode, editingId, initialValues, reviewOnSave,
+  mode, editingId, editVersion, initialValues, reviewOnSave,
 }: {
   mode: Mode;
   editingId?: string;
+  editVersion?: number;
   initialValues?: VcInitialValues;
   /** Already approved: saving proposes a revision an admin reviews. */
   reviewOnSave?: boolean;
@@ -86,7 +87,7 @@ export default function VcForm({
     setIsLoading(true);
 
     if (editingId) {
-      const res = await updateOwnVcGrant(editingId, payload);
+      const res = await updateOwnVcGrant(editingId, payload, editVersion);
       if (!res.ok) {
         setError(res.error);
         setIsLoading(false);

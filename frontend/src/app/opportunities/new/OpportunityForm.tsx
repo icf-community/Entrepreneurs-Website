@@ -51,6 +51,7 @@ type Props = {
   sectors: Lookup[];
   mode: Mode;
   editingId?: string;
+  editVersion?: number;
   initialValues?: OpportunityInitialValues;
   /** Already approved: saving proposes a revision an admin reviews. */
   reviewOnSave?: boolean;
@@ -68,7 +69,7 @@ const START_YEARS = (() => {
   return out;
 })();
 
-export default function OpportunityForm({ signupEmail, skills, sectors, mode, editingId, initialValues, reviewOnSave }: Props) {
+export default function OpportunityForm({ signupEmail, skills, sectors, mode, editingId, editVersion, initialValues, reviewOnSave }: Props) {
   const router = useRouter();
 
   const iv = initialValues;
@@ -154,7 +155,7 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
     // Result<{ staged }> and the submit path returns Result<void>, and a
     // union of the two only narrows by widening res.data to unknown.
     if (editingId) {
-      const res = await updateOwnOpportunity(editingId, payload);
+      const res = await updateOwnOpportunity(editingId, payload, editVersion);
       if (!res.ok) {
         setError(res.error);
         setIsLoading(false);

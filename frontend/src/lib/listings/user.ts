@@ -56,6 +56,7 @@ export async function updateOwnListing(
   kind: ListingKind,
   id: string,
   payload: unknown,
+  editVersion?: number,
 ): Promise<Result<{ staged: boolean }>> {
   const def = LISTINGS[kind];
 
@@ -71,7 +72,7 @@ export async function updateOwnListing(
     return err("We can't accept changes right now. Please try again in a few minutes.");
   }
 
-  const res = await def.update(supabase, id, payload);
+  const res = await def.update(supabase, id, payload, editVersion);
   if (!res.ok) return res;
 
   const { data: pending } = await supabase.rpc("get_my_pending_listing_edit", {

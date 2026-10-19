@@ -27,8 +27,8 @@ export async function submitOpportunity(
   return submitListing("opportunity", args);
 }
 
-export async function updateOwnOpportunity(id: string, payload: unknown): Promise<Result<{ staged: boolean }>> {
-  return updateOwnListing("opportunity", id, payload);
+export async function updateOwnOpportunity(id: string, payload: unknown, editVersion?: number): Promise<Result<{ staged: boolean }>> {
+  return updateOwnListing("opportunity", id, payload, editVersion);
 }
 
 type ToggleResult =

@@ -196,6 +196,62 @@ Full numbers are in `tasks/todo.md` under E1b.
   The projection is 31% at think 5 s.
 - **Owner decides the E3 think time.**
 
+## 6. DB headroom re-measured (S0 gap 39, 2026-10-19)
+
+The ~6.7 ms DB CPU per request figure above predates migration 002's audience rewrites and the
+S0/S1/S2/S3 concurrency and AI-operations work. Re-measured against the full 5,007-member scale
+corpus (`seed_scale_corpus.sql`: ~29.8k `profile_skills`, 9,600 `cv_chunks`, 358 approved
+opportunities), a `scripts/perf-serve.sh` build (2 instances, `PERF_INSTANCES=2`), and
+`frontend/scripts/loadtest.js MODE=mixed STAGE=250 HOLD_SECONDS=120` (20 minted sessions, half
+the VUs anonymous, half signed in and writing):
+
+- **16,846 HTTP requests, 0 errors**, 630 bookmark on/off pairs, over the 150 s ramp-and-hold.
+- `pg_stat_statements` summed to **33,360 ms** of DB exec time over the whole run →
+  **≈ 1.98 ms DB CPU per request**, against the ≤ 4.5 ms target (≤ 50% of Medium at 500 VU /
+  2 s think time). At the old ~6.7 ms figure the same VU/think combination projected ≈ 71% of
+  Medium (the "coin toss" line in §5 above); at 1.98 ms the same projection is **≈ 21% of
+  Medium** — the thin-headroom risk (gap 39) is closed, not just mitigated.
+- No individual statement stood out as a fix target: the highest mean cost was
+  `list_approved_opportunities` at 8.37 ms mean / 32.7 ms max over 631 calls, 100% cache hit,
+  `EXPLAIN (ANALYZE, BUFFERS)` showing 3,155 buffer hits and zero reads for 268 returned rows.
+  That is a Function Scan opaque to the outer plan (the RPC's own cost is not broken out by
+  `EXPLAIN` at this level); nothing here needs the "fix the top offenders" step the plan allows
+  for, because the aggregate figure already clears the gate with room to spare.
+- **`supabase/checks/invariants.sql` passed (all 10 groups) both before and after the run** —
+  no duplicate decisions, no orphan rows, no stuck leases, counters matched row counts.
+- New `scale_query_plans.sql` §9/§9b measured the optimistic-concurrency trigger added in
+  `20261011000007` under this same corpus: `update_profile` with the `edit_version` check ran in
+  7.1 ms end to end (one version bump, not one per related-table row), and a stale
+  `p_expected_version` was refused in-plan rather than falling through to a scan. The bulk
+  `admin_delete_user`-style cascade exercised by §8k-iii (2.1 s for the whole decomposed cohort
+  delete, pre-existing and documented in that section) showed the new `related_edit_version`
+  trigger adding ~50 ms of its 2.1 s total across 5,413 `profile_skills` row events — noise
+  against an already-expensive, rare, admin-only path.
+- New `scale_query_plans.sql` §10 measured `exec_memory`'s exact owner-scoped vector scan
+  (`20261011000004`) at its stated ~280-message-per-member ceiling directly (not at the 5,007-
+  member corpus scale, since the scan is `owner_id`-filtered and cross-member row count never
+  enters the plan): 280 messages × `vector(1536)`, `Index Scan` on `messages_owner_created_idx`
+  pre-filtering by owner before the exact distance sort, **1.3–2.0 ms execution**. The "no
+  HNSW" call in that migration's header holds at this ceiling.
+- **Fixture gap found and fixed, not a product bug:** `seed_scale_corpus.sql` set
+  `opportunities.status` but never `eligible_audience` (added in `20261006000002`, after the
+  corpus seeder was last touched), and never populated `member_education` at all — both NULL
+  means "not yet classified" by design, so every audience-gated read
+  (`list_approved_opportunities`, the bookmark policy, `viewer_admits_audience`) returned zero
+  rows for the whole corpus regardless of how many opportunities were approved. Fixed in the
+  seeder: opportunities now get a `both`/`students`/`graduates` mix (a few left `NULL` on
+  purpose, to keep the admin "needs review" state represented), and every corpus member gets a
+  `member_education` row backfilled from the role already assigned to them.
+- **Local-only CLI quirk, not a data issue:** `scale_query_plans.sql` §8k-iii called
+  `admin_delete_graduates`, which `20261011000005` (S1, gap 17) retired and revoked from every
+  client role when graduates moved to a status transition instead of bulk deletion. Calling a
+  revoked `SECURITY DEFINER` function as `authenticated` segfaults the local Supabase CLI 2.116
+  Postgres image (`docs/audits/D9-concurrency.md`); Postgres restarted cleanly and no data was
+  lost, but the section was rewritten to skip that now-dead call rather than work around the
+  segfault, since the function is unreachable from the app regardless.
+- Scale corpus removed after the run (`drop_scale_corpus.sql`); local DB back to its normal
+  seven-account state, `invariants.sql` clean, full `pytest` (408) and SQL suites clean.
+
 ## Open items
 
 - **Owner:** asymmetric JWT signing keys ON (§2).

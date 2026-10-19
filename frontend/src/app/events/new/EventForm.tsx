@@ -31,6 +31,7 @@ type Props = {
   defaultOrganiser: string;
   mode: Mode;
   editingId?: string;
+  editVersion?: number;
   initialValues?: EventInitialValues;
   /**
    * The listing is already approved, so saving proposes a revision an
@@ -40,7 +41,7 @@ type Props = {
   reviewOnSave?: boolean;
 };
 
-export default function EventForm({ signupEmail, defaultOrganiser, mode, editingId, initialValues, reviewOnSave }: Props) {
+export default function EventForm({ signupEmail, defaultOrganiser, mode, editingId, editVersion, initialValues, reviewOnSave }: Props) {
   const router = useRouter();
 
   const iv = initialValues;
@@ -104,7 +105,7 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
     setIsLoading(true);
 
     if (editingId) {
-      const res = await updateOwnEvent(editingId, payload);
+      const res = await updateOwnEvent(editingId, payload, editVersion);
       if (!res.ok) {
         setError(res.error);
         setIsLoading(false);

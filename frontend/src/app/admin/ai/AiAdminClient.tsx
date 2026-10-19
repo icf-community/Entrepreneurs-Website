@@ -10,6 +10,12 @@ import { formatDate } from "@/lib/dates";
 import { rebuildAiIndex, setAiFlag, setAiLimits, setOpportunityAudience } from "./actions";
 
 export type AiOverview = {
+  refusals_24h: Record<string, number>;
+  polls_24h: number;
+  provider_errors_24h: Record<string, number>;
+  queue_wait_ms_24h: { p50: number | null; p95: number | null };
+  provider_in_flight: number;
+  cost_today: { reserved: number; settled: number; projected: number };
   is_operator: boolean;
   flags: { ai_enabled: boolean; recruiter: boolean; network: boolean; opportunities: boolean };
   limits: {
@@ -68,6 +74,12 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
         <Stat label="Matching spend today" value={`${dollars(o.spend_today.matching)} of ${dollars(o.limits.matching_daily_cap_micro)}`} />
         <Stat label="Ingestion spend today" value={`${dollars(o.spend_today.ingestion)} of ${dollars(o.limits.ingestion_daily_cap_micro)}`} />
         <Stat label="Unreconciled calls" value={String(o.spend_today.unreconciled)} />
+        <Stat label="Provider requests" value={`${o.provider_in_flight} of ${o.limits.provider_request_ceiling}`} />
+        <Stat label="Queue wait (24h)" value={o.queue_wait_ms_24h.p50 == null ? "—" : `p50 ${Math.round(o.queue_wait_ms_24h.p50)}ms · p95 ${Math.round(o.queue_wait_ms_24h.p95 ?? 0)}ms`} />
+        <Stat label="Status polls (24h)" value={String(o.polls_24h)} />
+        <Stat label="Reserved / uncertain cost" value={dollars(o.cost_today.reserved)} />
+        <Stat label="Settled cost today" value={dollars(o.cost_today.settled)} />
+        <Stat label="Projected daily cost (current pace)" value={dollars(o.cost_today.projected)} />
         <Stat label="Queue" value={`${o.queue.queued} waiting · ${o.queue.running} running`} />
         <Stat label="Oldest waiting" value={o.queue.oldest_queued_seconds == null ? "—" : `${o.queue.oldest_queued_seconds}s`} />
         <Stat label="Result time (24h)" value={o.latency_ms_24h.p50 == null ? "—" : `p50 ${Math.round(o.latency_ms_24h.p50 / 1000)}s · p95 ${Math.round((o.latency_ms_24h.p95 ?? 0) / 1000)}s`} />
@@ -134,6 +146,8 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
       <section className="rounded-2xl border border-border bg-bg-card p-6">
         <h2 className="text-[0.95rem] font-medium">Last 24 hours</h2>
         <dl className="mt-3 grid gap-2 text-[0.8rem] sm:grid-cols-2">
+          {Object.entries(o.refusals_24h).map(([k, v]) => <div key={`r-${k}`}><dt className="inline text-text-muted">Admission: {k.replaceAll("_", " ")}: </dt><dd className="inline">{v}</dd></div>)}
+          {Object.entries(o.provider_errors_24h).map(([k, v]) => <div key={`p-${k}`}><dt className="inline text-text-muted">Provider: {k.replaceAll("_", " ")}: </dt><dd className="inline">{v}</dd></div>)}
           {Object.entries(o.turns_24h).map(([k, v]) => <div key={k}><dt className="inline text-text-muted">{k}: </dt><dd className="inline">{v}</dd></div>)}
           {Object.entries(o.outcomes_24h).map(([k, v]) => <div key={`o-${k}`}><dt className="inline text-text-muted">{k}: </dt><dd className="inline">{v}</dd></div>)}
         </dl>

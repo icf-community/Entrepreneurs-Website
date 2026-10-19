@@ -434,7 +434,7 @@ begin
       p_linkedin_url  => 'https://linkedin.com/in/alum13',
       p_github_url    => null,
       p_portfolio_url => null
-    );
+    , p_expected_version => (public.get_my_profile_edit()->'profile'->>'edit_version')::bigint);
     raise exception 'FAIL: alum set a future graduation year';
   exception
     when sqlstate '22023' then null;  -- expected: grad-year bound
@@ -793,7 +793,7 @@ declare
     -- apply_listing_edit_payload, listing_snapshot and listing_table_name
     -- are deliberately absent — they are internal, and section 34 asserts
     -- a member cannot reach them.
-    'listing_has_pending_edit','get_my_pending_listing_edit',
+    'listing_has_pending_edit','get_my_pending_listing_edit','get_my_profile_edit','get_my_listing_edit',
     'admin_list_listing_edits','admin_apply_listing_edit',
     'admin_reject_listing_edit','admin_update_listing',
     -- ingestion kill switch (20260911000003) — read by the two RPCs above
@@ -1152,7 +1152,7 @@ begin
   begin
     perform public.update_event(v_ev, 'HIJACKED',
       'Description that is at least twenty chars long.', 'https://lu.ma/g',
-      now() + interval '30 days', 'London', 'B User', 'b@imperial.ac.uk', false);
+      now() + interval '30 days', 'London', 'B User', 'b@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -1162,7 +1162,7 @@ begin
   begin
     perform public.update_vc_grant(v_vc, 'vc', 'HIJACKED',
       'Description that is at least twenty chars long.', 'https://example.com/g',
-      null, null, null);
+      null, null, null, p_expected_version => (public.get_my_listing_edit('vc_grant', v_vc)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -1172,10 +1172,10 @@ begin
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'Edited via RPC',
     'Description that is at least twenty chars long.', 'https://lu.ma/g',
-    now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
   perform public.update_vc_grant(v_vc, 'grant', 'Edited via RPC',
     'Description that is at least twenty chars long.', 'https://example.com/g',
-    null, null, null);
+    null, null, null, p_expected_version => (public.get_my_listing_edit('vc_grant', v_vc)->'row'->>'edit_version')::bigint);
 
   set local role none;
   select title into v_title from public.events     where id = v_ev;
@@ -1197,10 +1197,10 @@ begin
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'TOO LATE',
     'Description that is at least twenty chars long.', 'https://lu.ma/g',
-    now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
   perform public.update_vc_grant(v_vc, 'vc', 'TOO LATE',
     'Description that is at least twenty chars long.', 'https://example.com/g',
-    null, null, null);
+    null, null, null, p_expected_version => (public.get_my_listing_edit('vc_grant', v_vc)->'row'->>'edit_version')::bigint);
 
   set local role none;
   select title into v_title from public.events     where id = v_ev;
@@ -1222,7 +1222,7 @@ begin
   begin
     perform public.update_vc_grant(v_vc, 'vc', 'TOO LATE',
       'Description that is at least twenty chars long.', 'https://example.com/g',
-      null, null, null);
+      null, null, null, p_expected_version => (public.get_my_listing_edit('vc_grant', v_vc)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -1238,7 +1238,7 @@ begin
   begin
     perform public.update_event(v_ev, 'Backdated',
       'Description that is at least twenty chars long.', 'https://lu.ma/g',
-      now() - interval '2 days', 'London', 'A User', 'a@imperial.ac.uk', false);
+      now() - interval '2 days', 'London', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -2233,7 +2233,7 @@ begin
       p_linkedin_url  => 'https://linkedin.com/in/foundry-test',
       p_github_url    => null,
       p_portfolio_url => null
-    );
+    , p_expected_version => (public.get_my_profile_edit()->'profile'->>'edit_version')::bigint);
     raise exception 'FAIL: a rejected member saved profile edits via update_profile';
   exception when sqlstate '42501' then v_ok := true;
   end;
@@ -2472,7 +2472,7 @@ begin
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'Revision fixture',
     'Description that is at least twenty chars long.', 'https://lu.ma/r',
-    now() + interval '30 days', 'Blackett 202', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'Blackett 202', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
 
   set local role none;
   select location into v_txt from public.events where id = v_ev;
@@ -2484,7 +2484,7 @@ begin
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'Revision fixture',
     'Description that is at least twenty chars long.', 'https://lu.ma/r',
-    now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
   set local role none;
   select count(*) into v_n from public.listing_edits where listing_id = v_ev and status = 'pending';
   if v_n <> 1 then raise exception 'FAIL: % open revisions on one listing', v_n; end if;
@@ -2497,7 +2497,7 @@ begin
   begin
     perform public.update_event(v_ev, 'x',
       'Description that is at least twenty chars long.', 'https://lu.ma/r',
-      now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false);
+      now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -2584,7 +2584,7 @@ begin
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'Revision fixture',
     'Description that is at least twenty chars long.', 'https://lu.ma/r',
-    now() + interval '30 days', 'Doomed room', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'Doomed room', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
   perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
   set local role none;
   update public.events set status = 'expired' where id = v_ev;

@@ -60,9 +60,9 @@ class OpenAIProvider:
         except openai.APITimeoutError as exc:
             raise ProviderError("timeout") from exc
         except openai.RateLimitError as exc:
-            raise ProviderError("provider_error", "rate limited") from exc
+            raise ProviderError("rate_limit") from exc
         except openai.APIError as exc:
-            raise ProviderError("provider_error", type(exc).__name__) from exc
+            raise ProviderError("server_error" if getattr(exc, "status_code", 0) and exc.status_code >= 500 else "provider_error") from exc
 
     async def json(
         self, reservation: uuid.UUID, *, model: str, name: str, system: str, user: str, schema: dict,

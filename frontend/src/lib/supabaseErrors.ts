@@ -58,6 +58,8 @@ export function describeSupabaseError(err: AnyError): string {
     return "Your session has expired. Please sign in again.";
   }
 
+  if (code === "PT409") return "This changed in another tab — reload before saving.";
+
   // Row-level security blocked the call (insufficient_privilege).
   //
   // Two very different things arrive here. Postgres's own denials ("new row

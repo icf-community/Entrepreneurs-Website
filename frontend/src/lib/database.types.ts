@@ -473,6 +473,21 @@ export type Database = {
           },
         ]
       }
+      deleted_accounts: {
+        Row: {
+          deleted_at: string
+          id_hash: string
+        }
+        Insert: {
+          deleted_at?: string
+          id_hash: string
+        }
+        Update: {
+          deleted_at?: string
+          id_hash?: string
+        }
+        Relationships: []
+      }
       email_change_log: {
         Row: {
           changed_at: string
@@ -505,6 +520,7 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          edit_version: number
           event_at: string
           id: string
           is_society_event: boolean
@@ -524,6 +540,7 @@ export type Database = {
           contact_email_visible?: boolean
           created_at?: string
           description: string
+          edit_version?: number
           event_at: string
           id?: string
           is_society_event?: boolean
@@ -543,6 +560,7 @@ export type Database = {
           contact_email_visible?: boolean
           created_at?: string
           description?: string
+          edit_version?: number
           event_at?: string
           id?: string
           is_society_event?: boolean
@@ -872,6 +890,7 @@ export type Database = {
           created_at: string
           creation_source: string
           description: string
+          edit_version: number
           eligible_audience: string | null
           id: string
           location_text: string | null
@@ -899,6 +918,7 @@ export type Database = {
           created_at?: string
           creation_source?: string
           description: string
+          edit_version?: number
           eligible_audience?: string | null
           id?: string
           location_text?: string | null
@@ -926,6 +946,7 @@ export type Database = {
           created_at?: string
           creation_source?: string
           description?: string
+          edit_version?: number
           eligible_audience?: string | null
           id?: string
           location_text?: string | null
@@ -1432,6 +1453,7 @@ export type Database = {
           cv_path: string | null
           cv_suggested_skill_ids: number[] | null
           cv_uploaded_at: string | null
+          edit_version: number
           first_name: string
           github_url: string | null
           grad_year: number | null
@@ -1475,6 +1497,7 @@ export type Database = {
           cv_path?: string | null
           cv_suggested_skill_ids?: number[] | null
           cv_uploaded_at?: string | null
+          edit_version?: number
           first_name?: string
           github_url?: string | null
           grad_year?: number | null
@@ -1518,6 +1541,7 @@ export type Database = {
           cv_path?: string | null
           cv_suggested_skill_ids?: number[] | null
           cv_uploaded_at?: string | null
+          edit_version?: number
           first_name?: string
           github_url?: string | null
           grad_year?: number | null
@@ -1680,6 +1704,7 @@ export type Database = {
           created_at: string
           deadline: string | null
           description: string
+          edit_version: number
           id: string
           kind: Database["public"]["Enums"]["vc_grant_kind"]
           link: string
@@ -1697,6 +1722,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description: string
+          edit_version?: number
           id?: string
           kind: Database["public"]["Enums"]["vc_grant_kind"]
           link: string
@@ -1714,6 +1740,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description?: string
+          edit_version?: number
           id?: string
           kind?: Database["public"]["Enums"]["vc_grant_kind"]
           link?: string
@@ -2056,6 +2083,14 @@ export type Database = {
           total: number
         }[]
       }
+      admin_prompt_graduates: {
+        Args: { p_cutoff_year: number }
+        Returns: {
+          email: string
+          first_name: string
+          user_id: string
+        }[]
+      }
       admin_reject_listing_edit: {
         Args: { p_edit_id: string; p_reason: string }
         Returns: {
@@ -2079,10 +2114,6 @@ export type Database = {
           first_name: string
           post_title: string
         }[]
-      }
-      admin_prompt_graduates: {
-        Args: { p_cutoff_year: number }
-        Returns: { email: string; first_name: string; user_id: string }[]
       }
       admin_reveal_connection_note: {
         Args: { p_report_id: string }
@@ -2140,7 +2171,11 @@ export type Database = {
       }
       ai_cancel_turn: { Args: { p_turn: string }; Returns: undefined }
       ai_confirm_job_requirements: {
-        Args: { p_atoms: Json; p_expected_version?: number; p_opportunity: string }
+        Args: {
+          p_atoms: Json
+          p_expected_version?: number
+          p_opportunity: string
+        }
         Returns: undefined
       }
       ai_delete_all_history: { Args: never; Returns: undefined }
@@ -2314,10 +2349,6 @@ export type Database = {
         Args: { p_claim_id: string; p_emails: Json }
         Returns: number
       }
-      confirm_my_graduation: {
-        Args: { p_graduated: boolean; p_new_grad_year?: number; p_still_enrolled?: boolean }
-        Returns: string
-      }
       confirm_avatar_upload: {
         Args: { p_blob_key: string }
         Returns: undefined
@@ -2334,6 +2365,14 @@ export type Database = {
           p_github_username: string
         }
         Returns: undefined
+      }
+      confirm_my_graduation: {
+        Args: {
+          p_graduated: boolean
+          p_new_grad_year?: number
+          p_still_enrolled?: boolean
+        }
+        Returns: string
       }
       connection_assert_can_block: {
         Args: { p_caller: string }
@@ -2597,6 +2636,13 @@ export type Database = {
           listing_kind: Database["public"]["Enums"]["listing_event_kind"]
         }[]
       }
+      get_my_listing_edit: {
+        Args: {
+          p_id: string
+          p_kind: Database["public"]["Enums"]["listing_event_kind"]
+        }
+        Returns: Json
+      }
       get_my_listing_stats: {
         Args: never
         Returns: {
@@ -2618,6 +2664,7 @@ export type Database = {
           proposed: Json
         }[]
       }
+      get_my_profile_edit: { Args: never; Returns: Json }
       get_opportunity_for_edit: {
         Args: { p_id: string }
         Returns: {
@@ -3148,6 +3195,7 @@ export type Database = {
       }
       posting_enabled: { Args: never; Returns: boolean }
       purge_connection_records: { Args: never; Returns: number }
+      purge_deleted_account_tombstones: { Args: never; Returns: number }
       purge_expired_posts: { Args: never; Returns: number }
       purge_moderation_records: { Args: never; Returns: number }
       purge_old_notifications: { Args: never; Returns: number }
@@ -3198,6 +3246,7 @@ export type Database = {
       remove_connection: { Args: { p_id: string }; Returns: undefined }
       remove_my_avatar: { Args: never; Returns: undefined }
       remove_my_cv: { Args: never; Returns: undefined }
+      replay_account_deletions: { Args: never; Returns: number }
       report_connection: {
         Args: { p_category: string; p_id: string; p_reason: string }
         Returns: {
@@ -3377,6 +3426,7 @@ export type Database = {
           p_contact_email_visible: boolean
           p_description: string
           p_event_at: string
+          p_expected_version?: number
           p_id: string
           p_location: string
           p_luma_link: string
@@ -3395,6 +3445,7 @@ export type Database = {
           p_contact_email_visible: boolean
           p_description: string
           p_eligible_audience: string
+          p_expected_version?: number
           p_id: string
           p_location_text: string
           p_location_type: Database["public"]["Enums"]["location_type"]
@@ -3416,6 +3467,7 @@ export type Database = {
           p_core_skill_ids?: number[]
           p_course: string
           p_current_focus?: string
+          p_expected_version?: number
           p_first_name: string
           p_github_url: string
           p_grad_year: number
@@ -3434,13 +3486,14 @@ export type Database = {
           p_venture_stage?: string
           p_venture_url?: string
         }
-        Returns: undefined
+        Returns: number
       }
       update_vc_grant: {
         Args: {
           p_amount: string
           p_deadline: string
           p_description: string
+          p_expected_version?: number
           p_id: string
           p_kind: Database["public"]["Enums"]["vc_grant_kind"]
           p_link: string
