@@ -293,14 +293,24 @@ def build_domain() -> list[dict]:
 if __name__ == "__main__":
     from pathlib import Path
 
+    from evals.splits import partition
+
     datasets = Path(__file__).resolve().parent.parent / "datasets"
     cases = build()
     domain = build_domain()
-    (datasets / "benign.jsonl").write_text("\n".join(json.dumps(c, ensure_ascii=False) for c in cases) + "\n")
-    (datasets / "benign_domain.jsonl").write_text("\n".join(json.dumps(c, ensure_ascii=False) for c in domain) + "\n")
+    main_cases, heldout_cases = partition(cases)
+    domain_main, domain_heldout = partition(domain)
+    (datasets / "benign.jsonl").write_text("\n".join(json.dumps(c, ensure_ascii=False) for c in main_cases) + "\n")
+    (datasets / "benign.heldout.jsonl").write_text(
+        "\n".join(json.dumps(c, ensure_ascii=False) for c in heldout_cases) + "\n")
+    (datasets / "benign_domain.jsonl").write_text(
+        "\n".join(json.dumps(c, ensure_ascii=False) for c in domain_main) + "\n")
+    (datasets / "benign_domain.heldout.jsonl").write_text(
+        "\n".join(json.dumps(c, ensure_ascii=False) for c in domain_heldout) + "\n")
     families = {c["family"] for c in cases}
     by_mode: dict[str, int] = {}
     for c in cases:
         by_mode[c["mode"]] = by_mode.get(c["mode"], 0) + 1
-    print(f"wrote {len(cases)} benign cases across {len(families)} families ({by_mode}) "
-          f"+ {len(domain)} domain-not-people probes -> {datasets}")
+    print(f"wrote {len(main_cases)} dev/validation + {len(heldout_cases)} held-out benign cases "
+          f"across {len(families)} families ({by_mode}) + {len(domain_main)}/{len(domain_heldout)} "
+          f"dev-validation/held-out domain-not-people probes -> {datasets}")

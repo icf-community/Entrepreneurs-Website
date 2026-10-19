@@ -48,8 +48,18 @@ class Result:
     metrics: dict = field(default_factory=dict)
 
 
-def load_cases(suite: str) -> list[dict]:
-    path = DATASETS / f"{suite}.jsonl"
+def load_cases(suite: str, *, split: str | None = None) -> list[dict]:
+    """The suite's development+validation cases by default. split="heldout"
+    reads <suite>.heldout.jsonl instead (gated by --release in __main__.py:
+    held-out text must never appear in an ordinary run); a suite with no
+    held-out file (nothing in datasets/*.py calls splits.partition on it)
+    returns []."""
+    if split == "heldout":
+        path = DATASETS / f"{suite}.heldout.jsonl"
+        if not path.exists():
+            return []
+    else:
+        path = DATASETS / f"{suite}.jsonl"
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
@@ -295,10 +305,10 @@ def wilson(passed: int, total: int, z: float = 1.96) -> tuple[float, float]:
     return (round(max(0.0, centre - half), 4), round(min(1.0, centre + half), 4))
 
 
-def run_suite(suite: str, model: Callable[[dict], dict] | None = None) -> list[Result]:
+def run_suite(suite: str, model: Callable[[dict], dict] | None = None, *, split: str | None = None) -> list[Result]:
     d = load_dictionary()
     results: list[Result] = []
-    for case in load_cases(suite):
+    for case in load_cases(suite, split=split):
         base = dict(case_id=case["id"], suite=suite, objectives=case.get("objectives", []),
                     family=case.get("family", ""), critical=bool(case.get("critical")))
         try:

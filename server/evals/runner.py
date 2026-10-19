@@ -31,11 +31,12 @@ def _git_sha() -> str:
         return "unknown"
 
 
-def run(suites: list[str], *, provider: str = "fake", model=None, live_cost=None) -> dict:
+def run(suites: list[str], *, provider: str = "fake", model=None, live_cost=None, split: str | None = None) -> dict:
     started = time.time()
     results: list[Result] = []
     for suite in suites:
-        results.extend(run_suite(suite, model if suite in ("interpret", "adversarial", "benign") else None))
+        results.extend(run_suite(suite, model if suite in ("interpret", "adversarial", "benign") else None,
+                                  split=split))
 
     by_objective: dict[str, list[Result]] = defaultdict(list)
     by_slice: dict[str, list[Result]] = defaultdict(list)
@@ -57,7 +58,7 @@ def run(suites: list[str], *, provider: str = "fake", model=None, live_cost=None
         "run": {
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
             "duration_s": round(time.time() - started, 2),
-            "git": _git_sha(), "python": platform.python_version(), "provider": provider,
+            "git": _git_sha(), "python": platform.python_version(), "provider": provider, "split": split or "development+validation",
             "versions": {"dictionary": load_dictionary().version, "privacy": privacy.POLICY_VERSION,
                          "rubric": RUBRIC_VERSION, "interpret_prompt": INTERPRET_PROMPT_VERSION,
                          "interpret_prompt_hash": prompt_hash("interpret"), "assess_prompt": ASSESS_PROMPT_VERSION,

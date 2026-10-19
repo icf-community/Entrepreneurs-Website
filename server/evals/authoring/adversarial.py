@@ -329,13 +329,18 @@ if __name__ == "__main__":
     import json
     from pathlib import Path
 
+    from evals.splits import partition
+
     datasets = Path(__file__).resolve().parent.parent / "datasets"
     interpret_cases = build()
-    assess_cases = build_assess()
+    assess_cases = build_assess()  # not split: code-mechanism cases, no natural-language prompt text
+    main_cases, heldout_cases = partition(interpret_cases)
     (datasets / "adversarial.jsonl").write_text(
-        "\n".join(json.dumps(c, ensure_ascii=False) for c in interpret_cases) + "\n")
+        "\n".join(json.dumps(c, ensure_ascii=False) for c in main_cases) + "\n")
+    (datasets / "adversarial.heldout.jsonl").write_text(
+        "\n".join(json.dumps(c, ensure_ascii=False) for c in heldout_cases) + "\n")
     (datasets / "adversarial_assess.jsonl").write_text(
         "\n".join(json.dumps(c, ensure_ascii=False) for c in assess_cases) + "\n")
     families = {c["family"] for c in interpret_cases} | {c["family"] for c in assess_cases}
-    print(f"wrote {len(interpret_cases)} interpret + {len(assess_cases)} assess cases "
-          f"across {len(families)} families -> {datasets}")
+    print(f"wrote {len(main_cases)} dev/validation + {len(heldout_cases)} held-out interpret cases, "
+          f"{len(assess_cases)} assess cases, across {len(families)} families -> {datasets}")

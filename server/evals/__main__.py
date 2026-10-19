@@ -56,6 +56,8 @@ def main() -> None:
     r.add_argument("--max-spend-usd", type=float)
     r.add_argument("--input-price", type=float)
     r.add_argument("--output-price", type=float)
+    r.add_argument("--split", choices=["heldout"])
+    r.add_argument("--release", action="store_true")
     c = sub.add_parser("compare")
     c.add_argument("a", type=Path)
     c.add_argument("b", type=Path)
@@ -71,6 +73,8 @@ def main() -> None:
         print(runner.compare(json.loads(args.a.read_text()), json.loads(args.b.read_text())), end="")
         return
 
+    if args.split == "heldout" and not args.release:
+        sys.exit("--split heldout needs --release — held-out cases are never run by accident")
     suites = args.suite or list(SUITES)
     model, state = None, None
     if args.live:
@@ -78,7 +82,7 @@ def main() -> None:
             sys.exit("live mode needs --model, --max-cases and --max-spend-usd")
         model, state = _live_model(args)
     report = runner.run(suites, provider="openai:" + args.model if args.live else "fake", model=model,
-                        live_cost=round(state["spent"], 4) if state else None)
+                        live_cost=round(state["spent"], 4) if state else None, split=args.split)
     runner.write(report, args.out)
     o = report["overall"]
     print(f"{report['verdict'].upper()}: {o['passed']}/{o['total']} passed, {o['failed']} failed, {o['errors']} errors"
