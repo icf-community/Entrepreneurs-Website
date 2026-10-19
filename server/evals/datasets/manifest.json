@@ -519,5 +519,21 @@
     "score-transfer-off-008": "c8aa00526b6018c87e18b5ead381d8c704d40f0ed1fc1ce1f3c11d401e2a4553",
     "score-transfer-on-009": "329798dac809229cbbe34db343b5afb5211193a8ab08798e45e9ff38e55b3615",
     "score-unknown-012": "f933b43c9154f106cee43ca15225eb76944497697e5dfe0f8283d33c54d83b38"
+  },
+  "transformations.jsonl": {
+    "xf-added-ancestor-evidence-001": "f6a90316b098a283bc50c8672bcb063d983733e02238187f3e907374078e9793",
+    "xf-aspirational-not-met-001": "da4c21f5af73f69f8a1d40beba40472189d629c4d6f77fa2b9e155ae9eba9819",
+    "xf-duplicate-evidence-001": "5dee2e900ee4c867d20f222075b3f355de2230967f2bc86b960493e97edc4671",
+    "xf-irrelevant-evidence-001": "3ff5dd78589480d289b9381e4bb610e21e044e1104340f4ad1838e0ebceec71b",
+    "xf-mode-switch-001": "236c4344acf521e6c414c5bcdd9719cb81a6e8ba72b4d03f93dd04f04d19d0ae",
+    "xf-mode-switch-002": "0c9dba617e1569671402831787c1ed3543af30bcc18a2ff8c3daa43e2c3953f1",
+    "xf-negated-not-met-001": "c3c85f4a6c5075f7336c172e44c55311683a0b76677e3abbc8c5a2d6077260bc",
+    "xf-paraphrase-001": "1307e4785df4ac9efb1fad670945193214fd13384d67adbfd72db0a4470c240e",
+    "xf-paraphrase-002": "69aac3878dbe9870aa58589d38fcfb67440accaabada15700c5ebb428414ffe1",
+    "xf-paraphrase-003": "ea23ab57d2a80bc36b513995188a6e239fe85db946a11c568885fc66e0d94774",
+    "xf-tighten-required-001": "2af95e80f9d579015c700468bb2d9d6644d1d5cfef8cd9c9874dfe59149ac9f8",
+    "xf-tighten-required-002": "2ccebe2fd9f56e9dcab1fda6ce0fb0094a9d099ed93fae5dd08cedc09eb0135b",
+    "xf-tool-swap-001": "9ff80daca9bee3cc28e1e05db2f3e2c37497b5f64ea5a09d60ac060707453847",
+    "xf-tool-swap-002": "c96b83a0a724ec24261d042cf64dc1c66bcdfd8be69b53e7fb41fde7d7f4a43f"
   }
 }

@@ -32,7 +32,7 @@ from app.schema_validate import SchemaError, validate as schema_validate
 from .dictionary import load as load_dictionary
 
 DATASETS = Path(__file__).resolve().parent / "datasets"
-SUITES = ("interpret", "adversarial", "adversarial_assess", "benign", "benign_domain",
+SUITES = ("interpret", "adversarial", "adversarial_assess", "benign", "benign_domain", "transformations",
          "scoring", "privacy", "concepts", "ranking")
 
 
@@ -184,6 +184,65 @@ def _score_candidates(case: dict, candidates: dict, d: Dictionary) -> dict[str, 
     return out
 
 
+# ─── Transformation pairs (eval §5) ─────────────────────────────────
+def score_transform(case: dict, d: Dictionary) -> list[str]:
+    """Each case asserts one stated property between a 'base' and a
+    'variant' side — reuses the exact scoring/interpretation primitives
+    the other suites already drive, never a re-implementation."""
+    kind = case["kind"]
+    problems: list[str] = []
+    if kind == "scoring_pair":
+        results = _score_candidates(case, case["candidates"], d)
+        base, variant = results["base"], results["variant"]
+        base_score = base[0].score if base[0] else None
+        variant_score = variant[0].score if variant[0] else None
+        rel = case["relation"]
+        if rel == "equal_score" and base_score != variant_score:
+            problems.append(f"base scored {base_score}, variant {variant_score} — expected equal")
+        elif rel == "score_not_greater" and (base_score is None or variant_score is None or variant_score > base_score):
+            problems.append(f"variant scored {variant_score}, base {base_score} — variant must not score higher")
+        elif rel == "state_not_met":
+            state = variant[1].get(case["atom_id"])
+            if state is None or state.state == "met":
+                problems.append(f"{case['atom_id']}: state {state.state if state else None!r}, must not be 'met'")
+    elif kind == "atoms_pair":
+        # Same evidence, two different criteria sets — e.g. tightening a
+        # requirement from preferred to required must never raise a score.
+        def _score_one(atom_jsons: list[dict]) -> tuple:
+            atoms = [Atom.from_json(a) for a in atom_jsons]
+            criteria = criteria_from_atoms(atoms)
+            evidence = case["candidate"]["evidence"]
+            states = {a.id: concept_state(a, evidence, d, substantial=len(evidence) >= 3) for a in atoms if a.concept}
+            scored = score_candidate(case["mode"], criteria, states, task=case["candidate"].get("task"),
+                                     depth=case["candidate"].get("depth"), transferable=bool(case.get("transferable")))
+            return scored, states
+
+        base_scored, _ = _score_one(case["atoms_base"])
+        variant_scored, variant_states = _score_one(case["atoms_variant"])
+        base_score = base_scored.score if base_scored else None
+        variant_score = variant_scored.score if variant_scored else None
+        rel = case["relation"]
+        if rel == "equal_score" and base_score != variant_score:
+            problems.append(f"base scored {base_score}, variant {variant_score} — expected equal")
+        elif rel == "score_not_greater" and (base_score is None or variant_score is None or variant_score > base_score):
+            problems.append(f"tightened variant scored {variant_score}, base {base_score} — must not score higher")
+    elif kind == "interpret_pair":
+        dec_a, ops_a = interpret({"message": case["message_a"], "mode": case.get("mode_a", case.get("mode")),
+                                  "prior_atoms": case.get("prior_atoms_a", [])}, d)
+        dec_b, ops_b = interpret({"message": case["message_b"], "mode": case.get("mode_b", case.get("mode")),
+                                  "prior_atoms": case.get("prior_atoms_b", [])}, d)
+        adds_a = {o["concept"] for o in ops_a if o.get("op") == "add" and o.get("concept")}
+        adds_b = {o["concept"] for o in ops_b if o.get("op") == "add" and o.get("concept")}
+        rel = case["relation"]
+        if rel == "same_concepts" and adds_a != adds_b:
+            problems.append(f"message_a added {sorted(adds_a)}, message_b added {sorted(adds_b)} — expected equal")
+        elif rel == "disjoint_concepts" and (adds_a & adds_b):
+            problems.append(f"message_b carried over {sorted(adds_a & adds_b)} from message_a's mode/criteria")
+    else:
+        raise ValueError(f"unknown transform kind {kind!r}")
+    return problems
+
+
 def score_scoring(case: dict, d: Dictionary) -> list[str]:
     exp = case["expected"]
     results = _score_candidates(case, case["candidates"], d)
@@ -319,6 +378,8 @@ def run_suite(suite: str, model: Callable[[dict], dict] | None = None, *, split:
                 metrics = {"decision": decision, "ops": len(ops)}
             elif suite == "adversarial_assess":
                 problems = score_assess(case)
+            elif suite == "transformations":
+                problems = score_transform(case, d)
             elif suite == "scoring":
                 problems = score_scoring(case, d)
             elif suite == "privacy":
