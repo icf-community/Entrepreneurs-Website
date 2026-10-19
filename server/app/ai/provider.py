@@ -119,11 +119,44 @@ _NEGATED = re.compile(r"\b(not|no|without|excluding|except)\b[^.;,]{0,25}$", re.
 
 
 class FakeProvider:
+    """The deterministic fake, with optional fault injection for local
+    failure-mode testing (S4). `fault` is one of: timeout_after_success,
+    rate_limit, server_error, invalid_output, slow(<ms>), crash_before,
+    crash_after — or None for normal behaviour. Only ever constructed
+    behind AI_PROVIDER=fake, which already refuses a non-local database
+    (config.py), so this needs no extra guard of its own."""
+
+    def __init__(self, fault: str | None = None) -> None:
+        self.fault = fault
+        self.calls = 0
+
+    async def _inject(self) -> None:
+        self.calls += 1
+        fault = self.fault
+        if fault is None:
+            return
+        if fault == "crash_before":
+            raise RuntimeError("fault injection: crash_before")
+        if fault.startswith("slow(") and fault.endswith(")"):
+            import asyncio
+            await asyncio.sleep(int(fault[len("slow("):-1]) / 1000)
+            return
+        if fault == "timeout_after_success":
+            raise ProviderError("timeout")
+        if fault == "rate_limit":
+            raise ProviderError("rate_limit")
+        if fault == "server_error":
+            raise ProviderError("server_error")
+        # invalid_output and crash_after act after the fake has computed its
+        # answer (below), since both represent the provider having actually
+        # done the work.
+
     async def json(
         self, reservation: uuid.UUID, *, model: str, name: str, system: str, user: str, schema: dict,
         max_output_tokens: int, timeout: float,
     ) -> JsonResult:
         assert reservation is not None
+        await self._inject()
         payload = json.loads(user)
         if name == "interpretation":
             value = _fake_interpret(payload)
@@ -131,11 +164,19 @@ class FakeProvider:
             value = _fake_assess(payload, jobs=name == "job_assessment")
         else:
             raise ProviderError("invalid_output", name)
+        if self.fault == "invalid_output":
+            raise ProviderError("invalid_output", "fault injection")
+        if self.fault == "crash_after":
+            raise RuntimeError("fault injection: crash_after")
         validate(value, schema)
         return JsonResult(value, max(1, len(user) // 4), max(1, len(json.dumps(value)) // 4))
 
     async def embed(self, reservation: uuid.UUID, *, model: str, texts: list[str], timeout: float) -> EmbedResult:
         assert reservation is not None
+        await self._inject()
+        if self.fault in ("invalid_output", "crash_after"):
+            raise RuntimeError("fault injection: crash_after") if self.fault == "crash_after" \
+                else ProviderError("invalid_output", "fault injection")
         return EmbedResult([fake_provider.embed(t) for t in texts], max(1, sum(len(t) for t in texts) // 4))
 
 

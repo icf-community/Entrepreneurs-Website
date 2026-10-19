@@ -89,7 +89,8 @@ async def _worker(index: int, settings, provider, dictionary: _DictionaryCache, 
 async def main_async() -> None:
     settings = ai_settings()
     observability.init_sentry("ai-executor")
-    provider = FakeProvider() if settings.provider == "fake" else OpenAIProvider(settings.openai_api_key)
+    provider = (FakeProvider(fault=os.environ.get("AI_FAKE_FAULTS") or None) if settings.provider == "fake"
+                else OpenAIProvider(settings.openai_api_key))
     db = Db(settings.database_url)
     try:
         await preflight(db, settings)
