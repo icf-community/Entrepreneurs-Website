@@ -67,6 +67,10 @@ def main() -> None:
     c.add_argument("b", type=Path)
     e = sub.add_parser("export-dictionary")
     e.add_argument("--dsn", required=True)
+    rs = sub.add_parser("review-sheet")
+    rs.add_argument("--out", type=Path)
+    rm = sub.add_parser("review-merge")
+    rm.add_argument("--reviewer", action="append", nargs=2, metavar=("NAME", "CSV"), required=True)
     args = parser.parse_args()
 
     if args.cmd == "export-dictionary":
@@ -75,6 +79,18 @@ def main() -> None:
         return
     if args.cmd == "compare":
         print(runner.compare(json.loads(args.a.read_text()), json.loads(args.b.read_text())), end="")
+        return
+    if args.cmd == "review-sheet":
+        from .review import write_review_sheet
+        path = write_review_sheet(args.out)
+        print(f"wrote {path}")
+        return
+    if args.cmd == "review-merge":
+        from .review import merge_reviews
+        by_suite = merge_reviews({name: Path(csv_path) for name, csv_path in args.reviewer})
+        for suite, entries in by_suite.items():
+            disputed = sum(1 for v in entries.values() if v["verdict"] == "disputed")
+            print(f"datasets/reviews/{suite}.json: {len(entries)} cases, {disputed} disputed")
         return
 
     if args.split == "heldout" and not args.release:
@@ -105,6 +121,13 @@ def main() -> None:
     else:
         report = runner.run(suites, provider=provider, model=model,
                             live_cost=round(state["spent"], 4) if state else None, split=args.split)
+    if args.release:
+        from .review import unconfirmed_critical
+        unresolved = unconfirmed_critical(suites)
+        if unresolved:
+            report["verdict"] = "fail"
+            report["critical_failures"] = sorted(set(report["critical_failures"]) | set(unresolved))
+            print(f"--release blocked: {len(unresolved)} critical case(s) not confirmed by review: {unresolved}")
     runner.write(report, args.out)
     o = report["overall"]
     print(f"{report['verdict'].upper()}: {o['passed']}/{o['total']} passed, {o['failed']} failed, {o['errors']} errors"
