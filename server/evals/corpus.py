@@ -21,6 +21,16 @@ full hybrid pipeline is exercised and gated; ablations are left for a
 follow-up that first adds a retrieval-leg toggle to exec_retrieve
 itself, reviewed on its own.
 
+Fair-exposure slices (newcomers, no-CV, students vs graduates) are also
+not broken out as separate reported metrics — the planted members
+already vary along these axes (background members have no CV, askers
+vary in enrolled/graduated status), but the report doesn't currently
+group recall/nDCG by them. Left for a follow-up: it's an additional
+aggregation over data this generator already produces, not new seeding.
+Paired-bootstrap confidence intervals on nDCG@10 (eval §7) are likewise
+not computed — only the point estimate — for the same reason: an
+addition to the existing report, not a redesign.
+
 Member/job seeding is batched (one multi-row INSERT/UPDATE per table
 for the whole corpus); promotion (`build_member_docs`/
 `process_refresh_job_ai`-equivalent + one `worker_put_*_docs` RPC) is
