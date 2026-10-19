@@ -79,6 +79,9 @@ def main() -> None:
     rt.add_argument("--cleanup", action="store_true",
                     help="delete any corpus-tagged rows left by a run that didn't reach its own cleanup "
                          "(a killed process), then exit without building or querying anything")
+    mb = sub.add_parser("memory-bench")
+    mb.add_argument("--dsn", required=True)
+    mb.add_argument("--out", type=Path, default=Path("evals/reports/memory_bench.json"))
     args = parser.parse_args()
 
     if args.cmd == "export-dictionary":
@@ -120,6 +123,16 @@ def main() -> None:
                   f"{'PASS' if s['gate_pass'] else 'FAIL'}")
         print(f"verdict: {report['verdict'].upper()} · report: {args.out}")
         sys.exit(0 if report["verdict"] == "pass" else 1)
+    if args.cmd == "memory-bench":
+        from .memory_bench import run as run_memory_bench
+        report = run_memory_bench(args.dsn, out=args.out)
+        r, c = report["recall"], report["cost"]
+        print(f"keyword recall {r['keyword_recall']}, hybrid recall {r['hybrid_recall']}, "
+              f"hybrid distractor precision {r['hybrid_distractor_precision']}")
+        print(f"memory overhead: {c['mean_memory_overhead_tokens']} tokens/turn mean "
+              f"({c['mean_tokens_memory_on']} on vs {c['mean_tokens_memory_off']} off, n={c['n']})")
+        print(f"report: {args.out}")
+        return
 
     if args.split == "heldout" and not args.release:
         sys.exit("--split heldout needs --release — held-out cases are never run by accident")
