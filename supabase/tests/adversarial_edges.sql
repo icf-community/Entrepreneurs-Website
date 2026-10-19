@@ -1682,6 +1682,156 @@ end;
 $$;
 
 
+-- ════════════════════════════════════════════════════════════════════
+-- F13. AI spec edits: malformed and oversized input (S4 gap 14)
+--
+-- public.ai_edit_spec/ai_private.apply_spec_ops take a jsonb array a
+-- member fully controls — this is the one place a hand-crafted RPC call
+-- can hand the AI pipeline anything at all. Every case below must be
+-- refused with its own specific exception, never a generic constraint
+-- violation or a silently-accepted no-op.
+-- ════════════════════════════════════════════════════════════════════
+do $$
+declare
+  v_owner  uuid;
+  v_conv   uuid;
+  v_turn   uuid;
+  v_rev    int;
+  v_saved_enabled text;
+  v_saved_network text;
+  v_msg    text;
+begin
+  select v into v_owner from _ctx where k = 'owner';
+
+  select value into v_saved_enabled from public.app_config where key = 'ai_enabled';
+  select value into v_saved_network from public.app_config where key = 'ai_network_enabled';
+
+  update public.app_config set value = 'true' where key in ('ai_enabled', 'ai_network_enabled');
+
+  perform _set_caller(v_owner);
+  select turn_id, conversation_id into v_turn, v_conv
+    from public.ai_submit_turn('network', null, null, 'message', 'python', 'adv-f13-' || gen_random_uuid()::text,
+                               null, false);
+  if v_conv is null then
+    raise exception 'FAIL(F13): setup could not create a conversation to attack';
+  end if;
+  set local role postgres;
+  update ai_private.turns set status = 'completed', lease_token = null where id = v_turn;
+  v_rev := 0;  -- a brand-new conversation's spec_revision always starts at 0
+
+  -- Not an array at all.
+  perform _set_caller(v_owner);
+  begin
+    perform public.ai_edit_spec(v_conv, v_rev, '{"op": "clear"}'::jsonb);
+    raise exception 'FAIL(F13): a non-array ops payload (a bare object) was accepted';
+  exception when sqlstate '22023' then null;
+  end;
+
+  -- More ops in one call than the per-call cap (16).
+  begin
+    perform public.ai_edit_spec(v_conv, v_rev,
+      (select jsonb_agg(jsonb_build_object('op', 'clear')) from generate_series(1, 17)));
+    raise exception 'FAIL(F13): a 17-op array was accepted (cap is 16)';
+  exception when sqlstate '22023' then null;
+  end;
+
+  -- An op type that does not exist.
+  begin
+    perform public.ai_edit_spec(v_conv, v_rev, '[{"op": "teleport"}]'::jsonb);
+    raise exception 'FAIL(F13): an unknown op type was accepted instead of raising unknown_op';
+  exception when sqlstate '22023' then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg !~ 'unknown_op' then
+      raise exception 'FAIL(F13): unknown op type raised %, not unknown_op', v_msg;
+    end if;
+  end;
+
+  -- 'add' with a kind the mode does not allow at all.
+  begin
+    perform public.ai_edit_spec(v_conv, v_rev,
+      '[{"op": "add", "kind": "role_type", "concept": "internship", "required": false, "negated": false}]'::jsonb);
+    raise exception 'FAIL(F13): network mode accepted a role_type atom (recruiter/opportunities only)';
+  exception when sqlstate '22023' then null;
+  end;
+
+  -- 'add' with free text over the 80-character cap.
+  begin
+    perform public.ai_edit_spec(v_conv, v_rev,
+      jsonb_build_array(jsonb_build_object('op', 'add', 'kind', 'free', 'free_text', repeat('x', 81),
+                        'required', false, 'negated', false)));
+    raise exception 'FAIL(F13): an 81-character free-text atom was accepted (cap is 80)';
+  exception when sqlstate '22023' then null;
+  end;
+
+  -- 'add' naming a concept that is not in the dictionary at all.
+  begin
+    perform public.ai_edit_spec(v_conv, v_rev,
+      '[{"op": "add", "kind": "tool", "concept": "not-a-real-concept-xyz", "required": false, "negated": false}]'::jsonb);
+    raise exception 'FAIL(F13): a nonexistent concept slug was accepted instead of raising unknown_concept';
+  exception when sqlstate '22023' then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg !~ 'unknown_concept' then
+      raise exception 'FAIL(F13): nonexistent concept raised %, not unknown_concept', v_msg;
+    end if;
+  end;
+
+  -- 'add' with an invalid group label (anything outside g1-g4).
+  begin
+    perform public.ai_edit_spec(v_conv, v_rev,
+      jsonb_build_array(jsonb_build_object('op', 'add', 'kind', 'free', 'free_text', 'ok text',
+                        'required', false, 'negated', false, 'group', 'g99')));
+    raise exception 'FAIL(F13): an invalid group label (g99) was accepted';
+  exception when sqlstate '22023' then null;
+  end;
+
+  -- set_audience with a value outside the enum, from a mode that cannot
+  -- even use it — must be refused for the mode mismatch, not crash.
+  begin
+    perform public.ai_edit_spec(v_conv, v_rev,
+      '[{"op": "set_audience", "audience": ["everyone"]}]'::jsonb);
+    raise exception 'FAIL(F13): set_audience with a bogus value in network mode was accepted';
+  exception when sqlstate '22023' then null;
+  end;
+
+  -- Growing the spec past 12 total atoms via 'add', one call at a time,
+  -- tracking the revision from each call's own return value (never
+  -- reading ai_private directly as the member — it has no grant there,
+  -- by design).
+  declare
+    v_spec jsonb;
+  begin
+    select spec, spec_revision into v_spec, v_rev from public.ai_edit_spec(v_conv, v_rev, '[{"op": "clear"}]'::jsonb);
+    for i in 1..12 loop
+      select spec, spec_revision into v_spec, v_rev from public.ai_edit_spec(v_conv, v_rev,
+        jsonb_build_array(jsonb_build_object('op', 'add', 'kind', 'free', 'free_text', 'skill' || i,
+                          'required', false, 'negated', false, 'group', null)));
+    end loop;
+    if jsonb_array_length(v_spec->'atoms') <> 12 then
+      raise exception 'FAIL(F13): spec does not have exactly 12 atoms after 12 adds to an empty spec';
+    end if;
+  end;
+  begin
+    perform public.ai_edit_spec(v_conv, v_rev,
+      jsonb_build_array(jsonb_build_object('op', 'add', 'kind', 'free', 'free_text', 'oneTooMany',
+                        'required', false, 'negated', false)));
+    raise exception 'FAIL(F13): a 13th atom was accepted (cap is 12 total)';
+  exception when sqlstate '22023' then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg !~ 'too_many_criteria' then
+      raise exception 'FAIL(F13): the 13th atom raised %, not too_many_criteria', v_msg;
+    end if;
+  end;
+
+  set local role postgres;
+  delete from ai_private.turns where id = v_turn;
+  delete from ai_private.messages where conversation_id = v_conv;
+  delete from ai_private.conversations where id = v_conv;
+  update public.app_config set value = v_saved_enabled where key = 'ai_enabled';
+  update public.app_config set value = v_saved_network where key = 'ai_network_enabled';
+end;
+$$;
+
+
 set local role postgres;
 drop function _set_caller(uuid);
 drop function _as_service();
