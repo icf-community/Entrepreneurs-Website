@@ -22,15 +22,17 @@ from typing import Callable
 from app import privacy
 from app.ai.grammar import parse as grammar_parse
 from app.ai.policy import screen
-from app.ai.pipeline import ground_ops
+from app.ai.pipeline import Turn, ground_ops
 from app.ai.provider import _fake_interpret
+from app.ai.schemas import ASSESS_SCHEMA
 from app.ai.score import Atom, concept_state, criteria_from_atoms, order_key, score_candidate
 from app.concepts import Dictionary
+from app.schema_validate import SchemaError, validate as schema_validate
 
 from .dictionary import load as load_dictionary
 
 DATASETS = Path(__file__).resolve().parent / "datasets"
-SUITES = ("interpret", "scoring", "privacy", "concepts", "ranking")
+SUITES = ("interpret", "adversarial", "adversarial_assess", "scoring", "privacy", "concepts", "ranking")
 
 
 @dataclass
@@ -108,6 +110,38 @@ def score_interpret(case: dict, decision: str, ops: list[dict]) -> list[str]:
             problems.append(f"added forbidden criterion {slug}")
     if exp.get("no_clear") and any(o.get("op") == "clear" for o in ops):
         problems.append("cleared earlier criteria")
+    return problems
+
+
+# ─── Assessor-stage grounding attacks (O01, O07) ────────────────────
+def score_assess(case: dict) -> list[str]:
+    """Drives Turn._bind — the exact static method the executor uses to
+    ground a model's assessment verdict in the candidate's own evidence —
+    or, for a schema_attack case, the strict output schema validation that
+    runs before _bind ever sees the model's answer."""
+    if "schema_attack" in case:
+        try:
+            schema_validate(case["schema_attack"], ASSESS_SCHEMA)
+        except SchemaError:
+            return []
+        return ["malformed assessor output was NOT rejected by ASSESS_SCHEMA"]
+    verdict = Turn._bind(case["raw"], case["ref_map"], set(case["free_ids"]))
+    atoms = verdict.get("atoms") or {}
+    problems: list[str] = []
+    for atom_id, want in case["expected"].items():
+        got = atoms.get(atom_id)
+        if want is None:
+            if got is not None:
+                problems.append(f"{atom_id}: an unoffered atom id survived grounding ({got})")
+            continue
+        if got is None:
+            problems.append(f"{atom_id}: dropped entirely, expected {want}")
+            continue
+        if got["state"] != want["state"]:
+            problems.append(f"{atom_id}: state {got['state']!r}, expected {want['state']!r}")
+        if got["evidence"] != want["evidence_ids"]:
+            problems.append(f"{atom_id}: evidence {got['evidence']}, expected {want['evidence_ids']} "
+                            f"(an id outside this candidate's own ref_map must never survive)")
     return problems
 
 
@@ -254,10 +288,12 @@ def run_suite(suite: str, model: Callable[[dict], dict] | None = None) -> list[R
                     family=case.get("family", ""), critical=bool(case.get("critical")))
         try:
             metrics: dict = {}
-            if suite == "interpret":
-                decision, ops = interpret(case, d, model)
+            if suite in ("interpret", "adversarial"):
+                decision, ops = interpret(case, d, model if suite == "interpret" else None)
                 problems = score_interpret(case, decision, ops)
                 metrics = {"decision": decision, "ops": len(ops)}
+            elif suite == "adversarial_assess":
+                problems = score_assess(case)
             elif suite == "scoring":
                 problems = score_scoring(case, d)
             elif suite == "privacy":
