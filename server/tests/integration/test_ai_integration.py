@@ -302,6 +302,25 @@ def test_admin_created_job_never_unlocks_recruiter_mode(built):
     assert outcome == "job_not_eligible"
 
 
+def test_an_event_cannot_act_as_a_recruiter_job(built):
+    """Regression scenario 9 (AI-plan-review.md): recruiter_job_ok only
+    ever matches a row in public.opportunities — an id from a sibling
+    listing table (events, same posted_by/approval shape) never resolves,
+    admission refuses before any requirements or spend exist."""
+    conn, rec = built["conn"], built["recruiter"]
+    event = uuid.uuid4()
+    _sql(conn, """
+        insert into public.events (id, posted_by, status, title, description, luma_link, event_at, location,
+          organiser_name, contact_email, approved_at, approved_by)
+        values (%s, %s, 'approved', 'AI mixer', 'Come meet the team and chat about PyTorch roles we are hiring for.',
+          'https://lu.ma/example', now() + interval '14 days', 'Imperial', 'Foundry', 'events@acme.test',
+          now(), %s)
+    """, (event, rec, rec))
+    _, _, outcome, _ = _submit(conn, rec, "recruiter", "python", opportunity=event)
+    assert outcome == "job_not_eligible"
+    _sql(conn, "delete from public.events where id = %s", (event,))
+
+
 def test_network_refinement_keeps_earlier_criteria(built):
     conn, b = built["conn"], built["b"]
     turn, conv, outcome, _ = _submit(conn, b, "network", "deep learning")

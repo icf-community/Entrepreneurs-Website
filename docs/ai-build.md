@@ -77,6 +77,37 @@ they are listed in [owner-decisions.md](owner-decisions.md).
    first live smoke that the chosen model accepts them; if not, drop them from the request schema
    (local validation keeps them).
 
+## Regression scenario traceability (AI-plan-review.md §"Regression scenarios", 1–22)
+
+Added during S5 (gap 28). Each row names the test(s) that actually prove the scenario, not just a
+file that touches the area; two gaps found this pass were closed, two are recorded as open rather
+than claimed.
+
+| # | Scenario (abbreviated) | Proven by |
+|---|---|---|
+| 1 | PyTorch/TensorFlow OR vs required; "no experience" isn't evidence | `evals/datasets/scoring.jsonl` (score-fixture-001); `evals/datasets/transformations.jsonl` (xf-tool-swap-001/002, xf-negated-not-met-001, xf-aspirational-not-met-001); `test_ai_integration.py::test_recruiter_requires_confirmed_requirements_then_finds_eligible_candidates` ("TensorFlow alone never meets a PyTorch requirement") |
+| 2 | Mixed safe+off-task request produces no result until confirmed; "who teaches Pythagoras" stays usable | `evals/datasets/adversarial.jsonl` (mixed, off-homework families); `test_ai_integration.py::test_off_task_and_sensitive_requests_are_refused_without_results` |
+| 3 | Opt-out mid-assessment blocks publish; withdrawal is an immediate read-deny | `test_ai_integration.py::test_withdrawal_hides_existing_results_immediately`; `test_ai_races.py` R6 |
+| 4 | Identical source re-upload after a policy-version bump doesn't reactivate the old profile unchanged | **Open.** `projection_hash` provably includes `policy_version` (`app/projection.py` — `policy = f"{privacy.POLICY_VERSION}/{PROJECTION_VERSION}"`, hashed into the digest) and `test_projection.py::test_projection_hash_changes_with_content_only` proves content-only changes bump the hash, but nothing exercises a policy-version bump specifically. Write a `test_projection_hash_changes_with_policy_version` case in a follow-up. |
+| 5 | 20 concurrent turns, late responses, cross-midnight retries never leak reservations or bypass the monthly ceiling | `test_ai_races.py` (R1, R2, R7, R11); `test_ai_limits.py` (all 5 money-cap boundaries incl. `matching_monthly_cap_boundary`); `test_ai_outage_drills.py` (storm, reconnect) |
+| 6 | A direct service-role RPC with another member id can't forge an admitted turn or read arbitrary data | `test_ai_integration.py::test_executor_role_cannot_touch_tables`; `ai_smoke.sql` grants section |
+| 7 | A candidate's score is unaffected by pool changes or other recruiters' actions; missing evidence isn't phrased as proven absence | `evals/datasets/scoring.jsonl` ("stable" / `pool_additions`); `evals/datasets/transformations.jsonl` (xf-duplicate-evidence-001, xf-irrelevant-evidence-001); `app/ai/score.py` module docstring ("Adding unrelated candidates cannot change anyone's score") |
+| 8 | Two tabs can't overwrite criteria or remap a result slot; a disconnect can't duplicate a paid run | `test_ai_races.py` R4 (stale revision), R14 (monotonic polling), R15 (double-click); `test_ai_integration.py::test_idempotent_resubmission_returns_the_same_turn` |
+| 9 | An expired/withdrawn/unapproved job is never used; an event or grant can't masquerade as a recruiter job | `test_ai_integration.py::test_admin_created_job_never_unlocks_recruiter_mode`; **`test_an_event_cannot_act_as_a_recruiter_job`** (new this pass — closes the "event/grant" half, which had no test before) |
+| 10 | Published cards show View profile only, no duplicate a11y ids, one connection-state RPC per open | `frontend/e2e/ai.spec.ts` ("View profile opens their dialog"); axe pass in the same project |
+| 11 | Graduate/enrolled audience eligibility, including direct detail/bookmark/feed routes | `test_ai_integration.py::test_opportunities_respects_audience_and_own_jobs`; the education/audience RLS suite (`…0002`) |
+| 12 | 168h expiry with no resurrection via summary/cache/SLM; retained messages readable before expiry | `test_ai_memory.py::test_r16_a_message_forgotten_before_its_vector_lands_stays_forgotten`; `test_ai_properties.py` invariant 4 (no stale `effective_spec` atom); `cron_purge` |
+| 13 | Idempotency/mode/tab tricks and a Redis outage can't bypass quotas; no paid call without a prior reservation | `test_ai_limits.py` (full registry); `test_egress_transport.py::test_the_metering_boundary_refuses_a_dirty_payload_before_any_request_is_sent`; `frontend/src/lib/ratelimit.test.ts` (fail-closed, incl. `aiSubmit`) |
+| 14 | Saved findings expire in 7 days without renewal on view; opt-outs vanish immediately; rescans pick up new consent | `test_ai_races.py` R10 (rescan cooldown/cap); `ai_smoke.sql` (7-day expiry) |
+| 15 | Broad area evidence earns broad credit without inventing a specific tool; alias/ancestor repetition can't inflate relevance | `evals/datasets/transformations.jsonl` (xf-added-ancestor-evidence-001); `evals/datasets/scoring.jsonl` fixtures |
+| 16 | Mentor-seekers aren't labelled offers; availability isn't employment consent; preferences never alter the score | `app/ai/score.py concept_state` (seek/offer kind split); `app/ai/pipeline.py _preference()` — structurally separate from `score_candidate`'s inputs, documented in `evals/authoring/transformations.py`'s module docstring rather than re-modelled there |
+| 17 | A source-junction-only edit invalidates the projection; private columns can't leak via the directory; graduation never triggers cleanup | `test_projection.py::test_projection_hash_changes_with_content_only`; `rls_smoke.sql` §38 ("nobody is deleted" — graduation leaves account/connections intact) |
+| 18 | An eval run with a skipped mandatory suite, an uncalibrated judge, or no ground truth can never be reported "passed" | `evals/runner.py` (`verdict` fails on any `skipped_suites`); `evals/datasets/README.md` ("v1 uses no model graders") |
+| 19 | A turn queued >60s still runs under its own lease/fence, never a stale holder | `test_ai_races.py` R2, R7 |
+| 20 | Reopening saved results makes zero provider calls | **Open.** No test drives this specifically yet (planned as an S9 E2E case against the fake provider's call counter — see `tasks/todo.md` S9). |
+| 21 | The surfaced cap refuses the next request at admission, before any money is reserved | `test_ai_races.py` R1; `test_ai_limits.py` `surface_limit` boundary |
+| 22 | Parallel assessor batches respect both caps and the 45s deadline; no retry launches without full attempt time left | `test_ai_outage_drills.py` (storm, ≤3 calls/turn); `test_ai_admission_burst.py`; `app/ai/pipeline.py with_retry`/`remaining()` |
+
 ## Before any flag goes on in production (owner)
 
 See [owner-decisions.md](owner-decisions.md), "Foundry AI". In order: db push → audiences for
