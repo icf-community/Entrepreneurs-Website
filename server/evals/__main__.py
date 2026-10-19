@@ -71,6 +71,14 @@ def main() -> None:
     rs.add_argument("--out", type=Path)
     rm = sub.add_parser("review-merge")
     rm.add_argument("--reviewer", action="append", nargs=2, metavar=("NAME", "CSV"), required=True)
+    rt = sub.add_parser("retrieval")
+    rt.add_argument("--dsn", required=True)
+    rt.add_argument("--size", default="2k")
+    rt.add_argument("--seed", type=int, default=0)
+    rt.add_argument("--out", type=Path, default=Path("evals/reports/retrieval.json"))
+    rt.add_argument("--cleanup", action="store_true",
+                    help="delete any corpus-tagged rows left by a run that didn't reach its own cleanup "
+                         "(a killed process), then exit without building or querying anything")
     args = parser.parse_args()
 
     if args.cmd == "export-dictionary":
@@ -92,6 +100,26 @@ def main() -> None:
             disputed = sum(1 for v in entries.values() if v["verdict"] == "disputed")
             print(f"datasets/reviews/{suite}.json: {len(entries)} cases, {disputed} disputed")
         return
+    if args.cmd == "retrieval":
+        if args.cleanup:
+            from .corpus import cleanup_orphans
+            print(f"deleted {cleanup_orphans(args.dsn)} orphaned corpus member(s)")
+            return
+        from .corpus import run as run_retrieval
+        sizes = {"2k": 2000, "10k": 10000}
+        size = sizes.get(args.size, None)
+        if size is None:
+            try:
+                size = int(args.size)
+            except ValueError:
+                sys.exit("--size must be 2k, 10k, or an integer")
+        report = run_retrieval(args.dsn, size, seed_value=args.seed, out=args.out)
+        for mode, s in report["summary"].items():
+            print(f"{mode}: recall@200 min {s['recall_at_200_min']:.3f}, nDCG@10 mean {s['ndcg_at_10_mean']:.3f}, "
+                  f"ineligible hits {s['ineligible_hits']}, grade3 lost {s['grade3_lost']} — "
+                  f"{'PASS' if s['gate_pass'] else 'FAIL'}")
+        print(f"verdict: {report['verdict'].upper()} · report: {args.out}")
+        sys.exit(0 if report["verdict"] == "pass" else 1)
 
     if args.split == "heldout" and not args.release:
         sys.exit("--split heldout needs --release — held-out cases are never run by accident")

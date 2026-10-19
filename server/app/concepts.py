@@ -43,7 +43,8 @@ class Mention:
     polarity: str  # "positive" | "negative" | "aspirational"
 
 
-_NEGATION = re.compile(r"\b(no|not|without|never|don't|dont|didn't|lack(?:ing|s|ed)?|except|excluding|avoid(?:ed|s|ing)?|nor|zero)\b[^.;:!?\n]{0,30}$")
+_NEGATION = re.compile(r"\b(no|not|without|never|don't|dont|didn't|doesn't|doesnt|does not|did not|isn't|wasn't|"
+                       r"lack(?:ing|s|ed)?|except|excluding|avoid(?:ed|s|ing)?|nor|zero)\b[^.;:!?\n]{0,30}$")
 _ASPIRATION = re.compile(
     r"\b(learning|learn|want(?:s|ing)? to (?:learn|try|get into)|interested in learning|hoping to|plan(?:ning)? to "
     r"learn|curious about|beginner in|new to)\b[^.;:!?\n]{0,25}$"
