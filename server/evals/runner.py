@@ -100,6 +100,13 @@ def markdown(report: dict) -> str:
         lines += ["", "## Ranking", "", "| Scenario | recall@10 | nDCG@10 |", "| --- | --- | --- |"]
         for case_id, m in report["ranking"].items():
             lines.append(f"| {case_id} | {m['recall_at_10']:.2f} | {m['ndcg_at_10']:.2f} |")
+    if report.get("repeats"):
+        flaky = {cid: r for cid, r in report["repeats"].items() if 0 < r["pass_rate"] < 1}
+        lines += ["", f"## Repeats ({report['run']['repeats']}x) — {len(flaky)} flaky case(s)", ""]
+        if flaky:
+            lines += ["| Case | Pass rate | Statuses |", "| --- | --- | --- |"]
+            for cid, r in flaky.items():
+                lines.append(f"| `{cid}` | {r['pass_rate']:.0%} | {', '.join(r['statuses'])} |")
     failures = [r for r in report["results"] if r["status"] != "pass"]
     lines += ["", f"## Failures and errors ({len(failures)})", ""]
     for r in failures:
@@ -126,6 +133,33 @@ def compare(a: dict, b: dict) -> str:
     out.append(f"CASES THAT CHANGED ({len(flips)})")
     out += [f"  {cid}: {old} → {new}" for cid, old, new in flips]
     return "\n".join(out) + "\n"
+
+
+def aggregate_repeats(reports: list[dict]) -> dict:
+    """--repeats N for a live run: one case can pass on attempt 1 and fail
+    on attempt 2 (a real model is not deterministic), so there is no
+    single pass/fail — report the frequency instead. The merged report
+    keeps the LAST attempt's result for display but adds a top-level
+    "repeats" section with each case's pass rate across all N, and a
+    case only counts as a critical failure here if it failed on every
+    attempt (one success in N means the behaviour is reachable, which is
+    what the live check is actually trying to confirm)."""
+    assert reports, "aggregate_repeats needs at least one report"
+    by_case: dict[str, list[str]] = defaultdict(list)
+    for report in reports:
+        for r in report["results"]:
+            by_case[r["case_id"]].append(r["status"])
+    merged = reports[-1]
+    merged["run"]["repeats"] = len(reports)
+    merged["repeats"] = {
+        cid: {"pass_rate": round(sum(s == "pass" for s in statuses) / len(statuses), 4), "statuses": statuses}
+        for cid, statuses in sorted(by_case.items())
+    }
+    critical_by_case = {r["case_id"]: r["critical"] for report in reports for r in report["results"]}
+    merged["critical_failures"] = [cid for cid, statuses in by_case.items()
+                                   if critical_by_case.get(cid) and not any(s == "pass" for s in statuses)]
+    merged["verdict"] = "pass" if not merged["critical_failures"] and not merged["skipped_suites"] else "fail"
+    return merged
 
 
 def write(report: dict, out: Path) -> None:

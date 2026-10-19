@@ -58,6 +58,10 @@ def main() -> None:
     r.add_argument("--output-price", type=float)
     r.add_argument("--split", choices=["heldout"])
     r.add_argument("--release", action="store_true")
+    r.add_argument("--cache", type=Path, help="record/resume: case-id-keyed JSON file of live model answers")
+    r.add_argument("--replay", action="store_true",
+                   help="offline: read --cache only, no API key or network, a missing case is a hard error")
+    r.add_argument("--repeats", type=int, default=1, help="live only: rerun each case N times, report pass frequency")
     c = sub.add_parser("compare")
     c.add_argument("a", type=Path)
     c.add_argument("b", type=Path)
@@ -75,14 +79,32 @@ def main() -> None:
 
     if args.split == "heldout" and not args.release:
         sys.exit("--split heldout needs --release — held-out cases are never run by accident")
+    if args.replay and not args.cache:
+        sys.exit("--replay needs --cache PATH (the fixture file to replay from)")
+    if args.repeats > 1 and not args.live:
+        sys.exit("--repeats > 1 is only meaningful for --live (the fake provider is already deterministic)")
     suites = args.suite or list(SUITES)
     model, state = None, None
-    if args.live:
+    if args.replay:
+        from .fixtures import CachedModel
+        model = CachedModel(args.cache, live_model=None, strict=True)
+    elif args.live:
         if not (args.model and args.max_cases and args.max_spend_usd):
             sys.exit("live mode needs --model, --max-cases and --max-spend-usd")
         model, state = _live_model(args)
-    report = runner.run(suites, provider="openai:" + args.model if args.live else "fake", model=model,
-                        live_cost=round(state["spent"], 4) if state else None, split=args.split)
+        if args.cache:
+            from .fixtures import CachedModel
+            model = CachedModel(args.cache, live_model=model, strict=False)
+
+    provider = "replay:" + str(args.cache) if args.replay else ("openai:" + args.model if args.live else "fake")
+    if args.repeats > 1:
+        reports = [runner.run(suites, provider=provider, model=model,
+                              live_cost=round(state["spent"], 4) if state else None, split=args.split)
+                  for _ in range(args.repeats)]
+        report = runner.aggregate_repeats(reports)
+    else:
+        report = runner.run(suites, provider=provider, model=model,
+                            live_cost=round(state["spent"], 4) if state else None, split=args.split)
     runner.write(report, args.out)
     o = report["overall"]
     print(f"{report['verdict'].upper()}: {o['passed']}/{o['total']} passed, {o['failed']} failed, {o['errors']} errors"

@@ -46,6 +46,7 @@ class Result:
     status: str  # pass | fail | error
     details: list[str] = field(default_factory=list)
     metrics: dict = field(default_factory=dict)
+    trace_id: str = ""
 
 
 def load_cases(suite: str, *, split: str | None = None) -> list[dict]:
@@ -365,11 +366,17 @@ def wilson(passed: int, total: int, z: float = 1.96) -> tuple[float, float]:
 
 
 def run_suite(suite: str, model: Callable[[dict], dict] | None = None, *, split: str | None = None) -> list[Result]:
+    import uuid
+
+    from .fixtures import CURRENT_CASE_ID
+
     d = load_dictionary()
     results: list[Result] = []
     for case in load_cases(suite, split=split):
+        trace_id = str(uuid.uuid4())
         base = dict(case_id=case["id"], suite=suite, objectives=case.get("objectives", []),
-                    family=case.get("family", ""), critical=bool(case.get("critical")))
+                    family=case.get("family", ""), critical=bool(case.get("critical")), trace_id=trace_id)
+        token = CURRENT_CASE_ID.set(case["id"])
         try:
             metrics: dict = {}
             if suite in ("interpret", "adversarial", "benign", "benign_domain"):
@@ -393,4 +400,6 @@ def run_suite(suite: str, model: Callable[[dict], dict] | None = None, *, split:
             results.append(Result(**base, status="fail" if problems else "pass", details=problems, metrics=metrics))
         except Exception as exc:  # noqa: BLE001 — an error is reported, never counted as a pass
             results.append(Result(**base, status="error", details=[f"{type(exc).__name__}: {exc}"]))
+        finally:
+            CURRENT_CASE_ID.reset(token)
     return results
