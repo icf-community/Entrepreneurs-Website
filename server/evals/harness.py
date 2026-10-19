@@ -32,7 +32,8 @@ from app.schema_validate import SchemaError, validate as schema_validate
 from .dictionary import load as load_dictionary
 
 DATASETS = Path(__file__).resolve().parent / "datasets"
-SUITES = ("interpret", "adversarial", "adversarial_assess", "scoring", "privacy", "concepts", "ranking")
+SUITES = ("interpret", "adversarial", "adversarial_assess", "benign", "benign_domain",
+         "scoring", "privacy", "concepts", "ranking")
 
 
 @dataclass
@@ -108,6 +109,20 @@ def score_interpret(case: dict, decision: str, ops: list[dict]) -> list[str]:
     for slug in exp.get("must_not_add") or []:
         if slug in adds:
             problems.append(f"added forbidden criterion {slug}")
+    if exp.get("must_not_add_any") and adds:
+        problems.append(f"added criteria when none were expected: {sorted(adds)}")
+    # only_add/grouped describe what an apply/mixed decision must add; a
+    # case whose decision_in also tolerates off_task/refuse (e.g. "the
+    # off-task half of a mixed request may simply be discarded") is not
+    # held to them when the model actually chose that other decision —
+    # mirrors the same gating the "add" dict check above already uses.
+    if decision in ("apply", "mixed"):
+        if "only_add" in exp and set(adds) != set(exp["only_add"]):
+            problems.append(f"added {sorted(adds)}, expected exactly {sorted(exp['only_add'])}")
+        if exp.get("grouped"):
+            groups = {adds[s].get("group") for s in exp["grouped"] if s in adds}
+            if None in groups or len(groups) != 1:
+                problems.append(f"{exp['grouped']}: not all grouped together (groups seen: {groups})")
     if exp.get("no_clear") and any(o.get("op") == "clear" for o in ops):
         problems.append("cleared earlier criteria")
     return problems
@@ -288,8 +303,8 @@ def run_suite(suite: str, model: Callable[[dict], dict] | None = None) -> list[R
                     family=case.get("family", ""), critical=bool(case.get("critical")))
         try:
             metrics: dict = {}
-            if suite in ("interpret", "adversarial"):
-                decision, ops = interpret(case, d, model if suite == "interpret" else None)
+            if suite in ("interpret", "adversarial", "benign", "benign_domain"):
+                decision, ops = interpret(case, d, model if suite in ("interpret", "adversarial", "benign") else None)
                 problems = score_interpret(case, decision, ops)
                 metrics = {"decision": decision, "ops": len(ops)}
             elif suite == "adversarial_assess":

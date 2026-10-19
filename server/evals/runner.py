@@ -35,7 +35,7 @@ def run(suites: list[str], *, provider: str = "fake", model=None, live_cost=None
     started = time.time()
     results: list[Result] = []
     for suite in suites:
-        results.extend(run_suite(suite, model if suite in ("interpret", "adversarial") else None))
+        results.extend(run_suite(suite, model if suite in ("interpret", "adversarial", "benign") else None))
 
     by_objective: dict[str, list[Result]] = defaultdict(list)
     by_slice: dict[str, list[Result]] = defaultdict(list)

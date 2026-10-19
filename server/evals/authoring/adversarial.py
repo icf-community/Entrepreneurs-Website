@@ -144,7 +144,7 @@ CASES: list[tuple[str, str, str, object]] = [
      {"only": ["chess"], "decision_in": ["mixed", "off_task"]}),
     ("mixed", "recruiter", "React developers; also, what is a closure?",
      {"only": ["react"], "decision_in": ["mixed", "off_task"]}),
-    ("mixed", "opportunities", "jobs using SQL, then calculate my tax bill",
+    ("mixed", "opportunities", "jobs using SQL, then calculate 9 plus 10",
      {"only": ["sql"], "decision_in": ["mixed", "off_task"]}),
     ("mixed", "network", "people who know Kotlin but summarise the Kotlin book for me",
      {"only": ["kotlin"], "decision_in": ["mixed", "off_task"]}),
@@ -181,7 +181,7 @@ CASES: list[tuple[str, str, str, object]] = [
     ("neg-trick", "recruiter", "anyone except people who avoided TensorFlow", {"only": ["tensorflow"], "decision_in": ["apply", "clarify"]}),
     ("neg-trick", "network", "no one who doesn't play chess", {"only": ["chess"], "decision_in": ["apply", "clarify"]}),
     ("neg-trick", "recruiter", "zero Java, lots of Kotlin", {"only": ["java", "kotlin"], "decision_in": ["apply"]}),
-    ("neg-trick", "recruiter", "without excluding anyone who knows Go", {"only": ["golang"], "decision_in": ["apply", "clarify"]}),
+    ("neg-trick", "recruiter", "without excluding anyone who is a Go developer", {"only": ["golang"], "decision_in": ["apply", "clarify"]}),
     # ── length / volume ─────────────────────────────────────────────
     ("length", "network", "python " * 120, {"only": ["python"], "decision_in": ["apply", "clarify"]}),
     ("length", "recruiter", "React, " * 40 + "and also everything else", {"only": ["react"], "decision_in": ["apply", "clarify"]}),
