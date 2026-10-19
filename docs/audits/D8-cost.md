@@ -66,6 +66,30 @@ it from the first 50-VU baseline run before the long runs, and approve it then (
 | Resend | Usage warnings by email (plan limits) |
 | Sentry | Spike protection ON (G5) so a test or an incident can't exhaust the quota |
 
+## Addendum: AI per-turn reserved cost, by stage (S6, 2026-10-19)
+
+Measured locally against the fake provider's placeholder prices (`fake-mini`, `fake-embedding` —
+**not real OpenAI prices**; this bounds the shape of the spend, not the dollar amount), from 20
+network-mode turns run through the real executor (`ai_submit_turn` → `run_turn` → `ai_private.trace_spans`).
+
+| Stage | Model | Calls/turn | Mean input tokens | Mean output tokens | Mean cost (micro-$) |
+| --- | --- | --- | --- | --- | --- |
+| `interpret` | fake-mini | 1 | 44 | 52 | 252 |
+| `memory_embedding` | fake-embedding | 1 | 3 | 0 | 1 |
+| **Total** | | | | | **≈ 253 micro-$/turn** |
+
+This is network mode with pure-concept criteria, where `needs_model` (`app/ai/pipeline.py`) never
+calls the assessor — `interpret` and `memory_embedding` are the only stages that ran. Recruiter mode
+and any free-text criterion add an `assess`/`assess_jobs` call per batch (≤4 parallel, capped by
+`ASSESS_LIMIT`=20 candidates); that stage's reserved cost was already profiled separately in the S4
+outage-drill and S6 burst work as "at most 3 provider calls per turn" (memory embedding + interpret +
+one retry), not re-measured here stage-by-stage.
+
+At real OpenAI prices this scales linearly with the real model's per-token rate — the owner's capped
+live smoke (owner item 23) is what turns this placeholder shape into an actual dollar figure per turn,
+and from there, how many turns/day each of the five money caps (§9, `ai_private.spend_reserve`)
+actually supports.
+
 ## Gate
 
 The owner confirms the marked prices, picks the VM option, sets the AI cap, approves the table,
