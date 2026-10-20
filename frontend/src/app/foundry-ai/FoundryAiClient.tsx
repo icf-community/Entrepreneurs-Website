@@ -421,7 +421,7 @@ export default function FoundryAiClient({ state, initialMode, initialJobId, init
             {results && (
               <section aria-label="Results" className="space-y-3">
                 {running && <p className="text-[0.75rem] text-text-muted">Previous results</p>}
-                <ResultList mode={mode} cards={results.cards} partial={results.partial} />
+                <ResultList mode={mode} turnId={results.turnId} cards={results.cards} partial={results.partial} />
                 {mode === "recruiter" && lastCompleted && !running && (
                   <div className="flex flex-wrap gap-3">
                     {!lastCompleted.saved ? (

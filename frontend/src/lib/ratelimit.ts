@@ -44,7 +44,8 @@ export type RateBucket =
   | "otpVerify"
   | "aiSubmit"
   | "aiEdit"
-  | "aiRead";
+  | "aiRead"
+  | "aiReportMatch";
 
 // ─── Key namespace ──────────────────────────────────────────────────
 //
@@ -273,6 +274,11 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // backs off and keeps one request in flight; this stops a runaway tab.
   aiRead: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(60, "1 m"), prefix: p("ai:read"), analytics: false }),
+  // S8 gap 18: "Report this match". Same report-bombing reasoning as
+  // postReport (a member with more than a handful of genuine reports in a
+  // day is an outlier worth an admin seeing), and no free text to abuse.
+  aiReportMatch: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: p("ai:rep"), analytics: false }),
 };
 
 const instances = new Map<RateBucket, Ratelimit>();
@@ -323,7 +329,7 @@ function instance(bucket: RateBucket): Ratelimit | null {
 const FAIL_CLOSED: readonly RateBucket[] = [
   "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload",
   "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "listingEdit",
-  "dataExport", "otpVerify", "aiSubmit",
+  "dataExport", "otpVerify", "aiSubmit", "aiReportMatch",
 ];
 
 export function failOpen(bucket: RateBucket): boolean {
@@ -383,6 +389,7 @@ const WINDOW_MS: Record<RateBucket, number> = {
   aiSubmit: 60_000,
   aiEdit: 60_000,
   aiRead: 60_000,
+  aiReportMatch: 86_400_000,
 };
 
 const LIMIT: Record<RateBucket, number> = {
@@ -404,6 +411,7 @@ const LIMIT: Record<RateBucket, number> = {
   aiSubmit: 10,
   aiEdit: 30,
   aiRead: 60,
+  aiReportMatch: 5,
 };
 
 type LocalEntry = { count: number; resetAt: number };

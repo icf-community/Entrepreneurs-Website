@@ -2230,6 +2230,10 @@ export type Database = {
           text: string
         }[]
       }
+      ai_report_match: {
+        Args: { p_reason: string; p_target_id: string; p_turn: string }
+        Returns: undefined
+      }
       ai_result_cards: {
         Args: { p_turn: string }
         Returns: {

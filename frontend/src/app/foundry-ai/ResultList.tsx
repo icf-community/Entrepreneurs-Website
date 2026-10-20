@@ -6,6 +6,8 @@ import { ViewProfileButton } from "@/components/members/ViewProfileButton";
 import { externalHref } from "@/lib/safeUrl";
 import { formatDate } from "@/lib/dates";
 import { audienceLabel, type Audience } from "@/lib/listings/audience";
+import { reportMatch, type MatchReportReason } from "./actions";
+import { useToast } from "@/components/ui/Toast";
 import type { AiMode, CoverageRow, ResultCard } from "@/lib/ai/types";
 
 // ════════════════════════════════════════════════════════════════════
@@ -35,7 +37,7 @@ function tierLabel(mode: AiMode, tier: ResultCard["tier"]): string {
     : "Doesn't show every must-have";
 }
 
-export function ResultList({ mode, cards, partial }: { mode: AiMode; cards: ResultCard[]; partial: boolean }) {
+export function ResultList({ mode, turnId, cards, partial }: { mode: AiMode; turnId: string; cards: ResultCard[]; partial: boolean }) {
   const strong = cards.filter((c) => c.tier !== "partial");
   const weaker = cards.filter((c) => c.tier === "partial");
   return (
@@ -47,7 +49,7 @@ export function ResultList({ mode, cards, partial }: { mode: AiMode; cards: Resu
       )}
       {strong.length > 0 && (
         <ol className="space-y-3" aria-label="Matches">
-          {strong.map((c) => <li key={c.slot}><Card mode={mode} card={c} /></li>)}
+          {strong.map((c) => <li key={c.slot}><Card mode={mode} turnId={turnId} card={c} /></li>)}
         </ol>
       )}
       {weaker.length > 0 && (
@@ -56,7 +58,7 @@ export function ResultList({ mode, cards, partial }: { mode: AiMode; cards: Resu
             {mode === "opportunities" ? "Jobs you partly match" : "Partly matching"}
           </h3>
           <ol className="space-y-3">
-            {weaker.map((c) => <li key={c.slot}><Card mode={mode} card={c} /></li>)}
+            {weaker.map((c) => <li key={c.slot}><Card mode={mode} turnId={turnId} card={c} /></li>)}
           </ol>
         </section>
       )}
@@ -64,7 +66,7 @@ export function ResultList({ mode, cards, partial }: { mode: AiMode; cards: Resu
   );
 }
 
-function Card({ mode, card }: { mode: AiMode; card: ResultCard }) {
+function Card({ mode, turnId, card }: { mode: AiMode; turnId: string; card: ResultCard }) {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
   return (
@@ -85,6 +87,11 @@ function Card({ mode, card }: { mode: AiMode; card: ResultCard }) {
           </div>
           {card.subtitle && <p className="mt-0.5 text-[0.8rem] text-text-muted">{card.subtitle}</p>}
           <p className="mt-2 text-[0.8rem] text-text-secondary">{tierLabel(mode, card.tier)}</p>
+          {card.sourceUpdatedAt && (
+            <p className="mt-1 text-[0.7rem] text-text-muted">
+              {card.kind === "member" ? "Profile updated" : "Updated"} {formatDate(card.sourceUpdatedAt)}
+            </p>
+          )}
         </div>
         {card.score != null && (
           <div className="shrink-0 text-right">
@@ -134,6 +141,7 @@ function Card({ mode, card }: { mode: AiMode; card: ResultCard }) {
             {open ? "Hide evidence" : "Why this match"}
           </button>
         )}
+        <ReportControl turnId={turnId} targetId={card.targetId} />
       </div>
       {open && (
         <ul id={detailsId} className="mt-3 space-y-2 border-t border-border-subtle pt-3">
@@ -186,6 +194,66 @@ function JobFacts({ card }: { card: ResultCard }) {
           <span className="text-text-muted">The job page says how to apply.</span>
         )}
       </div>
+    </div>
+  );
+}
+
+const REPORT_REASONS: { value: MatchReportReason; label: string }[] = [
+  { value: "wrong_skills", label: "Wrong skills" },
+  { value: "not_relevant", label: "Not relevant" },
+  { value: "outdated", label: "Outdated" },
+  { value: "other", label: "Other" },
+];
+
+// S8 gap 18. Enum reason only, no free text. Reporting is idempotent at the
+// database, so a double click just lands on "Reported" twice.
+function ReportControl({ turnId, targetId }: { turnId: string; targetId: string }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  if (sent) {
+    return <span className="text-[0.8rem] text-text-muted">Reported — thanks.</span>;
+  }
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center rounded-lg border border-border-strong bg-white/[0.05] px-4 py-2 text-[0.8rem] text-text-primary hover:border-accent cursor-pointer"
+      >
+        Report this match
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Report this match">
+      <span className="text-[0.75rem] text-text-muted">Why?</span>
+      {REPORT_REASONS.map((r) => (
+        <button
+          key={r.value}
+          type="button"
+          disabled={sending}
+          onClick={async () => {
+            setSending(true);
+            const res = await reportMatch(turnId, targetId, r.value);
+            setSending(false);
+            if (res.ok) setSent(true);
+            else toast(res.error, "error");
+          }}
+          className="inline-flex items-center rounded-lg border border-border-strong bg-white/[0.05] px-3 py-1.5 text-[0.75rem] text-text-primary hover:border-accent cursor-pointer disabled:opacity-50"
+        >
+          {r.label}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        className="text-[0.75rem] text-text-muted underline cursor-pointer"
+      >
+        Cancel
+      </button>
     </div>
   );
 }

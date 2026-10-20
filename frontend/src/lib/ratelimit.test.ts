@@ -34,6 +34,8 @@ const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
   aiSubmit: "closed",
   aiEdit: "open",
   aiRead: "open",
+  // Fail-closed: report-bombing, same reasoning as postReport.
+  aiReportMatch: "closed",
 };
 
 const EVERY_BUCKET = Object.keys(CLASSIFICATION) as RateBucket[];

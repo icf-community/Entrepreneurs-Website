@@ -114,6 +114,7 @@ export type ResultCard = {
   evidence: { text: string; kind: string; from_cv: boolean }[];
   stale: boolean;
   change: "new" | "updated" | "same" | null;
+  sourceUpdatedAt: string | null;
   job: null | {
     deadline: string;
     locationType: string;

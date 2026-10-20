@@ -226,3 +226,25 @@ export async function confirmRequirements(opportunityId: string, atoms: ConfirmA
   if (error?.message?.includes("requirements_outdated")) return err(outcomeMessage("requirements_outdated"));
   return error ? err("We couldn't save these requirements. Check them and try again.") : ok();
 }
+
+export type MatchReportReason = "wrong_skills" | "not_relevant" | "outdated" | "other";
+const REPORT_REASONS = new Set<MatchReportReason>(["wrong_skills", "not_relevant", "outdated", "other"]);
+
+// S8 gap 18. Idempotent at the database (unique on turn/reporter/target),
+// so a double click is a no-op, not a second report.
+export async function reportMatch(turnId: string, targetId: string, reason: MatchReportReason): Promise<Result> {
+  const m = await member();
+  if (!m.ok) return m;
+  if (!UUID.test(turnId) || !UUID.test(targetId) || !REPORT_REASONS.has(reason)) {
+    return err("That report isn't valid.");
+  }
+  const decision = await check("aiReportMatch", m.data.userId);
+  if (decision === "limited") return err("You've reported several matches today. Try again tomorrow.");
+  if (decision === "unavailable") return err(outcomeMessage("unavailable"));
+  const { error } = await m.data.supabase.rpc("ai_report_match", {
+    p_turn: turnId,
+    p_target_id: targetId,
+    p_reason: reason,
+  });
+  return error ? err("We couldn't send that report. Try again.") : ok();
+}

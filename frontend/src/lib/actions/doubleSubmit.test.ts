@@ -95,6 +95,7 @@ const DOUBLE_SUBMIT: Record<string, Why> = {
   "app/foundry-ai/actions.ts#deleteAllAiHistory": { server: "deleting twice is a no-op" },
   "app/foundry-ai/actions.ts#forgetMessage": { server: "deleting twice is a no-op" },
   "app/foundry-ai/actions.ts#saveFindings": { server: "on conflict (turn_id) do nothing (test_r15_…)" },
+  "app/foundry-ai/actions.ts#reportMatch": { server: "on conflict (turn_id, reporter_id, target_id) do nothing" },
   "app/settings/actions.ts#setMyEducation": { server: "upsert to the same values" },
   "app/home/actions.ts#confirmGraduation": { server: "locks the profile; the second call is refused once the member is no longer a student" },
   "app/settings/actions.ts#saveAiSettings": { server: "upsert to the same values" },

@@ -53,6 +53,7 @@ export async function resultCards(db: Db, turnId: string): Promise<ResultCard[]>
       evidence: (r.evidence ?? []) as unknown as ResultCard["evidence"],
       stale: !!r.stale,
       change: (r.change as ResultCard["change"]) ?? null,
+      sourceUpdatedAt: (extra.source_updated_at as string | null) ?? null,
       job: r.kind === "opportunity"
         ? {
             deadline: String(extra.deadline ?? ""),
