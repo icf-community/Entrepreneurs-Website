@@ -45,7 +45,8 @@ export type RateBucket =
   | "aiSubmit"
   | "aiEdit"
   | "aiRead"
-  | "aiReportMatch";
+  | "aiReportMatch"
+  | "aiDraftHandoff";
 
 // ─── Key namespace ──────────────────────────────────────────────────
 //
@@ -279,6 +280,15 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // day is an outlier worth an admin seeing), and no free text to abuse.
   aiReportMatch: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: p("ai:rep"), analytics: false }),
+  // S8 gap 20. createAiDraftHandoff writes a short-lived (purged hourly),
+  // owner-scoped row holding up to 2KB of filter data — no real abuse path
+  // (it's a convenience hop to the Composer, not spend or a fan-out), but
+  // "no bucket beyond the generic 60/min mutations backstop" was still
+  // looser than it needed to be for a write with no legitimate reason to
+  // happen more than a few times per session. Fail-open: an Upstash blip
+  // must not block a member from using the entry point at all.
+  aiDraftHandoff: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(20, "1 h"), prefix: p("ai:draft"), analytics: false }),
 };
 
 const instances = new Map<RateBucket, Ratelimit>();
@@ -390,6 +400,7 @@ const WINDOW_MS: Record<RateBucket, number> = {
   aiEdit: 60_000,
   aiRead: 60_000,
   aiReportMatch: 86_400_000,
+  aiDraftHandoff: 3_600_000,
 };
 
 const LIMIT: Record<RateBucket, number> = {
@@ -412,6 +423,7 @@ const LIMIT: Record<RateBucket, number> = {
   aiEdit: 30,
   aiRead: 60,
   aiReportMatch: 5,
+  aiDraftHandoff: 20,
 };
 
 type LocalEntry = { count: number; resetAt: number };

@@ -36,6 +36,9 @@ const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
   aiRead: "open",
   // Fail-closed: report-bombing, same reasoning as postReport.
   aiReportMatch: "closed",
+  // Fail-open: no real abuse path, just a tighter ceiling than the generic
+  // mutations backstop; an outage must not block the entry point.
+  aiDraftHandoff: "open",
 };
 
 const EVERY_BUCKET = Object.keys(CLASSIFICATION) as RateBucket[];

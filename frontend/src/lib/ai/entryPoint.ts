@@ -1,8 +1,10 @@
 "use server";
 
 import { getActionAuth } from "@/lib/auth/actionAuth";
+import { check } from "@/lib/ratelimit";
 import { UNREACHABLE_MESSAGE } from "@/lib/supabase/unavailable";
 import { err, ok, type Result } from "@/lib/result";
+import { outcomeMessage } from "@/lib/ai/outcomes";
 
 // S8 gap 20: "Search with AI" / "Find with AI" entry points from /members
 // and /opportunities. The /foundry-ai link these pages build must never
@@ -25,7 +27,7 @@ async function member() {
   if (auth.unreachable) return err(UNREACHABLE_MESSAGE);
   if (!auth.user) return err("You must be signed in.");
   if (auth.status !== "approved") return err("Approved members only.");
-  return ok({ supabase: auth.supabase });
+  return ok({ supabase: auth.supabase, userId: auth.user.id });
 }
 
 export async function createAiDraftHandoff(
@@ -34,6 +36,8 @@ export async function createAiDraftHandoff(
 ): Promise<Result<{ id: string }>> {
   const m = await member();
   if (!m.ok) return m;
+  const decision = await check("aiDraftHandoff", m.data.userId);
+  if (decision === "limited") return err(outcomeMessage("limited"));
   const { data, error } = await m.data.supabase.rpc("ai_create_draft_handoff", {
     p_mode: mode,
     p_filters: filters as never,
