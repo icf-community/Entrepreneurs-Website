@@ -252,6 +252,122 @@ the VUs anonymous, half signed in and writing):
 - Scale corpus removed after the run (`drop_scale_corpus.sql`); local DB back to its normal
   seven-account state, `invariants.sql` clean, full `pytest` (408) and SQL suites clean.
 
+## 7. Listing RPCs and AI paths at 10k, post-migration-002 (S7, gap 26, 2026-10-20)
+
+### Listing RPCs
+
+`seed_scale_corpus.sql` bumped (temporarily, via a copy — the file's own default stayed at 5,000)
+to `n_members := 10000` and re-run, then `d1_rpc_timings.sql` against it (10,011 profiles): **every
+read holds the same shape as §1**, no regression from migration 002's audience rewrites or the
+S0–S3 concurrency/AI-operations work. Only `admin_connection_stats` exceeds 100 ms p95 (202 ms,
+unchanged from §1) — the same accepted, already-cached exception. The scale corpus was then
+dropped (`drop_scale_corpus.sql`) and `invariants.sql` re-confirmed clean.
+
+**Found and fixed in the process, not a product bug:** `drop_scale_corpus.sql` never deleted
+`connection_events` — that table has no FK to `profiles` at all, by design (its own header:
+"a connection row that may no longer exist"), so cascading delete never touches it, and nothing in
+the drop script deleted it explicitly either. 10,000 dropped corpus members left 499,374 orphaned
+rows behind, which `invariants.sql`'s #6 daily-cap check (correctly) failed against on this run.
+Fixed by adding an explicit `delete ... where actor_id = any(v_ids) or subject_id = any(v_ids)`
+step, scoped by id like the rest of that script. Re-verified: `invariants.sql` passes all 10 groups
+after a clean drop.
+
+### AI paths
+
+`server/evals/corpus.py --size 10k` (closes S5's "10k on demand" item too): **recall@200 = 1.0** on
+all three modes, nDCG@10 mean .965/.972/1.000 (network/recruiter/opportunities), zero ineligible
+results, zero grade-3 matches lost — same PASS as the 2k run (D5's S5 work), now confirmed at the
+plan's stated 10k scale.
+
+The harness was instrumented to also capture wall-clock latency per call for `exec_retrieve`,
+`ai_result_cards` and `ai_turn_status` (the real RPCs a finished turn's UI reads). Measured over the
+36 real queries in that run:
+
+| RPC | p50 ms | p95 ms | max ms |
+| --- | ---: | ---: | ---: |
+| `exec_retrieve` | 79.1 | 199.5 | 220.2 |
+| `ai_result_cards` | 4.3 | 13.7 | 24.9 |
+| `ai_turn_status` | 2.0 | 3.1 | 3.3 |
+
+`ai_result_cards` and `ai_turn_status` comfortably clear both the general 100 ms DB gate and the
+plan's 2 s "through the routes" gate for chip rerun/reopen/replay/result cards — "rerun"/"replay"
+are the same `ai_submit_turn` path already exercised by every query in this run, not a separate
+route. Composed with §3's already-measured ~6 ms, zero-DB RSC route overhead, the full route-level
+cost for these stays well under 2 s.
+
+**`exec_retrieve`'s 199.5 ms p95 did not clear the 100 ms gate. Investigated, fixed, and
+re-verified — resolved, not just flagged.**
+
+First signal it wasn't pure corpus-size cost: the same measurement at `--size 50` (an earlier
+sanity check) already showed p95 160 ms, p50 73.5 ms — nearly identical to the 10k numbers (p50
+79.1 ms). Confirmed directly with `EXPLAIN (ANALYZE, BUFFERS)` against a synthetic 10,000-row
+`member_docs` table (same query shape, local rollback transaction, not kept): the `pool` CTE was
+`materialized`, forcing Postgres to fully evaluate `ai_private.member_candidate_ok()` over a `Seq
+Scan on member_docs` **before** any of the three scoring legs ran — and because `vec`'s
+nearest-neighbour ordering then ran against that already-materialized CTE (`CTE Scan`, not `Index
+Scan`), the `member_docs_embedding_idx` HNSW index was never touched at all, nor were the GIN
+indexes the exact/lexical legs could otherwise use.
+
+**Fix** (migration `20261011000009_exec_retrieve_index_fix.sql`, raised to the user before writing
+anything and approved as "design it now, as its own reviewed step"): gave each of the three scoring
+legs (exact/lexical/vector, both the member and the opportunity branch) its own independently
+filtered CTE instead of one shared `materialized` pool, joined back with `FULL JOIN`s. Same
+`member_candidate_ok`/`job_candidate_ok` eligibility filter applied on every leg — not relaxed on
+any of them — just evaluated per-leg instead of once; verified with a before/after row-level diff
+against synthetic data with negated-concept and ineligible-member rows planted: **identical 20
+ranked rows, identical order**, before concluding it was safe. Confirmed with `EXPLAIN` post-fix
+(with `ANALYZE` run so the planner had real stats): the vector leg now uses
+`Index Scan using member_docs_embedding_idx`, 31 ms instead of ~980 ms for that leg alone on the
+same synthetic data; the lexical leg now uses `Bitmap Index Scan on member_docs_tsv_idx`.
+
+**Re-measuring through the same `evals/corpus.py --size 10k` harness after applying the migration
+did NOT show the improvement (p95 219 ms, if anything noisier)** — which is itself the tell that the
+harness's own number was never really measuring `exec_retrieve`'s SQL cost. That harness's
+`_run_executor_once` opens a brand-new `asyncio` loop and a brand-new `psycopg` connection (full
+handshake and auth) for every one of the 36 queries, by design (it docstrings "exactly one queued
+turn per call"); that per-call reconnect cost is a corpus-size-independent floor that swamps the
+real, much smaller SQL-execution signal underneath it. Isolated with a dedicated one-off script
+(`evals/corpus.py`'s own seeding/promotion helpers, 10,001 real promoted members, one warm
+connection reused for 10 repeated direct `exec_retrieve` calls against a real queued-and-claimed
+turn): **min 0.96 ms, median 1.25 ms, max 11.08 ms** — two orders of magnitude under the gate.
+
+Full regression run after the migration: `ai_smoke.sql` (grants/fence/isolation checks) passed;
+the full Python integration suite (127) and offline suite (346 passed, 127 skipped) passed; the 2k
+and 10k retrieval-quality gates (recall@200, nDCG@10, ineligible/grade3-lost) stayed PASS,
+unchanged from before the fix.
+
+**Recommended follow-up, not done here:** the corpus harness's own per-call connection-reuse issue
+is now understood but not fixed in `evals/corpus.py` itself (its "exactly one turn per call"
+contract is deliberate and used by the retrieval-quality gates; changing its connection lifetime is
+a separate, smaller piece of work than this fix, left for later since the true number is now known
+by the direct check above).
+
+`exec_memory` was already measured directly (§6, S0 gap 39 work): 1.3–2.0 ms execution at its
+stated ~280-message-per-member ceiling — comfortably inside the gate, and that scan is
+`owner_id`-scoped so corpus-wide member count never enters its plan.
+
+### ETag/304 polling and the Stage 1 AI rerun
+
+`frontend/scripts/loadtest.js` gained an `AI=1` mode: each signed-in VU submits a real
+`ai_submit_turn`, polls the actual `/api/ai/turns/:id` route to completion honouring `ETag`/
+`If-None-Match` (a 304 counted as the expected cheap case, not an error), then reads
+`ai_result_cards` and `ai_get_conversation` ("reopen"), each its own latency series gated at
+p95 < 2 s. Code-reviewed and syntax-checked; the polling route itself was also read end-to-end
+(`frontend/src/app/api/ai/turns/[id]/route.ts`) and does implement conditional ETag/304 exactly as
+designed.
+
+**Not actually run as a k6 pass against Stage 1 (250 VU) — a scope decision, not an oversight.**
+`mint-loadtest-sessions.mjs` only mints sessions for `seed_scale_corpus.sql`'s own accounts (a fixed
+bcrypt password baked into that seeder), and those accounts have no AI projection at all — no
+`ai_private.member_settings` row, no promoted `member_docs` (that pipeline is `evals/corpus.py`'s,
+which creates its own passwordless service-role accounts, mintable by nothing). Standing up a real
+k6-drivable AI load pass needs a fixture that is neither of these: accounts with a known password
+*and* a built AI projection *and* `network_discoverable` on. Building that combined fixture, or
+mutating the shared `e2e-*` accounts (which do have known passwords but are curated, order-sensitive
+state for other specs) is real new work, not a rerun of an existing script — left for a follow-up
+rather than risking either a rushed new fixture or a side effect on `e2e-*`'s existing AI consent
+tests.
+
 ## Open items
 
 - **Owner:** asymmetric JWT signing keys ON (§2).
@@ -259,3 +375,7 @@ the VUs anonymous, half signed in and writing):
 - **E3:** fra1 vs lhr1 (§2).
 - **D8:** count ~20 prefetch invocations per hard page load in the Vercel estimate (§3).
 - **E5b:** real-phone check of the landing page hero (§4).
+- **§7:** `evals/corpus.py`'s per-call connection reconnect in `_run_executor_once` dominates its
+  own latency numbers — understood, not fixed (direct measurement used instead for the §7 gate).
+- **§7:** a combined known-password + AI-projection account fixture, to actually run the AI=1
+  `loadtest.js` mode against Stage 1/2.

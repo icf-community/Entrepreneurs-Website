@@ -121,6 +121,8 @@ def main() -> None:
             print(f"{mode}: recall@200 min {s['recall_at_200_min']:.3f}, nDCG@10 mean {s['ndcg_at_10_mean']:.3f}, "
                   f"ineligible hits {s['ineligible_hits']}, grade3 lost {s['grade3_lost']} — "
                   f"{'PASS' if s['gate_pass'] else 'FAIL'}")
+        for name, lat in report.get("db_latency_ms", {}).items():
+            print(f"{name}: p50 {lat['p50']}ms, p95 {lat['p95']}ms, max {lat['max']}ms (n={lat['n']})")
         print(f"verdict: {report['verdict'].upper()} · report: {args.out}")
         sys.exit(0 if report["verdict"] == "pass" else 1)
     if args.cmd == "memory-bench":

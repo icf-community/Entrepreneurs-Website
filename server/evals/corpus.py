@@ -50,6 +50,7 @@ import json
 import math
 import os
 import random
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -372,6 +373,14 @@ def as_member(conn, uid, query: str, params: tuple = ()):
 
 
 _LAST_RETRIEVAL: list[dict] = []
+# Wall-clock ms per exec_retrieve/ai_result_cards/ai_turn_status call, across
+# every query in this run (S7, gap 26: "exec_retrieve ... at 10k"). Each query
+# runs its own real turn, so this is `exec_retrieve`'s actual latency against
+# whatever corpus size `run()` just seeded — 36 samples at --size 10k, not a
+# synthetic benchmark loop.
+_RETRIEVE_MS: list[float] = []
+_CARDS_MS: list[float] = []
+_STATUS_MS: list[float] = []
 
 
 def _run_executor_once(dsn: str) -> None:
@@ -398,7 +407,9 @@ def _run_executor_once(dsn: str) -> None:
     original_retrieve = Turn.retrieve
 
     async def _capturing_retrieve(self, atoms, self_concepts):
+        started = time.perf_counter()
         result = await original_retrieve(self, atoms, self_concepts)
+        _RETRIEVE_MS.append((time.perf_counter() - started) * 1000)
         _LAST_RETRIEVAL.extend(result)
         return result
 
@@ -437,13 +448,17 @@ def run_query(conn, dsn, uid, mode, message, *, opportunity=None) -> QueryResult
     if outcome != "queued":
         raise RuntimeError(f"query {message!r} ({mode}) not queued: {outcome}")
     _run_executor_once(dsn)
+    started = time.perf_counter()
     status = as_member(conn, uid, "select status from public.ai_turn_status(%s)", (turn,))[0][0]
+    _STATUS_MS.append((time.perf_counter() - started) * 1000)
     if status not in ("completed", "partial"):
         spans = _sql(conn, "select stage, outcome from ai_private.trace_spans where turn_id = %s order by created_at",
                     (turn,))
         turn_outcome = _sql(conn, "select outcome from ai_private.turns where id = %s", (turn,))
         raise RuntimeError(f"query {message!r} ({mode}) ended {status}, outcome={turn_outcome}; spans={spans}")
+    started = time.perf_counter()
     cards = as_member(conn, uid, "select target_id from public.ai_result_cards(%s)", (turn,))
+    _CARDS_MS.append((time.perf_counter() - started) * 1000)
     retrieved = [r["target"] for r in _LAST_RETRIEVAL]
     return QueryResult(retrieved=retrieved, published=[r[0] for r in cards])
 
@@ -638,8 +653,19 @@ def run(dsn: str, size: int, *, seed_value: int = 0, out: Path | None = None) ->
             }
             for mode, rs in by_mode.items()
         }
+        def _pctl(values: list[float], p: float) -> float:
+            if not values:
+                return 0.0
+            ordered = sorted(values)
+            return round(ordered[min(len(ordered) - 1, int(p * len(ordered)))], 2)
+
+        db_latency_ms = {
+            name: {"p50": _pctl(vals, 0.50), "p95": _pctl(vals, 0.95), "max": round(max(vals), 2), "n": len(vals)}
+            for name, vals in (("exec_retrieve", _RETRIEVE_MS), ("ai_result_cards", _CARDS_MS),
+                               ("ai_turn_status", _STATUS_MS)) if vals
+        }
         report = {"size": size, "members": len(member_specs), "jobs": len(job_specs),
-                 "queries": [r.__dict__ for r in reports], "summary": summary,
+                 "queries": [r.__dict__ for r in reports], "summary": summary, "db_latency_ms": db_latency_ms,
                  "verdict": "pass" if all(s["gate_pass"] for s in summary.values()) else "fail"}
         if out:
             out.write_text(json.dumps(report, indent=2))
