@@ -117,9 +117,21 @@ begin
      group by owner_id having count(*) > 150) d;
   if v_n > 0 then v_fail := v_fail || format('10 %s viewers over 150 surfaced members', v_n); end if;
 
+  -- 11. S8: draft_handoffs is purged hourly (ai_private.cron_purge); double
+  -- the interval as slack for a run between cron ticks, so this only fires
+  -- if the purge itself broke. match_reports cascades off its turn, so a
+  -- report for a turn that no longer exists would mean the FK/cascade is
+  -- not doing its job.
+  select count(*) into v_n from ai_private.draft_handoffs
+   where created_at < now() - interval '2 hours';
+  if v_n > 0 then v_fail := v_fail || format('11a %s draft handoffs older than 2 hours (purge not running?)', v_n); end if;
+  select count(*) into v_n from ai_private.match_reports mr
+   where not exists (select 1 from ai_private.turns t where t.id = mr.turn_id);
+  if v_n > 0 then v_fail := v_fail || format('11b %s match reports for a turn that no longer exists', v_n); end if;
+
   if cardinality(v_fail) > 0 then
     raise exception E'INVARIANTS FAILED (%):\n  %', cardinality(v_fail), array_to_string(v_fail, E'\n  ');
   end if;
-  raise notice 'OK  all 10 invariant groups hold';
+  raise notice 'OK  all 11 invariant groups hold';
 end;
 $$;
