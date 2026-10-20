@@ -19,6 +19,8 @@ import { externalHref } from "@/lib/safeUrl";
 import { settle } from "@/lib/settle";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
+import { useRouter } from "next/navigation";
+import { createAiDraftHandoff } from "@/lib/ai/entryPoint";
 
 // D1: every open role is rendered and hydrated as its own card, so a long
 // board cost seconds of main thread on a mid-range phone (268 roles in the
@@ -26,7 +28,7 @@ import { Button } from "@/components/ui/Button";
 const PAGE = 30;
 
 export default function OpportunitiesClient({
-  items, bookmarkedIds, appliedIds = [], removeOnUnbookmark = false,
+  items, bookmarkedIds, appliedIds = [], removeOnUnbookmark = false, aiEnabled = false,
 }: {
   items: Opportunity[];
   bookmarkedIds: string[];
@@ -36,6 +38,10 @@ export default function OpportunitiesClient({
    *  removes it from the visible list rather than just clearing the
    *  star — matches the user's intent on a bookmarks-only view. */
   removeOnUnbookmark?: boolean;
+  /** S8 gap 20: shows "Find with AI" next to the search box. Off on
+   *  /my-bookmarks, which reuses this component but has no page-level
+   *  flag check. */
+  aiEnabled?: boolean;
 }) {
   // Client-side navigation: this page already holds every open role it can
   // show (list_approved_opportunities self-prunes past the deadline), so a
@@ -87,6 +93,19 @@ export default function OpportunitiesClient({
   // B7: ids with a bookmark write in flight; a repeat click waits for it.
   const inFlight = useRef<Set<string>>(new Set());
 
+  const router = useRouter();
+  const [searchingWithAi, setSearchingWithAi] = useState(false);
+
+  // S8 gap 20. The link to /foundry-ai carries only an opaque handoff id,
+  // never the search text (AI-plan.md "no criteria in URLs").
+  const searchWithAi = async () => {
+    setSearchingWithAi(true);
+    const res = await createAiDraftHandoff("opportunities", { q: query });
+    setSearchingWithAi(false);
+    if (res.ok) router.push(`/foundry-ai?mode=opportunities&draft=${res.data.id}`);
+    else toast(res.error, "error");
+  };
+
   const handleToggleBookmark = (id: string) => {
     if (inFlight.current.has(id)) return;
     inFlight.current.add(id);
@@ -115,13 +134,21 @@ export default function OpportunitiesClient({
 
   return (
     <>
-      <SearchInput
-        className="mb-8"
-        label="Search opportunities"
-        placeholder="Search by role, company, skill, sector, or poster"
-        value={query}
-        onChange={setQuery}
-      />
+      <div className="mb-8 flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[16rem]">
+          <SearchInput
+            label="Search opportunities"
+            placeholder="Search by role, company, skill, sector, or poster"
+            value={query}
+            onChange={setQuery}
+          />
+        </div>
+        {aiEnabled && (
+          <Button variant="ghost" size="sm" loading={searchingWithAi} onClick={searchWithAi}>
+            Find with AI
+          </Button>
+        )}
+      </div>
 
       {filtered.length === 0 ? (
         <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">

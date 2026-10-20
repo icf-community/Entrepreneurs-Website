@@ -15,6 +15,8 @@ import {
   cancelTurn, deleteAllAiHistory, deleteConversation, editSpec, forgetMessage, loadConversation,
   loadConversations, loadResults, saveFindings, submitTurn, type SpecOp, type SubmitInput,
 } from "./actions";
+import { consumeAiDraftHandoff } from "@/lib/ai/entryPoint";
+import { renderDraftText } from "@/lib/ai/draftText";
 import { CriteriaBar } from "./CriteriaBar";
 import { RequirementsPanel } from "./RequirementsPanel";
 import { ResultList } from "./ResultList";
@@ -47,6 +49,7 @@ type Props = {
   initialMode: AiMode;
   initialJobId: string | null;
   initialConversationId: string | null;
+  initialDraftId: string | null;
 };
 
 function newKey(): string {
@@ -55,7 +58,7 @@ function newKey(): string {
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-export default function FoundryAiClient({ state, initialMode, initialJobId, initialConversationId }: Props) {
+export default function FoundryAiClient({ state, initialMode, initialJobId, initialConversationId, initialDraftId }: Props) {
   const toast = useToast();
   const modes = (Object.keys(state.enabled) as AiMode[]).filter((m) => state.enabled[m]);
   const [mode, setMode] = useState<AiMode>(modes.includes(initialMode) ? initialMode : modes[0]);
@@ -95,6 +98,23 @@ export default function FoundryAiClient({ state, initialMode, initialJobId, init
     if (conversationId) params.set("c", conversationId);
     window.history.replaceState(null, "", `/foundry-ai?${params.toString()}`);
   }, [mode, jobId, conversationId]);
+
+  // S8 gap 20: a one-time handoff from /members or /opportunities. Consumed
+  // (and gone from the server) on first mount; the draft only ever fills
+  // the Composer text — nothing is sent until the member presses Send, and
+  // the handoff id itself is already gone from the URL by the effect above.
+  useEffect(() => {
+    if (!initialDraftId) return;
+    let cancelled = false;
+    consumeAiDraftHandoff(initialDraftId).then((res) => {
+      if (cancelled || !res.ok || !res.data) return;
+      const text = renderDraftText(mode, res.data);
+      if (text) setDraft(text);
+    });
+    return () => { cancelled = true; };
+    // Runs once, for the id this page loaded with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDraftId]);
 
   const refreshConversations = useCallback(async () => {
     const res = await loadConversations(mode);

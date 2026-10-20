@@ -153,6 +153,8 @@ export const ACTION_POLICIES: Record<string, ActionPolicy> = {
   "app/foundry-ai/actions.ts#forgetMessage": cheap,
   "app/foundry-ai/actions.ts#saveFindings": cheap,
   "app/foundry-ai/actions.ts#reportMatch": { kind: "write-costly", bucket: "aiReportMatch" },
+  "lib/ai/entryPoint.ts#createAiDraftHandoff": cheap,
+  "lib/ai/entryPoint.ts#consumeAiDraftHandoff": cheap,
   "app/members/actions.ts#getMemberCard": read,
   "app/settings/actions.ts#setMyEducation": cheap,
   "app/home/actions.ts#confirmGraduation": cheap,

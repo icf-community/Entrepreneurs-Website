@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import SearchableMultiSelect from "@/components/forms/SearchableMultiSelect";
 import { useUrlFilters, useSearchDraft } from "@/lib/filters/useUrlFilters";
 import { SearchInput, FilterPanel, ChipGroup, RangeFilter } from "@/components/filters/FilterBar";
 import { Pager } from "@/components/ui/Pager";
+import { Button } from "@/components/ui/Button";
 import { MemberDialog } from "@/components/members/MemberDialog";
 import { MemberCard } from "@/components/members/MemberCard";
+import { createAiDraftHandoff } from "@/lib/ai/entryPoint";
+import { useToast } from "@/components/ui/Toast";
 // Type-only, so the server-only module is erased rather than imported.
 // bioPreview and hobbiesPreview are truncated by list_directory_cards to
 // what the card renders; the full text and the profile links are fetched
@@ -32,13 +36,14 @@ import { Updating } from "@/components/ui/Updating";
 // button steps through filter history.
 // ════════════════════════════════════════════════════════════════════
 export default function MembersClient({
-  members, facets, filters, matching, pageSize,
+  members, facets, filters, matching, pageSize, aiEnabled,
 }: {
   members: DirectoryMember[];
   facets: Facets;
   filters: MemberFilters;
   matching: number;
   pageSize: number;
+  aiEnabled: boolean;
 }) {
   // Server-side navigation: the directory is too large to ship whole, so a
   // filter is an argument to a Postgres query rather than a local operation.
@@ -49,6 +54,22 @@ export default function MembersClient({
   const [queryDraft, setQueryDraft] = useSearchDraft(url);
 
   const [openMember, setOpenMember] = useState<DirectoryMember | null>(null);
+  const [searchingWithAi, setSearchingWithAi] = useState(false);
+  const toast = useToast();
+  const router = useRouter();
+
+  // S8 gap 20. The link to /foundry-ai carries only an opaque handoff id,
+  // never the filter values (AI-plan.md "no criteria in URLs").
+  const searchWithAi = async () => {
+    setSearchingWithAi(true);
+    const res = await createAiDraftHandoff("network", {
+      role: filters.roles, course: filters.courses, sector: filters.sectors,
+      skill: filters.skills, gradMin: filters.gradMin, gradMax: filters.gradMax, q: queryDraft,
+    });
+    setSearchingWithAi(false);
+    if (res.ok) router.push(`/foundry-ai?mode=network&draft=${res.data.id}`);
+    else toast(res.error, "error");
+  };
 
   const activeFilterCount =
     filters.roles.length + filters.courses.length + filters.sectors.length +
@@ -62,12 +83,21 @@ export default function MembersClient({
 
   return (
     <>
-      <SearchInput
-        label="Search members"
-        placeholder="Search by name, course, skill, sector, or what they're working on"
-        value={queryDraft}
-        onChange={setQueryDraft}
-      />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[16rem]">
+          <SearchInput
+            label="Search members"
+            placeholder="Search by name, course, skill, sector, or what they're working on"
+            value={queryDraft}
+            onChange={setQueryDraft}
+          />
+        </div>
+        {aiEnabled && (
+          <Button variant="ghost" size="sm" loading={searchingWithAi} onClick={searchWithAi}>
+            Search with AI
+          </Button>
+        )}
+      </div>
 
       <FilterPanel
         activeCount={activeFilterCount}

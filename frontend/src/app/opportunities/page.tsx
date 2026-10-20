@@ -13,6 +13,7 @@ import {
 } from "@/lib/data/opportunities";
 import { EducationForm } from "@/components/forms/EducationForm";
 import type { Db } from "@/lib/data/query";
+import { aiModeEnabled } from "@/lib/ai/data";
 import OpportunitiesClient from "./OpportunitiesClient";
 
 export default async function OpportunitiesPage({
@@ -35,6 +36,7 @@ export default async function OpportunitiesPage({
 
   // Started, not awaited — see the note in app/vcs/page.tsx.
   const data = loadOpportunities(supabase, user.id);
+  const aiEnabled = aiModeEnabled(supabase, "opportunities");
   // Jobs are for students, graduates or both (AI-plan §7.2). Until a member
   // says which they are, they see none, so ask rather than show an empty
   // board (F29). Admins see every job anyway.
@@ -75,7 +77,7 @@ export default async function OpportunitiesPage({
           </>
         }
       >
-        <OpportunityList data={data} />
+        <OpportunityList data={data} aiEnabled={aiEnabled} />
       </Suspense>
     </ListingPageShell>
   );
@@ -116,7 +118,14 @@ async function BookmarksLink({ data }: { data: Promise<OpportunitiesData> }) {
   );
 }
 
-async function OpportunityList({ data }: { data: Promise<OpportunitiesData> }) {
-  const { items, bookmarkedIds, appliedIds } = await data;
-  return <OpportunitiesClient items={items} bookmarkedIds={bookmarkedIds} appliedIds={appliedIds} />;
+async function OpportunityList({ data, aiEnabled }: { data: Promise<OpportunitiesData>; aiEnabled: Promise<boolean> }) {
+  const [{ items, bookmarkedIds, appliedIds }, enabled] = await Promise.all([data, aiEnabled]);
+  return (
+    <OpportunitiesClient
+      items={items}
+      bookmarkedIds={bookmarkedIds}
+      appliedIds={appliedIds}
+      aiEnabled={enabled}
+    />
+  );
 }

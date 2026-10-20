@@ -881,7 +881,7 @@ declare
     'ai_turn_status','ai_cancel_turn','ai_edit_spec','ai_delete_conversation','ai_delete_all_history',
     'ai_forget_message','ai_save_findings','ai_result_cards','ai_get_job_requirements',
     'ai_confirm_job_requirements','admin_ai_overview','admin_set_ai_flag','admin_set_ai_limits',
-    'admin_ai_rebuild_index','ai_report_match',
+    'admin_ai_rebuild_index','ai_report_match','ai_create_draft_handoff','ai_consume_draft_handoff',
     -- 20261006000006: one approved member's directory card, for View
     -- profile; same visibility as the profiles RLS the dialog already uses.
     'get_member_card',

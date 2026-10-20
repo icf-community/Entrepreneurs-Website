@@ -16,7 +16,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default async function FoundryAiPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mode?: string; job?: string; c?: string }>;
+  searchParams: Promise<{ mode?: string; job?: string; c?: string; draft?: string }>;
 }) {
   const { isAdmin, displayName, supabase, status } = await requireApprovedUser();
   const sp = await searchParams;
@@ -49,6 +49,7 @@ export default async function FoundryAiPage({
               initialMode={(["recruiter", "network", "opportunities"].includes(sp.mode ?? "") ? sp.mode : "network") as AiMode}
               initialJobId={sp.job && UUID.test(sp.job) ? sp.job : null}
               initialConversationId={sp.c && UUID.test(sp.c) ? sp.c : null}
+              initialDraftId={sp.draft && UUID.test(sp.draft) ? sp.draft : null}
             />
           )}
         </div>

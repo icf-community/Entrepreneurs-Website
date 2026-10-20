@@ -2178,6 +2178,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      ai_consume_draft_handoff: { Args: { p_id: string }; Returns: Json }
+      ai_create_draft_handoff: {
+        Args: { p_filters: Json; p_mode: string }
+        Returns: string
+      }
       ai_delete_all_history: { Args: never; Returns: undefined }
       ai_delete_conversation: {
         Args: { p_conversation: string }

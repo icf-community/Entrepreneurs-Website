@@ -15,6 +15,11 @@ export async function aiState(db: Db): Promise<AiState> {
   return data as unknown as AiState;
 }
 
+export async function aiModeEnabled(db: Db, mode: AiMode): Promise<boolean> {
+  const { data } = await db.rpc("ai_mode_enabled", { p_mode: mode });
+  return data === true;
+}
+
 export async function anyAiModeEnabled(db: Db): Promise<boolean> {
   const results = await Promise.all(
     (["recruiter", "network", "opportunities"] as const).map((mode) => db.rpc("ai_mode_enabled", { p_mode: mode })),

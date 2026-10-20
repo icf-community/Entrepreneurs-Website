@@ -8,6 +8,7 @@ import {
   type DirectoryPage,
   type MemberFilters,
 } from "@/lib/data/directory";
+import { aiModeEnabled } from "@/lib/ai/data";
 import MembersClient from "./MembersClient";
 
 type SearchParams = {
@@ -44,6 +45,7 @@ export default async function CommunityPage({
 
   // Started, not awaited — see the note in app/vcs/page.tsx.
   const data = directoryPage(supabase, filters, { isAdmin });
+  const aiEnabled = aiModeEnabled(supabase, "network");
 
   return (
     <AppShell active="members" name={displayName} isAdmin={isAdmin}>
@@ -63,7 +65,7 @@ export default async function CommunityPage({
               </>
             }
           >
-            <Directory data={data} filters={filters} />
+            <Directory data={data} filters={filters} aiEnabled={aiEnabled} />
           </Suspense>
         </div>
       </div>
@@ -72,12 +74,13 @@ export default async function CommunityPage({
 }
 
 async function Directory({
-  data, filters,
+  data, filters, aiEnabled,
 }: {
   data: Promise<DirectoryPage>;
   filters: MemberFilters;
+  aiEnabled: Promise<boolean>;
 }) {
-  const { members, facets, matching } = await data;
+  const [{ members, facets, matching }, enabled] = await Promise.all([data, aiEnabled]);
   return (
     <MembersClient
       members={members}
@@ -85,6 +88,7 @@ async function Directory({
       filters={filters}
       matching={matching}
       pageSize={DIRECTORY_PAGE_SIZE}
+      aiEnabled={enabled}
     />
   );
 }
