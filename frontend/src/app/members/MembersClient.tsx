@@ -84,7 +84,7 @@ export default function MembersClient({
   return (
     <>
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[16rem]">
+        <div className="flex-1 min-w-0 sm:min-w-[16rem]">
           <SearchInput
             label="Search members"
             placeholder="Search by name, course, skill, sector, or what they're working on"

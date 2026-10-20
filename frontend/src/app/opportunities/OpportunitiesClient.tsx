@@ -135,7 +135,7 @@ export default function OpportunitiesClient({
   return (
     <>
       <div className="mb-8 flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[16rem]">
+        <div className="flex-1 min-w-0 sm:min-w-[16rem]">
           <SearchInput
             label="Search opportunities"
             placeholder="Search by role, company, skill, sector, or poster"
@@ -214,13 +214,14 @@ function OpportunityCard({
         <BookmarkButton bookmarked={bookmarked} onClick={onToggleBookmark} />
       </div>
 
-      <div
-        role="button"
-        tabIndex={0}
+      {/* S8 gap 21: a real <button>, not a div with role="button" — no
+          interactive content nests inside it (the bookmark button sits
+          outside as a sibling above; the expanded detail's links and
+          buttons render after this element closes, not within it), so
+          there's no invalid-nesting reason to avoid one here. */}
+      <button
+        type="button"
         onClick={toggleOpen}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleOpen(); }
-        }}
         aria-expanded={open}
         className="w-full px-6 py-5 text-left bg-transparent cursor-pointer transition-colors duration-150 hover:bg-white/[0.02]"
       >
@@ -253,7 +254,7 @@ function OpportunityCard({
         <div className="text-[0.7rem] text-text-muted mt-3">
           {open ? "▾ Hide details" : "▸ Show details"} · Apply by {deadline}
         </div>
-      </div>
+      </button>
 
       {open && stale && (
         <ListingGoneNotice kind="opportunity" onDismiss={onDismiss} />
