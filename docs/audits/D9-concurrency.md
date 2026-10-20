@@ -132,4 +132,7 @@ bookmarks a job as a student.
 
 ## Still to do in S0 (tracked in tasks/todo.md)
 
-DB CPU per request down to ≤ 4.5 ms; a mixed read/write k6 run followed by the invariants.
+Done, 2026-10-19 — not re-removed from this heading only to keep the historical record visible.
+DB CPU/request re-measured at ≈1.98 ms (target ≤4.5 ms) against the full 5,007-member scale corpus
+under a 250 VU mixed k6 run; `invariants.sql` clean before and after. Full writeup in
+`docs/audits/D1-scalability.md` §6.
