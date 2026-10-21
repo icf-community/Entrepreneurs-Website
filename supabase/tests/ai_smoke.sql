@@ -396,6 +396,34 @@ begin
   end if;
 end $$;
 
+-- ─── 8b. Purge completeness: cron_purge still purges every ephemeral
+-- table, not just the ones a single test happens to seed. "Recreate from
+-- the latest definition" is a convention, not something Postgres
+-- enforces — a migration built from an older copy of this function's
+-- body silently drops whatever a later migration had added (found this
+-- way in the wild: 20261011000012 dropped the admission_refusals and
+-- poll_counts lines that 20261011000008 had added). A missing table name
+-- here means a line regressed, whether or not any seeded row exercises it.
+do $$
+declare
+  v_body text := pg_get_functiondef('ai_private.cron_purge()'::regprocedure);
+  v_table text;
+  v_missing text[] := '{}';
+begin
+  foreach v_table in array array[
+    'admission_refusals', 'poll_counts', 'messages', 'turns', 'saved_scans',
+    'conversations', 'assessments', 'query_embeddings', 'trace_spans',
+    'usage_events', 'surfaced_members', 'draft_handoffs'
+  ] loop
+    if v_body not like '%' || v_table || '%' then
+      v_missing := v_missing || v_table;
+    end if;
+  end loop;
+  if cardinality(v_missing) > 0 then
+    raise exception 'FAIL: cron_purge no longer mentions: %', array_to_string(v_missing, ', ');
+  end if;
+end $$;
+
 -- ─── 9. Admin deletion and job deletion with AI rows present (F30) ──
 do $$
 declare
