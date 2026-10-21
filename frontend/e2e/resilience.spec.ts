@@ -11,7 +11,7 @@ import { USERS } from "./fixtures";
 /** Open the first directory card's dialog, tolerating the hydration window. */
 async function openFirstMember(page: Page) {
   await page.goto("/members");
-  const trigger = page.locator('[role="button"][tabindex="0"]').first();
+  const trigger = page.getByRole("button", { name: /^View .+ profile$/ }).first();
   await trigger.waitFor();
   const dialog = page.locator("dialog");
   await expect(async () => {

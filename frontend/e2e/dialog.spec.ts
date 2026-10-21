@@ -11,8 +11,8 @@ import { test, expect } from "@playwright/test";
 /**
  * Open a directory card's dialog, tolerating the hydration window.
  *
- * The cards are server-rendered with role="button" and tabindex="0", so they
- * are present, focusable and clickable BEFORE React attaches their onClick.
+ * The cards are server-rendered with a real <button>, so they are present,
+ * focusable and clickable BEFORE React attaches their onClick.
  * A click inside that window is swallowed and the dialog never opens — the
  * assertion then fails on a page that works perfectly. This is the same race
  * untilUrl() exists for in urlfilters.spec.ts, and it is what made
@@ -36,7 +36,7 @@ async function openDialog(
 
 test("member dialog: focus enters, stays in the top layer, Escape restores focus", async ({ page }) => {
   await page.goto("/members");
-  const trigger = page.locator('[role="button"][tabindex="0"]').first();
+  const trigger = page.getByRole("button", { name: /^View .+ profile$/ }).first();
   await trigger.waitFor();
   const before = await trigger.evaluate((el) => el.outerHTML.slice(0, 200));
   const dlg = await openDialog(page, trigger);
@@ -69,7 +69,7 @@ test("member dialog: focus enters, stays in the top layer, Escape restores focus
 
 test("dialog close button (not Escape) also restores focus to the trigger", async ({ page }) => {
   await page.goto("/members");
-  const trigger = page.locator('[role="button"][tabindex="0"]').first();
+  const trigger = page.getByRole("button", { name: /^View .+ profile$/ }).first();
   await trigger.waitFor();
   const before = await trigger.evaluate((el) => el.outerHTML.slice(0, 200));
   await openDialog(page, trigger);
@@ -80,7 +80,7 @@ test("dialog close button (not Escape) also restores focus to the trigger", asyn
 
 test("clicking the backdrop closes the dialog", async ({ page }) => {
   await page.goto("/members");
-  const dlg = await openDialog(page, page.locator('[role="button"][tabindex="0"]').first());
+  const dlg = await openDialog(page, page.getByRole("button", { name: /^View .+ profile$/ }).first());
   await page.mouse.click(5, 5);
   await expect(dlg).toHaveCount(0);
 });
@@ -144,7 +144,11 @@ test("the dialog loads the full profile the list deliberately doesn't carry", as
   // contain "Bio " too. The search matches bio_focus, and the stamp is
   // unique to this run.
   await page.goto(`/members?q=${encodeURIComponent(stamp)}`);
-  const card = page.locator('[role="button"][tabindex="0"]').filter({ hasText: stamp }).first();
+  // The button is a thin overlay (S8 gap 21): the bio text is a DOM sibling,
+  // not a descendant of the button, so filtering the button itself on
+  // hasText never matches. Filter the card's article, then take its button.
+  const card = page.getByRole("article").filter({ hasText: stamp })
+    .getByRole("button", { name: /^View .+ profile$/ }).first();
   const dialog = await openDialog(page, card);
   // The card only carries the first 160 characters; the dialog must end up
   // with all 400+.

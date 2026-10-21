@@ -181,6 +181,35 @@ test("opportunities: jobs that match my own profile, with Apply and the job page
   await expect(page.getByRole("article").filter({ hasText: "E2E Vision Engineer" })).toHaveCount(0);
 });
 
+test("reopening a saved conversation makes no new turn and no new provider spend (scenario 20)", async ({ page }) => {
+  // Reuses the "deep learning and chess" conversation from the first test in
+  // this file rather than starting a fresh one — both because that is what
+  // "reopening" actually means (an existing saved chat, not a new search) and
+  // because member threads are capped at 5; this file already opens exactly
+  // 5 fresh ones elsewhere, and a 6th here would starve a later test's admission.
+  await page.goto("/foundry-ai?mode=network");
+  await page.getByRole("main").getByRole("complementary")
+    .getByRole("button", { name: "deep learning and chess" }).click();
+  await expect(page.getByRole("article").filter({ hasText: "Ada Candidate" })).toBeVisible({ timeout: 10_000 });
+
+  const turnsBefore = psql(`select count(*) from ai_private.turns where conversation_id in
+    (select id from ai_private.conversations where owner_id = '${ids.student}')`).trim();
+  const spendBefore = psql(`select count(*) from ai_private.spend where member_id = '${ids.student}'`).trim();
+
+  // Reload the whole page cold (not a client-side nav) — the strongest version of
+  // "reopening" a saved conversation: it forces loadConversation()/loadResults()
+  // to run from scratch, with no in-memory React state to coast on.
+  await page.reload();
+  await expect(page.getByRole("article").filter({ hasText: "Ada Candidate" })).toBeVisible({ timeout: 10_000 });
+
+  const turnsAfter = psql(`select count(*) from ai_private.turns where conversation_id in
+    (select id from ai_private.conversations where owner_id = '${ids.student}')`).trim();
+  const spendAfter = psql(`select count(*) from ai_private.spend where member_id = '${ids.student}'`).trim();
+
+  expect(turnsAfter).toBe(turnsBefore);
+  expect(spendAfter).toBe(spendBefore);
+});
+
 test("the AI page has no serious accessibility violations with results on screen", async ({ page }) => {
   await page.goto("/foundry-ai?mode=network");
   await search(page, "deep learning");
