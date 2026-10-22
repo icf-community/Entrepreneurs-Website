@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { psql } from "./ai-services";
 
 // Runs with the seeded admin storageState.
 
@@ -17,6 +18,42 @@ test("admin can open each review queue", async ({ page }) => {
     // regex bought nothing here, since every path is a literal in the array
     // above and all we are asking is whether we stayed on it.
     await expect(page, `stayed on ${path}`).toHaveURL(new RegExp(path.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")));
+  }
+});
+
+// S9 gap 22: operator vs non-operator controls on /admin/ai. is_ai_operator
+// requires is_admin() AND a row in ai_private.operators — every admin can
+// VIEW the AI overview, but only an operator can flip switches or limits.
+test("only an AI operator can change AI switches and limits on /admin/ai", async ({ page }) => {
+  const adminId = psql(`select id from auth.users where email = '${USERS.admin.email}'`).trim();
+  psql(`delete from ai_private.operators where member_id = '${adminId}'`);
+  try {
+    await page.goto("/admin/ai");
+    await expect(page.getByText("Only AI operators can change these.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Turn off" }).or(page.getByRole("button", { name: "Turn on" })).first())
+      .toBeDisabled();
+    await expect(page.getByRole("button", { name: "Save limits" })).toBeDisabled();
+  } finally {
+    psql(`delete from ai_private.operators where member_id = '${adminId}'`); // stays non-operator unless the branch below promotes it.
+  }
+
+  psql(`insert into ai_private.operators (member_id) values ('${adminId}')`);
+  try {
+    await page.reload();
+    await expect(page.getByText("Only AI operators can change these.")).toHaveCount(0);
+    await page.getByLabel("Reason (recorded with every change)").fill("e2e operator-controls test");
+    const networkRow = page.getByText("Build your network:", { exact: false }).locator("..");
+    const toggle = networkRow.getByRole("button", { name: /^Turn (on|off)$/ });
+    const wasOn = (await toggle.textContent())?.includes("off"); // "Turn off" shown when currently on
+    await toggle.click();
+    await expect(page.getByText(wasOn ? "Build your network off." : "Build your network on.")).toBeVisible({ timeout: 10_000 });
+    // Restore, and confirm it's the operator action that moved it (admin_actions audit).
+    await toggle.click();
+    await expect(page.getByText(wasOn ? "Build your network on." : "Build your network off.")).toBeVisible({ timeout: 10_000 });
+    const audits = psql(`select count(*) from public.admin_actions where admin_id = '${adminId}' and action ilike '%ai_flag%' and created_at > now() - interval '1 minute'`).trim();
+    expect(Number(audits)).toBeGreaterThanOrEqual(2);
+  } finally {
+    psql(`delete from ai_private.operators where member_id = '${adminId}'`);
   }
 });
 

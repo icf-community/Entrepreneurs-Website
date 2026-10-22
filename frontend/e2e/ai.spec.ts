@@ -210,6 +210,217 @@ test("reopening a saved conversation makes no new turn and no new provider spend
   expect(spendAfter).toBe(spendBefore);
 });
 
+// The rest of this file's tests reuse the "deep learning and chess"
+// conversation via the recent-searches rail rather than a fresh
+// `page.goto` + direct search. A fresh goto with no rail click always
+// starts a brand-new conversation (conversationId is null until one is
+// loaded), and this file already opens its full 5-thread budget across
+// the tests above (network, off-task, recruiter, opportunities, a11y) —
+// a 6th anywhere below would make the member's next admission refuse
+// with too_many_threads.
+async function openMainConversation(page: Page) {
+  await page.goto("/foundry-ai?mode=network");
+  await page.getByRole("main").getByRole("complementary")
+    .getByRole("button", { name: "deep learning and chess" }).click();
+  await expect(page.getByRole("article").filter({ hasText: "Ada Candidate" })).toBeVisible({ timeout: 10_000 });
+}
+
+test("mixed: the off-task half is dropped, and confirming applies only the search half (scenario-adjacent, gap 22)", async ({ page }) => {
+  await openMainConversation(page);
+  await search(page, "find people who know chess, and also write me a poem");
+  await expect(page.getByText("Part of that wasn't a search, so I've left it out.")).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Search with these criteria" }).click();
+  await expect(page.getByRole("article").filter({ hasText: "Ada Candidate" })).toBeVisible({ timeout: 20_000 });
+});
+
+test("budget exhausted refuses admission with the daily-limit message (gap 22)", async ({ page }) => {
+  const saved = psql("select member_daily_cap_micro from ai_private.settings where id = 1").trim();
+  psql("update ai_private.settings set member_daily_cap_micro = 0 where id = 1");
+  try {
+    await openMainConversation(page);
+    await search(page, "find python people");
+    await expect(page.getByRole("alert").filter({ hasText: "AI search has reached today's limit." })).toBeVisible({ timeout: 10_000 });
+  } finally {
+    psql(`update ai_private.settings set member_daily_cap_micro = ${saved} where id = 1`);
+  }
+});
+
+test("queue busy refuses admission and keeps the draft message (gap 22)", async ({ page }) => {
+  // queue_capacity counts ai_private.turns WHERE status='queued', system-wide
+  // (ai_submit_turn). The CHECK constraint forbids 0, so this fills the one
+  // slot for real with a turn in the still-open recruiter conversation
+  // (different conversation from the one under test, so the second
+  // submission below hits queue_full, not the per-conversation "busy").
+  // The executor is stopped first so the filling turn can't drain itself.
+  const saved = psql("select queue_capacity from ai_private.settings where id = 1").trim();
+  stopServices?.();
+  stopServices = null;
+  psql("update ai_private.settings set queue_capacity = 1 where id = 1");
+  try {
+    // Reuse the recruiter conversation from the earlier test rather than a
+    // fresh job pick — a fresh `page.goto` + direct submission (no rail
+    // click) always starts a NEW conversation, and this account is already
+    // at its 5-thread budget.
+    await page.goto("/foundry-ai?mode=recruiter");
+    // The rail (and the rest of the page) only renders once a job is
+    // picked — picking it sets state only, no submission, so this doesn't
+    // start a new conversation on its own.
+    await page.getByLabel("Job").selectOption({ label: "E2E Vision Engineer · E2E AI Co" });
+    // Titled from its first message ("python", from the earlier recruiter
+    // test), not from the job — this is the only recruiter conversation.
+    await page.getByRole("main").getByRole("complementary")
+      .getByRole("listitem").first().getByRole("button").click();
+    await page.getByLabel("Your search").fill("find more candidates");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(page.getByText(/Waiting to start|Working…/)).toBeVisible({ timeout: 10_000 });
+
+    await openMainConversation(page);
+    const box = page.getByLabel("Your search");
+    await box.fill("find python people");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "AI search is busy right now." })).toBeVisible({ timeout: 10_000 });
+    // "Your message is still here" (outcomes.ts queue_full copy) — the draft isn't cleared on refusal.
+    await expect(box).toHaveValue("find python people");
+  } finally {
+    psql(`update ai_private.settings set queue_capacity = ${saved} where id = 1`);
+    stopServices = startAiServices();
+    await waitFor(
+      () => psql("select count(*) from ai_private.turns where status = 'queued'").trim() === "0",
+      "the filling turn to drain",
+      20_000,
+    );
+  }
+});
+
+test("an executor outage leaves the turn queued, and it drains once the executor is back (gap 22)", async ({ page }) => {
+  await openMainConversation(page);
+  stopServices?.();
+  stopServices = null;
+  try {
+    await search(page, "find more chess enthusiasts");
+    // No executor claims it: the turn sits queued/running with the "waiting" stage for several seconds.
+    await page.waitForTimeout(3_000);
+    await expect(page.getByText(/Waiting to start|Working…/)).toBeVisible();
+  } finally {
+    stopServices = startAiServices();
+  }
+  // Back up: the queued turn drains without a fresh submission.
+  await expect(page.getByRole("article").filter({ hasText: "Ada Candidate" })).toBeVisible({ timeout: 30_000 });
+});
+
+test("consent toggles change who is found, immediately (gap 22)", async ({ page }) => {
+  // Mirrors what save_my_ai_settings itself does on a toggle-off (AI-plan
+  // §5.1): consent alone doesn't gate retrieval, the member_docs/evidence
+  // projection does, and that's deleted synchronously by the RPC — not by
+  // a background rebuild — which is what "removes you at once" promises.
+  await openMainConversation(page);
+  psql(`update ai_private.member_settings set network_discoverable = false where member_id = '${ids.cand}';
+        delete from ai_private.member_docs where member_id = '${ids.cand}' and purpose = 'network';
+        delete from ai_private.member_evidence where member_id = '${ids.cand}' and purpose = 'network';`);
+  try {
+    await search(page, "find people into chess and deep learning right now");
+    await expect(page.getByText(/Waiting to start|Working…/)).toHaveCount(0, { timeout: 20_000 });
+    await expect(page.getByRole("article").filter({ hasText: "Ada Candidate" })).toHaveCount(0);
+  } finally {
+    psql(`update ai_private.member_settings set network_discoverable = true where member_id = '${ids.cand}'`);
+    psql(`select ai_private.bump_member_source('${ids.cand}')`);
+  }
+  await waitFor(
+    () => psql(`select count(*) from ai_private.member_docs where member_id = '${ids.cand}' and purpose = 'network'`).trim() === "1",
+    "the candidate's network projection to rebuild",
+    30_000,
+  );
+  await search(page, "find people into chess and deep learning once more");
+  await expect(page.getByRole("article").filter({ hasText: "Ada Candidate" })).toBeVisible({ timeout: 20_000 });
+});
+
+test("rerunning the same search is stable: same person, same score, no re-flagging as new (gap 22)", async ({ page }) => {
+  // The conversation already shows "Ada Candidate" from an earlier test's
+  // saved results, so a frontend "is it done" signal (status text, button
+  // state) can race the UI's own poll. Ask the database directly instead.
+  async function waitForIdle() {
+    await waitFor(
+      () => psql(`select count(*) from ai_private.turns where conversation_id in
+        (select id from ai_private.conversations where owner_id = '${ids.student}' and title ilike '%chess%')
+        and status in ('queued', 'running')`).trim() === "0",
+      "the turn to finish",
+      20_000,
+    );
+  }
+
+  await openMainConversation(page);
+  await waitForIdle();
+  await search(page, "deep learning and chess stability check");
+  await waitForIdle();
+  await page.waitForTimeout(500); // the finished turn's own poll to reach the page and render.
+  const card = page.getByRole("article").filter({ hasText: "Ada Candidate" });
+  await expect(card).toBeVisible();
+  const scoreBefore = await card.locator("text=/evidence match/").locator("..").textContent();
+
+  await search(page, "deep learning and chess stability check");
+  await waitForIdle();
+  await page.waitForTimeout(500);
+  const card2 = page.getByRole("article").filter({ hasText: "Ada Candidate" });
+  await expect(card2).toBeVisible();
+  const scoreAfter = await card2.locator("text=/evidence match/").locator("..").textContent();
+  expect(scoreAfter).toBe(scoreBefore);
+  await expect(card2.getByText("New")).toHaveCount(0);
+});
+
+test("Connect is reachable from an AI result's profile dialog (gap 22)", async ({ page }) => {
+  await openMainConversation(page);
+  const card = page.getByRole("article").filter({ hasText: "Ada Candidate" });
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  await card.getByRole("button", { name: "View profile" }).click();
+  const dialog = page.getByRole("dialog", { name: /Profile of Ada Candidate/ });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Connect", exact: true })).toBeVisible();
+});
+
+test("forgetting a message removes the criteria it added, and only those (gap 22)", async ({ page }) => {
+  await openMainConversation(page);
+  await search(page, "must also know python");
+  const criteria = page.getByRole("region", { name: "Search criteria" });
+  await expect(criteria.getByText("Python")).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("listitem").filter({ hasText: "must also know python" })
+    .getByRole("button", { name: "Forget this message and any criteria it added" }).click();
+
+  await expect(criteria.getByText("Python")).toHaveCount(0);
+  await expect(criteria.getByText("Chess")).toBeVisible();
+  await expect(criteria.getByText("Deep learning")).toBeVisible();
+});
+
+test("an expired message's criteria drop out of the active spec (gap 22)", async ({ page }) => {
+  await openMainConversation(page);
+  await search(page, "must also know rust programming");
+  const criteria = page.getByRole("region", { name: "Search criteria" });
+  await expect(criteria.getByText("Rust")).toBeVisible({ timeout: 20_000 });
+
+  // Each atom bakes its originating message's expires_at into
+  // spec->atoms[]->source->expires_at at the moment it's added (AI-plan
+  // §5.1's eval transformation "source expiry") — it isn't a live join to
+  // ai_private.messages, so moving that message's own row is a no-op here.
+  // The atom's embedded copy has to move too.
+  psql(`update ai_private.conversations c
+        set spec = jsonb_set(c.spec, '{atoms}', (
+          select jsonb_agg(case when a #>> '{source,message_id}' = m.id::text
+                                 then jsonb_set(a, '{source,expires_at}', to_jsonb((now() - interval '1 hour')::text))
+                                 else a end)
+          from jsonb_array_elements(c.spec->'atoms') a,
+               ai_private.messages m
+          where m.conversation_id = c.id and m.body = 'must also know rust programming'
+        ))
+        where c.owner_id = '${ids.student}' and c.title ilike '%chess%'`);
+
+  // apply_spec_ops sweeps expired atoms out of the stored spec when it next
+  // runs — on the NEXT op, not on a plain read/reload. A harmless follow-up
+  // message is what triggers that sweep here.
+  await search(page, "and let's also look for climbing partners");
+  await expect(page.getByRole("region", { name: "Search criteria" }).getByText("Rust")).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.getByRole("region", { name: "Search criteria" }).getByText("Chess")).toBeVisible();
+});
+
 test("the AI page has no serious accessibility violations with results on screen", async ({ page }) => {
   await page.goto("/foundry-ai?mode=network");
   await search(page, "deep learning");
@@ -241,4 +452,59 @@ test("a member with no education status is asked for it instead of seeing an emp
     psql(`insert into public.member_education (member_id, currently_enrolled, has_completed_degree)
           values ('${ids.student}', true, false) on conflict (member_id) do update set currently_enrolled = true, has_completed_degree = false`);
   }
+});
+
+test("deleting a chat removes it from the rail (gap 22)", async ({ page }) => {
+  // The recruiter-mode conversation from the earlier test — the network
+  // conversation other tests above still need is left alone.
+  await page.goto("/foundry-ai?mode=recruiter");
+  await page.getByLabel("Job").selectOption({ label: "E2E Vision Engineer · E2E AI Co" });
+  await page.getByRole("main").getByRole("complementary").getByRole("listitem").first()
+    .getByRole("button").click();
+  await page.getByRole("button", { name: "Delete this chat" }).click();
+  await page.getByRole("button", { name: "Delete chat", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Delete this chat" })).toHaveCount(0);
+  const left = psql(`select count(*) from ai_private.conversations where owner_id = '${ids.student}' and mode = 'recruiter'`).trim();
+  expect(left).toBe("0");
+});
+
+test("deleting all AI history clears every conversation (gap 22)", async ({ page }) => {
+  await page.goto("/foundry-ai?mode=network");
+  await page.getByRole("button", { name: "Delete all AI history" }).click();
+  await page.getByRole("button", { name: "Delete everything", exact: true }).click();
+  await expect(page.getByText("No recent searches.")).toBeVisible({ timeout: 10_000 });
+  const left = psql(`select count(*) from ai_private.conversations where owner_id = '${ids.student}'`).trim();
+  expect(left).toBe("0");
+});
+
+test("deleting a member's account removes their AI projections and settings (gap 22)", async () => {
+  // Last test in the file on purpose — it permanently removes "Ada
+  // Candidate", which every test above this point depends on.
+  const candId = ids.cand!;
+  // The consent test above re-queued a refresh_member_ai job for the
+  // candidate; let the worker finish it first so this test measures the
+  // delete's own cascade, not a race against a job still writing docs.
+  await waitFor(
+    () => psql(`select count(*) from public.jobs where kind = 'refresh_member_ai'
+      and (payload->>'member_id')::uuid = '${candId}' and status in ('pending', 'running')`).trim() === "0",
+    "the candidate's pending refresh job to finish",
+    20_000,
+  );
+  const docsBefore = psql(`select count(*) from ai_private.member_docs where member_id = '${candId}'`).trim();
+  const settingsBefore = psql(`select count(*) from ai_private.member_settings where member_id = '${candId}'`).trim();
+  expect(Number(docsBefore)).toBeGreaterThan(0);
+  expect(settingsBefore).toBe("1");
+
+  // opportunities.posted_by is NOT NULL, so GoTrue's own deleteUser (which
+  // only runs the FK cascades, not admin_delete_user's extra cleanup) fails
+  // silently against it for a candidate who posted a job — same reason
+  // admin_delete_user deletes posted listings itself first (D9 §admin
+  // RPCs). ids.candJob is this test file's job posted by the candidate.
+  psql(`delete from public.opportunities where id = '${ids.candJob}'`);
+  const { error: delErr } = await admin().auth.admin.deleteUser(candId);
+  expect(delErr).toBeNull();
+  ids.cand = undefined; // afterAll's `if (ids.cand)` guard then skips the already-done delete.
+
+  expect(psql(`select count(*) from ai_private.member_docs where member_id = '${candId}'`).trim()).toBe("0");
+  expect(psql(`select count(*) from ai_private.member_settings where member_id = '${candId}'`).trim()).toBe("0");
 });
