@@ -39,5 +39,14 @@ export CRON_SECRET="e2e-cron-secret"
 # The AI spec starts the executor and the projection worker against this
 # database with the fake provider, which refuses any non-local host.
 export E2E_DB_URL="${DB_URL:-}"
+# gap 24: opt-in only. Every other spec (e.g. community.spec.ts) documents
+# and relies on UPLOAD_GATEWAY_URL being unset — it's how the suite proves
+# the "no gateway configured" degradation path — so this stays off unless
+# cv-upload.spec.ts is the thing actually running. Values must match
+# e2e/gateway-services.ts's GATEWAY_URL/TICKET_SECRET exactly.
+if [[ "${E2E_CV_UPLOAD:-}" == "1" ]]; then
+  export UPLOAD_GATEWAY_URL="http://127.0.0.1:8000"
+  export UPLOAD_TICKET_SECRET="e2e-cv-upload-ticket-secret"
+fi
 
 node scripts/assert-local-env.mjs --mode production

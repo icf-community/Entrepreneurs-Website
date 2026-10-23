@@ -78,6 +78,15 @@ export default defineConfig({
       testMatch: /ai\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: storageStatePath("student") },
     },
+    // CV upload through the real UI (AI-plan §14.4, gap 24). Opt-in via
+    // E2E_CV_UPLOAD=1 (see scripts/local-env.sh) — the spec itself skips
+    // with a clear message if the gateway env isn't set, rather than
+    // hanging against a control the composer never rendered.
+    {
+      name: "cv",
+      testMatch: /cv-upload\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], storageState: storageStatePath("student") },
+    },
     // Route × role matrix (AI-plan §14.4, gap 23). No storageState: the
     // spec opens its own context per role, including a bare one for
     // logged-out, so there is nothing for a project-level session to do.
