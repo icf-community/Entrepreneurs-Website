@@ -355,7 +355,7 @@ jobs:
         # still alive after 20 minutes — see scripts/ci-playwright.sh.
         env:
           PW_LIMIT_SECONDS: "1200"
-        run: scripts/ci-playwright.sh --project=public --project=member --project=admin --project=pipelines --project=connections --project=ai
+        run: scripts/ci-playwright.sh --project=public --project=member --project=admin --project=pipelines --project=connections --project=ai --project=matrix
 
       - if: always()
         run: supabase stop || true

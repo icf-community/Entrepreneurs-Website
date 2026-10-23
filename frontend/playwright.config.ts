@@ -78,6 +78,14 @@ export default defineConfig({
       testMatch: /ai\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: storageStatePath("student") },
     },
+    // Route × role matrix (AI-plan §14.4, gap 23). No storageState: the
+    // spec opens its own context per role, including a bare one for
+    // logged-out, so there is nothing for a project-level session to do.
+    {
+      name: "matrix",
+      testMatch: /matrix\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
     // Live rate-limit enforcement. Deliberately NOT run by the main e2e job
     // (which scopes to public/member/admin) — it only runs in the isolated
     // `e2e-ratelimit` CI job that wires Upstash via an SRH sidecar, so the

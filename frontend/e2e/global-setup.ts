@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { mkdirSync, writeFileSync, statSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { USERS, storageStatePath, type SeedUser } from "./fixtures";
+import { psql } from "./ai-services";
 
 // ════════════════════════════════════════════════════════════════════
 // E2E global setup — runs once against the ephemeral Supabase before any
@@ -209,9 +210,9 @@ async function seedUser(admin: SupabaseClient, user: SeedUser): Promise<string> 
     // straight to /intake instead. Specs that actually want to exercise
     // /intake clear this column back to null for their own seeded user.
     .update({
-      status: "approved",
+      status: user.status ?? "approved",
       course: "MEng Computing",
-      grad_year: 2027,
+      grad_year: user.graduated ? 2024 : 2027,
       // profile_version 2 is "intake complete", which send_connection_request
       // requires. Version 1 + intake_deferred_at is the default here because
       // that is what the rest of the suite asserts against; only the
@@ -225,10 +226,18 @@ async function seedUser(admin: SupabaseClient, user: SeedUser): Promise<string> 
 
   // Jobs are for students, graduates or both (20261006000002), and a member
   // with no education status sees none. Every seeded member is a current
-  // student; specs about the confirm-status prompt clear this themselves.
+  // student unless `graduated`; specs about the confirm-status prompt clear
+  // this themselves.
   const { error: eErr } = await admin
     .from("member_education")
-    .upsert({ member_id: userId, currently_enrolled: true, has_completed_degree: false }, { onConflict: "member_id" });
+    .upsert(
+      {
+        member_id: userId,
+        currently_enrolled: !user.graduated,
+        has_completed_degree: !!user.graduated,
+      },
+      { onConflict: "member_id" },
+    );
   if (eErr) throw new Error(`education ${user.email}: ${eErr.message}`);
 
   if (user.isAdmin) {
@@ -236,6 +245,13 @@ async function seedUser(admin: SupabaseClient, user: SeedUser): Promise<string> 
       .from("admins")
       .upsert({ user_id: userId }, { onConflict: "user_id" });
     if (aErr) throw new Error(`grant admin ${user.email}: ${aErr.message}`);
+  }
+
+  // ai_private isn't a PostgREST-exposed schema (supabase/config.toml), so
+  // this goes through psql — the same path ai.spec.ts uses for everything
+  // under ai_private.
+  if (user.isOperator) {
+    psql(`insert into ai_private.operators (member_id) values ('${userId}') on conflict (member_id) do nothing`);
   }
   return userId;
 }
