@@ -4,6 +4,8 @@ import { mkdirSync, writeFileSync, statSync, readdirSync, readFileSync } from "n
 import { dirname, join } from "node:path";
 import { USERS, storageStatePath, type SeedUser } from "./fixtures";
 import { psql } from "./ai-services";
+import { startHstsStripProxy } from "./hstsStripProxy";
+import { PORT, WEBKIT_PROXY_PORT } from "./ports";
 
 // ════════════════════════════════════════════════════════════════════
 // E2E global setup — runs once against the ephemeral Supabase before any
@@ -27,6 +29,12 @@ export default async function globalSetup(): Promise<void> {
   assertEphemeral(url);
   assertFreshBuild();
   assertBuildMatchesBackend(url);
+
+  // gap 27: only needed when the webkit/iphone projects are in play — see
+  // hstsStripProxy.ts for why they need a detour the other projects don't.
+  if (process.env.E2E_ALL_BROWSERS === "1") {
+    await startHstsStripProxy(PORT, WEBKIT_PROXY_PORT);
+  }
 
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },

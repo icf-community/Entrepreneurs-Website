@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { storageStatePath } from "./e2e/fixtures";
+import { PORT, BASE_URL, WEBKIT_PROXY_BASE_URL } from "./e2e/ports";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · E2E (Playwright)
@@ -15,8 +16,46 @@ import { storageStatePath } from "./e2e/fixtures";
 //   SUPABASE_SERVICE_ROLE_KEY (server actions + the seed in global-setup).
 // ════════════════════════════════════════════════════════════════════
 
-const PORT = Number(process.env.E2E_PORT ?? 3000);
-const BASE_URL = `http://127.0.0.1:${PORT}`;
+// gap 27: WebKit/Firefox/iPhone, opt-in via E2E_ALL_BROWSERS=1 — a normal
+// run stays Chrome-only (CI time; gap 30). Cloned onto the plain UI-flow
+// projects only: "ai"/"cv"/"matrix" each spin up their own fixed-port
+// child processes (the AI executor, the CV gateway + Azurite, 385 role-
+// matrix visits) in a spec-level beforeAll, not through project `use`, so
+// tripling them would both port-conflict across projects and multiply an
+// already-heavy run for no browser-specific signal; "ratelimit" stays
+// single-browser and isolated to its own CI job as it already was.
+const CROSS_BROWSER_BASE = ["public", "member", "admin", "pipelines", "connections"];
+const CROSS_BROWSER_DEVICES: Record<string, (typeof devices)[keyof typeof devices]> = {
+  webkit: devices["Desktop Safari"],
+  firefox: devices["Desktop Firefox"],
+  iphone: devices["iPhone 15"],
+};
+
+type ProjectDef = NonNullable<Parameters<typeof defineConfig>[0]["projects"]>[number];
+
+function withCrossBrowser(baseProjects: ProjectDef[]): ProjectDef[] {
+  if (process.env.E2E_ALL_BROWSERS !== "1") return baseProjects;
+  const extra: ProjectDef[] = [];
+  for (const base of baseProjects) {
+    if (!CROSS_BROWSER_BASE.includes(base.name ?? "")) continue;
+    for (const [suffix, device] of Object.entries(CROSS_BROWSER_DEVICES)) {
+      // webkit/iphone (both WebKit) go through hstsStripProxy's self-signed
+      // TLS endpoint instead of the real server directly — see that file
+      // for why, and why that means trusting its cert here.
+      const isWebkitEngine = suffix === "webkit" || suffix === "iphone";
+      extra.push({
+        ...base,
+        name: `${base.name}-${suffix}`,
+        use: {
+          ...base.use,
+          ...device,
+          ...(isWebkitEngine ? { baseURL: WEBKIT_PROXY_BASE_URL, ignoreHTTPSErrors: true } : {}),
+        },
+      });
+    }
+  }
+  return [...baseProjects, ...extra];
+}
 
 export default defineConfig({
   testDir: "./e2e",
@@ -31,12 +70,13 @@ export default defineConfig({
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   // Seeds the ephemeral DB + writes per-role storageState before any spec.
   globalSetup: "./e2e/global-setup.ts",
+  globalTeardown: "./e2e/global-teardown.ts",
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  projects: [
+  projects: withCrossBrowser([
     // Logged-out surface + access control + auth entry flows.
     { name: "public", testMatch: /(public|auth|health)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     // Approved student session (from global-setup).
@@ -104,7 +144,7 @@ export default defineConfig({
       testMatch: /ratelimit\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
-  ],
+  ]),
   webServer: {
     // `-p ${PORT}` is not decoration: without it E2E_PORT moved only the URL
     // Playwright polled, while `next start` kept binding 3000 — so the one

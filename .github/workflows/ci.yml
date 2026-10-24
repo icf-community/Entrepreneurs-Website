@@ -367,6 +367,109 @@ jobs:
           path: frontend/playwright-report
           retention-days: 7
 
+  e2e-cross-browser:
+    name: E2E (WebKit/Firefox/iPhone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    if: >
+      github.event_name == 'push' ||
+      github.base_ref == 'main' ||
+      needs.changes.outputs.db == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'e2e')
+    env:
+      CRON_SECRET: e2e-cron-secret
+      # gap 27: opts the cross-browser projects (playwright.config.ts
+      # withCrossBrowser) into the run.
+      E2E_ALL_BROWSERS: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
+        with:
+          version: 2.105.0
+
+      - run: supabase init || true
+      - run: supabase start
+
+      - name: Export Supabase env
+        run: |
+          supabase status -o env > /tmp/sb.env
+          API_URL=$(grep '^API_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          ANON=$(grep '^ANON_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          SRK=$(grep '^SERVICE_ROLE_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          DBU=$(grep '^DB_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SRK"
+            echo "E2E_DB_URL=$DBU"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - name: Install server deps
+        run: |
+          python -m pip install -r server/requirements.txt
+          echo "E2E_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps webkit firefox
+
+      - name: Build (against the ephemeral stack)
+        working-directory: frontend
+        run: pnpm build
+
+      # WebKit's auto-HTTPS-upgrade quirk (hstsStripProxy.ts) only covers
+      # the Next.js app's own origin, not direct browser-to-Supabase calls —
+      # member/admin/pipelines/connections poll Supabase directly for counts,
+      # so webkit/iphone there hit a TLS error against local (plain-HTTP)
+      # Supabase. That is structurally impossible against real production
+      # Supabase (always HTTPS), so it is scoped out here rather than fixed:
+      # fixing it would need a second, WebKit-only Next build pointed at an
+      # HTTPS-proxied Supabase URL (NEXT_PUBLIC_SUPABASE_URL is build-time-
+      # inlined), for a failure mode prod cannot hit. Firefox has no such
+      # issue (no auto-upgrade behaviour) and runs across every project.
+      - name: Run E2E (WebKit/iPhone — public only)
+        working-directory: frontend
+        env:
+          PW_LIMIT_SECONDS: "1200"
+        run: scripts/ci-playwright.sh --project=public-webkit --project=public-iphone
+
+      - name: Run E2E (Firefox — all projects)
+        working-directory: frontend
+        env:
+          PW_LIMIT_SECONDS: "1200"
+        run: scripts/ci-playwright.sh --project=public-firefox --project=member-firefox --project=admin-firefox --project=pipelines-firefox --project=connections-firefox
+
+      - if: always()
+        run: supabase stop || true
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-cross-browser
+          path: frontend/playwright-report
+          retention-days: 7
+
   e2e-cv-upload:
     name: E2E CV upload (gateway + Azurite)
     runs-on: ubuntu-latest
