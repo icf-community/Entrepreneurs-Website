@@ -6,7 +6,8 @@ import { markedIds } from "@/lib/data/activity";
 import { approvedVc } from "@/lib/data/vcs";
 import { formatDate } from "@/lib/dates";
 import VcActions from "./VcActions";
-import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One VC or grant
@@ -24,8 +25,10 @@ const BACK = { href: "/vcs", label: "All grants & VCs" };
 type Params = { id: string };
 
 export default async function VcPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, isAdmin } = await requireApprovedUser();
+  const [{ id }, { supabase, isAdmin }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
 
   const v = await approvedVc(supabase, id);
 

@@ -26,6 +26,7 @@ export default async function AdminReportsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const sp = await searchParams;
+  // react-doctor-disable-next-line server-sequential-independent-await -- cannot parallelize: requireAdminPage() must stay a literal separate await (adminPages.test.ts greps for it as a security invariant), and the third await depends on both preceding results
   const { supabase } = await requireAdminPage();
 
   // An unrecognised ?status= narrows to the default rather than being

@@ -28,6 +28,7 @@ import { createAiDraftHandoff } from "@/lib/ai/entryPoint";
 const PAGE = 30;
 
 export default function OpportunitiesClient({
+  // react-doctor-disable-next-line react-doctor/rerender-memo-with-default-value -- component is not wrapped in React.memo; rule's premise doesn't apply here
   items, bookmarkedIds, appliedIds = [], removeOnUnbookmark = false, aiEnabled = false,
 }: {
   items: Opportunity[];
@@ -49,7 +50,7 @@ export default function OpportunitiesClient({
   const filters = useUrlFilters();
   const [query, setQuery] = useSearchDraft(filters);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set(bookmarkedIds));
+  const [bookmarks, setBookmarks] = useState<Set<string>>(() => new Set(bookmarkedIds));
   const appliedSet = useMemo(() => new Set(appliedIds), [appliedIds]);
 
   const filtered = useMemo(() => {

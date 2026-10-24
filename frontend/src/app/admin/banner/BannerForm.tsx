@@ -7,7 +7,7 @@ import { ErrorBanner } from "@/components/forms/Banners";
 import { useToast } from "@/components/ui/Toast";
 import { settle } from "@/lib/settle";
 import { publishSiteBanner, clearSiteBanner } from "./actions";
-import { track } from "@/components/analytics/PostHogProvider";
+import { track } from "@/lib/analytics/track";
 
 type Severity = "info" | "warning" | "critical";
 
@@ -29,6 +29,8 @@ const PREVIEW_TONE: Record<Severity, string> = {
   critical: "border-[#ff4d4d]/60 bg-[#ff4d4d]/10 text-[#ffb3b3]",
 };
 
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat("en-GB");
+
 /** "2026-09-28T14:05" for a datetime-local input, in the browser's zone. */
 function toLocalInput(iso: string | null): string {
   if (!iso) return "";
@@ -37,13 +39,29 @@ function toLocalInput(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** True once the two post-submit outcomes (error vs. success) are handled. */
+async function runBannerAction(
+  setBusy: (v: null | "publish" | "clear") => void,
+  setError: (v: string | null) => void,
+  key: "publish" | "clear",
+  call: Promise<{ ok: true } | { ok: false; error: string }>,
+  onSuccess: () => void,
+) {
+  setBusy(key);
+  setError(null);
+  const res = await settle(call);
+  setBusy(null);
+  if (!res.ok) { setError(res.error); return; }
+  onSuccess();
+}
+
 export default function BannerForm({ current }: { current: Current }) {
   const router = useRouter();
   const toast = useToast();
   const [message, setMessage] = useState(current?.message ?? "");
   const [severity, setSeverity] = useState<Severity>(current?.severity ?? "info");
   const [linkUrl, setLinkUrl] = useState(current?.linkUrl ?? "");
-  const [hideAfter, setHideAfter] = useState(toLocalInput(current?.hideAfter ?? null));
+  const [hideAfter, setHideAfter] = useState(() => toLocalInput(current?.hideAfter ?? null));
   const [busy, setBusy] = useState<null | "publish" | "clear">(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,44 +69,29 @@ export default function BannerForm({ current }: { current: Current }) {
   const canPublish = message.trim().length > 0 && message.length <= MAX && !linkInvalid && busy === null;
 
   async function publish() {
-    setBusy("publish");
-    setError(null);
-    const res = await settle(publishSiteBanner({
+    await runBannerAction(setBusy, setError, "publish", publishSiteBanner({
       message,
       severity,
       linkUrl,
       hideAfter: hideAfter ? new Date(hideAfter).toISOString() : "",
-    }));
-    setBusy(null);
-    if (!res.ok) { setError(res.error); return; }
-    track("site_banner_published", { severity });
-    toast("Banner published. It shows everywhere within a few seconds.", "success");
-    router.refresh();
+    }), () => {
+      track("site_banner_published", { severity });
+      toast("Banner published. It shows everywhere within a few seconds.", "success");
+      router.refresh();
+    });
   }
 
   async function clear() {
-    setBusy("clear");
-    setError(null);
-    const res = await settle(clearSiteBanner());
-    setBusy(null);
-    if (!res.ok) { setError(res.error); return; }
-    track("site_banner_cleared");
-    toast("Banner cleared.", "success");
-    router.refresh();
+    await runBannerAction(setBusy, setError, "clear", clearSiteBanner(), () => {
+      track("site_banner_cleared");
+      toast("Banner cleared.", "success");
+      router.refresh();
+    });
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-border bg-bg-card p-4 text-[0.8rem] text-text-muted">
-        {current?.enabled ? (
-          <>Live now{current.hideAfter ? `, hides at ${new Date(current.hideAfter).toLocaleString("en-GB")}` : ""}.</>
-        ) : (
-          <>No banner is showing.</>
-        )}
-        {current?.updatedByName && (
-          <> Last changed by {current.updatedByName}, {new Date(current.updatedAt).toLocaleString("en-GB")}.</>
-        )}
-      </div>
+      <CurrentBannerStatus current={current} />
 
       {error && <ErrorBanner>{error}</ErrorBanner>}
 
@@ -161,13 +164,7 @@ export default function BannerForm({ current }: { current: Current }) {
         )}
       </div>
 
-      <div>
-        <p className="text-[0.8rem] text-text-secondary mb-1.5">Preview</p>
-        <div className={`rounded-lg border px-4 py-2.5 text-[0.825rem] ${PREVIEW_TONE[severity]}`}>
-          {message.trim() || <span className="text-text-muted">Your message will appear here.</span>}
-          {linkUrl.trim() && !linkInvalid && <span className="underline underline-offset-2"> More</span>}
-        </div>
-      </div>
+      <BannerPreview severity={severity} message={message} linkUrl={linkUrl} linkInvalid={linkInvalid} />
 
       <div className="flex flex-wrap gap-3">
         <Button variant="primary" loading={busy === "publish"} disabled={!canPublish} onClick={publish}>
@@ -178,6 +175,42 @@ export default function BannerForm({ current }: { current: Current }) {
             Clear banner
           </Button>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** suppressHydrationWarning: the times below format in the viewer's local
+    zone, which legitimately differs from the server's. */
+function CurrentBannerStatus({ current }: { current: Current }) {
+  return (
+    <div className="rounded-xl border border-border bg-bg-card p-4 text-[0.8rem] text-text-muted" suppressHydrationWarning>
+      {current?.enabled ? (
+        // react-doctor-disable-next-line react-doctor/no-locale-format-in-render -- cosmetic admin-only timestamp; suppressHydrationWarning above accepts the server/client locale mismatch rather than adding post-mount state for it
+        <>Live now{current.hideAfter ? `, hides at ${DATE_TIME_FORMAT.format(new Date(current.hideAfter))}` : ""}.</>
+      ) : (
+        <>No banner is showing.</>
+      )}
+      {current?.updatedByName && (
+        // react-doctor-disable-next-line react-doctor/no-locale-format-in-render -- same as above
+        <> Last changed by {current.updatedByName}, {DATE_TIME_FORMAT.format(new Date(current.updatedAt))}.</>
+      )}
+    </div>
+  );
+}
+
+function BannerPreview({ severity, message, linkUrl, linkInvalid }: {
+  severity: Severity;
+  message: string;
+  linkUrl: string;
+  linkInvalid: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-[0.8rem] text-text-secondary mb-1.5">Preview</p>
+      <div className={`rounded-lg border px-4 py-2.5 text-[0.825rem] ${PREVIEW_TONE[severity]}`}>
+        {message.trim() || <span className="text-text-muted">Your message will appear here.</span>}
+        {linkUrl.trim() && !linkInvalid && <span className="underline underline-offset-2"> More</span>}
       </div>
     </div>
   );

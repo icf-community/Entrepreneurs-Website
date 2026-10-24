@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog } from "@/components/ui/dialogCloser";
 import { Button } from "@/components/ui/Button";
 import { reportConnection } from "@/app/connections/actions";
 import { CONNECTION_REPORT_CATEGORIES } from "@/lib/validation/connections";

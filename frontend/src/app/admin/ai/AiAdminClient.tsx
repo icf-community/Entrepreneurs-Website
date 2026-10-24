@@ -153,7 +153,7 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
         </dl>
         {o.recent_changes.length > 0 && (
           <ul className="mt-4 space-y-1 text-[0.8rem] text-text-secondary">
-            {o.recent_changes.map((c, i) => <li key={i}>{formatDate(c.at)} · {c.action} · {c.notes}</li>)}
+            {o.recent_changes.map((c) => <li key={`${c.at}-${c.action}`}>{formatDate(c.at)} · {c.action} · {c.notes}</li>)}
           </ul>
         )}
       </section>

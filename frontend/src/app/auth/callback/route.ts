@@ -41,6 +41,7 @@ export async function GET(request: Request) {
   // /reset-password can tell a genuine recovery click from a normal logged-in
   // user navigating there directly — otherwise the reset page would be a way to
   // change a password with no current-password check (bypassing settings reauth).
+  // react-doctor-disable-next-line url-prefilled-privileged-action -- URL param does not directly trigger the privileged action; `next` only selects the redirect destination via a strict equality check against the single allowed value (/reset-password), not an open redirect
   if (searchParams.get("next") === "/reset-password") {
     const res = NextResponse.redirect(`${origin}/reset-password`);
     res.cookies.set("pw-recovery", "1", {

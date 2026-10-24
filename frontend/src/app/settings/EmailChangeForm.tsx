@@ -127,16 +127,21 @@ export default function EmailChangeForm({
     }
 
     setIsLoading(true);
-    const { error: updateError } = await supabase.auth.updateUser({ email: pending });
-    setIsLoading(false);
-    // An address that already has an account is deliberately NOT reported.
-    // See isEmailTaken below.
-    if (updateError && !isEmailTaken(updateError)) {
-      setError(updateError.message);
-      return;
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ email: pending });
+      // An address that already has an account is deliberately NOT reported.
+      // See isEmailTaken below.
+      if (updateError && !isEmailTaken(updateError)) {
+        setError(updateError.message);
+        return;
+      }
+      setCurrentConfirmed(false);
+      setStage("codes");
+    } catch {
+      setError("Couldn't reach the server. Try again in a moment.");
+    } finally {
+      setIsLoading(false);
     }
-    setCurrentConfirmed(false);
-    setStage("codes");
   };
 
   const handleConfirm = async (e: React.FormEvent) => {

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, closeDialog, dialogCloser } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog, dialogCloser } from "@/components/ui/dialogCloser";
 import { Button } from "@/components/ui/Button";
 import { respondToConnectionRequest } from "@/app/connections/actions";
 import { settle } from "@/lib/settle";
-import { track } from "@/components/analytics/PostHogProvider";
+import { track } from "@/lib/analytics/track";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · The accept dialog — the consent moment

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRef } from "react";
 import { scrollBehavior } from "@/lib/motion";
@@ -69,7 +70,7 @@ export default function Hero() {
           </p>
 
           <div className="anim-fade-up delay-200 flex flex-wrap items-center gap-3">
-            <a
+            <Link
               href="/login"
               className="inline-flex items-center gap-2 rounded-lg bg-accent px-7 py-3.5 text-sm font-semibold text-bg-primary no-underline transition-colors duration-150 hover:bg-accent-dim"
             >
@@ -77,10 +78,11 @@ export default function Hero() {
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
                 <path d="M2.5 7H11.5M8 3.5L11.5 7L8 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </a>
+            </Link>
             <a
               href="#who-we-are"
               onClick={(e) => { e.preventDefault(); document.getElementById("who-we-are")?.scrollIntoView({ behavior: scrollBehavior() }); }}
+              aria-label="Learn more about who we are"
               className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.05] px-7 py-3.5 text-sm text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
             >
               Learn more

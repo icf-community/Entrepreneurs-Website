@@ -34,11 +34,13 @@ export default function OpportunityActions({
   }, [o.id]);
 
   const toast = useToast();
-  const [saving, setSaving] = useState(false);
+  // A write-in-flight guard only, never read during render — a ref avoids
+  // a re-render on every flip, same as OpportunitiesClient's `inFlight`.
+  const saving = useRef(false);
   const toggleBookmark = () => {
     // B7: one write at a time; a failure says so instead of silently flipping back.
-    if (saving) return;
-    setSaving(true);
+    if (saving.current) return;
+    saving.current = true;
     // Optimistic, reverted if the write fails — same contract as the card.
     // The .catch() covers an actual thrown rejection (network blip
     // invoking the action), which would otherwise skip the rollback and
@@ -46,7 +48,7 @@ export default function OpportunityActions({
     const was = bookmarked;
     setBookmarked(!was);
     void settle(toggleOpportunityBookmark(o.id)).then((res) => {
-      setSaving(false);
+      saving.current = false;
       if (!res.ok) {
         setBookmarked(was);
         toast("Couldn't update your bookmark. Please try again.", "error");

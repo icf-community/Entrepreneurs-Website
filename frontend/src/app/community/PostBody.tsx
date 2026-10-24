@@ -1,4 +1,4 @@
-import { segmentPostBody } from "@/lib/validation/posts";
+import { segmentPostBody, type PostSegment } from "@/lib/validation/posts";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Rendering a post body
@@ -24,15 +24,29 @@ import { segmentPostBody } from "@/lib/validation/posts";
 //     claim and the destination cannot disagree silently.
 // ════════════════════════════════════════════════════════════════════
 
+// Segments carry no id of their own (segmentPostBody just walks the
+// string), so the key is each segment's own start offset within body —
+// stable and unique for a given body, since no two segments can start at
+// the same character. Computed in one pass up front rather than mutated
+// during the render map, so nothing reassigns state after render.
+function withKeys(segments: PostSegment[]): (PostSegment & { key: number })[] {
+  let offset = 0;
+  return segments.map((segment) => {
+    const key = offset;
+    offset += segment.kind === "text" ? segment.text.length : segment.href.length;
+    return { ...segment, key };
+  });
+}
+
 export default function PostBody({ body }: { body: string }) {
   return (
     <p className="text-[0.9rem] text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
-      {segmentPostBody(body).map((segment, i) =>
+      {withKeys(segmentPostBody(body)).map((segment) =>
         segment.kind === "text" ? (
-          <span key={i}>{segment.text}</span>
+          <span key={segment.key}>{segment.text}</span>
         ) : (
           <a
-            key={i}
+            key={segment.key}
             href={segment.href}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"

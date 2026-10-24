@@ -100,36 +100,71 @@ export default function ProfileForm(props: Props) {
   const router = useRouter();
   const supabase = createClient();
 
-  const [editVersion, setEditVersion] = useState(props.editVersion);
+  // Not rendered anywhere — only ever read/written from handleSubmit — so a
+  // ref, not state. A ref also means the effect below can resync it from a
+  // fresh prop without forcing an extra render.
+  //
+  // The resync matters because this prop genuinely changes under us: role
+  // is one of the columns optimistic_edits.sql's trigger bumps edit_version
+  // on, and AffiliationSection saves role through its own RPC + router.refresh()
+  // on this same page. Without the effect, changing affiliation first and
+  // then "Save changes" here would submit a stale p_expected_version and
+  // fail the optimistic-lock check for no reason visible to the member.
+  const editVersionRef = useRef(props.editVersion);
+  useEffect(() => {
+    editVersionRef.current = props.editVersion;
+  }, [props.editVersion]);
   const submitting = useRef(false);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handleSubmit; no other writer touches it while mounted
   const [firstName, setFirstName] = useState(props.firstName);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [surname, setSurname] = useState(props.surname);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [course, setCourse] = useState(props.course);
-  const [gradYear, setGradYear] = useState<string>(props.gradYear?.toString() ?? "");
+  const [gradYear, setGradYear] = useState<string>(() => props.gradYear?.toString() ?? "");
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [linkedin, setLinkedin] = useState(props.linkedinUrl);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [github, setGithub] = useState(props.githubUrl);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [portfolio, setPortfolio] = useState(props.portfolioUrl);
 
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [preferredName, setPreferredName] = useState(props.preferredName);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [bioFocus, setBioFocus] = useState(props.bioFocus);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [bioHobbies, setBioHobbies] = useState(props.bioHobbies);
 
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [skillIds, setSkillIds] = useState<number[]>(props.selectedSkillIds);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [coreSkillIds, setCoreSkillIds] = useState<number[]>(props.selectedCoreSkillIds);
   const [suggestedSkillIds, setSuggestedSkillIds] = useState<number[]>([]);
-  const [sectorIds, setSectorIds] = useState<Set<number>>(new Set(props.selectedSectors));
+  const [sectorIds, setSectorIds] = useState<Set<number>>(() => new Set(props.selectedSectors));
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [academicInterests, setAcademicInterests] = useState<string[]>(props.academicInterests);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [hobbies, setHobbies] = useState<string[]>(props.hobbies);
 
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [currentFocus, setCurrentFocus] = useState(props.currentFocus);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [ventureStage, setVentureStage] = useState(props.ventureStage);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [ventureName, setVentureName] = useState(props.ventureName);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [ventureUrl, setVentureUrl] = useState(props.ventureUrl);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [ventureOneLiner, setVentureOneLiner] = useState(props.ventureOneLiner);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [recruitingStatus, setRecruitingStatus] = useState(props.recruitingStatus);
 
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [intents, setIntents] = useState<string[]>(props.intents);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [intentUrgency, setIntentUrgency] = useState(props.intentUrgency);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable form field, seeded once from props and only ever mutated by this form's own handlers; no other writer touches it while mounted
   const [availabilityHours, setAvailabilityHours] = useState(props.availabilityHours);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -222,59 +257,65 @@ export default function ProfileForm(props: Props) {
 
     submitting.current = true;
     setIsLoading(true);
-    const { data: nextVersion, error: rpcError } = await supabase.rpc("update_profile", {
-      p_expected_version: editVersion,
-      p_first_name:    trimmedFirst,
-      p_surname:       trimmedSurname,
-      p_course:        cleanedCourse,
-      p_grad_year:     gradYearNum,
-      p_linkedin_url:  cleanText(linkedin) || null,
-      p_github_url:    cleanText(github) || null,
-      p_portfolio_url: cleanText(portfolio) || null,
-      p_preferred_name: cleanText(preferredName) || null,
-      p_bio_focus:      cleanText(bioFocus) || null,
-      p_bio_hobbies:    cleanText(bioHobbies) || null,
-      p_current_focus:  currentFocus || null,
-      p_venture_stage:  ventureStage || null,
-      p_venture_name:   cleanText(ventureName) || null,
-      p_venture_url:    cleanText(ventureUrl) || null,
-      p_venture_one_liner: cleanText(ventureOneLiner) || null,
-      p_recruiting_status: recruitingStatus || null,
-      p_intent_urgency:    intentUrgency || null,
-      p_availability_hours: availabilityHours || null,
-      p_skill_ids:      skillIds,
-      p_core_skill_ids: coreSkillIds,
-      p_sector_ids:     Array.from(sectorIds),
-      p_academic_interests: academicInterests,
-      p_hobbies:            hobbies,
-      p_intents:            intents,
-    });
+    try {
+      const { data: nextVersion, error: rpcError } = await supabase.rpc("update_profile", {
+        p_expected_version: editVersionRef.current,
+        p_first_name:    trimmedFirst,
+        p_surname:       trimmedSurname,
+        p_course:        cleanedCourse,
+        p_grad_year:     gradYearNum,
+        p_linkedin_url:  cleanText(linkedin) || null,
+        p_github_url:    cleanText(github) || null,
+        p_portfolio_url: cleanText(portfolio) || null,
+        p_preferred_name: cleanText(preferredName) || null,
+        p_bio_focus:      cleanText(bioFocus) || null,
+        p_bio_hobbies:    cleanText(bioHobbies) || null,
+        p_current_focus:  currentFocus || null,
+        p_venture_stage:  ventureStage || null,
+        p_venture_name:   cleanText(ventureName) || null,
+        p_venture_url:    cleanText(ventureUrl) || null,
+        p_venture_one_liner: cleanText(ventureOneLiner) || null,
+        p_recruiting_status: recruitingStatus || null,
+        p_intent_urgency:    intentUrgency || null,
+        p_availability_hours: availabilityHours || null,
+        p_skill_ids:      skillIds,
+        p_core_skill_ids: coreSkillIds,
+        p_sector_ids:     Array.from(sectorIds),
+        p_academic_interests: academicInterests,
+        p_hobbies:            hobbies,
+        p_intents:            intents,
+      });
 
-    submitting.current = false;
-    if (rpcError) {
-      setError(describeSupabaseError(rpcError));
-      setIsLoading(false);
-      // This RPC runs straight from the browser client, so there is no
-      // framework-level redirect on an expired session the way a page load
-      // or server action gets — send them back to sign in rather than
-      // leaving them to notice the banner. Brief delay so the message above
-      // is actually readable before the page navigates away.
-      if (isSessionExpiredError(rpcError)) {
-        window.setTimeout(() => router.push("/login"), 1500);
+      if (rpcError) {
+        setError(describeSupabaseError(rpcError));
+        // This RPC runs straight from the browser client, so there is no
+        // framework-level redirect on an expired session the way a page load
+        // or server action gets — send them back to sign in rather than
+        // leaving them to notice the banner. Brief delay so the message above
+        // is actually readable before the page navigates away.
+        if (isSessionExpiredError(rpcError)) {
+          window.setTimeout(() => router.push("/login"), 1500);
+        }
+        return;
       }
-      return;
-    }
 
-    setEditVersion(nextVersion!);
-    setSaved(true);
-    setIsLoading(false);
-    await invalidateDirectoryCache();
-    router.refresh();
+      editVersionRef.current = nextVersion!;
+      setSaved(true);
+      await invalidateDirectoryCache();
+      router.refresh();
+    } catch {
+      setError("Couldn't reach the server. Try again in a moment.");
+    } finally {
+      submitting.current = false;
+      setIsLoading(false);
+    }
   };
 
+  const skillIdSet = new Set(skillIds);
+  const taxonomyById = new Map(props.skillTaxonomy.map((t) => [t.id, t]));
   const suggestedSkills = suggestedSkillIds
-    .filter((id) => !skillIds.includes(id))
-    .map((id) => props.skillTaxonomy.find((t) => t.id === id))
+    .filter((id) => !skillIdSet.has(id))
+    .map((id) => taxonomyById.get(id))
     .filter((t): t is SkillOption => !!t);
 
   const showVentureDetail = VENTURE_STAGES_WITH_DETAIL.has(ventureStage);
@@ -303,161 +344,47 @@ export default function ProfileForm(props: Props) {
       />
 
       <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
-        <h2 className="mb-1 text-[1rem] font-medium text-text-primary">Identity</h2>
-
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label htmlFor="first-name" className="block text-[0.75rem] text-text-muted mb-1.5">First name</label>
-            <input id="first-name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} required />
-          </div>
-          <div className="flex-1">
-            <label htmlFor="surname" className="block text-[0.75rem] text-text-muted mb-1.5">Surname</label>
-            <input id="surname" type="text" value={surname} onChange={(e) => setSurname(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} required />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="preferred-name" className="block text-[0.75rem] text-text-muted mb-1.5">
-            What people call you <span className="text-text-muted ml-1">— optional</span>
-          </label>
-          <input id="preferred-name" type="text" value={preferredName} onChange={(e) => setPreferredName(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} />
-        </div>
-
-        <div>
-          <label htmlFor="course" className="block text-[0.75rem] text-text-muted mb-1.5">
-            {props.role === "alum" ? "Course studied" : "Course you're studying"}
-          </label>
-          <input
-            id="course" type="text" value={course} onChange={(e) => setCourse(e.target.value)}
-            className={inputCls} maxLength={200}
-            placeholder={props.role === "alum" ? "e.g. MEng Computing" : "e.g. BSc Mathematics"}
-            required
-          />
-        </div>
-
-        <div>
-          <label htmlFor="grad-year" className="block text-[0.75rem] text-text-muted mb-1.5">
-            {props.role === "alum" ? "Graduation year" : "Expected graduation year"}
-          </label>
-          <select id="grad-year" value={gradYear} onChange={(e) => setGradYear(e.target.value)} className={inputCls} required>
-            <option value="">Select a year</option>
-            {gradYearOptions(props.role).map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="linkedin" className="block text-[0.75rem] text-text-muted mb-1.5">
-            LinkedIn URL{" "}
-            {props.role === "student" && <span className="text-text-muted ml-1">— optional</span>}
-          </label>
-          <input id="linkedin" type="url" placeholder="https://linkedin.com/in/your-handle" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} className={inputCls} maxLength={512} required={props.role !== "student"} />
-        </div>
-
-        <div>
-          <label htmlFor="github" className="block text-[0.75rem] text-text-muted mb-1.5">
-            GitHub URL <span className="text-text-muted ml-1">— optional</span>
-          </label>
-          <input id="github" type="url" placeholder="https://github.com/your-handle" value={github} onChange={(e) => setGithub(e.target.value)} className={inputCls} maxLength={512} />
-        </div>
-
-        <div>
-          <label htmlFor="portfolio" className="block text-[0.75rem] text-text-muted mb-1.5">
-            Portfolio URL <span className="text-text-muted ml-1">— optional</span>
-          </label>
-          <input id="portfolio" type="url" placeholder="https://yourportfolio.com" value={portfolio} onChange={(e) => setPortfolio(e.target.value)} className={inputCls} maxLength={512} />
-        </div>
-
-        <div>
-          <label htmlFor="bio-focus" className="block text-[0.75rem] text-text-muted mb-1.5">
-            What are you working on, or into? <span className="text-text-muted ml-2">{bioFocus.length}/500</span>
-          </label>
-          <textarea id="bio-focus" rows={3} value={bioFocus} onChange={(e) => setBioFocus(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
-        </div>
-
-        <div>
-          <label htmlFor="bio-hobbies" className="block text-[0.75rem] text-text-muted mb-1.5">
-            And outside of that? <span className="text-text-muted ml-2">{bioHobbies.length}/500</span>
-          </label>
-          <textarea id="bio-hobbies" rows={2} value={bioHobbies} onChange={(e) => setBioHobbies(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
-        </div>
-
-        <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Skills</h2>
-        <SkillPicker
-          taxonomy={props.skillTaxonomy}
-          selectedIds={skillIds}
-          coreIds={coreSkillIds}
-          suggested={suggestedSkills}
-          onAdd={(id) => setSkillIds((prev) => [...prev, id])}
-          onRemove={(id) => {
-            setSkillIds((prev) => prev.filter((x) => x !== id));
-            setCoreSkillIds((prev) => prev.filter((x) => x !== id));
-          }}
-          onToggleCore={toggleCoreSkill}
-          maxCore={MAX_CORE_SKILLS}
+        <IdentityFields
+          role={props.role}
+          firstName={firstName} setFirstName={setFirstName}
+          surname={surname} setSurname={setSurname}
+          preferredName={preferredName} setPreferredName={setPreferredName}
+          course={course} setCourse={setCourse}
+          gradYear={gradYear} setGradYear={setGradYear}
+          linkedin={linkedin} setLinkedin={setLinkedin}
+          github={github} setGithub={setGithub}
+          portfolio={portfolio} setPortfolio={setPortfolio}
+          bioFocus={bioFocus} setBioFocus={setBioFocus}
+          bioHobbies={bioHobbies} setBioHobbies={setBioHobbies}
         />
 
-        <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Interests</h2>
-        <ChipGroup label="Sectors" items={props.sectors} selected={sectorIds} onToggle={toggleSector} />
-        <Field label="Things you find genuinely interesting" hint="Not necessarily your job.">
-          <TagInput
-            placeholder="Add an interest…"
-            suggestions={["Computer vision", "Medical devices", "Climate", "Robotics", "Fintech", "Policy", "Semiconductors", "Synthetic biology", "Space", "Developer tools"]}
-            values={academicInterests}
-            max={12}
-            onAdd={(v) => setAcademicInterests((prev) => [...prev, v])}
-            onRemove={(v) => setAcademicInterests((prev) => prev.filter((x) => x !== v))}
-          />
-        </Field>
-        <Field label="Hobbies">
-          <TagInput
-            placeholder="Add a hobby…"
-            suggestions={["Running", "Climbing", "Chess", "Cooking", "Football", "Photography", "Cycling", "Reading"]}
-            values={hobbies}
-            max={12}
-            onAdd={(v) => setHobbies((prev) => [...prev, v])}
-            onRemove={(v) => setHobbies((prev) => prev.filter((x) => x !== v))}
-          />
-        </Field>
+        <SkillsAndInterests
+          skillTaxonomy={props.skillTaxonomy}
+          skillIds={skillIds} setSkillIds={setSkillIds}
+          coreSkillIds={coreSkillIds} setCoreSkillIds={setCoreSkillIds}
+          suggestedSkills={suggestedSkills}
+          toggleCoreSkill={toggleCoreSkill}
+          sectors={props.sectors}
+          sectorIds={sectorIds} toggleSector={toggleSector}
+          academicInterests={academicInterests} setAcademicInterests={setAcademicInterests}
+          hobbies={hobbies} setHobbies={setHobbies}
+        />
 
-        <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Where you&apos;re at</h2>
-        <Field label="What's your situation right now?">
-          <ChoiceCards name="Current focus" columns={2} options={CURRENT_FOCUS} value={currentFocus || null} onChange={setCurrentFocus} />
-        </Field>
-        <Field label="Where's your venture at?">
-          <ChoiceCards name="Venture stage" columns={2} options={VENTURE_STAGES} value={ventureStage || null} onChange={setVentureStage} />
-        </Field>
-        {showVentureDetail && (
-          <>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div>
-                <label className="block text-[0.75rem] text-text-muted mb-1.5">Venture name</label>
-                <input type="text" maxLength={200} value={ventureName} onChange={(e) => setVentureName(e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-[0.75rem] text-text-muted mb-1.5">Website</label>
-                <input type="url" maxLength={512} value={ventureUrl} onChange={(e) => setVentureUrl(e.target.value)} className={inputCls} placeholder="https://…" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[0.75rem] text-text-muted mb-1.5">One line on what it does</label>
-              <input type="text" maxLength={140} value={ventureOneLiner} onChange={(e) => setVentureOneLiner(e.target.value)} className={inputCls} />
-            </div>
-            <Field label="Recruiting?">
-              <PillChoice name="Recruiting" options={RECRUITING_STATUSES} value={recruitingStatus} onChange={setRecruitingStatus} />
-            </Field>
-          </>
-        )}
+        <WhereYoureAt
+          currentFocus={currentFocus} setCurrentFocus={setCurrentFocus}
+          ventureStage={ventureStage} setVentureStage={setVentureStage}
+          showVentureDetail={showVentureDetail}
+          ventureName={ventureName} setVentureName={setVentureName}
+          ventureUrl={ventureUrl} setVentureUrl={setVentureUrl}
+          ventureOneLiner={ventureOneLiner} setVentureOneLiner={setVentureOneLiner}
+          recruitingStatus={recruitingStatus} setRecruitingStatus={setRecruitingStatus}
+        />
 
-        <h2 className="pt-4 text-[1rem] font-medium text-text-primary">What you want</h2>
-        <Field label={`Pick up to ${MAX_INTENTS}, in order`}>
-          <RankPicker options={INTENTS} values={intents} onToggle={toggleIntent} max={MAX_INTENTS} />
-        </Field>
-        <Field label="How urgent?">
-          <PillChoice name="Urgency" options={INTENT_URGENCIES} value={intentUrgency} onChange={setIntentUrgency} />
-        </Field>
-        <Field label="Hours a week for something new">
-          <PillChoice name="Hours a week" options={AVAILABILITY_HOURS} value={availabilityHours} onChange={setAvailabilityHours} />
-        </Field>
+        <WhatYouWant
+          intents={intents} toggleIntent={toggleIntent}
+          intentUrgency={intentUrgency} setIntentUrgency={setIntentUrgency}
+          availabilityHours={availabilityHours} setAvailabilityHours={setAvailabilityHours}
+        />
 
         <Button type="submit" loading={isLoading} variant="primary" size="lg" className="w-full mt-3">
           Save changes
@@ -467,15 +394,257 @@ export default function ProfileForm(props: Props) {
   );
 }
 
+// ─── Identity / skills / status field groups ──────────────────────
+
+function IdentityFields({
+  role, firstName, setFirstName, surname, setSurname, preferredName, setPreferredName,
+  course, setCourse, gradYear, setGradYear, linkedin, setLinkedin, github, setGithub,
+  portfolio, setPortfolio, bioFocus, setBioFocus, bioHobbies, setBioHobbies,
+}: {
+  role: Affiliation;
+  firstName: string; setFirstName: (v: string) => void;
+  surname: string; setSurname: (v: string) => void;
+  preferredName: string; setPreferredName: (v: string) => void;
+  course: string; setCourse: (v: string) => void;
+  gradYear: string; setGradYear: (v: string) => void;
+  linkedin: string; setLinkedin: (v: string) => void;
+  github: string; setGithub: (v: string) => void;
+  portfolio: string; setPortfolio: (v: string) => void;
+  bioFocus: string; setBioFocus: (v: string) => void;
+  bioHobbies: string; setBioHobbies: (v: string) => void;
+}) {
+  return (
+    <>
+      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">Identity</h2>
+
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label htmlFor="first-name" className="block text-[0.75rem] text-text-muted mb-1.5">First name</label>
+          <input id="first-name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} required />
+        </div>
+        <div className="flex-1">
+          <label htmlFor="surname" className="block text-[0.75rem] text-text-muted mb-1.5">Surname</label>
+          <input id="surname" type="text" value={surname} onChange={(e) => setSurname(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} required />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="preferred-name" className="block text-[0.75rem] text-text-muted mb-1.5">
+          What people call you <span className="text-text-muted ml-1">— optional</span>
+        </label>
+        <input id="preferred-name" type="text" value={preferredName} onChange={(e) => setPreferredName(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} />
+      </div>
+
+      <div>
+        <label htmlFor="course" className="block text-[0.75rem] text-text-muted mb-1.5">
+          {role === "alum" ? "Course studied" : "Course you're studying"}
+        </label>
+        <input
+          id="course" type="text" value={course} onChange={(e) => setCourse(e.target.value)}
+          className={inputCls} maxLength={200}
+          placeholder={role === "alum" ? "e.g. MEng Computing" : "e.g. BSc Mathematics"}
+          required
+        />
+      </div>
+
+      <div>
+        <label htmlFor="grad-year" className="block text-[0.75rem] text-text-muted mb-1.5">
+          {role === "alum" ? "Graduation year" : "Expected graduation year"}
+        </label>
+        <select id="grad-year" value={gradYear} onChange={(e) => setGradYear(e.target.value)} className={inputCls} required>
+          <option value="">Select a year</option>
+          {gradYearOptions(role).map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="linkedin" className="block text-[0.75rem] text-text-muted mb-1.5">
+          LinkedIn URL{" "}
+          {role === "student" && <span className="text-text-muted ml-1">— optional</span>}
+        </label>
+        <input id="linkedin" type="url" placeholder="https://linkedin.com/in/your-handle" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} className={inputCls} maxLength={512} required={role !== "student"} />
+      </div>
+
+      <div>
+        <label htmlFor="github" className="block text-[0.75rem] text-text-muted mb-1.5">
+          GitHub URL <span className="text-text-muted ml-1">— optional</span>
+        </label>
+        <input id="github" type="url" placeholder="https://github.com/your-handle" value={github} onChange={(e) => setGithub(e.target.value)} className={inputCls} maxLength={512} />
+      </div>
+
+      <div>
+        <label htmlFor="portfolio" className="block text-[0.75rem] text-text-muted mb-1.5">
+          Portfolio URL <span className="text-text-muted ml-1">— optional</span>
+        </label>
+        <input id="portfolio" type="url" placeholder="https://yourportfolio.com" value={portfolio} onChange={(e) => setPortfolio(e.target.value)} className={inputCls} maxLength={512} />
+      </div>
+
+      <div>
+        <label htmlFor="bio-focus" className="block text-[0.75rem] text-text-muted mb-1.5">
+          What are you working on, or into? <span className="text-text-muted ml-2">{bioFocus.length}/500</span>
+        </label>
+        <textarea id="bio-focus" rows={3} value={bioFocus} onChange={(e) => setBioFocus(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
+      </div>
+
+      <div>
+        <label htmlFor="bio-hobbies" className="block text-[0.75rem] text-text-muted mb-1.5">
+          And outside of that? <span className="text-text-muted ml-2">{bioHobbies.length}/500</span>
+        </label>
+        <textarea id="bio-hobbies" rows={2} value={bioHobbies} onChange={(e) => setBioHobbies(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
+      </div>
+    </>
+  );
+}
+
+function SkillsAndInterests({
+  skillTaxonomy, skillIds, setSkillIds, coreSkillIds, setCoreSkillIds, suggestedSkills, toggleCoreSkill,
+  sectors, sectorIds, toggleSector, academicInterests, setAcademicInterests, hobbies, setHobbies,
+}: {
+  skillTaxonomy: SkillOption[];
+  skillIds: number[]; setSkillIds: React.Dispatch<React.SetStateAction<number[]>>;
+  coreSkillIds: number[]; setCoreSkillIds: React.Dispatch<React.SetStateAction<number[]>>;
+  suggestedSkills: SkillOption[];
+  toggleCoreSkill: (id: number) => void;
+  sectors: ChipItem[];
+  sectorIds: Set<number>; toggleSector: (id: number) => void;
+  academicInterests: string[]; setAcademicInterests: React.Dispatch<React.SetStateAction<string[]>>;
+  hobbies: string[]; setHobbies: React.Dispatch<React.SetStateAction<string[]>>;
+}) {
+  return (
+    <>
+      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Skills</h2>
+      <SkillPicker
+        taxonomy={skillTaxonomy}
+        selectedIds={skillIds}
+        coreIds={coreSkillIds}
+        suggested={suggestedSkills}
+        onAdd={(id) => setSkillIds((prev) => [...prev, id])}
+        onRemove={(id) => {
+          setSkillIds((prev) => prev.filter((x) => x !== id));
+          setCoreSkillIds((prev) => prev.filter((x) => x !== id));
+        }}
+        onToggleCore={toggleCoreSkill}
+        maxCore={MAX_CORE_SKILLS}
+      />
+
+      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Interests</h2>
+      <ChipGroup label="Sectors" items={sectors} selected={sectorIds} onToggle={toggleSector} />
+      <Field label="Things you find genuinely interesting" hint="Not necessarily your job.">
+        <TagInput
+          placeholder="Add an interest…"
+          suggestions={["Computer vision", "Medical devices", "Climate", "Robotics", "Fintech", "Policy", "Semiconductors", "Synthetic biology", "Space", "Developer tools"]}
+          values={academicInterests}
+          max={12}
+          onAdd={(v) => setAcademicInterests((prev) => [...prev, v])}
+          onRemove={(v) => setAcademicInterests((prev) => prev.filter((x) => x !== v))}
+        />
+      </Field>
+      <Field label="Hobbies">
+        <TagInput
+          placeholder="Add a hobby…"
+          suggestions={["Running", "Climbing", "Chess", "Cooking", "Football", "Photography", "Cycling", "Reading"]}
+          values={hobbies}
+          max={12}
+          onAdd={(v) => setHobbies((prev) => [...prev, v])}
+          onRemove={(v) => setHobbies((prev) => prev.filter((x) => x !== v))}
+        />
+      </Field>
+    </>
+  );
+}
+
+function WhereYoureAt({
+  currentFocus, setCurrentFocus, ventureStage, setVentureStage, showVentureDetail,
+  ventureName, setVentureName, ventureUrl, setVentureUrl, ventureOneLiner, setVentureOneLiner,
+  recruitingStatus, setRecruitingStatus,
+}: {
+  currentFocus: string; setCurrentFocus: (v: string) => void;
+  ventureStage: string; setVentureStage: (v: string) => void;
+  showVentureDetail: boolean;
+  ventureName: string; setVentureName: (v: string) => void;
+  ventureUrl: string; setVentureUrl: (v: string) => void;
+  ventureOneLiner: string; setVentureOneLiner: (v: string) => void;
+  recruitingStatus: string; setRecruitingStatus: (v: string) => void;
+}) {
+  return (
+    <>
+      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Where you&apos;re at</h2>
+      <Field label="What's your situation right now?">
+        <ChoiceCards name="Current focus" columns={2} options={CURRENT_FOCUS} value={currentFocus || null} onChange={setCurrentFocus} />
+      </Field>
+      <Field label="Where's your venture at?">
+        <ChoiceCards name="Venture stage" columns={2} options={VENTURE_STAGES} value={ventureStage || null} onChange={setVentureStage} />
+      </Field>
+      {showVentureDetail && (
+        <>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="venture-name" className="block text-[0.75rem] text-text-muted mb-1.5">Venture name</label>
+              <input id="venture-name" type="text" maxLength={200} value={ventureName} onChange={(e) => setVentureName(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label htmlFor="venture-url" className="block text-[0.75rem] text-text-muted mb-1.5">Website</label>
+              <input id="venture-url" type="url" maxLength={512} value={ventureUrl} onChange={(e) => setVentureUrl(e.target.value)} className={inputCls} placeholder="https://…" />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="venture-one-liner" className="block text-[0.75rem] text-text-muted mb-1.5">One line on what it does</label>
+            <input id="venture-one-liner" type="text" maxLength={140} value={ventureOneLiner} onChange={(e) => setVentureOneLiner(e.target.value)} className={inputCls} />
+          </div>
+          <Field label="Recruiting?">
+            <PillChoice name="Recruiting" options={RECRUITING_STATUSES} value={recruitingStatus} onChange={setRecruitingStatus} />
+          </Field>
+        </>
+      )}
+    </>
+  );
+}
+
+function WhatYouWant({
+  intents, toggleIntent, intentUrgency, setIntentUrgency, availabilityHours, setAvailabilityHours,
+}: {
+  intents: string[]; toggleIntent: (v: string) => void;
+  intentUrgency: string; setIntentUrgency: (v: string) => void;
+  availabilityHours: string; setAvailabilityHours: (v: string) => void;
+}) {
+  return (
+    <>
+      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">What you want</h2>
+      <Field label={`Pick up to ${MAX_INTENTS}, in order`}>
+        <RankPicker options={INTENTS} values={intents} onToggle={toggleIntent} max={MAX_INTENTS} />
+      </Field>
+      <Field label="How urgent?">
+        <PillChoice name="Urgency" options={INTENT_URGENCIES} value={intentUrgency} onChange={setIntentUrgency} />
+      </Field>
+      <Field label="Hours a week for something new">
+        <PillChoice name="Hours a week" options={AVAILABILITY_HOURS} value={availabilityHours} onChange={setAvailabilityHours} />
+      </Field>
+    </>
+  );
+}
+
 // ─── Photo ─────────────────────────────────────────────────────────
 
 function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
   const router = useRouter();
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- seeded once from props and only ever mutated by this component's own upload/remove action handlers; no other writer touches it while mounted
   const [preview, setPreview] = useState<string | null>(avatarUrl);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const replaceRef = useRef<HTMLInputElement>(null);
+
+  // Revokes whichever blob: URL is current on unmount (e.g. navigating away
+  // with a freshly-uploaded preview still in state) — the explicit revokes in
+  // upload() and remove() below only cover replacing or clearing it while
+  // this component stays mounted.
+  const previewRef = useRef(preview);
+  useEffect(() => {
+    previewRef.current = preview;
+  }, [preview]);
+  useEffect(() => () => {
+    if (previewRef.current?.startsWith("blob:")) URL.revokeObjectURL(previewRef.current);
+  }, []);
 
   const upload = async (blob: Blob) => {
     setError("");
@@ -504,6 +673,7 @@ function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
       if (!confirmed.ok) { setError(confirmed.error); return; }
 
       if (preview) URL.revokeObjectURL(preview);
+      // react-doctor-disable-next-line react-doctor/no-create-object-url-without-revoke -- revoke is covered on replacement (above), on remove(), and on unmount via previewRef's cleanup effect
       setPreview(URL.createObjectURL(blob));
       setPendingFile(null);
       router.refresh();
@@ -522,6 +692,7 @@ function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
     const result = await settle(removeAvatar());
     setRemoving(false);
     if (!result.ok) { setError(result.error); return; }
+    if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
     setPreview(null);
     router.refresh();
   };
@@ -630,6 +801,7 @@ function CvSection({
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [consent, setConsent] = useState(false);
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- seeded once from props and only ever mutated by this component's own upload/remove action handlers; no other writer touches it while mounted
   const [present, setPresent] = useState(hasCv);
   const [filename, setFilename] = useState(originalFilename);
   const [uploading, setUploading] = useState(false);
@@ -749,127 +921,215 @@ function CvSection({
       {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
       {present && !file && !changing ? (
-        <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
-            CV
-          </span>
-          {/* min-w-[9rem]: three buttons (alumni) previously squeezed this
-              column hard enough to truncate the filename to "My_…" and wrap
-              "Uploaded …" onto a colliding second line — found by actually
-              looking at a rendered screenshot, not from reading the JSX. */}
-          <span className="min-w-[9rem] flex-1">
-            <span className="block truncate text-[0.85rem] text-text-primary">{filename ?? "Your CV"}</span>
-            {uploadedAt && (
-              <span className="block truncate text-[0.75rem] text-text-muted">
-                Uploaded {new Date(uploadedAt).toLocaleDateString("en-GB", {
-                  day: "numeric", month: "short", year: "numeric",
-                })}
-              </span>
-            )}
-            {/* Only ever set by a fresh upload this visit (see
-                pollIngestStatus above) — an existing CV from before this
-                page load shows no badge, matching what the dialog it
-                replaced also never did on a plain page load. */}
-            {ingestStatus && (
-              <span className="mt-1 flex items-center gap-1.5 text-[0.75rem] text-text-muted">
-                {!ingestCheckFailed && CV_INGEST_PROCESSING.includes(ingestStatus) && (
-                  <span
-                    aria-hidden
-                    className="h-3 w-3 shrink-0 rounded-full border-2 border-current/30 border-t-current animate-spin"
-                  />
-                )}
-                {ingestCheckFailed
-                  ? "Couldn't check progress"
-                  : CV_INGEST_PROCESSING.includes(ingestStatus)
-                  ? "Processing your CV…"
-                  : ingestStatus === "ready"
-                    ? "Processed"
-                    : ingestStatus === "flagged"
-                      ? "Needs a quick check"
-                      : "Couldn't be processed"}
-                <button
-                  type="button"
-                  onClick={() => setShowProcessingDialog(true)}
-                  className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-text-secondary"
-                >
-                  View details
-                </button>
-              </span>
-            )}
-          </span>
-          {/* Grouped so the three buttons wrap onto their own line as a unit
-              on a narrow container, rather than each one individually
-              fighting the filename column for space. */}
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={download} disabled={cvBusy !== null} aria-busy={cvBusy === "download"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary disabled:cursor-wait disabled:opacity-60">
-              {cvBusy === "download" ? "Opening…" : "Download"}
-            </button>
-            <button type="button" onClick={() => setChanging(true)} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
-              Change CV
-            </button>
-            {/* Students' CVs are required (screens.tsx's cvRequired) — removing
-                down to nothing isn't offered to them at all, and the RPC itself
-                also refuses it, so this is UX clarity, not the enforcement. */}
-            {canRemove && (
-              <button type="button" onClick={remove} disabled={cvBusy !== null} aria-busy={cvBusy === "remove"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-wait disabled:opacity-60">
-                {cvBusy === "remove" ? "Removing…" : "Remove CV"}
-              </button>
-            )}
-          </div>
-        </div>
+        <CvPresentCard
+          filename={filename}
+          uploadedAt={uploadedAt}
+          ingestStatus={ingestStatus}
+          ingestCheckFailed={ingestCheckFailed}
+          cvBusy={cvBusy}
+          canRemove={canRemove}
+          onDownload={download}
+          onChange={() => setChanging(true)}
+          onRemove={remove}
+          onViewDetails={() => setShowProcessingDialog(true)}
+        />
       ) : (
-        <>
-          <FilePicker
-            accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            label="Drop a PDF or DOCX"
-            hint="or click to browse · 8 MB maximum"
-            file={file}
-            onPick={setFile}
-            onClear={() => setFile(null)}
-          />
-          {changing && (
-            <button
-              type="button"
-              onClick={() => { setChanging(false); setFile(null); setError(""); }}
-              className="mt-2 cursor-pointer text-[0.775rem] text-text-muted underline decoration-dotted underline-offset-2 hover:text-text-secondary"
-            >
-              Cancel — keep my current CV
-            </button>
-          )}
-          {file && (
-            <>
-              {ingestionEnabled ? (
-                <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
-                  <input
-                    type="checkbox"
-                    checked={consent}
-                    onChange={(e) => setConsent(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
-                  />
-                  <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
-                    Read my CV to suggest skills to add above and generate a
-                    searchable summary of my background. The extracted text
-                    and summary are stored and used to help match me to
-                    relevant opportunities.
-                  </span>
-                </label>
-              ) : (
-                <p className="mt-3 rounded-lg border border-border-strong bg-white/[0.03] p-4 text-[0.8rem] leading-[1.6] text-text-muted">
-                  CV-based skill matching is temporarily paused — your file will still be saved.
-                </p>
-              )}
-              <Button type="button" onClick={upload} loading={uploading} variant="primary" size="md" className="mt-3">
-                Upload CV
-              </Button>
-            </>
-          )}
-        </>
+        <CvUploadForm
+          file={file}
+          setFile={setFile}
+          changing={changing}
+          onCancelChanging={() => { setChanging(false); setFile(null); setError(""); }}
+          ingestionEnabled={ingestionEnabled}
+          consent={consent}
+          setConsent={setConsent}
+          uploading={uploading}
+          onUpload={upload}
+        />
       )}
 
       {showProcessingDialog && (
         <CvProcessingDialog onClose={() => setShowProcessingDialog(false)} />
       )}
     </section>
+  );
+}
+
+// Status text + spinner for a CV's background ingest — pulled out of
+// CvPresentCard purely to keep that component's own branching readable.
+function CvIngestBadge({
+  ingestStatus, ingestCheckFailed, onViewDetails,
+}: {
+  ingestStatus: CvIngestStatus;
+  ingestCheckFailed: boolean;
+  onViewDetails: () => void;
+}) {
+  const processing = CV_INGEST_PROCESSING.includes(ingestStatus);
+  const label = ingestCheckFailed
+    ? "Couldn't check progress"
+    : processing
+    ? "Processing your CV…"
+    : ingestStatus === "ready"
+      ? "Processed"
+      : ingestStatus === "flagged"
+        ? "Needs a quick check"
+        : "Couldn't be processed";
+  return (
+    <span className="mt-1 flex items-center gap-1.5 text-[0.75rem] text-text-muted">
+      {!ingestCheckFailed && processing && (
+        <span
+          aria-hidden
+          className="h-3 w-3 shrink-0 rounded-full border-2 border-current/30 border-t-current animate-spin"
+        />
+      )}
+      {label}
+      <button
+        type="button"
+        onClick={onViewDetails}
+        className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-text-secondary"
+      >
+        View details
+      </button>
+    </span>
+  );
+}
+
+// The "you already have a CV" panel — filename, upload/ingest status and
+// the download/change/remove actions. Split out of CvSection so that
+// function's own control flow stays short enough for the complexity rule.
+function CvPresentCard({
+  filename, uploadedAt, ingestStatus, ingestCheckFailed, cvBusy, canRemove,
+  onDownload, onChange, onRemove, onViewDetails,
+}: {
+  filename: string | null;
+  uploadedAt: string | null;
+  ingestStatus: CvIngestStatus | null;
+  ingestCheckFailed: boolean;
+  cvBusy: null | "download" | "remove";
+  canRemove: boolean;
+  onDownload: () => void;
+  onChange: () => void;
+  onRemove: () => void;
+  onViewDetails: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
+        CV
+      </span>
+      {/* min-w-[9rem]: three buttons (alumni) previously squeezed this
+          column hard enough to truncate the filename to "My_…" and wrap
+          "Uploaded …" onto a colliding second line — found by actually
+          looking at a rendered screenshot, not from reading the JSX. */}
+      <span className="min-w-[9rem] flex-1">
+        <span className="block truncate text-[0.85rem] text-text-primary">{filename ?? "Your CV"}</span>
+        {uploadedAt && (
+          // suppressHydrationWarning: toLocaleDateString resolves the
+          // viewer's timezone, which can legitimately differ from the
+          // server's and shift which calendar day this renders as —
+          // a cosmetic mismatch, not a real one, so it isn't worth
+          // deferring the date to a post-mount effect to avoid.
+          <span
+            className="block truncate text-[0.75rem] text-text-muted"
+            suppressHydrationWarning
+          >
+            Uploaded {new Date(uploadedAt).toLocaleDateString("en-GB", {
+              day: "numeric", month: "short", year: "numeric",
+            })}
+          </span>
+        )}
+        {/* Only ever set by a fresh upload this visit (see
+            pollIngestStatus above) — an existing CV from before this
+            page load shows no badge, matching what the dialog it
+            replaced also never did on a plain page load. */}
+        {ingestStatus && (
+          <CvIngestBadge ingestStatus={ingestStatus} ingestCheckFailed={ingestCheckFailed} onViewDetails={onViewDetails} />
+        )}
+      </span>
+      {/* Grouped so the three buttons wrap onto their own line as a unit
+          on a narrow container, rather than each one individually
+          fighting the filename column for space. */}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onDownload} disabled={cvBusy !== null} aria-busy={cvBusy === "download"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary disabled:cursor-wait disabled:opacity-60">
+          {cvBusy === "download" ? "Opening…" : "Download"}
+        </button>
+        <button type="button" onClick={onChange} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
+          Change CV
+        </button>
+        {/* Students' CVs are required (screens.tsx's cvRequired) — removing
+            down to nothing isn't offered to them at all, and the RPC itself
+            also refuses it, so this is UX clarity, not the enforcement. */}
+        {canRemove && (
+          <button type="button" onClick={onRemove} disabled={cvBusy !== null} aria-busy={cvBusy === "remove"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-wait disabled:opacity-60">
+            {cvBusy === "remove" ? "Removing…" : "Remove CV"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The "pick/replace a file" branch — split out of CvSection for the same
+// reason as CvPresentCard above.
+function CvUploadForm({
+  file, setFile, changing, onCancelChanging, ingestionEnabled, consent, setConsent, uploading, onUpload,
+}: {
+  file: File | null;
+  setFile: (f: File | null) => void;
+  changing: boolean;
+  onCancelChanging: () => void;
+  ingestionEnabled: boolean;
+  consent: boolean;
+  setConsent: (v: boolean) => void;
+  uploading: boolean;
+  onUpload: () => void;
+}) {
+  return (
+    <>
+      <FilePicker
+        accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        label="Drop a PDF or DOCX"
+        hint="or click to browse · 8 MB maximum"
+        file={file}
+        onPick={setFile}
+        onClear={() => setFile(null)}
+      />
+      {changing && (
+        <button
+          type="button"
+          onClick={onCancelChanging}
+          className="mt-2 cursor-pointer text-[0.775rem] text-text-muted underline decoration-dotted underline-offset-2 hover:text-text-secondary"
+        >
+          Cancel — keep my current CV
+        </button>
+      )}
+      {file && (
+        <>
+          {ingestionEnabled ? (
+            <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
+              />
+              <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
+                Read my CV to suggest skills to add above and generate a
+                searchable summary of my background. The extracted text
+                and summary are stored and used to help match me to
+                relevant opportunities.
+              </span>
+            </label>
+          ) : (
+            <p className="mt-3 rounded-lg border border-border-strong bg-white/[0.03] p-4 text-[0.8rem] leading-[1.6] text-text-muted">
+              CV-based skill matching is temporarily paused — your file will still be saved.
+            </p>
+          )}
+          <Button type="button" onClick={onUpload} loading={uploading} variant="primary" size="md" className="mt-3">
+            Upload CV
+          </Button>
+        </>
+      )}
+    </>
   );
 }
 
@@ -882,6 +1142,7 @@ function GithubSection({
   ingestionEnabled: boolean;
 }) {
   const searchParams = useSearchParams();
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- seeded once from props and only ever mutated by this component's own connect/disconnect action handlers; no other writer touches it while mounted
   const [connected, setConnected] = useState(!!username);
   const [status, setStatus] = useState(scanStatus);
   const [error, setError] = useState(
@@ -1002,140 +1263,27 @@ function GithubSection({
       {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
       {connected ? (
-        <div className="space-y-4">
-          {!ingestionEnabled && (
-            <p className="text-[0.8rem] text-text-muted">
-              GitHub rescans are paused right now — your existing projects and picks are unaffected,
-              and you can still choose from what&apos;s already been found, but nothing new will show
-              up until this is back on.
-            </p>
-          )}
-          <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
-              GH
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.85rem] text-text-primary">@{username}</span>
-              <span className="block text-[0.75rem] text-text-muted">{statusLabel}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setConfirmingDisconnect(true)}
-              disabled={disconnecting}
-              className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Disconnect
-            </button>
-          </div>
-
-          {/* Disconnecting deletes the picks and the hand-written blurbs
-              along with the connection (disconnect_github drops the row).
-              That is the right privacy default, but it is not something a
-              member should discover afterwards. */}
-          {confirmingDisconnect && (
-            <div className="rounded-lg border border-[#ff4d4d]/40 bg-[#ff4d4d]/[0.06] p-4">
-              <p className="mb-3 text-[0.8rem] text-text-secondary">
-                Disconnecting removes your GitHub-derived skills, your spotlit projects and the
-                descriptions you wrote for them. You can reconnect later, but you&apos;ll need to
-                choose your projects again.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="dangerGhost" size="sm" loading={disconnecting} onClick={disconnect}>
-                  Disconnect GitHub
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmingDisconnect(false)}>
-                  Keep it connected
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {needsReview && (
-            <div className="rounded-lg border border-accent/50 bg-accent/[0.06] p-4">
-              <p className="mb-3 text-[0.8rem] text-text-secondary">
-                There&apos;s something new on your GitHub that you haven&apos;t looked at yet. Want to
-                update which projects recruiters see?
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" onClick={() => setDialog("pick")}>
-                  Review projects
-                </Button>
-                <Button type="button" variant="ghost" size="sm" loading={dismissing} onClick={dismissPrompt}>
-                  Not now
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {status === "ready" && (
-            <div className="rounded-lg border border-border-strong bg-white/[0.02] p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-[0.85rem] text-text-primary">Spotlit projects</h3>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setDialog("pick")}>
-                  {picks && picks.length > 0 ? "Change projects" : "Choose projects"}
-                </Button>
-              </div>
-              {picks && picks.length > 0 ? (
-                <ul className="space-y-2">
-                  {picks.map((repo) => (
-                    <li key={repo.name} className="rounded-lg border border-border bg-white/[0.02] p-3">
-                      <a
-                        href={externalHref(repo.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[0.825rem] text-text-primary underline-offset-2 hover:underline"
-                      >
-                        {repo.name}
-                      </a>
-                      {(repo.blurb ?? repo.description) && (
-                        <p className="mt-1 text-[0.775rem] text-text-secondary">
-                          {repo.blurb ?? repo.description}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-[0.8rem] text-text-muted">
-                  You haven&apos;t chosen any yet. Until you do, we&apos;ll show the projects our scan
-                  rated highest.
-                </p>
-              )}
-
-              {/* The written summary leads with one dominant thread and gives
-                  at most a brief mention to a second, so it stays skimmable —
-                  these tags are where the rest of what the scan found still
-                  shows up, rather than getting cut from the prose entirely. */}
-              {themes.length > 0 && (
-                <div className="mt-4">
-                  <p className="mb-1.5 text-[0.7rem] text-text-muted">What your code says about you</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {themes.map((theme) => (
-                      <span
-                        key={theme}
-                        className="rounded-full border border-border-strong bg-white/[0.03] px-2.5 py-1 text-[0.7rem] text-text-secondary"
-                      >
-                        {theme}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <label className="mt-4 flex cursor-pointer items-start gap-2 text-[0.75rem] text-text-muted">
-                <input
-                  type="checkbox"
-                  checked={nudgesEnabled}
-                  disabled={savingNudges}
-                  aria-busy={savingNudges}
-                  onChange={(event) => void toggleNudges(event.target.checked)}
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--color-accent)]"
-                />
-                Email me when I&apos;ve pushed something worth spotlighting (at most once a month)
-              </label>
-            </div>
-          )}
-        </div>
+        <GithubConnectedPanel
+          ingestionEnabled={ingestionEnabled}
+          username={username}
+          statusLabel={statusLabel}
+          disconnecting={disconnecting}
+          confirmingDisconnect={confirmingDisconnect}
+          onConfirmDisconnect={() => setConfirmingDisconnect(true)}
+          onCancelDisconnect={() => setConfirmingDisconnect(false)}
+          onDisconnect={disconnect}
+          needsReview={needsReview}
+          dismissing={dismissing}
+          onReview={() => setDialog("pick")}
+          onDismiss={dismissPrompt}
+          status={status}
+          picks={picks}
+          themes={themes}
+          nudgesEnabled={nudgesEnabled}
+          savingNudges={savingNudges}
+          onChangeProjects={() => setDialog("pick")}
+          onToggleNudges={toggleNudges}
+        />
       ) : ingestionEnabled ? (
         <Button type="button" onClick={connect} loading={connecting} variant="primary" size="md">
           Connect GitHub
@@ -1154,5 +1302,195 @@ function GithubSection({
         />
       )}
     </section>
+  );
+}
+
+// The entire "already connected" view — split out of GithubSection to keep
+// that function's own control flow short enough for the complexity rule.
+function GithubConnectedPanel({
+  ingestionEnabled, username, statusLabel, disconnecting, confirmingDisconnect,
+  onConfirmDisconnect, onCancelDisconnect, onDisconnect, needsReview, dismissing,
+  onReview, onDismiss, status, picks, themes, nudgesEnabled, savingNudges,
+  onChangeProjects, onToggleNudges,
+}: {
+  ingestionEnabled: boolean;
+  username: string | null;
+  statusLabel: string;
+  disconnecting: boolean;
+  confirmingDisconnect: boolean;
+  onConfirmDisconnect: () => void;
+  onCancelDisconnect: () => void;
+  onDisconnect: () => void;
+  needsReview: boolean;
+  dismissing: boolean;
+  onReview: () => void;
+  onDismiss: () => void;
+  status: GithubScanStatus | null;
+  picks: ShowcaseRepo[] | null;
+  themes: string[];
+  nudgesEnabled: boolean;
+  savingNudges: boolean;
+  onChangeProjects: () => void;
+  onToggleNudges: (enabled: boolean) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      {!ingestionEnabled && (
+        <p className="text-[0.8rem] text-text-muted">
+          GitHub rescans are paused right now — your existing projects and picks are unaffected,
+          and you can still choose from what&apos;s already been found, but nothing new will show
+          up until this is back on.
+        </p>
+      )}
+      <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
+          GH
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[0.85rem] text-text-primary">@{username}</span>
+          <span className="block text-[0.75rem] text-text-muted">{statusLabel}</span>
+        </span>
+        <button
+          type="button"
+          onClick={onConfirmDisconnect}
+          disabled={disconnecting}
+          className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Disconnect
+        </button>
+      </div>
+
+      {/* Disconnecting deletes the picks and the hand-written blurbs
+          along with the connection (disconnect_github drops the row).
+          That is the right privacy default, but it is not something a
+          member should discover afterwards. */}
+      {confirmingDisconnect && (
+        <div className="rounded-lg border border-[#ff4d4d]/40 bg-[#ff4d4d]/[0.06] p-4">
+          <p className="mb-3 text-[0.8rem] text-text-secondary">
+            Disconnecting removes your GitHub-derived skills, your spotlit projects and the
+            descriptions you wrote for them. You can reconnect later, but you&apos;ll need to
+            choose your projects again.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="dangerGhost" size="sm" loading={disconnecting} onClick={onDisconnect}>
+              Disconnect GitHub
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={onCancelDisconnect}>
+              Keep it connected
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {needsReview && (
+        <div className="rounded-lg border border-accent/50 bg-accent/[0.06] p-4">
+          <p className="mb-3 text-[0.8rem] text-text-secondary">
+            There&apos;s something new on your GitHub that you haven&apos;t looked at yet. Want to
+            update which projects recruiters see?
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" onClick={onReview}>
+              Review projects
+            </Button>
+            <Button type="button" variant="ghost" size="sm" loading={dismissing} onClick={onDismiss}>
+              Not now
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {status === "ready" && (
+        <GithubSpotlitProjects
+          picks={picks}
+          themes={themes}
+          nudgesEnabled={nudgesEnabled}
+          savingNudges={savingNudges}
+          onChangeProjects={onChangeProjects}
+          onToggleNudges={onToggleNudges}
+        />
+      )}
+    </div>
+  );
+}
+
+// The "spotlit projects" card inside GithubConnectedPanel — also pulled out
+// on its own so neither function carries all of this branching at once.
+function GithubSpotlitProjects({
+  picks, themes, nudgesEnabled, savingNudges, onChangeProjects, onToggleNudges,
+}: {
+  picks: ShowcaseRepo[] | null;
+  themes: string[];
+  nudgesEnabled: boolean;
+  savingNudges: boolean;
+  onChangeProjects: () => void;
+  onToggleNudges: (enabled: boolean) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border-strong bg-white/[0.02] p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-[0.85rem] text-text-primary">Spotlit projects</h3>
+        <Button type="button" variant="ghost" size="sm" onClick={onChangeProjects}>
+          {picks && picks.length > 0 ? "Change projects" : "Choose projects"}
+        </Button>
+      </div>
+      {picks && picks.length > 0 ? (
+        <ul className="space-y-2">
+          {picks.map((repo) => (
+            <li key={repo.name} className="rounded-lg border border-border bg-white/[0.02] p-3">
+              <a
+                href={externalHref(repo.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[0.825rem] text-text-primary underline-offset-2 hover:underline"
+              >
+                {repo.name}
+              </a>
+              {(repo.blurb ?? repo.description) && (
+                <p className="mt-1 text-[0.775rem] text-text-secondary">
+                  {repo.blurb ?? repo.description}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[0.8rem] text-text-muted">
+          You haven&apos;t chosen any yet. Until you do, we&apos;ll show the projects our scan
+          rated highest.
+        </p>
+      )}
+
+      {/* The written summary leads with one dominant thread and gives
+          at most a brief mention to a second, so it stays skimmable —
+          these tags are where the rest of what the scan found still
+          shows up, rather than getting cut from the prose entirely. */}
+      {themes.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-[0.7rem] text-text-muted">What your code says about you</p>
+          <div className="flex flex-wrap gap-1.5">
+            {themes.map((theme) => (
+              <span
+                key={theme}
+                className="rounded-full border border-border-strong bg-white/[0.03] px-2.5 py-1 text-[0.7rem] text-text-secondary"
+              >
+                {theme}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <label className="mt-4 flex cursor-pointer items-start gap-2 text-[0.75rem] text-text-muted">
+        <input
+          type="checkbox"
+          checked={nudgesEnabled}
+          disabled={savingNudges}
+          aria-busy={savingNudges}
+          onChange={(event) => void onToggleNudges(event.target.checked)}
+          className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--color-accent)]"
+        />
+        Email me when I&apos;ve pushed something worth spotlighting (at most once a month)
+      </label>
+    </div>
   );
 }

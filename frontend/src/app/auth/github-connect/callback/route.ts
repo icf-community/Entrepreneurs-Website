@@ -80,6 +80,7 @@ export async function GET(request: Request) {
     return redirectBack(origin, returnPath, "error");
   }
 
+  // react-doctor-disable-next-line react-doctor/no-fetch-response-used-without-status-check -- deliberate parse-then-check-.ok: GitHub's error bodies carry diagnostic fields (error/error_description) on both success and failure, checked right below before the token is used
   const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -106,6 +107,7 @@ export async function GET(request: Request) {
     return redirectBack(origin, returnPath, "error");
   }
 
+  // react-doctor-disable-next-line react-doctor/no-fetch-response-used-without-status-check -- same deliberate pattern: GitHub's error body (message field) is parsed before the .ok/id/login check right below
   const ghUserRes = await fetch("https://api.github.com/user", {
     headers: {
       Authorization: `Bearer ${tokenJson.access_token}`,

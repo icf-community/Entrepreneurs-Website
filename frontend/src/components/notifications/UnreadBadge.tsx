@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { browserClient } from "@/lib/supabase/browser";
+import { getCachedCount, getCount, listeners } from "@/components/notifications/unreadBadgeStore";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Unread notifications badge on the rail (launch programme F-x3)
@@ -15,38 +15,8 @@ import { browserClient } from "@/lib/supabase/browser";
 // 500 members avoids a steady background request stream.
 // ════════════════════════════════════════════════════════════════════
 
-const TTL_MS = 60_000;
-
-let cached: { count: number; at: number } | null = null;
-let inFlight: Promise<number> | null = null;
-
-async function fetchCount(): Promise<number> {
-  const { data, error } = await browserClient().rpc("my_unread_notification_count");
-  if (error) throw error;
-  return typeof data === "number" ? data : 0;
-}
-
-function getCount(force = false): Promise<number> {
-  if (!force && cached && Date.now() - cached.at < TTL_MS) return Promise.resolve(cached.count);
-  inFlight ??= fetchCount()
-    .then((n) => {
-      cached = { count: n, at: Date.now() };
-      return n;
-    })
-    .finally(() => { inFlight = null; });
-  return inFlight;
-}
-
-const listeners = new Set<() => void>();
-
-/** Call after marking notifications read, so the badge updates at once. */
-export function invalidateUnreadBadge() {
-  cached = null;
-  for (const notify of listeners) notify();
-}
-
 export function UnreadBadge() {
-  const [count, setCount] = useState(cached?.count ?? 0);
+  const [count, setCount] = useState(() => getCachedCount() ?? 0);
 
   useEffect(() => {
     let cancelled = false;

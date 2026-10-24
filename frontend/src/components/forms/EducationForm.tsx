@@ -17,8 +17,8 @@ export function EducationForm({
 }: { initialEnrolled: boolean | null; initialGraduated: boolean | null; compact?: boolean }) {
   const router = useRouter();
   const toAnswer = (v: boolean | null): Answer => (v === null ? "" : v ? "yes" : "no");
-  const [enrolled, setEnrolled] = useState<Answer>(toAnswer(initialEnrolled));
-  const [graduated, setGraduated] = useState<Answer>(toAnswer(initialGraduated));
+  const [enrolled, setEnrolled] = useState<Answer>(() => toAnswer(initialEnrolled));
+  const [graduated, setGraduated] = useState<Answer>(() => toAnswer(initialGraduated));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -28,11 +28,16 @@ export function EducationForm({
     if (!enrolled || !graduated) { setError("Answer both questions."); return; }
     setSaving(true);
     setError(null);
-    const res = await setMyEducation(enrolled === "yes", graduated === "yes");
-    setSaving(false);
-    if (!res.ok) { setError(res.error); return; }
-    setSaved(true);
-    router.refresh();
+    try {
+      const res = await setMyEducation(enrolled === "yes", graduated === "yes");
+      if (!res.ok) { setError(res.error); return; }
+      setSaved(true);
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

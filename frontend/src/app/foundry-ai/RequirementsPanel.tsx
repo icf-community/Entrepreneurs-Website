@@ -37,8 +37,12 @@ export function RequirementsPanel({ jobId, onConfirmed }: { jobId: string; onCon
   const save = async () => {
     setSaving(true);
     setError(null);
-    const res = await confirmRequirements(jobId, atoms.map((a) => ({ id: a.id, required: a.required })), reqs!.content_version);
-    setSaving(false);
+    let res: Awaited<ReturnType<typeof confirmRequirements>>;
+    try {
+      res = await confirmRequirements(jobId, atoms.map((a) => ({ id: a.id, required: a.required })), reqs!.content_version);
+    } finally {
+      setSaving(false);
+    }
     if (!res.ok) { setError(res.error); return; }
     onConfirmed();
   };

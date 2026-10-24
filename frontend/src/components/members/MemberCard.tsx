@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { MemberPhoto } from "./MemberPhoto";
-import { memberSubtitle } from "./MemberDialog";
+import { memberSubtitle } from "./memberSubtitle";
 import type { DirectoryMember } from "@/lib/data/directory";
 
 const MAX_LOOKING_FOR = 3;

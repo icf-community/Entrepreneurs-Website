@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
-import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog } from "@/components/ui/dialogCloser";
 import { REPORT_CATEGORIES } from "@/lib/validation/posts";
 import { adminDeletePost, deleteMyPost, reportPost, toggleLike } from "./actions";
 import { ErrorBanner } from "@/components/forms/Banners";
@@ -84,7 +85,9 @@ export default function PostCard({
       <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[0.8rem] text-text-primary font-medium truncate">{post.authorName}</p>
-          <p className="mt-0.5 text-[0.7rem] text-text-muted">
+          {/* suppressHydrationWarning: this formats in the viewer's local
+              zone, which legitimately differs from the server's. */}
+          <p className="mt-0.5 text-[0.7rem] text-text-muted" suppressHydrationWarning>
             {new Date(post.createdAt).toLocaleDateString("en-GB", {
               day: "numeric", month: "short", year: "numeric",
             })}
@@ -105,41 +108,7 @@ export default function PostCard({
         <PostBody body={post.body} />
       </div>
 
-      {post.images.length > 0 && (
-        <div className={`mt-4 grid gap-3 ${post.images.length > 1 ? "sm:grid-cols-2" : ""}`}>
-          {post.images.map((image, i) =>
-            image.url ? (
-              // Plain <img>, not next/image. The optimiser caches by URL and
-              // a SAS URL carries an expiring token in its query string, so
-              // every render would create a fresh cache entry to re-optimise
-              // a file the gateway already delivered as resized WebP.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={i}
-                src={image.url}
-                alt={image.altText}
-                width={image.width}
-                height={image.height}
-                loading="lazy"
-                // object-contain, not object-cover: a post image can be any
-                // aspect ratio (a photo, a screenshot, a logo), and cover
-                // fills the fixed 4:3 box by cropping whatever doesn't fit —
-                // for anything not already 4:3 that silently cuts off edges
-                // and looks nothing like what was uploaded. contain scales
-                // to fit inside the box instead, letterboxed on the bg fill.
-                className="w-full aspect-[4/3] rounded-lg border border-border-subtle bg-white/[0.02] object-contain"
-              />
-            ) : (
-              <div
-                key={i}
-                className="flex aspect-[4/3] items-center justify-center rounded-lg border border-border-subtle bg-white/[0.02] px-4 text-center text-[0.75rem] text-text-muted"
-              >
-                {image.altText}
-              </div>
-            ),
-          )}
-        </div>
-      )}
+      <PostImages images={post.images} />
 
       {sourceHref && (
         <Link
@@ -150,35 +119,15 @@ export default function PostCard({
         </Link>
       )}
 
-      <footer className="mt-5 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-4">
-        {post.kind === "member" && isAuthor && (
-          <span className="tnum px-1 text-[0.8rem] text-text-muted">
-            {likeCount === 1 ? "1 like" : `${likeCount} likes`}
-          </span>
-        )}
-        {/* The optimistic count stays visible while the request runs; a
-            spinner in its place hid the very number that changed (B7). */}
-        {post.kind === "member" && !isAuthor && (
-          <Button variant="ghost" size="sm" aria-pressed={liked} onClick={onToggleLike}>
-            {liked ? "Liked" : "Like"} ({likeCount})
-          </Button>
-        )}
-        {isAuthor && (
-          <Button variant="dangerGhost" size="sm" onClick={() => setDialog("delete")}>
-            Delete
-          </Button>
-        )}
-        {isAdmin && !isAuthor && (
-          <Button variant="danger" size="sm" onClick={() => setDialog("remove")}>
-            Delete post
-          </Button>
-        )}
-        {!isAuthor && post.kind === "member" && (
-          <Button variant="ghost" size="sm" onClick={() => setDialog("report")}>
-            Report
-          </Button>
-        )}
-      </footer>
+      <PostFooterActions
+        post={post}
+        isAuthor={isAuthor}
+        isAdmin={isAdmin}
+        liked={liked}
+        likeCount={likeCount}
+        onToggleLike={onToggleLike}
+        onOpenDialog={setDialog}
+      />
 
       {dialog === "delete" && (
         <ConfirmDelete post={post} onClose={() => setDialog(null)} onDone={onRemoved} />
@@ -188,6 +137,91 @@ export default function PostCard({
       )}
       {dialog === "report" && <ReportPost post={post} onClose={() => setDialog(null)} />}
     </article>
+  );
+}
+
+// ─── Images grid ────────────────────────────────────────────────────
+function PostImages({ images }: { images: FeedPostView["images"] }) {
+  if (images.length === 0) return null;
+  return (
+    <div className={`mt-4 grid gap-3 ${images.length > 1 ? "sm:grid-cols-2" : ""}`}>
+      {images.map((image) =>
+        image.url ? (
+          // Plain <img>, not next/image. The optimiser caches by URL and
+          // a SAS URL carries an expiring token in its query string, so
+          // every render would create a fresh cache entry to re-optimise
+          // a file the gateway already delivered as resized WebP.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={image.blobKey}
+            src={image.url}
+            alt={image.altText}
+            width={image.width}
+            height={image.height}
+            loading="lazy"
+            // object-contain, not object-cover: a post image can be any
+            // aspect ratio (a photo, a screenshot, a logo), and cover
+            // fills the fixed 4:3 box by cropping whatever doesn't fit —
+            // for anything not already 4:3 that silently cuts off edges
+            // and looks nothing like what was uploaded. contain scales
+            // to fit inside the box instead, letterboxed on the bg fill.
+            className="w-full aspect-[4/3] rounded-lg border border-border-subtle bg-white/[0.02] object-contain"
+          />
+        ) : (
+          <div
+            key={image.blobKey}
+            className="flex aspect-[4/3] items-center justify-center rounded-lg border border-border-subtle bg-white/[0.02] px-4 text-center text-[0.75rem] text-text-muted"
+          >
+            {image.altText}
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
+// ─── Like / delete / remove / report controls ──────────────────────
+function PostFooterActions({
+  post, isAuthor, isAdmin, liked, likeCount, onToggleLike, onOpenDialog,
+}: {
+  post: FeedPostView;
+  isAuthor: boolean;
+  isAdmin: boolean;
+  liked: boolean;
+  likeCount: number;
+  onToggleLike: () => void;
+  onOpenDialog: (dialog: "delete" | "remove" | "report") => void;
+}) {
+  return (
+    <footer className="mt-5 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-4">
+      {post.kind === "member" && isAuthor && (
+        <span className="tnum px-1 text-[0.8rem] text-text-muted">
+          {likeCount === 1 ? "1 like" : `${likeCount} likes`}
+        </span>
+      )}
+      {/* The optimistic count stays visible while the request runs; a
+          spinner in its place hid the very number that changed (B7). */}
+      {post.kind === "member" && !isAuthor && (
+        <Button variant="ghost" size="sm" aria-pressed={liked} onClick={onToggleLike}>
+          {liked ? "Liked" : "Like"} ({likeCount})
+        </Button>
+      )}
+      {isAuthor && (
+        <Button variant="dangerGhost" size="sm" onClick={() => onOpenDialog("delete")}>
+          Delete
+        </Button>
+      )}
+      {isAdmin && !isAuthor && (
+        <Button variant="danger" size="sm" onClick={() => onOpenDialog("remove")}>
+          Delete post
+        </Button>
+      )}
+      {!isAuthor && post.kind === "member" && (
+        <Button variant="ghost" size="sm" onClick={() => onOpenDialog("report")}>
+          Report
+        </Button>
+      )}
+    </footer>
   );
 }
 

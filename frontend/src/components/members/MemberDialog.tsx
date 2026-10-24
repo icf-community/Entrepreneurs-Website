@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import SocialLinks from "@/components/SocialLinks";
-import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog } from "@/components/ui/dialogCloser";
 import { browserClient } from "@/lib/supabase/browser";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ConnectControl } from "@/components/connections/ConnectControl";
 import { MemberPhoto } from "./MemberPhoto";
+import { memberSubtitle } from "./memberSubtitle";
 import type { DirectoryMember } from "@/lib/data/directory";
 
 // ════════════════════════════════════════════════════════════════════
@@ -32,10 +34,10 @@ type FullProfile = {
   portfolio_url: string | null;
 };
 
-export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; onClose: () => void }) {
-  // Fetched on open rather than shipped with the list. A plain select, not
-  // an RPC: the profiles RLS policies already restrict reads to approved
-  // members, so there is nothing extra to enforce here.
+// Fetched on open rather than shipped with the list. A plain select, not an
+// RPC: the profiles RLS policies already restrict reads to approved
+// members, so there is nothing extra to enforce here.
+function useFullProfile(memberId: string) {
   const [full, setFull] = useState<FullProfile | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   // Bumped by "Try again" (B8): a failed load used to just leave out the
@@ -47,7 +49,7 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
     browserClient()
       .from("profiles")
       .select("bio_focus, bio_hobbies, linkedin_url, github_url, portfolio_url")
-      .eq("id", m.id)
+      .eq("id", memberId)
       .maybeSingle()
       .then(
         ({ data, error }) => {
@@ -71,7 +73,14 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
         },
       );
     return () => { cancelled = true; };
-  }, [m.id, attempt]);
+  }, [memberId, attempt]);
+
+  const retry = () => { setLoadFailed(false); setAttempt((n) => n + 1); };
+  return { full, loadFailed, retry };
+}
+
+export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; onClose: () => void }) {
+  const { full, loadFailed, retry } = useFullProfile(m.id);
 
   return (
     <Dialog
@@ -110,94 +119,22 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
       </header>
 
       <div className="px-7 py-5 space-y-5">
-        {loadFailed && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-            <p role="alert" className="text-[0.8rem] text-text-muted">Couldn&apos;t load the full profile.</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0"
-              onClick={() => { setLoadFailed(false); setAttempt((n) => n + 1); }}
-            >
-              Try again
-            </Button>
-          </div>
-        )}
+        {loadFailed && <LoadFailedBanner onRetry={retry} />}
         {/* While the full text loads, show the preview the card already has
             rather than an empty box — the dialog opens with content, and the
             untruncated version replaces it in place. */}
-        {(full?.bio_focus ?? m.bioPreview) && (
-          <section>
-            <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1.5">Working on</div>
-            <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">
-              {full?.bio_focus ?? m.bioPreview}
-            </p>
-            {!full && !loadFailed && <Skeleton className="h-3 w-2/3 mt-2" />}
-          </section>
-        )}
+        <BioSection
+          title="Working on"
+          text={full?.bio_focus ?? m.bioPreview}
+          showSkeleton={!full && !loadFailed}
+        />
+        <BioSection title="Outside of that" text={full?.bio_hobbies ?? m.hobbiesPreview} />
 
-        {(full?.bio_hobbies ?? m.hobbiesPreview) && (
-          <section>
-            <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1.5">Outside of that</div>
-            <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">
-              {full?.bio_hobbies ?? m.hobbiesPreview}
-            </p>
-          </section>
-        )}
+        <LookingForSection lookingFor={m.lookingFor} />
+        <TagSection title="Interests" items={m.sectors} prefix="sec" tone="accent" />
+        <TagSection title="Skills & expertise" items={m.skills} prefix="skl" tone="neutral" />
 
-        {m.lookingFor.length > 0 && (
-          <section>
-            <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">Looking for</div>
-            <div className="flex flex-wrap gap-1.5">
-              {m.lookingFor.slice(0, MAX_LOOKING_FOR).map((lf) => (
-                <Link
-                  key={lf.id}
-                  href={`/opportunities/${lf.id}`}
-                  className="rounded-lg border border-border-strong px-2.5 py-1 text-[0.725rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.06]"
-                >
-                  {lf.role}
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {m.sectors.length > 0 && (
-          <section>
-            <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">Interests</div>
-            <div className="flex flex-wrap gap-1.5">
-              {m.sectors.map((s) => (
-                <span key={`sec-${s}`} className="px-2.5 py-1 rounded-lg text-[0.725rem] bg-accent-muted text-accent-light border border-accent/20">
-                  {s}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {m.skills.length > 0 && (
-          <section>
-            <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">Skills &amp; expertise</div>
-            <div className="flex flex-wrap gap-1.5">
-              {m.skills.map((s) => (
-                <span key={`skl-${s}`} className="px-2.5 py-1 rounded-lg text-[0.725rem] bg-white/[0.03] text-text-secondary border border-border">
-                  {s}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {full && (full.linkedin_url || full.github_url || full.portfolio_url) && (
-          <section className="pt-3 border-t border-border-subtle">
-            <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">Links</div>
-            <SocialLinks
-              linkedinUrl={full.linkedin_url}
-              githubUrl={full.github_url}
-              portfolioUrl={full.portfolio_url}
-            />
-          </section>
-        )}
+        {full && <LinksSection full={full} />}
 
         {/* The dialog's one mutating control, and the only place a
             connection request starts. It takes no session props — it asks
@@ -208,8 +145,7 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
 
         {/* Only claim the profile is empty once we know: the links and the
             full text arrive after the dialog opens. */}
-        {full && !full.bio_focus && !full.bio_hobbies && m.sectors.length === 0 && m.skills.length === 0
-          && m.lookingFor.length === 0 && !full.linkedin_url && !full.github_url && !full.portfolio_url && (
+        {full && isProfileEmpty(full, m) && (
           <p className="text-[0.85rem] text-text-muted italic">
             No additional details on this profile yet.
           </p>
@@ -219,7 +155,91 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
   );
 }
 
-export function memberSubtitle(m: DirectoryMember) {
-  if (m.role === "alum") return `Alum · ${m.gradYear ?? "—"}`;
-  return m.gradYear ? `Student · class of ${m.gradYear}` : "Imperial student";
+function LoadFailedBanner({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+      <p role="alert" className="text-[0.8rem] text-text-muted">Couldn&apos;t load the full profile.</p>
+      <Button variant="ghost" size="sm" className="shrink-0" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+function BioSection({ title, text, showSkeleton }: { title: string; text: string | null | undefined; showSkeleton?: boolean }) {
+  if (!text) return null;
+  return (
+    <section>
+      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1.5">{title}</div>
+      <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{text}</p>
+      {showSkeleton && <Skeleton className="h-3 w-2/3 mt-2" />}
+    </section>
+  );
+}
+
+function LinksSection({ full }: { full: FullProfile }) {
+  if (!full.linkedin_url && !full.github_url && !full.portfolio_url) return null;
+  return (
+    <section className="pt-3 border-t border-border-subtle">
+      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">Links</div>
+      <SocialLinks
+        linkedinUrl={full.linkedin_url}
+        githubUrl={full.github_url}
+        portfolioUrl={full.portfolio_url}
+      />
+    </section>
+  );
+}
+
+function isProfileEmpty(full: FullProfile, m: DirectoryMember) {
+  return !full.bio_focus && !full.bio_hobbies && m.sectors.length === 0 && m.skills.length === 0
+    && m.lookingFor.length === 0 && !full.linkedin_url && !full.github_url && !full.portfolio_url;
+}
+
+function LookingForSection({ lookingFor }: { lookingFor: DirectoryMember["lookingFor"] }) {
+  if (lookingFor.length === 0) return null;
+  return (
+    <section>
+      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">Looking for</div>
+      <div className="flex flex-wrap gap-1.5">
+        {lookingFor.slice(0, MAX_LOOKING_FOR).map((lf) => (
+          <Link
+            key={lf.id}
+            href={`/opportunities/${lf.id}`}
+            className="rounded-lg border border-border-strong px-2.5 py-1 text-[0.725rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.06]"
+          >
+            {lf.role}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Shared shape for the two plain-text chip lists (sectors, skills) that
+// differ only in heading and chip styling.
+function TagSection({
+  title, items, prefix, tone,
+}: {
+  title: string;
+  items: string[];
+  prefix: string;
+  tone: "accent" | "neutral";
+}) {
+  if (items.length === 0) return null;
+  const chipClass = tone === "accent"
+    ? "px-2.5 py-1 rounded-lg text-[0.725rem] bg-accent-muted text-accent-light border border-accent/20"
+    : "px-2.5 py-1 rounded-lg text-[0.725rem] bg-white/[0.03] text-text-secondary border border-border";
+  return (
+    <section>
+      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">{title}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((s) => (
+          <span key={`${prefix}-${s}`} className={chipClass}>
+            {s}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
 }

@@ -12,9 +12,11 @@ import { signedImageUrls } from "@/lib/storage/blobRead";
 import AffiliationSection from "./AffiliationSection";
 import ProfileForm from "./ProfileForm";
 
-export default async function ProfilePage() {
-  const supabase = await createClient();
-
+// Fetches every profile-edit dependency in parallel, validates reachability,
+// and applies the login/status gates. Pulled out of the page component so
+// that function's job is rendering, not orchestrating seven awaits and five
+// gate checks.
+async function loadProfilePageData(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { user, error: authError } = await currentUser(supabase);
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
@@ -62,6 +64,60 @@ export default async function ProfilePage() {
   const githubStatus = githubStatusRes.data;
   const ingestionEnabled = !!ingestionEnabledRes.data;
 
+  return { profile, selected, isAdmin, avatarUrl, cvInfo, githubStatus, ingestionEnabled, skillTaxonomy, sectors };
+}
+
+// All of the snapshot's nullable fields, resolved to the plain values
+// ProfileForm wants, in one place rather than as twenty-odd `?? ""`
+// fallbacks inline in the page's JSX.
+function toProfileFormProps(data: Awaited<ReturnType<typeof loadProfilePageData>>) {
+  const { profile, selected, avatarUrl, cvInfo, githubStatus, ingestionEnabled, skillTaxonomy, sectors } = data;
+  return {
+    editVersion: profile.edit_version,
+    role: profile.role,
+    firstName: profile.first_name,
+    surname: profile.surname,
+    course: profile.course ?? "",
+    gradYear: profile.grad_year,
+    linkedinUrl: profile.linkedin_url ?? "",
+    githubUrl: profile.github_url ?? "",
+    portfolioUrl: profile.portfolio_url ?? "",
+    preferredName: profile.preferred_name ?? "",
+    bioFocus: profile.bio_focus ?? "",
+    bioHobbies: profile.bio_hobbies ?? "",
+    avatarUrl,
+    cvOriginalFilename: cvInfo?.cv_original_filename ?? null,
+    cvUploadedAt: cvInfo?.cv_uploaded_at ?? null,
+    hasCv: !!cvInfo?.cv_path,
+    githubUsername: githubStatus?.github_username ?? null,
+    githubScanStatus: githubStatus?.scan_status ?? null,
+    githubScanFailureReason: githubStatus?.scan_failure_reason ?? null,
+    ingestionEnabled,
+    currentFocus: profile.current_focus ?? "",
+    ventureStage: profile.venture_stage ?? "",
+    ventureName: profile.venture_name ?? "",
+    ventureUrl: profile.venture_url ?? "",
+    ventureOneLiner: profile.venture_one_liner ?? "",
+    recruitingStatus: profile.recruiting_status ?? "",
+    intentUrgency: profile.intent_urgency ?? "",
+    availabilityHours: profile.availability_hours ?? "",
+    intents: selected.intents,
+    academicInterests: selected.academicInterests,
+    hobbies: selected.hobbies,
+    skillTaxonomy: skillTaxonomy.map((t) => ({ id: t.id, name: t.name, category: t.category })),
+    sectors,
+    selectedSkillIds: selected.skillIds,
+    selectedCoreSkillIds: selected.coreSkillIds,
+    selectedSectors: selected.sectorIds,
+  };
+}
+
+export default async function ProfilePage() {
+  const supabase = await createClient();
+  const data = await loadProfilePageData(supabase);
+  const { profile, isAdmin } = data;
+  const profileFormProps = toProfileFormProps(data);
+
   return (
     <AppShell
       active="settings"
@@ -87,44 +143,7 @@ export default async function ProfilePage() {
             </p>
           </div>
 
-          <ProfileForm
-            editVersion={profile.edit_version}
-            role={profile.role}
-            firstName={profile.first_name}
-            surname={profile.surname}
-            course={profile.course ?? ""}
-            gradYear={profile.grad_year}
-            linkedinUrl={profile.linkedin_url ?? ""}
-            githubUrl={profile.github_url ?? ""}
-            portfolioUrl={profile.portfolio_url ?? ""}
-            preferredName={profile.preferred_name ?? ""}
-            bioFocus={profile.bio_focus ?? ""}
-            bioHobbies={profile.bio_hobbies ?? ""}
-            avatarUrl={avatarUrl}
-            cvOriginalFilename={cvInfo?.cv_original_filename ?? null}
-            cvUploadedAt={cvInfo?.cv_uploaded_at ?? null}
-            hasCv={!!cvInfo?.cv_path}
-            githubUsername={githubStatus?.github_username ?? null}
-            githubScanStatus={githubStatus?.scan_status ?? null}
-            githubScanFailureReason={githubStatus?.scan_failure_reason ?? null}
-            ingestionEnabled={ingestionEnabled}
-            currentFocus={profile.current_focus ?? ""}
-            ventureStage={profile.venture_stage ?? ""}
-            ventureName={profile.venture_name ?? ""}
-            ventureUrl={profile.venture_url ?? ""}
-            ventureOneLiner={profile.venture_one_liner ?? ""}
-            recruitingStatus={profile.recruiting_status ?? ""}
-            intentUrgency={profile.intent_urgency ?? ""}
-            availabilityHours={profile.availability_hours ?? ""}
-            intents={selected.intents}
-            academicInterests={selected.academicInterests}
-            hobbies={selected.hobbies}
-            skillTaxonomy={skillTaxonomy.map((t) => ({ id: t.id, name: t.name, category: t.category }))}
-            sectors={sectors}
-            selectedSkillIds={selected.skillIds}
-            selectedCoreSkillIds={selected.coreSkillIds}
-            selectedSectors={selected.sectorIds}
-          />
+          <ProfileForm {...profileFormProps} />
 
           <div className="mt-8">
             <AffiliationSection role={profile.role} />

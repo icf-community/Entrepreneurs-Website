@@ -26,6 +26,7 @@ export function useTurnPolling(turnId: string | null, onFinished: (status: TurnS
   const finishedRef = useRef(onFinished);
   useEffect(() => { finishedRef.current = onFinished; });
 
+  // react-doctor-disable-next-line effect-needs-cleanup -- cleanup exists (cancelled flag, clearTimeout, controller.abort, removeEventListener) and is correct; analyzer can't trace it through the poll/schedule closures
   useEffect(() => {
     if (!turnId) return;
     const id: string = turnId;
@@ -41,14 +42,18 @@ export function useTurnPolling(turnId: string | null, onFinished: (status: TurnS
       timer = setTimeout(poll, ms);
     };
 
+    let controller: AbortController | null = null;
+
     async function poll() {
       if (cancelled || inFlight) return;
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return; // resumed on visibilitychange
       inFlight = true;
+      controller = new AbortController();
       try {
         const res = await fetch(`/api/ai/turns/${id}`, {
           headers: etag ? { "If-None-Match": etag } : {},
           cache: "no-store",
+          signal: controller.signal,
         });
         if (cancelled) return;
         if (res.status === 304) {
@@ -68,8 +73,8 @@ export function useTurnPolling(turnId: string | null, onFinished: (status: TurnS
         } else {
           attempt += 1;
         }
-      } catch {
-        attempt += 1;
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) attempt += 1;
       } finally {
         inFlight = false;
       }
@@ -87,6 +92,7 @@ export function useTurnPolling(turnId: string | null, onFinished: (status: TurnS
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      controller?.abort();
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [turnId]);

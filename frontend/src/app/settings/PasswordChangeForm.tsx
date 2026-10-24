@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
-import { TurnstileWidget, turnstileConfigured } from "@/components/forms/TurnstileWidget";
+import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
 
 export default function PasswordChangeForm({ hasPassword, email }: { hasPassword: boolean; email: string }) {
@@ -25,10 +26,12 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
   // A token is single-use and the call spends it whether it succeeds or
   // fails, so the widget is remounted after every attempt via the nonce.
   // Otherwise one mistyped password leaves the form unusable until reload.
-  const [turnstileToken, setTurnstileToken] = useState("");
+  // Read only inside handleSubmit, never in JSX — a ref avoids a re-render
+  // on every token the widget mints.
+  const turnstileTokenRef = useRef("");
   const [turnstileNonce, setTurnstileNonce] = useState(0);
   const refreshTurnstile = () => {
-    setTurnstileToken("");
+    turnstileTokenRef.current = "";
     setTurnstileNonce((n) => n + 1);
   };
 
@@ -55,65 +58,68 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
       setError("Passwords don't match.");
       return;
     }
-    if (turnstileConfigured && !turnstileToken) {
+    if (turnstileConfigured && !turnstileTokenRef.current) {
       setError("Please complete the verification challenge below.");
       return;
     }
 
     setIsLoading(true);
 
-    // Reauthenticate first: verify the current password so an unlocked, logged-in
-    // session can't silently change the credential. On success this refreshes the
-    // same user's session; on failure the existing session is untouched and we abort.
-    const { error: reauthError } = await supabase.auth.signInWithPassword({
-      email,
-      password: currentPassword,
-      options: { captchaToken: turnstileToken || undefined },
-    });
-    // Spent either way — mint a fresh one before anything can return.
-    refreshTurnstile();
-    if (reauthError) {
-      setError("Current password is incorrect.");
+    try {
+      // Reauthenticate first: verify the current password so an unlocked, logged-in
+      // session can't silently change the credential. On success this refreshes the
+      // same user's session; on failure the existing session is untouched and we abort.
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+        options: { captchaToken: turnstileTokenRef.current || undefined },
+      });
+      // Spent either way — mint a fresh one before anything can return.
+      refreshTurnstile();
+      if (reauthError) {
+        setError("Current password is incorrect.");
+        return;
+      }
+
+      // current_password is the *server-side* half of the same check, enforced by
+      // GoTrue rather than by this component. Both are here on purpose, because
+      // each covers a case the other does not:
+      //
+      //   * The check above runs in the browser. A hijacked session that calls
+      //     updateUser directly never executes it.
+      //   * current_password is ignored by GoTrue unless "Require current password
+      //     when updating" is enabled (Auth → Sign In / Providers → Email). Tested
+      //     against a local stack with it off: an update sent with a deliberately
+      //     wrong current_password was accepted and the password did change. So on
+      //     its own this field is not a guarantee either — it is a guarantee only
+      //     while that dashboard toggle stays on, and a toggle can be flipped by
+      //     someone who does not know it is load-bearing.
+      //
+      // Together they hold in both directions, which is why neither was dropped.
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+        current_password: currentPassword,
+      });
+      if (updateError) {
+        setError(updateError.message);
+        return;
+      }
+
+      // After a password change, revoke every OTHER active session so a
+      // previously-stolen refresh token can't outlive the credential it
+      // was issued against. The current session stays alive — the user
+      // doesn't need to re-sign-in on this device.
+      await supabase.auth.signOut({ scope: "others" });
+
+      setSaved(true);
+      setCurrentPassword("");
+      setPassword("");
+      setConfirm("");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    // current_password is the *server-side* half of the same check, enforced by
-    // GoTrue rather than by this component. Both are here on purpose, because
-    // each covers a case the other does not:
-    //
-    //   * The check above runs in the browser. A hijacked session that calls
-    //     updateUser directly never executes it.
-    //   * current_password is ignored by GoTrue unless "Require current password
-    //     when updating" is enabled (Auth → Sign In / Providers → Email). Tested
-    //     against a local stack with it off: an update sent with a deliberately
-    //     wrong current_password was accepted and the password did change. So on
-    //     its own this field is not a guarantee either — it is a guarantee only
-    //     while that dashboard toggle stays on, and a toggle can be flipped by
-    //     someone who does not know it is load-bearing.
-    //
-    // Together they hold in both directions, which is why neither was dropped.
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
-      current_password: currentPassword,
-    });
-    if (updateError) {
-      setError(updateError.message);
-      setIsLoading(false);
-      return;
-    }
-
-    // After a password change, revoke every OTHER active session so a
-    // previously-stolen refresh token can't outlive the credential it
-    // was issued against. The current session stays alive — the user
-    // doesn't need to re-sign-in on this device.
-    await supabase.auth.signOut({ scope: "others" });
-
-    setSaved(true);
-    setCurrentPassword("");
-    setPassword("");
-    setConfirm("");
-    setIsLoading(false);
   };
 
   return (
@@ -171,7 +177,7 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
 
       {turnstileConfigured && (
         <div className="flex justify-center">
-          <TurnstileWidget key={turnstileNonce} onToken={setTurnstileToken} />
+          <TurnstileWidget key={turnstileNonce} onToken={(t) => { turnstileTokenRef.current = t; }} />
         </div>
       )}
 

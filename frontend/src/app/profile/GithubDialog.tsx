@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog } from "@/components/ui/dialogCloser";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { startPoll } from "@/lib/poll";

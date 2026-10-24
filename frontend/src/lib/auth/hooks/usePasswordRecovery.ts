@@ -1,4 +1,4 @@
-import { turnstileConfigured } from "@/components/forms/TurnstileWidget";
+import { turnstileConfigured } from "@/lib/turnstileConfig";
 import type { createClient } from "@/lib/supabase/client";
 
 type Supabase = ReturnType<typeof createClient>;

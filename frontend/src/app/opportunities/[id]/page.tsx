@@ -9,7 +9,8 @@ import { approvedOpportunity, bookmarkedOpportunityIds } from "@/lib/data/opport
 import { formatDate } from "@/lib/dates";
 import { startLabel, locationLabel } from "@/lib/listings/format";
 import OpportunityActions from "./OpportunityActions";
-import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 import { externalHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
@@ -30,8 +31,10 @@ const BACK = { href: "/opportunities", label: "All opportunities" };
 type Params = { id: string };
 
 export default async function OpportunityPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, user, isAdmin } = await requireApprovedUser();
+  const [{ id }, { supabase, user, isAdmin }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
 
   const o = await approvedOpportunity(supabase, id);
 

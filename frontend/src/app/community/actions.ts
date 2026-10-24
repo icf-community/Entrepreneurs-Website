@@ -261,6 +261,7 @@ export async function adminDeletePost(postId: string, reason: string): Promise<R
   if (!row?.email) {
     // The post is gone and the moderation record is written; only the
     // notice is missing. Worth a log, not worth failing the action.
+    // react-doctor-disable-next-line server-after-nonblocking -- synchronous logging call in an edge-case branch, not fire-and-forget async work; all real async side effects in this function are already awaited before returning
     console.warn("admin_delete_post returned no author email for post:", postId);
     revalidatePath("/community");
     revalidatePath("/admin/reports");

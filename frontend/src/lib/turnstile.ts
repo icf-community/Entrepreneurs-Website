@@ -23,6 +23,7 @@ export async function verifyTurnstile(token: string | null | undefined): Promise
       // it — same fail-mode as any other failure here (catch → false).
       signal: AbortSignal.timeout(5000),
     });
+    if (!res.ok) return false; // non-2xx from Cloudflare → fail closed, same as any other failure here
     const data = (await res.json()) as { success?: boolean };
     return data.success === true;
   } catch {

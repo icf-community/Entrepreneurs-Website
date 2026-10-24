@@ -51,6 +51,7 @@ function returnToFromQuery(raw: string | null): GithubConnectReturnTo {
 
 export async function GET(request: Request) {
   const { origin, searchParams } = new URL(request.url);
+  // react-doctor-disable-next-line url-prefilled-privileged-action -- URL param does not directly trigger the privileged action; `returnTo` is passed through returnToFromQuery's fixed allow-list, only selecting between two hardcoded destinations (/profile or /intake)
   const returnTo = returnToFromQuery(searchParams.get("returnTo"));
   const returnPath = githubConnectReturnPath(returnTo);
   const errorRedirect = () => NextResponse.redirect(`${origin}${returnPath}?github=error`);

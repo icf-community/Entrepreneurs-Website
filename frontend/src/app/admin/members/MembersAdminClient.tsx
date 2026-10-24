@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import SearchableMultiSelect from "@/components/forms/SearchableMultiSelect";
-import { useUrlFilters, useSearchDraft } from "@/lib/filters/useUrlFilters";
+import { useUrlFilters, useSearchDraft, type UrlFilters } from "@/lib/filters/useUrlFilters";
 import { SearchInput, FilterPanel, ChipGroup, RangeFilter } from "@/components/filters/FilterBar";
 import { Pager } from "@/components/ui/Pager";
 import { adminDeleteUser, adminSetCommittee } from "./actions";
@@ -71,159 +71,27 @@ export default function MembersAdminClient({
         onChange={setQuery}
       />
 
-      <FilterPanel
-        activeCount={activeFilterCount}
-        onClear={() => url.clear(...FILTER_KEYS)}
-        resultCount={
-          <>
-            {matching === facets.total ? `${facets.total}` : `${matching} of ${facets.total}`}
-            <span className="sr-only"> members shown</span>
-          </>
-        }
-      >
-        <ChipGroup
-          label="Role"
-          options={[
-            { value: "student", label: "Students" },
-            { value: "alum",    label: "Alumni" },
-          ]}
-          selected={selectedRoles}
-          onToggle={(v) => url.toggle("role", v)}
-        />
+      <MemberFilterControls
+        url={url}
+        filters={filters}
+        facets={facets}
+        matching={matching}
+        activeFilterCount={activeFilterCount}
+        selectedRoles={selectedRoles}
+        selectedStatuses={selectedStatuses}
+        selectedCourses={selectedCourses}
+        selectedSectors={selectedSectors}
+        selectedSkills={selectedSkills}
+        gradYearBounds={gradYearBounds}
+      />
 
-        <ChipGroup
-          label="Status"
-          options={[
-            { value: "pending_onboarding", label: "Onboarding" },
-            { value: "pending_review",     label: "Awaiting review" },
-            { value: "approved",           label: "Approved" },
-            { value: "rejected",           label: "Rejected" },
-          ]}
-          selected={selectedStatuses}
-          onToggle={(v) => url.toggle("status", v)}
-        />
-
-        {facets.courses.length > 0 && (
-          <SearchableMultiSelect
-            label="Course"
-            options={facets.courses}
-            selected={selectedCourses}
-            onChange={(next) => url.apply({ course: [...next] })}
-            placeholder="Filter by course — search or pick"
-            emptyText="No course matches that search."
-          />
-        )}
-
-        {facets.sectors.length > 0 && (
-          <ChipGroup
-            label="Interests"
-            options={facets.sectors.map((s) => ({ value: s, label: s }))}
-            selected={selectedSectors}
-            onToggle={(v) => url.toggle("sector", v)}
-          />
-        )}
-
-        {facets.skills.length > 0 && (
-          <ChipGroup
-            label="Skills"
-            options={facets.skills.map((s) => ({ value: s, label: s }))}
-            selected={selectedSkills}
-            onToggle={(v) => url.toggle("skill", v)}
-          />
-        )}
-
-        {gradYearBounds && (
-          <RangeFilter
-            label="Graduation year"
-            hint={` — range ${gradYearBounds.min}–${gradYearBounds.max}`}
-            type="number"
-            bounds={gradYearBounds}
-            commitOn="blur"
-            from={filters.gradMin}
-            to={filters.gradMax}
-            fromLabel="Graduation year from"
-            toLabel="Graduation year to"
-            fromPlaceholder={`From ${gradYearBounds.min}`}
-            toPlaceholder={`To ${gradYearBounds.max}`}
-            onFromChange={(v) => url.apply({ gradMin: v })}
-            onToChange={(v) => url.apply({ gradMax: v })}
-          />
-        )}
-      </FilterPanel>
-
-      {/* A pending navigation dims the table rather than replacing it with a
-          skeleton: these rows are still valid, just about to change. */}
-      <div className={`relative ${url.pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={url.pending || undefined}>
-        {url.pending && <Updating />}
-        {members.length === 0 ? (
-          <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
-            {facets.total === 0 ? "No members yet." : "No members match your search or filters."}
-          </div>
-        ) : (
-          <div className="rounded-2xl bg-bg-card border border-border overflow-hidden">
-            {/* The table's natural content width (7 columns plus two
-                action buttons) can exceed the page's max-w container on
-                real viewports — this scrolls the table alone rather than
-                letting the outer overflow-hidden (there for the rounded
-                corners) silently clip the rightmost column off-screen. */}
-            <div className="overflow-x-auto">
-            <table className="w-full text-[0.825rem]">
-              <thead>
-                <tr className="border-b border-border-subtle text-[0.7rem] text-text-muted uppercase tracking-wider">
-                  <th className="text-left px-4 py-3 font-normal">Name</th>
-                  <th className="text-left px-4 py-3 font-normal">Email</th>
-                  <th className="text-left px-4 py-3 font-normal">Role</th>
-                  <th className="text-left px-4 py-3 font-normal">Status</th>
-                  <th className="text-left px-4 py-3 font-normal">Course</th>
-                  <th className="text-left px-4 py-3 font-normal">Year</th>
-                  <th className="text-left px-4 py-3 font-normal">Committee</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((m) => (
-                  <tr key={m.id} className="border-b border-border-subtle last:border-0 hover:bg-white/[0.02]">
-                    <td className="px-4 py-3 text-text-primary">{m.firstName} {m.surname}</td>
-                    <td className="px-4 py-3 text-text-secondary">{m.email ?? "—"}</td>
-                    <td className="px-4 py-3 text-text-muted">{m.role}</td>
-                    <td className="px-4 py-3 text-text-muted">{STATUS_LABEL[m.status]}</td>
-                    <td className="px-4 py-3 text-text-muted truncate max-w-[200px]">{m.course ?? "—"}</td>
-                    <td className="px-4 py-3 text-text-muted">{m.gradYear ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      {m.isCommittee ? (
-                        <span className="inline-block rounded-lg border border-signal/40 bg-signal-muted px-2 py-1 text-[0.7rem] font-medium text-signal align-bottom">
-                          {m.committeeRole}
-                        </span>
-                      ) : (
-                        <span className="text-text-muted">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setCommitteeTarget(m)}
-                          className="px-3 py-1.5 rounded-lg bg-transparent border border-border-strong text-text-secondary text-[0.75rem] cursor-pointer transition-colors hover:border-accent hover:text-text-primary"
-                        >
-                          {m.isCommittee ? "Edit committee" : "Add to committee"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelected(m)}
-                          className="px-3 py-1.5 rounded-lg bg-transparent border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.75rem] cursor-pointer transition-colors hover:bg-[#ff4d4d]/10"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-          </div>
-        )}
-      </div>
+      <MembersTable
+        members={members}
+        facets={facets}
+        pending={url.pending}
+        onEditCommittee={setCommitteeTarget}
+        onDelete={setSelected}
+      />
 
       <Pager
         url={url}
@@ -241,6 +109,191 @@ export default function MembersAdminClient({
         <CommitteeModal member={committeeTarget} onClose={() => setCommitteeTarget(null)} />
       )}
     </>
+  );
+}
+
+function MemberFilterControls({
+  url, filters, facets, matching, activeFilterCount,
+  selectedRoles, selectedStatuses, selectedCourses, selectedSectors, selectedSkills, gradYearBounds,
+}: {
+  url: UrlFilters;
+  filters: AdminMemberFilters;
+  facets: Facets;
+  matching: number;
+  activeFilterCount: number;
+  selectedRoles: Set<string>;
+  selectedStatuses: Set<string>;
+  selectedCourses: Set<string>;
+  selectedSectors: Set<string>;
+  selectedSkills: Set<string>;
+  gradYearBounds: { min: number; max: number } | null;
+}) {
+  return (
+    <FilterPanel
+      activeCount={activeFilterCount}
+      onClear={() => url.clear(...FILTER_KEYS)}
+      resultCount={
+        <>
+          {matching === facets.total ? `${facets.total}` : `${matching} of ${facets.total}`}
+          <span className="sr-only"> members shown</span>
+        </>
+      }
+    >
+      <ChipGroup
+        label="Role"
+        options={[
+          { value: "student", label: "Students" },
+          { value: "alum",    label: "Alumni" },
+        ]}
+        selected={selectedRoles}
+        onToggle={(v) => url.toggle("role", v)}
+      />
+
+      <ChipGroup
+        label="Status"
+        options={[
+          { value: "pending_onboarding", label: "Onboarding" },
+          { value: "pending_review",     label: "Awaiting review" },
+          { value: "approved",           label: "Approved" },
+          { value: "rejected",           label: "Rejected" },
+        ]}
+        selected={selectedStatuses}
+        onToggle={(v) => url.toggle("status", v)}
+      />
+
+      {facets.courses.length > 0 && (
+        <SearchableMultiSelect
+          label="Course"
+          options={facets.courses}
+          selected={selectedCourses}
+          onChange={(next) => url.apply({ course: [...next] })}
+          placeholder="Filter by course — search or pick"
+          emptyText="No course matches that search."
+        />
+      )}
+
+      {facets.sectors.length > 0 && (
+        <ChipGroup
+          label="Interests"
+          options={facets.sectors.map((s) => ({ value: s, label: s }))}
+          selected={selectedSectors}
+          onToggle={(v) => url.toggle("sector", v)}
+        />
+      )}
+
+      {facets.skills.length > 0 && (
+        <ChipGroup
+          label="Skills"
+          options={facets.skills.map((s) => ({ value: s, label: s }))}
+          selected={selectedSkills}
+          onToggle={(v) => url.toggle("skill", v)}
+        />
+      )}
+
+      {gradYearBounds && (
+        <RangeFilter
+          label="Graduation year"
+          hint={` — range ${gradYearBounds.min}–${gradYearBounds.max}`}
+          type="number"
+          bounds={gradYearBounds}
+          commitOn="blur"
+          from={filters.gradMin}
+          to={filters.gradMax}
+          fromLabel="Graduation year from"
+          toLabel="Graduation year to"
+          fromPlaceholder={`From ${gradYearBounds.min}`}
+          toPlaceholder={`To ${gradYearBounds.max}`}
+          onFromChange={(v) => url.apply({ gradMin: v })}
+          onToChange={(v) => url.apply({ gradMax: v })}
+        />
+      )}
+    </FilterPanel>
+  );
+}
+
+function MembersTable({
+  members, facets, pending, onEditCommittee, onDelete,
+}: {
+  members: AdminMember[];
+  facets: Facets;
+  pending: boolean;
+  onEditCommittee: (m: AdminMember) => void;
+  onDelete: (m: AdminMember) => void;
+}) {
+  return (
+    // A pending navigation dims the table rather than replacing it with a
+    // skeleton: these rows are still valid, just about to change.
+    <div className={`relative ${pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={pending || undefined}>
+      {pending && <Updating />}
+      {members.length === 0 ? (
+        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+          {facets.total === 0 ? "No members yet." : "No members match your search or filters."}
+        </div>
+      ) : (
+        <div className="rounded-2xl bg-bg-card border border-border overflow-hidden">
+          {/* The table's natural content width (7 columns plus two
+              action buttons) can exceed the page's max-w container on
+              real viewports — this scrolls the table alone rather than
+              letting the outer overflow-hidden (there for the rounded
+              corners) silently clip the rightmost column off-screen. */}
+          <div className="overflow-x-auto">
+          <table className="w-full text-[0.825rem]">
+            <thead>
+              <tr className="border-b border-border-subtle text-[0.7rem] text-text-muted uppercase tracking-wider">
+                <th className="text-left px-4 py-3 font-normal">Name</th>
+                <th className="text-left px-4 py-3 font-normal">Email</th>
+                <th className="text-left px-4 py-3 font-normal">Role</th>
+                <th className="text-left px-4 py-3 font-normal">Status</th>
+                <th className="text-left px-4 py-3 font-normal">Course</th>
+                <th className="text-left px-4 py-3 font-normal">Year</th>
+                <th className="text-left px-4 py-3 font-normal">Committee</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <tr key={m.id} className="border-b border-border-subtle last:border-0 hover:bg-white/[0.02]">
+                  <td className="px-4 py-3 text-text-primary">{m.firstName} {m.surname}</td>
+                  <td className="px-4 py-3 text-text-secondary">{m.email ?? "—"}</td>
+                  <td className="px-4 py-3 text-text-muted">{m.role}</td>
+                  <td className="px-4 py-3 text-text-muted">{STATUS_LABEL[m.status]}</td>
+                  <td className="px-4 py-3 text-text-muted truncate max-w-[200px]">{m.course ?? "—"}</td>
+                  <td className="px-4 py-3 text-text-muted">{m.gradYear ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    {m.isCommittee ? (
+                      <span className="inline-block rounded-lg border border-signal/40 bg-signal-muted px-2 py-1 text-[0.7rem] font-medium text-signal align-bottom">
+                        {m.committeeRole}
+                      </span>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onEditCommittee(m)}
+                        className="px-3 py-1.5 rounded-lg bg-transparent border border-border-strong text-text-secondary text-[0.75rem] cursor-pointer transition-colors hover:border-accent hover:text-text-primary"
+                      >
+                        {m.isCommittee ? "Edit committee" : "Add to committee"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(m)}
+                        className="px-3 py-1.5 rounded-lg bg-transparent border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.75rem] cursor-pointer transition-colors hover:bg-[#ff4d4d]/10"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

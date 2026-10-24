@@ -28,10 +28,15 @@ overrides:
   # Ships in production via next's image optimisation — the only entry here
   # not confined to build or test tooling. libvips CVE-2026-33327, -33328,
   # -35590, -35591 (<0.35.0) plus the later libheif pair GHSA-g89c-p67h-r497
-  # / GHSA-2jg2-4ch7-h545 (<0.35.4). ^0.35.4 pins to 0.35.x: a caret on a
-  # 0.x version bounds at the minor, which is the correct read for sharp's
-  # native bindings.
-  sharp@<0.35.4: '^0.35.4'
+  # / GHSA-2jg2-4ch7-h545 (<0.35.4), plus the later librsvg CVE-2026-96889
+  # (<0.35.5). ^0.35.5 pins to 0.35.x: a caret on a 0.x version bounds at
+  # the minor, which is the correct read for sharp's native bindings.
+  sharp@<0.35.5: '^0.35.5'
+  # MSAL Node authorization code flow could disclose parameters to an
+  # attacker-controlled endpoint (<7.1.0). Arrives via @azure/identity, a
+  # direct runtime dependency used for Azure Blob storage auth — reaches
+  # the deployed app, not just build tooling.
+  '@azure/msal-node@>=5.0.0-beta.0 <7.1.0': '^7.1.1'
   # next@16.3.3 still declares baseline-browser-mapping as `^2.9.19`
   # (unbumped upstream), so pnpm keeps resolving a second, vulnerable
   # 2.10.x copy alongside browserslist's already-patched 2.11.19 rather
@@ -74,6 +79,11 @@ overrides:
   # posthog-js itself pins; @types/three's separate 0.8.3 copy is types-only
   # and already past the patched version.
   fflate@<0.4.9: '^0.4.9'
+  # Oversized constrained collections could exhaust memory during
+  # validation (<4.6.6). Build-tool-only here — arrives via
+  # eslint-plugin-react-hooks's zod-validation-error, not the app's own
+  # zod (already a direct dependency at a patched version).
+  zod@<4.6.6: '^4.6.7'
 allowBuilds:
   '@sentry/cli': false
   core-js: false

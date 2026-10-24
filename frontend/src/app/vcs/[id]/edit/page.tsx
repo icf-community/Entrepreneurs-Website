@@ -9,8 +9,10 @@ import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditSta
 type Params = { id: string };
 
 export default async function EditVcGrantPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
+  const [{ id }, { supabase, user, isAdmin, displayName }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
 
   const snapshot = await listingEditSnapshot(supabase, "vc_grant", id);
   const row = snapshot?.row;

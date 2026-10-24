@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MAX_NAME_LENGTH } from "@/lib/text";
 import { SignupDisclosures } from "@/components/forms/SignupDisclosures";
-import { TurnstileWidget, turnstileConfigured } from "@/components/forms/TurnstileWidget";
+import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { BrandLogo } from "@/components/BrandLogo";
 import Starfield from "@/components/Starfield";
 import { destinationForStatus } from "@/lib/auth/status";
@@ -20,7 +21,7 @@ import { useAlumAuth } from "@/lib/auth/hooks/useAlumAuth";
 import { useGoogleAuth } from "@/lib/auth/hooks/useGoogleAuth";
 import { usePasswordRecovery } from "@/lib/auth/hooks/usePasswordRecovery";
 import type { Mode, Role, Track } from "@/lib/auth/hooks/loginTypes";
-import { track as trackEvent } from "@/components/analytics/PostHogProvider";
+import { track as trackEvent } from "@/lib/analytics/track";
 
 /* ── Decorative background ────────────────────────────────────────── */
 // The auth pages used to sit on two gold radial-gradient glows and a 64px
@@ -53,6 +54,21 @@ function GoogleIcon() {
   );
 }
 
+/* ── ?role= link handling ─────────────────────────────────────────── */
+// admin_delete_graduates emails every graduating student a link to
+// /login?role=alum. That parameter has never been read — graduates landed
+// on the chooser and picked manually, which was survivable with two
+// options and is a mis-pick waiting to happen with six.
+//
+// 'student' is deliberately not honoured: that path needs a verified
+// Imperial address and an OTP, and nothing links to it.
+function getLinkedRole(searchParams: URLSearchParams): Affiliation | null {
+  // react-doctor-disable-next-line react-doctor/url-prefilled-privileged-action -- reviewed: no privileged action is triggered directly from this URL param
+  const r = searchParams.get("role");
+  const valid = AFFILIATIONS.some((a) => a.value === r && a.value !== "student");
+  return valid ? (r as Affiliation) : null;
+}
+
 /* ── Page ─────────────────────────────────────────────────────────── */
 // Mode/Role/Track live in lib/auth/hooks/loginTypes.ts, shared with the
 // four auth-flow hooks below.
@@ -63,19 +79,8 @@ export default function LoginClient() {
 
   const [mode, setMode] = useState<Mode>("signup");
 
-  // admin_delete_graduates emails every graduating student a link to
-  // /login?role=alum. That parameter has never been read — graduates landed
-  // on the chooser and picked manually, which was survivable with two
-  // options and is a mis-pick waiting to happen with six.
-  //
-  // 'student' is deliberately not honoured: that path needs a verified
-  // Imperial address and an OTP, and nothing links to it.
   const searchParams = useSearchParams();
-  const linkedRole = (() => {
-    const r = searchParams.get("role");
-    const valid = AFFILIATIONS.some((a) => a.value === r && a.value !== "student");
-    return valid ? (r as Affiliation) : null;
-  })();
+  const linkedRole = getLinkedRole(searchParams);
   const [role, setRole] = useState<Role>(linkedRole);
   // A ?role= link skips the chooser and lands on the form with the dropdown
   // already set, which is what keeps the graduation handoff working.
@@ -241,89 +246,23 @@ export default function LoginClient() {
     setError, setIsLoading, setForgotSent, setResendCooldown, refreshTurnstile,
   });
 
-  // Same device as the hero h1 and the section heads: the emphasis is a
-  // weight step inside one grotesque, not a colour change into a serif italic.
-  const heading =
-    mode === "signup" ? (
-      <><span className="font-light text-text-secondary">Join the </span>Foundry.</>
-    ) : (
-      <><span className="font-light text-text-secondary">Welcome </span>back.</>
-    );
-
-  const subtitle =
-    track === null
-      ? mode === "signup"
-        ? "Tell us how you're connected to Imperial."
-        : "Tell us how you sign in."
-      : track === "student"
-        ? mode === "signup"
-          ? "We'll email a verification code to your Imperial email."
-          : "Enter your Imperial email and we'll email you a sign-in code."
-        : mode === "signup"
-          ? "Your profile will be manually reviewed before access is granted."
-          : "Sign in with your email and password.";
-
   return (
     <div className="relative min-h-screen bg-bg-primary flex flex-col overflow-hidden">
       <BackgroundEffects />
-
-      {/* Top bar */}
-      <header className="relative z-10 px-8 py-5">
-        <div className="max-w-[1200px] mx-auto flex items-center justify-between">
-          <Logo />
-          <Link href="/" className="text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
-            ← Back to home
-          </Link>
-        </div>
-      </header>
+      <AuthHeader />
 
       {/* Main */}
       <main id="main-content" tabIndex={-1} className="relative z-10 flex-1 flex items-center justify-center px-5 py-8 sm:px-8 sm:py-12">
         <div className="w-full max-w-[440px]">
 
-          {/* Heading */}
-          <div className="mb-6 text-center">
-            <h1 className="mb-3 text-[clamp(1.9rem,4vw,2.6rem)] font-semibold leading-[1.06] tracking-[-0.035em] text-text-primary">
-              {heading}
-            </h1>
-            <p className="text-[0.9rem] leading-[1.65] text-text-secondary">
-              {subtitle}
-            </p>
-          </div>
+          <AuthHeading mode={mode} track={track} />
 
           {/* Sign up / Log in toggle, above the card. Returning users kept
               missing the small "Already have an account? Sign in" link at
               the foot of the card, so the mode switch is now also offered
               here as two buttons; the footer link stays for anyone who
               scrolls down expecting it there. */}
-          <div className="mb-6 flex justify-center">
-            <div className="inline-flex rounded-lg border border-border-strong bg-white/[0.03] p-1">
-              <button
-                type="button"
-                onClick={() => switchMode("signup")}
-                aria-pressed={mode === "signup"}
-                className={`cursor-pointer rounded-md border-0 px-6 py-2 text-[0.82rem] font-medium transition-colors duration-150 ${
-                  mode === "signup"
-                    ? "bg-white/[0.09] text-text-primary"
-                    : "bg-transparent text-text-secondary hover:text-text-primary"
-                }`}
-              >
-                Sign up
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode("signin")}
-                aria-pressed={mode === "signin"}
-                className={`cursor-pointer rounded-md border-0 px-6 py-2 text-[0.82rem] font-medium transition-colors duration-150 ${
-                  mode === "signin"
-                    ? "bg-white/[0.09] text-text-primary"
-                    : "bg-transparent text-text-secondary hover:text-text-primary"
-                }`}
-              >
-                Log in
-              </button>
-            </div>
-          </div>
+          <ModeToggle mode={mode} onSwitch={switchMode} />
 
           {/* Card */}
           <div className="rounded-lg border border-border bg-bg-secondary p-6 sm:p-8">
@@ -331,64 +270,40 @@ export default function LoginClient() {
             {/* Error */}
             {error && <div className="mb-5"><ErrorBanner>{error}</ErrorBanner></div>}
 
-            {track === null && (
-              <Chooser
-                mode={mode}
-                onPick={(t) => {
-                  setTrack(t);
-                  // The student path writes role: "student" itself; keeping
-                  // the state in step means nothing downstream has to know
-                  // which of the two set it.
-                  setRole(t === "student" ? "student" : null);
-                  setError("");
-                }}
-              />
-            )}
-
-            {track === "student" && (
-              <StudentMagicLinkFlow
-                mode={mode}
-                firstName={firstName} setFirstName={setFirstName}
-                surname={surname} setSurname={setSurname}
-                email={email} setEmail={setEmail}
-                emailSent={emailSent}
-                isLoading={isLoading}
-                resendCooldown={resendCooldown}
-                tcAgreed={tcAgreed} setTcAgreed={setTcAgreed}
-                code={code} setCode={setCode}
-                verifying={verifying} verifyError={verifyError}
-                onVerify={handleStudentVerify}
-                onSubmit={handleStudentSubmit}
-                onResend={handleStudentResend}
-                onBack={backToChooser}
-              />
-            )}
-
-            {track === "other" && (
-              <AlumForm
-                mode={mode}
-                role={role} setRole={setRole}
-                firstName={firstName} setFirstName={setFirstName}
-                surname={surname} setSurname={setSurname}
-                email={email} setEmail={setEmail}
-                password={password} setPassword={setPassword}
-                repeatPassword={repeatPassword} setRepeatPassword={setRepeatPassword}
-                emailSent={emailSent}
-                resendCooldown={resendCooldown}
-                isLoading={isLoading}
-                tcAgreed={tcAgreed} setTcAgreed={setTcAgreed}
-                forgotSent={forgotSent}
-                code={code} setCode={setCode}
-                verifying={verifying} verifyError={verifyError}
-                onVerify={handleAlumVerify}
-                onSubmit={handleAlumSubmit}
-                onResend={handleAlumResend}
-                onGoogle={handleGoogle}
-                onForgot={handleForgotPassword}
-                onForgotReset={exitForgot}
-                onBack={backToChooser}
-              />
-            )}
+            <AuthCardBody
+              mode={mode} track={track}
+              role={role} setRole={setRole}
+              firstName={firstName} setFirstName={setFirstName}
+              surname={surname} setSurname={setSurname}
+              email={email} setEmail={setEmail}
+              password={password} setPassword={setPassword}
+              repeatPassword={repeatPassword} setRepeatPassword={setRepeatPassword}
+              emailSent={emailSent}
+              resendCooldown={resendCooldown}
+              isLoading={isLoading}
+              tcAgreed={tcAgreed} setTcAgreed={setTcAgreed}
+              forgotSent={forgotSent}
+              code={code} setCode={setCode}
+              verifying={verifying} verifyError={verifyError}
+              onPickTrack={(t) => {
+                setTrack(t);
+                // The student path writes role: "student" itself; keeping
+                // the state in step means nothing downstream has to know
+                // which of the two set it.
+                setRole(t === "student" ? "student" : null);
+                setError("");
+              }}
+              onStudentVerify={handleStudentVerify}
+              onStudentSubmit={handleStudentSubmit}
+              onStudentResend={handleStudentResend}
+              onAlumVerify={handleAlumVerify}
+              onAlumSubmit={handleAlumSubmit}
+              onAlumResend={handleAlumResend}
+              onGoogle={handleGoogle}
+              onForgot={handleForgotPassword}
+              onForgotReset={exitForgot}
+              onBack={backToChooser}
+            />
 
             {/* Bot challenge for the auth send-endpoints. One widget for every
                 sub-view (request / resend / forgot); remounts via key to mint a
@@ -418,21 +333,209 @@ export default function LoginClient() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 px-8 py-5">
-        <div className="max-w-[1200px] mx-auto flex justify-center gap-8">
-          <Link href="/privacy" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
-            Privacy
-          </Link>
-          <Link href="/terms" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
-            Terms
-          </Link>
-          <Link href="/contact" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
-            Contact
-          </Link>
-        </div>
-      </footer>
+      <AuthFooter />
     </div>
+  );
+}
+
+/* ── Static top bar / footer ──────────────────────────────────────── */
+function AuthHeader() {
+  return (
+    <header className="relative z-10 px-8 py-5">
+      <div className="max-w-[1200px] mx-auto flex items-center justify-between">
+        <Logo />
+        <Link href="/" className="text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+          ← Back to home
+        </Link>
+      </div>
+    </header>
+  );
+}
+
+function AuthFooter() {
+  return (
+    <footer className="relative z-10 px-8 py-5">
+      <div className="max-w-[1200px] mx-auto flex justify-center gap-8">
+        <Link href="/privacy" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+          Privacy
+        </Link>
+        <Link href="/terms" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+          Terms
+        </Link>
+        <Link href="/contact" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+          Contact
+        </Link>
+      </div>
+    </footer>
+  );
+}
+
+/* ── Heading + subtitle ───────────────────────────────────────────── */
+// Same device as the hero h1 and the section heads: the emphasis is a
+// weight step inside one grotesque, not a colour change into a serif italic.
+function AuthHeading({ mode, track }: { mode: Mode; track: Track | null }) {
+  const heading =
+    mode === "signup" ? (
+      <><span className="font-light text-text-secondary">Join the </span>Foundry.</>
+    ) : (
+      <><span className="font-light text-text-secondary">Welcome </span>back.</>
+    );
+
+  const subtitle =
+    track === null
+      ? mode === "signup"
+        ? "Tell us how you're connected to Imperial."
+        : "Tell us how you sign in."
+      : track === "student"
+        ? mode === "signup"
+          ? "We'll email a verification code to your Imperial email."
+          : "Enter your Imperial email and we'll email you a sign-in code."
+        : mode === "signup"
+          ? "Your profile will be manually reviewed before access is granted."
+          : "Sign in with your email and password.";
+
+  return (
+    <div className="mb-6 text-center">
+      <h1 className="mb-3 text-[clamp(1.9rem,4vw,2.6rem)] font-semibold leading-[1.06] tracking-[-0.035em] text-text-primary">
+        {heading}
+      </h1>
+      <p className="text-[0.9rem] leading-[1.65] text-text-secondary">
+        {subtitle}
+      </p>
+    </div>
+  );
+}
+
+/* ── Sign up / Log in toggle ──────────────────────────────────────── */
+function ModeToggle({ mode, onSwitch }: { mode: Mode; onSwitch: (next: Mode) => void }) {
+  return (
+    <div className="mb-6 flex justify-center">
+      <div className="inline-flex rounded-lg border border-border-strong bg-white/[0.03] p-1">
+        <button
+          type="button"
+          onClick={() => onSwitch("signup")}
+          aria-pressed={mode === "signup"}
+          className={`cursor-pointer rounded-md border-0 px-6 py-2 text-[0.82rem] font-medium transition-colors duration-150 ${
+            mode === "signup"
+              ? "bg-white/[0.09] text-text-primary"
+              : "bg-transparent text-text-secondary hover:text-text-primary"
+          }`}
+        >
+          Sign up
+        </button>
+        <button
+          type="button"
+          onClick={() => onSwitch("signin")}
+          aria-pressed={mode === "signin"}
+          className={`cursor-pointer rounded-md border-0 px-6 py-2 text-[0.82rem] font-medium transition-colors duration-150 ${
+            mode === "signin"
+              ? "bg-white/[0.09] text-text-primary"
+              : "bg-transparent text-text-secondary hover:text-text-primary"
+          }`}
+        >
+          Log in
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Card body (chooser / student / alum) ─────────────────────────── */
+// Pulled out of LoginClient's render so the mode/track branching reads as
+// one block instead of being interleaved with the toggle/turnstile/footer
+// markup around it. Props are the same ones each branch already took.
+function AuthCardBody({
+  mode, track,
+  role, setRole,
+  firstName, setFirstName,
+  surname, setSurname,
+  email, setEmail,
+  password, setPassword,
+  repeatPassword, setRepeatPassword,
+  emailSent, resendCooldown, isLoading,
+  tcAgreed, setTcAgreed,
+  forgotSent,
+  code, setCode, verifying, verifyError,
+  onPickTrack,
+  onStudentVerify, onStudentSubmit, onStudentResend,
+  onAlumVerify, onAlumSubmit, onAlumResend,
+  onGoogle, onForgot, onForgotReset, onBack,
+}: {
+  mode: Mode; track: Track | null;
+  role: Role; setRole: (v: Role) => void;
+  firstName: string; setFirstName: (v: string) => void;
+  surname: string; setSurname: (v: string) => void;
+  email: string; setEmail: (v: string) => void;
+  password: string; setPassword: (v: string) => void;
+  repeatPassword: string; setRepeatPassword: (v: string) => void;
+  emailSent: boolean;
+  resendCooldown: number;
+  isLoading: boolean;
+  tcAgreed: boolean; setTcAgreed: (v: boolean) => void;
+  forgotSent: boolean;
+  code: string; setCode: (v: string) => void;
+  verifying: boolean; verifyError: string;
+  onPickTrack: (t: Track) => void;
+  onStudentVerify: (e: React.FormEvent) => void;
+  onStudentSubmit: (e: React.FormEvent) => void;
+  onStudentResend: () => void;
+  onAlumVerify: (e: React.FormEvent) => void;
+  onAlumSubmit: (e: React.FormEvent) => void;
+  onAlumResend: () => void;
+  onGoogle: () => void;
+  onForgot: () => void;
+  onForgotReset: () => void;
+  onBack: () => void;
+}) {
+  if (track === null) {
+    return <Chooser mode={mode} onPick={onPickTrack} />;
+  }
+
+  if (track === "student") {
+    return (
+      <StudentMagicLinkFlow
+        mode={mode}
+        firstName={firstName} setFirstName={setFirstName}
+        surname={surname} setSurname={setSurname}
+        email={email} setEmail={setEmail}
+        emailSent={emailSent}
+        isLoading={isLoading}
+        resendCooldown={resendCooldown}
+        tcAgreed={tcAgreed} setTcAgreed={setTcAgreed}
+        code={code} setCode={setCode}
+        verifying={verifying} verifyError={verifyError}
+        onVerify={onStudentVerify}
+        onSubmit={onStudentSubmit}
+        onResend={onStudentResend}
+        onBack={onBack}
+      />
+    );
+  }
+
+  return (
+    <AlumForm
+      mode={mode}
+      role={role} setRole={setRole}
+      firstName={firstName} setFirstName={setFirstName}
+      surname={surname} setSurname={setSurname}
+      email={email} setEmail={setEmail}
+      password={password} setPassword={setPassword}
+      repeatPassword={repeatPassword} setRepeatPassword={setRepeatPassword}
+      emailSent={emailSent}
+      resendCooldown={resendCooldown}
+      isLoading={isLoading}
+      tcAgreed={tcAgreed} setTcAgreed={setTcAgreed}
+      forgotSent={forgotSent}
+      code={code} setCode={setCode}
+      verifying={verifying} verifyError={verifyError}
+      onVerify={onAlumVerify}
+      onSubmit={onAlumSubmit}
+      onResend={onAlumResend}
+      onGoogle={onGoogle}
+      onForgot={onForgot}
+      onForgotReset={onForgotReset}
+      onBack={onBack}
+    />
   );
 }
 
@@ -494,6 +597,48 @@ function RoleButton({ title, blurb, onClick }: { title: string; blurb?: string; 
   );
 }
 
+/* ── Shared first-name/surname fields ─────────────────────────────── */
+// Identical in both signup forms (student + alum) — pulled out once so the
+// two are kept in step rather than hand-edited in parallel.
+function NameFields({
+  firstName, setFirstName, surname, setSurname, inputCls,
+}: {
+  firstName: string; setFirstName: (v: string) => void;
+  surname: string; setSurname: (v: string) => void;
+  inputCls: string;
+}) {
+  return (
+    <div className="flex gap-3">
+      <div className="flex-1">
+        <label htmlFor="first-name" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">First name</label>
+        <input
+          id="first-name"
+          type="text"
+          autoComplete="given-name"
+          placeholder="First name"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          className={inputCls}
+          maxLength={MAX_NAME_LENGTH}
+        />
+      </div>
+      <div className="flex-1">
+        <label htmlFor="surname" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Surname</label>
+        <input
+          id="surname"
+          type="text"
+          autoComplete="family-name"
+          placeholder="Surname"
+          value={surname}
+          onChange={(e) => setSurname(e.target.value)}
+          className={inputCls}
+          maxLength={MAX_NAME_LENGTH}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ── Back link ────────────────────────────────────────────────────── */
 function BackLink({ onClick }: { onClick: () => void }) {
   return (
@@ -540,6 +685,7 @@ function CodeEntryPanel({
         </p>
 
         <label htmlFor="otp-code" className="sr-only">Verification code</label>
+        {/* react-doctor-disable-next-line react-doctor/no-autofocus -- OTP input shown only after user-initiated email submit, not on page load; interaction-triggered autofocus */}
         <input
           id="otp-code"
           inputMode="numeric"
@@ -637,34 +783,11 @@ function StudentMagicLinkFlow({
       <BackLink onClick={onBack} />
 
       {mode === "signup" && (
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label htmlFor="first-name" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">First name</label>
-            <input
-              id="first-name"
-              type="text"
-              autoComplete="given-name"
-              placeholder="First name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className={inputCls}
-              maxLength={MAX_NAME_LENGTH}
-            />
-          </div>
-          <div className="flex-1">
-            <label htmlFor="surname" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Surname</label>
-            <input
-              id="surname"
-              type="text"
-              autoComplete="family-name"
-              placeholder="Surname"
-              value={surname}
-              onChange={(e) => setSurname(e.target.value)}
-              className={inputCls}
-              maxLength={MAX_NAME_LENGTH}
-            />
-          </div>
-        </div>
+        <NameFields
+          firstName={firstName} setFirstName={setFirstName}
+          surname={surname} setSurname={setSurname}
+          inputCls={inputCls}
+        />
       )}
 
       <div>
@@ -765,85 +888,16 @@ function AlumForm({
   // Password-recovery sub-view (sign-in only). Sends a PKCE reset link to the
   // entered email; it lands on /auth/callback?next=/reset-password.
   if (forgotView) {
-    const canSend = resendCooldown <= 0 && !isLoading;
     const backToSignIn = () => { onForgotReset(); setForgotView(false); };
-
-    if (forgotSent) {
-      return (
-        <div className="space-y-5">
-          <BackLink onClick={backToSignIn} />
-          <div className="py-6 text-center space-y-4">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border-strong">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="text-text-primary" aria-hidden>
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                <polyline points="22,6 12,13 2,6" />
-              </svg>
-            </div>
-            <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Check your inbox</h2>
-            <p className="text-[0.8rem] text-text-secondary leading-relaxed">
-              If an account exists for <span className="text-text-primary">{email}</span>, we&apos;ve sent a password-reset link.
-            </p>
-            <p className="text-[0.7rem] text-text-muted leading-relaxed">
-              The link expires in 30 minutes. Open it in the same browser you&apos;re using now.
-            </p>
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={onForgot}
-                disabled={!canSend}
-                className="cursor-pointer border-0 bg-transparent text-[0.8rem] text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
-              >
-                {isLoading
-                  ? "Resending…"
-                  : resendCooldown > 0
-                    ? `Resend in ${resendCooldown}s`
-                    : "Didn’t receive it? Resend"}
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     return (
-      <form onSubmit={(e) => { e.preventDefault(); onForgot(); }} className="space-y-4">
-        <BackLink onClick={backToSignIn} />
-        <div className="space-y-1.5">
-          <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Reset your password</h2>
-          <p className="text-[0.8rem] text-text-secondary leading-relaxed">
-            Enter your email and we&apos;ll send you a link to set a new password.
-          </p>
-        </div>
-        <div>
-          <label htmlFor="reset-email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Email</label>
-          <input
-            id="reset-email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={inputCls}
-          />
-        </div>
-        <Button
-          type="submit"
-          loading={isLoading}
-          disabled={resendCooldown > 0 || isLoading}
-          variant="primary"
-          size="lg"
-          className="w-full mt-1"
-        >
-          {resendCooldown > 0 ? (
-            `Resend in ${resendCooldown}s`
-          ) : (
-            "Send reset link"
-          )}
-        </Button>
-        <p className="text-[0.72rem] text-text-muted leading-relaxed text-center px-2">
-          Signed up with Google? Use <span className="text-text-secondary">Continue with Google</span> instead.
-        </p>
-      </form>
+      <ForgotPasswordFlow
+        email={email} setEmail={setEmail}
+        resendCooldown={resendCooldown} isLoading={isLoading}
+        forgotSent={forgotSent}
+        onForgot={onForgot}
+        onBack={backToSignIn}
+        inputCls={inputCls}
+      />
     );
   }
 
@@ -859,29 +913,197 @@ function AlumForm({
           themselves was lost in the collapse — it is just no longer six
           simultaneous walls of text. */}
       {mode === "signup" && (
-        <div>
-          <label htmlFor="affiliation" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">
-            How you&apos;re connected
-          </label>
-          <select
-            id="affiliation"
-            value={role ?? ""}
-            onChange={(e) => setRole((e.target.value || null) as Role)}
-            className={inputCls}
-          >
-            <option value="">Select one…</option>
-            {NON_STUDENT_AFFILIATIONS.map((a) => (
-              <option key={a.value} value={a.value}>{a.label}</option>
-            ))}
-          </select>
-          {selected && (
-            <p className="mt-2 text-[0.72rem] leading-relaxed text-text-muted">
-              {selected.blurb}
-            </p>
-          )}
-        </div>
+        <AffiliationSelect role={role} setRole={setRole} selected={selected} inputCls={inputCls} />
       )}
 
+      <GoogleSignupSection
+        mode={mode} role={role} selected={selected}
+        isLoading={isLoading} onGoogle={onGoogle}
+      />
+
+      {mode === "signup" && (
+        <NameFields
+          firstName={firstName} setFirstName={setFirstName}
+          surname={surname} setSurname={setSurname}
+          inputCls={inputCls}
+        />
+      )}
+
+      <div>
+        <label htmlFor="email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Email</label>
+        <input
+          id="email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={inputCls}
+        />
+      </div>
+
+      <PasswordFields
+        mode={mode}
+        password={password} setPassword={setPassword}
+        repeatPassword={repeatPassword} setRepeatPassword={setRepeatPassword}
+        inputCls={inputCls}
+        onForgotClick={() => { onForgotReset(); setForgotView(true); }}
+      />
+
+      {mode === "signup" && (
+        <SignupDisclosures agreed={tcAgreed} onChange={setTcAgreed} />
+      )}
+
+      <Button
+        type="submit"
+        loading={isLoading}
+        disabled={isLoading || (mode === "signup" && !tcAgreed)}
+        variant="primary"
+        size="lg"
+        className="w-full mt-2"
+      >
+        {mode === "signup" ? "Create account" : "Sign in"}
+      </Button>
+    </form>
+  );
+}
+
+/* ── Password-recovery sub-view ───────────────────────────────────── */
+function ForgotPasswordFlow({
+  email, setEmail, resendCooldown, isLoading, forgotSent, onForgot, onBack, inputCls,
+}: {
+  email: string; setEmail: (v: string) => void;
+  resendCooldown: number; isLoading: boolean;
+  forgotSent: boolean;
+  onForgot: () => void;
+  onBack: () => void;
+  inputCls: string;
+}) {
+  if (forgotSent) {
+    const canSend = resendCooldown <= 0 && !isLoading;
+    return (
+      <div className="space-y-5">
+        <BackLink onClick={onBack} />
+        <div className="py-6 text-center space-y-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border-strong">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="text-text-primary" aria-hidden>
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+          </div>
+          <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Check your inbox</h2>
+          <p className="text-[0.8rem] text-text-secondary leading-relaxed">
+            If an account exists for <span className="text-text-primary">{email}</span>, we&apos;ve sent a password-reset link.
+          </p>
+          <p className="text-[0.7rem] text-text-muted leading-relaxed">
+            The link expires in 30 minutes. Open it in the same browser you&apos;re using now.
+          </p>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={onForgot}
+              disabled={!canSend}
+              className="cursor-pointer border-0 bg-transparent text-[0.8rem] text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
+            >
+              {isLoading
+                ? "Resending…"
+                : resendCooldown > 0
+                  ? `Resend in ${resendCooldown}s`
+                  : "Didn’t receive it? Resend"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onForgot(); }} className="space-y-4">
+      <BackLink onClick={onBack} />
+      <div className="space-y-1.5">
+        <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Reset your password</h2>
+        <p className="text-[0.8rem] text-text-secondary leading-relaxed">
+          Enter your email and we&apos;ll send you a link to set a new password.
+        </p>
+      </div>
+      <div>
+        <label htmlFor="reset-email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Email</label>
+        <input
+          id="reset-email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={inputCls}
+        />
+      </div>
+      <Button
+        type="submit"
+        loading={isLoading}
+        disabled={resendCooldown > 0 || isLoading}
+        variant="primary"
+        size="lg"
+        className="w-full mt-1"
+      >
+        {resendCooldown > 0 ? (
+          `Resend in ${resendCooldown}s`
+        ) : (
+          "Send reset link"
+        )}
+      </Button>
+      <p className="text-[0.72rem] text-text-muted leading-relaxed text-center px-2">
+        Signed up with Google? Use <span className="text-text-secondary">Continue with Google</span> instead.
+      </p>
+    </form>
+  );
+}
+
+/* ── Affiliation dropdown (alum signup only) ──────────────────────── */
+function AffiliationSelect({
+  role, setRole, selected, inputCls,
+}: {
+  role: Role; setRole: (v: Role) => void;
+  selected: { value: string; label: string; blurb: string } | undefined;
+  inputCls: string;
+}) {
+  return (
+    <div>
+      <label htmlFor="affiliation" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">
+        How you&apos;re connected
+      </label>
+      <select
+        id="affiliation"
+        value={role ?? ""}
+        onChange={(e) => setRole((e.target.value || null) as Role)}
+        className={inputCls}
+      >
+        <option value="">Select one…</option>
+        {NON_STUDENT_AFFILIATIONS.map((a) => (
+          <option key={a.value} value={a.value}>{a.label}</option>
+        ))}
+      </select>
+      {selected && (
+        <p className="mt-2 text-[0.72rem] leading-relaxed text-text-muted">
+          {selected.blurb}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── Google continue button + consent copy ────────────────────────── */
+function GoogleSignupSection({
+  mode, role, selected, isLoading, onGoogle,
+}: {
+  mode: Mode;
+  role: Role;
+  selected: { value: string; label: string; blurb: string } | undefined;
+  isLoading: boolean;
+  onGoogle: () => void;
+}) {
+  return (
+    <>
       <button
         type="button"
         onClick={onGoogle}
@@ -924,51 +1146,22 @@ function AlumForm({
         <span className="text-[0.7rem] text-text-muted uppercase tracking-widest">or</span>
         <div className="flex-1 h-px bg-border-subtle" />
       </div>
+    </>
+  );
+}
 
-      {mode === "signup" && (
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label htmlFor="first-name" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">First name</label>
-            <input
-              id="first-name"
-              type="text"
-              autoComplete="given-name"
-              placeholder="First name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className={inputCls}
-              maxLength={MAX_NAME_LENGTH}
-            />
-          </div>
-          <div className="flex-1">
-            <label htmlFor="surname" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Surname</label>
-            <input
-              id="surname"
-              type="text"
-              autoComplete="family-name"
-              placeholder="Surname"
-              value={surname}
-              onChange={(e) => setSurname(e.target.value)}
-              className={inputCls}
-              maxLength={MAX_NAME_LENGTH}
-            />
-          </div>
-        </div>
-      )}
-
-      <div>
-        <label htmlFor="email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Email</label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className={inputCls}
-        />
-      </div>
-
+/* ── Password + repeat-password fields ────────────────────────────── */
+function PasswordFields({
+  mode, password, setPassword, repeatPassword, setRepeatPassword, inputCls, onForgotClick,
+}: {
+  mode: Mode;
+  password: string; setPassword: (v: string) => void;
+  repeatPassword: string; setRepeatPassword: (v: string) => void;
+  inputCls: string;
+  onForgotClick: () => void;
+}) {
+  return (
+    <>
       <div>
         <label htmlFor="password" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Password</label>
         <input
@@ -986,7 +1179,7 @@ function AlumForm({
         <div className="-mt-1 text-right">
           <button
             type="button"
-            onClick={() => { onForgotReset(); setForgotView(true); }}
+            onClick={onForgotClick}
             className="cursor-pointer border-0 bg-transparent text-[0.75rem] text-accent underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:text-accent-light hover:decoration-accent"
           >
             Forgot your password?
@@ -1008,21 +1201,6 @@ function AlumForm({
           />
         </div>
       )}
-
-      {mode === "signup" && (
-        <SignupDisclosures agreed={tcAgreed} onChange={setTcAgreed} />
-      )}
-
-      <Button
-        type="submit"
-        loading={isLoading}
-        disabled={isLoading || (mode === "signup" && !tcAgreed)}
-        variant="primary"
-        size="lg"
-        className="w-full mt-2"
-      >
-        {mode === "signup" ? "Create account" : "Sign in"}
-      </Button>
-    </form>
+    </>
   );
 }

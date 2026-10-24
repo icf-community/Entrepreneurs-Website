@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Dialog, closeDialog, dialogCloser } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog, dialogCloser } from "@/components/ui/dialogCloser";
 import { Pager } from "@/components/ui/Pager";
 import { useUrlFilters } from "@/lib/filters/useUrlFilters";
 import { ErrorBanner } from "@/components/forms/Banners";
@@ -61,6 +62,11 @@ const categoryLabel = (value: string) =>
 // queue makes the difference visible rather than leaving an admin to read
 // every row to find the one that matters.
 const URGENT = new Set(["illegal", "hate", "harassment", "sexual"]);
+
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat("en-GB");
+const REPORT_DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric", month: "short", year: "numeric",
+});
 
 export default function ConnectionsAdminClient({
   reports, status, page, matching, pageSize, senders, stats, connectionsStatus,
@@ -228,8 +234,12 @@ function KillSwitch({ initial }: { initial: ConnectionsStatus }) {
           {status.enabled ? "Open" : "Paused"}
         </span>
         {status.lastChangedAt && (
-          <span className="text-[0.75rem] text-text-muted">
-            Last changed {new Date(status.lastChangedAt).toLocaleString()}
+          // suppressHydrationWarning: this formats in the viewer's local zone,
+          // which legitimately differs from the server's (same pattern as
+          // BannerForm's CurrentBannerStatus).
+          <span className="text-[0.75rem] text-text-muted" suppressHydrationWarning>
+            {/* react-doctor-disable-next-line react-doctor/no-locale-format-in-render -- cosmetic admin-only timestamp; suppressHydrationWarning above accepts the server/client locale mismatch rather than adding post-mount state for it */}
+            Last changed {DATE_TIME_FORMAT.format(new Date(status.lastChangedAt))}
             {status.lastChangedBy ? ` by ${status.lastChangedBy}` : ""}
           </span>
         )}
@@ -277,12 +287,13 @@ function ReportRow({
           <h2 className="mt-3 text-[1rem] font-medium tracking-tight text-text-primary break-words">
             About {report.reportedName || "a member who has since left"}
           </h2>
-          <p className="mt-1 text-[0.75rem] text-text-muted">
+          {/* suppressHydrationWarning: this formats in the viewer's local
+              zone, which legitimately differs from the server's. */}
+          <p className="mt-1 text-[0.75rem] text-text-muted" suppressHydrationWarning>
             Reported by {report.reporterName}
             <span aria-hidden className="mx-1.5">·</span>
-            {new Date(report.createdAt).toLocaleDateString("en-GB", {
-              day: "numeric", month: "short", year: "numeric",
-            })}
+            {/* react-doctor-disable-next-line react-doctor/no-locale-format-in-render -- cosmetic admin-only timestamp; suppressHydrationWarning above accepts the server/client locale mismatch rather than adding post-mount state for it */}
+            {REPORT_DATE_FORMAT.format(new Date(report.createdAt))}
           </p>
         </div>
 

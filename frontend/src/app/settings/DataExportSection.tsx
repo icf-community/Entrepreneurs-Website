@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { settle } from "@/lib/settle";
 import { exportMyData } from "./actions";
-import { track } from "@/components/analytics/PostHogProvider";
+import { track } from "@/lib/analytics/track";
 
 // Settings → "Download my data" (launch programme F-x2). The server action
 // returns the JSON; the browser saves it as a file, so nothing is stored

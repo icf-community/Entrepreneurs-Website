@@ -21,15 +21,19 @@ export default function DeleteAccountSection({ email }: { email: string }) {
     if (!confirmed) return;
 
     setIsLoading(true);
-    const { error: rpcError } = await supabase.rpc("delete_my_account");
-    if (rpcError) {
-      setError(rpcError.message);
-      setIsLoading(false);
-      return;
-    }
+    try {
+      const { error: rpcError } = await supabase.rpc("delete_my_account");
+      if (rpcError) {
+        setError(rpcError.message);
+        return;
+      }
 
-    await supabase.auth.signOut();
-    router.replace("/");
+      await supabase.auth.signOut();
+      router.replace("/");
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   return (

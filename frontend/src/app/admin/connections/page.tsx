@@ -40,8 +40,8 @@ export default async function AdminConnectionsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const sp = await searchParams;
   const { supabase } = await requireAdminPage();
+  const sp = await searchParams;
 
   // An unrecognised ?status= narrows to the default rather than being
   // handed to the RPC as if it were a status.

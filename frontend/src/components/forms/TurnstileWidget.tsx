@@ -1,16 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { TURNSTILE_SITE_KEY as SITE_KEY } from "@/lib/turnstileConfig";
 
 // Cloudflare Turnstile widget. Renders nothing unless
 // NEXT_PUBLIC_TURNSTILE_SITE_KEY is set, so the forms work unchanged in
 // local dev. When configured, it loads the Turnstile script, renders the
 // challenge, and calls onToken with the solved token (or "" on
 // error/expiry so the parent can require a fresh solve).
-
-const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-
-export const turnstileConfigured = Boolean(SITE_KEY);
 
 type TurnstileApi = {
   render: (el: HTMLElement, opts: Record<string, unknown>) => string;

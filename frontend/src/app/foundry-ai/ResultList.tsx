@@ -72,48 +72,12 @@ function Card({ mode, turnId, card }: { mode: AiMode; turnId: string; card: Resu
   return (
     <article className="rounded-2xl border border-border bg-bg-card p-5">
       <div className="flex items-start gap-4">
-        {card.kind === "member" && (
-          card.avatarUrl
-            // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed URL, not a static asset
-            ? <img src={card.avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover border border-border" />
-            : <div aria-hidden className="h-12 w-12 shrink-0 rounded-full border border-border bg-white/[0.04]" />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-[1rem] font-medium text-text-primary">{card.title}</h3>
-            {card.change === "new" && <Pill>New</Pill>}
-            {card.change === "updated" && <Pill>Updated</Pill>}
-            {card.stale && <Pill>Profile changed since this search</Pill>}
-          </div>
-          {card.subtitle && <p className="mt-0.5 text-[0.8rem] text-text-muted">{card.subtitle}</p>}
-          <p className="mt-2 text-[0.8rem] text-text-secondary">{tierLabel(mode, card.tier)}</p>
-          {card.sourceUpdatedAt && (
-            <p className="mt-1 text-[0.7rem] text-text-muted">
-              {card.kind === "member" ? "Profile updated" : "Updated"} {formatDate(card.sourceUpdatedAt)}
-            </p>
-          )}
-        </div>
-        {card.score != null && (
-          <div className="shrink-0 text-right">
-            <div className="font-display text-[1.4rem] leading-none text-text-primary">{card.score}</div>
-            <div className="mt-1 text-[0.65rem] uppercase tracking-wider text-text-muted">evidence match</div>
-          </div>
-        )}
+        <CardAvatar card={card} />
+        <CardSummary mode={mode} card={card} />
+        <CardScore card={card} />
       </div>
 
-      <ul className="mt-4 flex flex-wrap gap-1.5" aria-label="Criteria">
-        {card.coverage.map((row) => {
-          const s = STATE_MARK[row.state];
-          return (
-            <li key={row.atom} className={`rounded-lg border border-border-strong px-2.5 py-1 text-[0.75rem] ${s.cls}`}>
-              <span aria-hidden>{s.mark} </span>
-              {row.label ?? row.free_text ?? row.concept}
-              <span className="sr-only">: {s.label}{row.required ? ", must have" : ""}</span>
-              {row.required && <span aria-hidden className="text-text-muted"> · must</span>}
-            </li>
-          );
-        })}
-      </ul>
+      <CoverageList coverage={card.coverage} />
 
       {card.kind === "opportunity" && card.job && (
         <JobFacts card={card} />
@@ -143,19 +107,79 @@ function Card({ mode, turnId, card }: { mode: AiMode; turnId: string; card: Resu
         )}
         <ReportControl turnId={turnId} targetId={card.targetId} />
       </div>
-      {open && (
-        <ul id={detailsId} className="mt-3 space-y-2 border-t border-border-subtle pt-3">
-          {card.evidence.map((e, i) => (
-            <li key={i} className="text-[0.8rem] text-text-secondary">
-              <span className="mr-1 text-[0.65rem] uppercase tracking-wider text-text-muted">
-                {e.from_cv ? "From CV" : e.kind.startsWith("github") ? "GitHub" : e.kind === "self_reported" ? "Self-reported" : "Profile"}
-              </span>
-              {e.text}
-            </li>
-          ))}
-        </ul>
-      )}
+      {open && <EvidenceList id={detailsId} evidence={card.evidence} />}
     </article>
+  );
+}
+
+function CardAvatar({ card }: { card: ResultCard }) {
+  if (card.kind !== "member") return null;
+  return card.avatarUrl
+    // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed URL, not a static asset
+    ? <img src={card.avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover border border-border" />
+    : <div aria-hidden className="h-12 w-12 shrink-0 rounded-full border border-border bg-white/[0.04]" />;
+}
+
+function CardSummary({ mode, card }: { mode: AiMode; card: ResultCard }) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-[1rem] font-medium text-text-primary">{card.title}</h3>
+        {card.change === "new" && <Pill>New</Pill>}
+        {card.change === "updated" && <Pill>Updated</Pill>}
+        {card.stale && <Pill>Profile changed since this search</Pill>}
+      </div>
+      {card.subtitle && <p className="mt-0.5 text-[0.8rem] text-text-muted">{card.subtitle}</p>}
+      <p className="mt-2 text-[0.8rem] text-text-secondary">{tierLabel(mode, card.tier)}</p>
+      {card.sourceUpdatedAt && (
+        <p className="mt-1 text-[0.7rem] text-text-muted">
+          {card.kind === "member" ? "Profile updated" : "Updated"} {formatDate(card.sourceUpdatedAt)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CardScore({ card }: { card: ResultCard }) {
+  if (card.score == null) return null;
+  return (
+    <div className="shrink-0 text-right">
+      <div className="font-display text-[1.4rem] leading-none text-text-primary">{card.score}</div>
+      <div className="mt-1 text-[0.65rem] uppercase tracking-wider text-text-muted">evidence match</div>
+    </div>
+  );
+}
+
+function CoverageList({ coverage }: { coverage: ResultCard["coverage"] }) {
+  return (
+    <ul className="mt-4 flex flex-wrap gap-1.5" aria-label="Criteria">
+      {coverage.map((row) => {
+        const s = STATE_MARK[row.state];
+        return (
+          <li key={row.atom} className={`rounded-lg border border-border-strong px-2.5 py-1 text-[0.75rem] ${s.cls}`}>
+            <span aria-hidden>{s.mark} </span>
+            {row.label ?? row.free_text ?? row.concept}
+            <span className="sr-only">: {s.label}{row.required ? ", must have" : ""}</span>
+            {row.required && <span aria-hidden className="text-text-muted"> · must</span>}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function EvidenceList({ id, evidence }: { id: string; evidence: ResultCard["evidence"] }) {
+  return (
+    <ul id={id} className="mt-3 space-y-2 border-t border-border-subtle pt-3">
+      {evidence.map((e) => (
+        <li key={`${e.kind}-${e.text}`} className="text-[0.8rem] text-text-secondary">
+          <span className="mr-1 text-[0.65rem] uppercase tracking-wider text-text-muted">
+            {e.from_cv ? "From CV" : e.kind.startsWith("github") ? "GitHub" : e.kind === "self_reported" ? "Self-reported" : "Profile"}
+          </span>
+          {e.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -237,8 +261,12 @@ function ReportControl({ turnId, targetId }: { turnId: string; targetId: string 
           disabled={sending}
           onClick={async () => {
             setSending(true);
-            const res = await reportMatch(turnId, targetId, r.value);
-            setSending(false);
+            let res: Awaited<ReturnType<typeof reportMatch>>;
+            try {
+              res = await reportMatch(turnId, targetId, r.value);
+            } finally {
+              setSending(false);
+            }
             if (res.ok) setSent(true);
             else toast(res.error, "error");
           }}

@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { submitContactTicket } from "./actions";
-import { TurnstileWidget, turnstileConfigured } from "@/components/forms/TurnstileWidget";
+import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
 import { FieldError } from "@/components/forms/Field";
 import { contactSchema } from "@/lib/validation/contact";

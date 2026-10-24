@@ -1,5 +1,5 @@
 import { browserClient } from "@/lib/supabase/browser";
-import { track } from "@/components/analytics/PostHogProvider";
+import { track } from "@/lib/analytics/track";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Lightweight engagement tracking

@@ -151,11 +151,12 @@ export function TagInput({
   const atMax = max !== undefined && values.length >= max;
 
   const lower = values.map((v) => v.toLowerCase());
+  const lowerSet = new Set(lower);
   const matches = draft.trim()
     ? suggestions
         .filter(
           (s) =>
-            s.toLowerCase().includes(draft.trim().toLowerCase()) && !lower.includes(s.toLowerCase()),
+            s.toLowerCase().includes(draft.trim().toLowerCase()) && !lowerSet.has(s.toLowerCase()),
         )
         .slice(0, 6)
     : [];
@@ -307,6 +308,7 @@ export function SkillPicker({
   const [draft, setDraft] = useState("");
   const byId = new Map(taxonomy.map((t) => [t.id, t]));
   const selectedSet = new Set(selectedIds);
+  const coreSet = new Set(coreIds);
 
   const query = draft.trim().toLowerCase();
   const matches = query
@@ -413,7 +415,7 @@ export function SkillPicker({
             {selectedIds.map((id) => {
               const skill = byId.get(id);
               if (!skill) return null;
-              const isCore = coreIds.includes(id);
+              const isCore = coreSet.has(id);
               const locked = !isCore && coreIds.length >= maxCore;
               return (
                 <button

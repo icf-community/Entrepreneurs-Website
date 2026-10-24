@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import SearchableMultiSelect from "@/components/forms/SearchableMultiSelect";
-import { useUrlFilters, useSearchDraft } from "@/lib/filters/useUrlFilters";
+import { useUrlFilters, useSearchDraft, type UrlFilters } from "@/lib/filters/useUrlFilters";
 import { SearchInput, FilterPanel, ChipGroup, RangeFilter } from "@/components/filters/FilterBar";
 import { Pager } from "@/components/ui/Pager";
 import { Button } from "@/components/ui/Button";
@@ -99,96 +99,16 @@ export default function MembersClient({
         )}
       </div>
 
-      <FilterPanel
-        activeCount={activeFilterCount}
-        onClear={() => url.clear("role", "course", "sector", "skill", "gradMin", "gradMax")}
-        resultCount={
-          <>
-            {matching === facets.total ? `${facets.total}` : `${matching} of ${facets.total}`}
-            <span className="sr-only"> members match</span>
-          </>
-        }
-      >
-        {facets.unavailable && (
-          <p role="status" className="text-[0.8rem] text-text-muted">
-            Couldn&apos;t load the course, sector and skill filters. Reload to try again.
-          </p>
-        )}
-        <ChipGroup
-          label="Role"
-          options={[
-            { value: "student", label: "Students" },
-            { value: "alum",    label: "Alumni" },
-          ]}
-          selected={new Set(filters.roles)}
-          onToggle={(v) => url.toggle("role", v)}
-        />
+      <MemberFilterPanel
+        facets={facets}
+        filters={filters}
+        matching={matching}
+        gradYearBounds={gradYearBounds}
+        activeFilterCount={activeFilterCount}
+        url={url}
+      />
 
-        {facets.courses.length > 0 && (
-          <SearchableMultiSelect
-            label="Course"
-            options={facets.courses}
-            selected={new Set(filters.courses)}
-            onChange={(next) => url.apply({ course: [...next] })}
-            placeholder="Filter by course — search or pick"
-            emptyText="No course matches that search."
-          />
-        )}
-
-        {facets.sectors.length > 0 && (
-          <ChipGroup
-            label="Sectors"
-            options={facets.sectors.map((s) => ({ value: s, label: s }))}
-            selected={new Set(filters.sectors)}
-            onToggle={(v) => url.toggle("sector", v)}
-          />
-        )}
-
-        {facets.skills.length > 0 && (
-          <ChipGroup
-            label="Skills"
-            options={facets.skills.map((s) => ({ value: s, label: s }))}
-            selected={new Set(filters.skills)}
-            onToggle={(v) => url.toggle("skill", v)}
-          />
-        )}
-
-        {gradYearBounds && (
-          <RangeFilter
-            label="Graduation year"
-            hint={` — range ${gradYearBounds.min}–${gradYearBounds.max}`}
-            type="number"
-            bounds={gradYearBounds}
-            from={filters.gradMin}
-            to={filters.gradMax}
-            fromLabel="Graduation year from"
-            toLabel="Graduation year to"
-            fromPlaceholder={`From ${gradYearBounds.min}`}
-            toPlaceholder={`To ${gradYearBounds.max}`}
-            // Every keystroke here is a database query, so wait for the field
-            // to be finished with rather than filtering on a half-typed year.
-            commitOn="blur"
-            onFromChange={(v) => url.apply({ gradMin: v })}
-            onToChange={(v) => url.apply({ gradMax: v })}
-          />
-        )}
-      </FilterPanel>
-
-      {/* A pending navigation dims the current page rather than replacing it
-          with a skeleton: the results are still valid, just about to change,
-          and swapping them for placeholders on every keystroke would flash. */}
-      <div className={`relative ${url.pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={url.pending || undefined}>
-        {url.pending && <Updating />}
-        {members.length === 0 ? (
-          <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
-            {facets.total === 0 ? "No members yet." : "No members match your search or filters."}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {members.map((m) => <MemberCard key={m.id} member={m} onClick={() => setOpenMember(m)} />)}
-          </div>
-        )}
-      </div>
+      <MemberResultsGrid members={members} facets={facets} pending={url.pending} onOpenMember={setOpenMember} />
 
       <Pager
         url={url}
@@ -202,5 +122,122 @@ export default function MembersClient({
         <MemberDialog member={openMember} onClose={() => setOpenMember(null)} />
       )}
     </>
+  );
+}
+
+// ─── Filter controls ──────────────────────────────────────────────────
+function MemberFilterPanel({
+  facets, filters, matching, gradYearBounds, activeFilterCount, url,
+}: {
+  facets: Facets;
+  filters: MemberFilters;
+  matching: number;
+  gradYearBounds: { min: number; max: number } | null;
+  activeFilterCount: number;
+  url: UrlFilters;
+}) {
+  return (
+    <FilterPanel
+      activeCount={activeFilterCount}
+      onClear={() => url.clear("role", "course", "sector", "skill", "gradMin", "gradMax")}
+      resultCount={
+        <>
+          {matching === facets.total ? `${facets.total}` : `${matching} of ${facets.total}`}
+          <span className="sr-only"> members match</span>
+        </>
+      }
+    >
+      {facets.unavailable && (
+        <p role="status" className="text-[0.8rem] text-text-muted">
+          Couldn&apos;t load the course, sector and skill filters. Reload to try again.
+        </p>
+      )}
+      <ChipGroup
+        label="Role"
+        options={[
+          { value: "student", label: "Students" },
+          { value: "alum",    label: "Alumni" },
+        ]}
+        selected={new Set(filters.roles)}
+        onToggle={(v) => url.toggle("role", v)}
+      />
+
+      {facets.courses.length > 0 && (
+        <SearchableMultiSelect
+          label="Course"
+          options={facets.courses}
+          selected={new Set(filters.courses)}
+          onChange={(next) => url.apply({ course: [...next] })}
+          placeholder="Filter by course — search or pick"
+          emptyText="No course matches that search."
+        />
+      )}
+
+      {facets.sectors.length > 0 && (
+        <ChipGroup
+          label="Sectors"
+          options={facets.sectors.map((s) => ({ value: s, label: s }))}
+          selected={new Set(filters.sectors)}
+          onToggle={(v) => url.toggle("sector", v)}
+        />
+      )}
+
+      {facets.skills.length > 0 && (
+        <ChipGroup
+          label="Skills"
+          options={facets.skills.map((s) => ({ value: s, label: s }))}
+          selected={new Set(filters.skills)}
+          onToggle={(v) => url.toggle("skill", v)}
+        />
+      )}
+
+      {gradYearBounds && (
+        <RangeFilter
+          label="Graduation year"
+          hint={` — range ${gradYearBounds.min}–${gradYearBounds.max}`}
+          type="number"
+          bounds={gradYearBounds}
+          from={filters.gradMin}
+          to={filters.gradMax}
+          fromLabel="Graduation year from"
+          toLabel="Graduation year to"
+          fromPlaceholder={`From ${gradYearBounds.min}`}
+          toPlaceholder={`To ${gradYearBounds.max}`}
+          // Every keystroke here is a database query, so wait for the field
+          // to be finished with rather than filtering on a half-typed year.
+          commitOn="blur"
+          onFromChange={(v) => url.apply({ gradMin: v })}
+          onToChange={(v) => url.apply({ gradMax: v })}
+        />
+      )}
+    </FilterPanel>
+  );
+}
+
+// ─── Results grid ───────────────────────────────────────────────────
+function MemberResultsGrid({
+  members, facets, pending, onOpenMember,
+}: {
+  members: DirectoryMember[];
+  facets: Facets;
+  pending: boolean;
+  onOpenMember: (m: DirectoryMember) => void;
+}) {
+  return (
+    // A pending navigation dims the current page rather than replacing it
+    // with a skeleton: the results are still valid, just about to change,
+    // and swapping them for placeholders on every keystroke would flash.
+    <div className={`relative ${pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={pending || undefined}>
+      {pending && <Updating />}
+      {members.length === 0 ? (
+        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+          {facets.total === 0 ? "No members yet." : "No members match your search or filters."}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {members.map((m) => <MemberCard key={m.id} member={m} onClick={() => onOpenMember(m)} />)}
+        </div>
+      )}
+    </div>
   );
 }

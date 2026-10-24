@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Dialog, closeDialog, dialogCloser } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog, dialogCloser } from "@/components/ui/dialogCloser";
 import { Button } from "@/components/ui/Button";
 import { settle } from "@/lib/settle";
 

@@ -13,7 +13,7 @@ import { EmailCopy } from "@/components/connections/EmailCopy";
 import { ConfirmDialog } from "@/components/connections/ConfirmDialog";
 import { AcceptDialog } from "@/components/connections/AcceptDialog";
 import { ReportDialog } from "@/components/connections/ReportDialog";
-import { invalidatePendingBadge } from "@/components/connections/PendingBadge";
+import { invalidatePendingBadge } from "@/components/connections/pendingBadgeStore";
 import {
   removeConnection,
   blockMember,
@@ -35,7 +35,7 @@ import type {
 } from "@/lib/data/connections";
 import { settle } from "@/lib/settle";
 import { Updating } from "@/components/ui/Updating";
-import { track } from "@/components/analytics/PostHogProvider";
+import { track } from "@/lib/analytics/track";
 
 // d3-force is ~30 KB and is used by one optional view that is not the
 // default. Loaded on demand so it never enters the card-view bundle and
@@ -239,11 +239,6 @@ function ConnectionsTab({
     filters.roles.length + filters.courses.length + filters.sectors.length +
     filters.skills.length + (filters.gradMin ? 1 : 0) + (filters.gradMax ? 1 : 0);
 
-  const gradYearBounds =
-    facets && facets.grad_min != null && facets.grad_max != null
-      ? { min: facets.grad_min, max: facets.grad_max }
-      : null;
-
   async function more() {
     if (!cursor) return;
     setLoading(true);
@@ -266,6 +261,72 @@ function ConnectionsTab({
         onChange={setQueryDraft}
       />
 
+      <ConnectionsFilterPanel
+        facets={facets}
+        filters={filters}
+        url={url}
+        activeFilterCount={activeFilterCount}
+        resultCount={graph ? graph.total : page?.total ?? items.length}
+      />
+
+      <ViewToggle view={view} url={url} />
+
+      <ConnectionsResultsView
+        view={view}
+        graph={graph}
+        graphUnavailable={graphUnavailable}
+        activeFilterCount={activeFilterCount}
+        filters={filters}
+        items={items}
+        url={url}
+        displayName={displayName}
+        cursor={cursor}
+        loading={loading}
+        loadError={loadError}
+        onLoadMore={more}
+        onOpen={setOpen}
+        onRemove={setRemoving}
+        onBlock={setBlocking}
+        onReport={setReporting}
+      />
+
+      <ConnectionsTabDialogs
+        open={open}
+        onCloseOpen={() => setOpen(null)}
+        removing={removing}
+        onCloseRemoving={() => setRemoving(null)}
+        blocking={blocking}
+        onCloseBlocking={() => setBlocking(null)}
+        reporting={reporting}
+        onCloseReporting={() => setReporting(null)}
+        onDrop={drop}
+      />
+    </>
+  );
+}
+
+/**
+ * Search facets for Your connections — the role/course/sector/skill/
+ * grad-year filters, plus the "couldn't load" fallback when facets failed
+ * to fetch. Pulled out of ConnectionsTab: it is pure rendering off of
+ * `facets`/`filters`/`url`, no state of its own.
+ */
+function ConnectionsFilterPanel({
+  facets, filters, url, activeFilterCount, resultCount,
+}: {
+  facets: Facets | null;
+  filters: MemberFilters;
+  url: ReturnType<typeof useUrlFilters>;
+  activeFilterCount: number;
+  resultCount: number;
+}) {
+  const gradYearBounds =
+    facets && facets.grad_min != null && facets.grad_max != null
+      ? { min: facets.grad_min, max: facets.grad_max }
+      : null;
+
+  return (
+    <>
       {facets?.unavailable && (
         <p role="status" className="mt-4 text-[0.8rem] text-text-muted">
           Couldn&apos;t load the filters. Reload to try again.
@@ -277,7 +338,7 @@ function ConnectionsTab({
           onClear={() => url.clear("role", "course", "sector", "skill", "gradMin", "gradMax")}
           resultCount={
             <>
-              {graph ? graph.total : page?.total ?? items.length}
+              {resultCount}
               <span className="sr-only"> connections match</span>
             </>
           }
@@ -342,107 +403,228 @@ function ConnectionsTab({
           )}
         </FilterPanel>
       )}
+    </>
+  );
+}
 
-      <ViewToggle view={view} url={url} />
+/**
+ * Graph-or-cards body for Your connections, plus the Load more control.
+ * Pulled out of ConnectionsTab because the view/graph/items branching was
+ * the bulk of that function's control flow; this piece holds no state,
+ * only the row actions passed down as callbacks.
+ */
+function ConnectionsResultsView({
+  view, graph, graphUnavailable, activeFilterCount, filters, items, url,
+  displayName, cursor, loading, loadError, onLoadMore,
+  onOpen, onRemove, onBlock, onReport,
+}: {
+  view: View;
+  graph: GraphData | null;
+  graphUnavailable: boolean;
+  activeFilterCount: number;
+  filters: MemberFilters;
+  items: Connection[];
+  url: ReturnType<typeof useUrlFilters>;
+  displayName: string;
+  cursor: string | null;
+  loading: boolean;
+  loadError: string | null;
+  onLoadMore: () => void;
+  onOpen: (m: DirectoryMember) => void;
+  onRemove: (c: Connection) => void;
+  onBlock: (c: Connection) => void;
+  onReport: (c: Connection) => void;
+}) {
+  return (
+    <>
+      <ConnectionsBody
+        view={view}
+        graph={graph}
+        graphUnavailable={graphUnavailable}
+        activeFilterCount={activeFilterCount}
+        filters={filters}
+        items={items}
+        url={url}
+        displayName={displayName}
+        onOpen={onOpen}
+        onRemove={onRemove}
+        onBlock={onBlock}
+        onReport={onReport}
+      />
 
-      {graphUnavailable ? (
-        // Mid-navigation back to the card view. The same skeleton the graph
-        // itself loads behind, so the swap reads as one load rather than
-        // two, and it is never on screen long enough to need copy.
-        <div
-          className="h-[420px] animate-pulse rounded-2xl border border-border bg-bg-card"
-          aria-busy="true"
-          aria-label="Loading your connections"
-        />
-      ) : view === "graph" && graph ? (
-        graph.nodes.length === 0 ? (
-          <EmptyState
-            title={activeFilterCount > 0 || filters.q ? "Nothing matches those filters." : "No connections yet."}
-            body={
-              activeFilterCount > 0 || filters.q
-                ? "Clear the filters to see everyone you're connected to."
-                : "Find someone in the directory and send them a request. If they accept, you'll each be able to see the other's email address."
-            }
-          />
-        ) : (
-          <ConnectionGraph
-            nodes={graph.nodes}
-            total={graph.total}
-            myName={displayName}
-            // Selecting a node switches to the card view scoped to that
-            // person, rather than opening a dialog from the graph payload.
-            //
-            // Not a shortcut. The graph plots up to 500 nodes while the
-            // card list pages at 48, so a dialog built from what the graph
-            // holds would work for the loaded page and silently do nothing
-            // for everybody else — and it would have no email address on
-            // it, which is the one thing someone clicking a node is trying
-            // to reach. Handing them the card is handing them the answer.
-            onSelect={(id) => {
-              const node = graph.nodes.find((n) => n.id === id);
-              if (!node) return;
-              url.apply({
-                view: null,
-                q: `${node.firstName} ${node.surname}`,
-                cursor: null,
-              });
-            }}
-          />
-        )
-      ) : items.length === 0 ? (
-        <EmptyState
-          title={activeFilterCount > 0 || filters.q ? "Nothing matches those filters." : "No connections yet."}
-          body={
-            activeFilterCount > 0 || filters.q
-              ? "Clear the filters to see everyone you're connected to."
-              : "Find someone in the directory and send them a request. If they accept, you'll each be able to see the other's email address."
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((c) => (
-            <div key={c.connectionId} className="flex flex-col gap-2">
-              <MemberCard member={c} onClick={() => setOpen(c)} />
-              <div className="rounded-xl border border-border bg-bg-card p-3 space-y-2">
-                {c.email ? (
-                  <EmailCopy email={c.email} name={c.firstName} />
-                ) : (
-                  // Only reachable if the other account is mid-deletion:
-                  // the address is joined live from auth.users, never
-                  // snapshot, so it disappears the moment they do.
-                  <p className="text-[0.75rem] text-text-muted">
-                    This member&apos;s address is no longer available.
-                  </p>
-                )}
-                <div className="flex items-center gap-1.5">
-                  <ActionButton
-                    onClick={() => setRemoving(c)}
-                    label={`Remove your connection with ${c.firstName} ${c.surname}`}
-                  >
-                    Remove
-                  </ActionButton>
-                  <ActionButton
-                    onClick={() => setBlocking(c)}
-                    label={`Block ${c.firstName} ${c.surname}`}
-                  >
-                    Block
-                  </ActionButton>
-                  <ActionButton
-                    onClick={() => setReporting(c)}
-                    label={`Report ${c.firstName} ${c.surname}`}
-                  >
-                    Report
-                  </ActionButton>
-                </div>
-              </div>
+      {view === "cards" && <LoadMore cursor={cursor} loading={loading} error={loadError} onClick={onLoadMore} />}
+    </>
+  );
+}
+
+// Same empty copy whether the graph came back with no nodes or the card
+// list came back with no items — the two lists are the same underlying
+// data, just two renderings of it, so this is computed once rather than
+// written out at both call sites below.
+function connectionsEmptyCopy(activeFilterCount: number, filters: MemberFilters) {
+  const filtered = activeFilterCount > 0 || filters.q;
+  return {
+    title: filtered ? "Nothing matches those filters." : "No connections yet.",
+    body: filtered
+      ? "Clear the filters to see everyone you're connected to."
+      : "Find someone in the directory and send them a request. If they accept, you'll each be able to see the other's email address.",
+  };
+}
+
+/**
+ * Picks between the graph-unavailable skeleton, the network graph, the
+ * empty state and the card grid. Split out of ConnectionsResultsView so the
+ * branching that decides WHAT to show is separate from the Load More
+ * control and from the grid's own per-row markup.
+ */
+function ConnectionsBody({
+  view, graph, graphUnavailable, activeFilterCount, filters, items, url, displayName,
+  onOpen, onRemove, onBlock, onReport,
+}: {
+  view: View;
+  graph: GraphData | null;
+  graphUnavailable: boolean;
+  activeFilterCount: number;
+  filters: MemberFilters;
+  items: Connection[];
+  url: ReturnType<typeof useUrlFilters>;
+  displayName: string;
+  onOpen: (m: DirectoryMember) => void;
+  onRemove: (c: Connection) => void;
+  onBlock: (c: Connection) => void;
+  onReport: (c: Connection) => void;
+}) {
+  if (graphUnavailable) {
+    // Mid-navigation back to the card view. The same skeleton the graph
+    // itself loads behind, so the swap reads as one load rather than two,
+    // and it is never on screen long enough to need copy.
+    return (
+      <div
+        className="h-[420px] animate-pulse rounded-2xl border border-border bg-bg-card"
+        aria-busy="true"
+        aria-label="Loading your connections"
+      />
+    );
+  }
+
+  if (view === "graph" && graph) {
+    if (graph.nodes.length === 0) {
+      const copy = connectionsEmptyCopy(activeFilterCount, filters);
+      return <EmptyState title={copy.title} body={copy.body} />;
+    }
+    return (
+      <ConnectionGraph
+        nodes={graph.nodes}
+        total={graph.total}
+        myName={displayName}
+        // Selecting a node switches to the card view scoped to that
+        // person, rather than opening a dialog from the graph payload.
+        //
+        // Not a shortcut. The graph plots up to 500 nodes while the
+        // card list pages at 48, so a dialog built from what the graph
+        // holds would work for the loaded page and silently do nothing
+        // for everybody else — and it would have no email address on
+        // it, which is the one thing someone clicking a node is trying
+        // to reach. Handing them the card is handing them the answer.
+        onSelect={(id) => {
+          const node = graph.nodes.find((n) => n.id === id);
+          if (!node) return;
+          url.apply({
+            view: null,
+            q: `${node.firstName} ${node.surname}`,
+            cursor: null,
+          });
+        }}
+      />
+    );
+  }
+
+  if (items.length === 0) {
+    const copy = connectionsEmptyCopy(activeFilterCount, filters);
+    return <EmptyState title={copy.title} body={copy.body} />;
+  }
+
+  return (
+    <ConnectionsCardGrid items={items} onOpen={onOpen} onRemove={onRemove} onBlock={onBlock} onReport={onReport} />
+  );
+}
+
+/** The actual connections grid: one card plus its action row per connection. */
+function ConnectionsCardGrid({
+  items, onOpen, onRemove, onBlock, onReport,
+}: {
+  items: Connection[];
+  onOpen: (m: DirectoryMember) => void;
+  onRemove: (c: Connection) => void;
+  onBlock: (c: Connection) => void;
+  onReport: (c: Connection) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {items.map((c) => (
+        <div key={c.connectionId} className="flex flex-col gap-2">
+          <MemberCard member={c} onClick={() => onOpen(c)} />
+          <div className="rounded-xl border border-border bg-bg-card p-3 space-y-2">
+            {c.email ? (
+              <EmailCopy email={c.email} name={c.firstName} />
+            ) : (
+              // Only reachable if the other account is mid-deletion:
+              // the address is joined live from auth.users, never
+              // snapshot, so it disappears the moment they do.
+              <p className="text-[0.75rem] text-text-muted">
+                This member&apos;s address is no longer available.
+              </p>
+            )}
+            <div className="flex items-center gap-1.5">
+              <ActionButton
+                onClick={() => onRemove(c)}
+                label={`Remove your connection with ${c.firstName} ${c.surname}`}
+              >
+                Remove
+              </ActionButton>
+              <ActionButton
+                onClick={() => onBlock(c)}
+                label={`Block ${c.firstName} ${c.surname}`}
+              >
+                Block
+              </ActionButton>
+              <ActionButton
+                onClick={() => onReport(c)}
+                label={`Report ${c.firstName} ${c.surname}`}
+              >
+                Report
+              </ActionButton>
             </div>
-          ))}
+          </div>
         </div>
-      )}
+      ))}
+    </div>
+  );
+}
 
-      {view === "cards" && <LoadMore cursor={cursor} loading={loading} error={loadError} onClick={more} />}
-
-      {open && <MemberDialog member={open} onClose={() => setOpen(null)} />}
+/**
+ * The four modals a connections-grid row can open: the profile dialog plus
+ * remove/block/report. Pulled out of ConnectionsTab as one piece since they
+ * share nothing but being conditionally mounted off of that component's
+ * dialog state.
+ */
+function ConnectionsTabDialogs({
+  open, onCloseOpen, removing, onCloseRemoving, blocking, onCloseBlocking,
+  reporting, onCloseReporting, onDrop,
+}: {
+  open: DirectoryMember | null;
+  onCloseOpen: () => void;
+  removing: Connection | null;
+  onCloseRemoving: () => void;
+  blocking: Connection | null;
+  onCloseBlocking: () => void;
+  reporting: Connection | null;
+  onCloseReporting: () => void;
+  onDrop: (connectionId: string) => void;
+}) {
+  return (
+    <>
+      {open && <MemberDialog member={open} onClose={onCloseOpen} />}
 
       {removing && (
         <ConfirmDialog
@@ -461,8 +643,8 @@ function ConnectionsTab({
           }
           confirmLabel="Remove connection"
           onConfirm={() => removeConnection({ connectionId: removing.connectionId })}
-          onSuccess={() => drop(removing.connectionId)}
-          onClose={() => setRemoving(null)}
+          onSuccess={() => onDrop(removing.connectionId)}
+          onClose={onCloseRemoving}
         />
       )}
 
@@ -480,8 +662,8 @@ function ConnectionsTab({
           }
           confirmLabel="Block member"
           onConfirm={() => blockMember({ memberId: blocking.id })}
-          onSuccess={() => drop(blocking.connectionId)}
-          onClose={() => setBlocking(null)}
+          onSuccess={() => onDrop(blocking.connectionId)}
+          onClose={onCloseBlocking}
         />
       )}
 
@@ -489,7 +671,7 @@ function ConnectionsTab({
         <ReportDialog
           connectionId={reporting.connectionId}
           theirName={`${reporting.firstName} ${reporting.surname}`}
-          onClose={() => setReporting(null)}
+          onClose={onCloseReporting}
         />
       )}
     </>
@@ -507,6 +689,7 @@ function PendingTab({
   myEmail: string;
   consentVersion: string;
 }) {
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- seeded once per key={pageKey} remount (see header comment); key already forces resync on filter/tab change, no staleness window
   const [items, setItems] = useState(page.requests);
   const [cursor, setCursor] = useState(page.nextCursor);
   const [loading, setLoading] = useState(false);
@@ -522,7 +705,7 @@ function PendingTab({
     if (!cursor) return;
     setLoading(true);
     setLoadError(null);
-    const res = await loadMorePendingRequests(cursor);
+    const res = await settle(loadMorePendingRequests(cursor));
     setLoading(false);
     if (!res.ok) { setLoadError(res.error); return; }
     setItems((prev) => [...prev, ...res.data.requests]);
@@ -701,6 +884,7 @@ function PendingTab({
 // ────────────────────────────────────────────────────────────────────
 
 function SentTab({ page }: { page: RequestsPage<SentRequest> }) {
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- seeded once per key={pageKey} remount (see header comment); key already forces resync on filter/tab change, no staleness window
   const [items, setItems] = useState(page.requests);
   const [cursor, setCursor] = useState(page.nextCursor);
   const [loading, setLoading] = useState(false);
@@ -712,7 +896,7 @@ function SentTab({ page }: { page: RequestsPage<SentRequest> }) {
     if (!cursor) return;
     setLoading(true);
     setLoadError(null);
-    const res = await loadMoreSentRequests(cursor);
+    const res = await settle(loadMoreSentRequests(cursor));
     setLoading(false);
     if (!res.ok) { setLoadError(res.error); return; }
     setItems((prev) => [...prev, ...res.data.requests]);
@@ -895,12 +1079,12 @@ function EmptyState({ title, body }: { title: string; body: string }) {
       <p className="mx-auto mt-2 max-w-[48ch] text-[0.85rem] text-text-muted leading-relaxed">
         {body}
       </p>
-      <a
+      <Link
         href="/members"
         className="mt-5 inline-flex rounded-lg border border-border-strong bg-white/[0.05] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.10]"
       >
         Browse the directory
-      </a>
+      </Link>
     </div>
   );
 }

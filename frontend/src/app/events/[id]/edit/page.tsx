@@ -20,17 +20,23 @@ function toDatetimeLocal(iso: string): string {
 }
 
 export default async function EditEventPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
+  const [{ id }, { supabase, user, isAdmin, displayName }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
 
   // Need first/last for the organiser default. Guard only returned status,
-  // so re-query the two extra columns.
-  const poster = await posterName(supabase, user.id);
-  if (!poster) notFound();
-
+  // so re-query the two extra columns. Independent of the snapshot lookup
+  // below, so both run concurrently.
+  //
   // The RPC checks caller = poster, so a listing someone else posted
   // comes back empty and 404s here. Status still gates editability.
-  const snapshot = await listingEditSnapshot(supabase, "event", id);
+  const [poster, snapshot] = await Promise.all([
+    posterName(supabase, user.id),
+    listingEditSnapshot(supabase, "event", id),
+  ]);
+  if (!poster) notFound();
+
   const row = snapshot?.row;
   if (!row) notFound();
   // Rejected and expired listings stay closed — there is nothing

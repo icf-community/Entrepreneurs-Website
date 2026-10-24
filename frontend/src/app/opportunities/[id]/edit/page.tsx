@@ -10,8 +10,10 @@ import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditSta
 type Params = { id: string };
 
 export default async function EditOpportunityPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
+  const [{ id }, { supabase, user, isAdmin, displayName }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
 
   // SECURITY DEFINER RPC enforces caller = poster and returns
   // contact_email accordingly (migration 20260530000002).

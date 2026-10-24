@@ -6,6 +6,7 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 import { Button } from "@/components/ui/Button";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { externalHref } from "@/lib/safeUrl";
+import { PosterContactDetails } from "@/components/admin/PosterContactDetails";
 
 type Ev = {
   id: string;
@@ -86,22 +87,11 @@ export default function EventReviewCard({ ev }: { ev: Ev }) {
               {ev.lumaLink} ↗
             </a>
           </DetailBlock>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <DetailBlock label="Poster (signup email)">
-              <p className="text-[0.85rem] text-text-secondary">{ev.postedBy.signupEmail ?? "—"}</p>
-              {ev.postedBy.linkedinUrl && (
-                <a href={externalHref(ev.postedBy.linkedinUrl)} target="_blank" rel="noreferrer noopener" className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">LinkedIn ↗</a>
-              )}
-            </DetailBlock>
-            <DetailBlock label="Public contact email">
-              <p className="text-[0.85rem] text-text-secondary">
-                {ev.contactEmail}
-                <span className="text-text-muted ml-2 text-[0.75rem]">
-                  ({ev.contactEmailVisible ? "visible to members" : "hidden"})
-                </span>
-              </p>
-            </DetailBlock>
-          </div>
+          <PosterContactDetails
+            postedBy={ev.postedBy}
+            contactEmail={ev.contactEmail}
+            contactEmailVisible={ev.contactEmailVisible}
+          />
         </div>
       )}
 

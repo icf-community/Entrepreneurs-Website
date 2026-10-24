@@ -3,9 +3,10 @@
 import { useState, useTransition } from "react";
 import { approveOpportunity, rejectOpportunity } from "./actions";
 import { formatDate } from "@/lib/dates";
-import { Button } from "@/components/ui/Button";
+import { ApprovalActions, RejectionForm } from "@/components/admin/ReviewActions";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { externalHref } from "@/lib/safeUrl";
+import { PosterContactDetails } from "@/components/admin/PosterContactDetails";
 
 type Opportunity = {
   id: string;
@@ -35,6 +36,12 @@ type Opportunity = {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+function formatLocation(o: Opportunity): string {
+  if (o.locationType === "remote") return "Remote";
+  if (o.locationType === "hybrid") return `Hybrid${o.locationText ? ` · ${o.locationText}` : ""}`;
+  return o.locationText || "Onsite";
+}
+
 export default function OpportunityReviewCard({ opportunity: o }: { opportunity: Opportunity }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -45,10 +52,7 @@ export default function OpportunityReviewCard({ opportunity: o }: { opportunity:
   const submittedOn = formatDate(o.createdAt);
   const start = `${MONTHS[o.startMonth - 1]} ${o.startYear}`;
   const deadline = formatDate(o.applicationDeadline);
-  const location =
-    o.locationType === "remote" ? "Remote"
-    : o.locationType === "hybrid" ? `Hybrid${o.locationText ? ` · ${o.locationText}` : ""}`
-    : o.locationText || "Onsite";
+  const location = formatLocation(o);
 
   const handleApprove = () => {
     setError("");
@@ -95,130 +99,87 @@ export default function OpportunityReviewCard({ opportunity: o }: { opportunity:
         </div>
       </button>
 
-      {open && (
-        <div className="px-6 pb-6 pt-1 border-t border-border-subtle space-y-5">
-          <DetailBlock label="Description">
-            <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{o.description}</p>
-          </DetailBlock>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <DetailBlock label="Compensation">
-              <p className="text-[0.85rem] text-text-secondary">{o.pay}</p>
-            </DetailBlock>
-            <DetailBlock label="Location">
-              <p className="text-[0.85rem] text-text-secondary">{location}</p>
-            </DetailBlock>
-            <DetailBlock label="Start date">
-              <p className="text-[0.85rem] text-text-secondary">{start}</p>
-            </DetailBlock>
-            <DetailBlock label="Application deadline">
-              <p className="text-[0.85rem] text-text-secondary">{deadline}</p>
-            </DetailBlock>
-          </div>
-
-          <DetailBlock label="How to apply">
-            {o.applyMethod === "link" ? (
-              <a href={externalHref(o.applyUrl)} target="_blank" rel="noreferrer noopener" className="text-[0.85rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
-                {o.applyUrl} ↗
-              </a>
-            ) : (
-              <p className="text-[0.85rem] text-text-secondary">Via contact email below.</p>
-            )}
-          </DetailBlock>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <DetailBlock label="Poster (signup email)">
-              <p className="text-[0.85rem] text-text-secondary">{o.postedBy.signupEmail ?? "—"}</p>
-              {o.postedBy.linkedinUrl && (
-                <a href={externalHref(o.postedBy.linkedinUrl)} target="_blank" rel="noreferrer noopener" className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">LinkedIn ↗</a>
-              )}
-            </DetailBlock>
-            <DetailBlock label="Public contact email">
-              <p className="text-[0.85rem] text-text-secondary">
-                {o.contactEmail}
-                <span className="text-text-muted ml-2 text-[0.75rem]">
-                  ({o.contactEmailVisible ? "visible to members" : "hidden"})
-                </span>
-              </p>
-            </DetailBlock>
-          </div>
-
-          {(o.sectors.length > 0 || o.skills.length > 0) && (
-            <DetailBlock label="Tags">
-              <div className="flex flex-wrap gap-1.5">
-                {o.sectors.map((s) => (
-                  <span key={`sec-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-accent-muted text-accent-light border border-accent/20">{s}</span>
-                ))}
-                {o.skills.map((s) => (
-                  <span key={`skl-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-white/[0.03] text-text-secondary border border-border">{s}</span>
-                ))}
-              </div>
-            </DetailBlock>
-          )}
-        </div>
-      )}
+      {open && <OpportunityDetails o={o} location={location} start={start} deadline={deadline} />}
 
       {error && <div className="mx-6 mb-3"><ErrorBanner>{error}</ErrorBanner></div>}
 
       <div className="px-6 pb-6">
         {showReject ? (
-          <div className="space-y-3 pt-3 border-t border-border-subtle">
-            <label htmlFor={`reason-${o.id}`} className="block text-[0.75rem] text-text-muted">
-              Reason for rejection (internal — not currently emailed to the poster)
-            </label>
-            <textarea
-              id={`reason-${o.id}`}
-              rows={2}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Pay missing / duplicate / unclear company"
-              className="w-full px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.8rem] text-text-primary placeholder:text-text-muted focus:border-accent/50 resize-none"
-            />
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                onClick={handleReject}
-                disabled={pending || !reason.trim()}
-                variant="danger"
-                size="sm"
-              >
-                {pending ? "Rejecting…" : "Confirm rejection"}
-              </Button>
-              <Button
-                type="button"
-                onClick={() => { setShowReject(false); setReason(""); setError(""); }}
-                disabled={pending}
-                variant="ghost"
-                size="sm"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
+          <RejectionForm
+            id={`reason-${o.id}`}
+            reason={reason}
+            onReasonChange={setReason}
+            placeholder="e.g. Pay missing / duplicate / unclear company"
+            label="Reason for rejection (internal — not currently emailed to the poster)"
+            confirmLabel="Confirm rejection"
+            pending={pending}
+            onConfirm={handleReject}
+            onCancel={() => { setShowReject(false); setReason(""); setError(""); }}
+          />
         ) : (
-          <div className="flex gap-2 pt-3 border-t border-border-subtle">
-            <Button
-              type="button"
-              onClick={handleApprove}
-              disabled={pending}
-              variant="primary"
-              size="sm"
-            >
-              {pending ? "Approving…" : "Approve"}
-            </Button>
-            <Button
-              type="button"
-              onClick={() => setShowReject(true)}
-              disabled={pending}
-              variant="dangerGhost"
-              size="sm"
-            >
-              Reject
-            </Button>
-          </div>
+          <ApprovalActions pending={pending} onApprove={handleApprove} onReject={() => setShowReject(true)} />
         )}
       </div>
     </article>
+  );
+}
+
+function OpportunityDetails({ o, location, start, deadline }: {
+  o: Opportunity;
+  location: string;
+  start: string;
+  deadline: string;
+}) {
+  return (
+    <div className="px-6 pb-6 pt-1 border-t border-border-subtle space-y-5">
+      <DetailBlock label="Description">
+        <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{o.description}</p>
+      </DetailBlock>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <DetailBlock label="Compensation">
+          <p className="text-[0.85rem] text-text-secondary">{o.pay}</p>
+        </DetailBlock>
+        <DetailBlock label="Location">
+          <p className="text-[0.85rem] text-text-secondary">{location}</p>
+        </DetailBlock>
+        <DetailBlock label="Start date">
+          <p className="text-[0.85rem] text-text-secondary">{start}</p>
+        </DetailBlock>
+        <DetailBlock label="Application deadline">
+          <p className="text-[0.85rem] text-text-secondary">{deadline}</p>
+        </DetailBlock>
+      </div>
+
+      <DetailBlock label="How to apply">
+        {o.applyMethod === "link" ? (
+          <a href={externalHref(o.applyUrl)} target="_blank" rel="noreferrer noopener" className="text-[0.85rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
+            {o.applyUrl} ↗
+          </a>
+        ) : (
+          <p className="text-[0.85rem] text-text-secondary">Via contact email below.</p>
+        )}
+      </DetailBlock>
+
+      <PosterContactDetails
+        postedBy={o.postedBy}
+        contactEmail={o.contactEmail}
+        contactEmailVisible={o.contactEmailVisible}
+      />
+
+      {(o.sectors.length > 0 || o.skills.length > 0) && (
+        <DetailBlock label="Tags">
+          <div className="flex flex-wrap gap-1.5">
+            {o.sectors.map((s) => (
+              <span key={`sec-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-accent-muted text-accent-light border border-accent/20">{s}</span>
+            ))}
+            {o.skills.map((s) => (
+              <span key={`skl-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-white/[0.03] text-text-secondary border border-border">{s}</span>
+            ))}
+          </div>
+        </DetailBlock>
+      )}
+    </div>
   );
 }
 

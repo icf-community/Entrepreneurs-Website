@@ -61,6 +61,7 @@ export function useIntakeDraft(
   useEffect(() => {
     try {
       const raw = localStorage.getItem(draftKey(memberId));
+      // react-doctor-disable-next-line no-pass-data-to-parent -- one-time localStorage hydration (gated by a ready ref); can't be read synchronously during render without an SSR/hydration mismatch
       if (raw) setS((prev) => ({ ...prev, ...(JSON.parse(raw) as Draft) }));
     } catch {
       // Corrupt or inaccessible storage — start from the server-seeded state.

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog } from "@/components/ui/dialogCloser";
 import { externalHref } from "@/lib/safeUrl";
 import {
   dayKey,
@@ -251,9 +252,9 @@ function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalIte
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <div key={d} className="px-2 py-2 bg-bg-card text-text-muted uppercase tracking-wider">{d}</div>
         ))}
-        {grid.map((cell, idx) => (
+        {grid.map((cell) => (
           <div
-            key={idx}
+            key={cell.key}
             // Out-of-month days sit on the page colour rather than at reduced
             // opacity: opacity-40 took their dates to 1.8:1 contrast (D4).
             className={`min-h-[88px] p-2 ${cell.inMonth ? "bg-bg-card" : "bg-bg-primary"}`}
@@ -374,7 +375,7 @@ function DetailDialog({ item, onClose }: { item: CalItem; onClose: () => void })
   );
 }
 
-type MonthCell = { day: number; inMonth: boolean; isToday: boolean; items: CalItem[] };
+type MonthCell = { key: string; day: number; inMonth: boolean; isToday: boolean; items: CalItem[] };
 
 /** A calendar month. `month` is 1-12, matching the day keys in lib/dates. */
 type MonthCursor = { year: number; month: number };
@@ -413,18 +414,27 @@ function buildMonthGrid(cursor: MonthCursor, items: CalItem[]): MonthCell[] {
     byDate.set(key, list);
   }
 
+  // Padding cells borrow days from the adjacent month, so their key is
+  // that month's actual calendar date (via shiftMonth, which handles the
+  // December/January wrap) — not the grid position, which an index key
+  // would amount to and which stops being unique the moment a leading and
+  // a trailing pad cell land on the same day-of-month number.
+  const prevCursor = shiftMonth(cursor, -1);
+  const nextCursor = shiftMonth(cursor, 1);
+
   const cells: MonthCell[] = [];
   for (let i = 0; i < startWeekday; i++) {
-    cells.push({ day: prevMonthDays - startWeekday + 1 + i, inMonth: false, isToday: false, items: [] });
+    const day = prevMonthDays - startWeekday + 1 + i;
+    cells.push({ key: dayKey(prevCursor.year, prevCursor.month, day), day, inMonth: false, isToday: false, items: [] });
   }
   for (let d = 1; d <= daysInMonth; d++) {
     const key = dayKey(year, month, d);
-    cells.push({ day: d, inMonth: true, isToday: key === todayKey, items: byDate.get(key) ?? [] });
+    cells.push({ key, day: d, inMonth: true, isToday: key === todayKey, items: byDate.get(key) ?? [] });
   }
   // Fill out to a multiple of 7.
   while (cells.length % 7 !== 0) {
     const day = cells.length - (startWeekday + daysInMonth) + 1;
-    cells.push({ day, inMonth: false, isToday: false, items: [] });
+    cells.push({ key: dayKey(nextCursor.year, nextCursor.month, day), day, inMonth: false, isToday: false, items: [] });
   }
   return cells;
 }

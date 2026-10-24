@@ -6,7 +6,8 @@ import { markedIds } from "@/lib/data/activity";
 import { approvedEvent } from "@/lib/data/events";
 import { formatDateTime, formatDateTimeLong } from "@/lib/dates";
 import EventActions, { ContactOrganiserLink } from "./EventActions";
-import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 import { externalHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
@@ -26,8 +27,10 @@ const BACK = { href: "/events", label: "All events" };
 type Params = { id: string };
 
 export default async function EventPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, isAdmin } = await requireApprovedUser();
+  const [{ id }, { supabase, isAdmin }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
 
   const ev = await approvedEvent(supabase, id);
 

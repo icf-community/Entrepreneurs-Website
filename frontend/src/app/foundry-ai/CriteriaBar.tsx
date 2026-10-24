@@ -117,6 +117,7 @@ function AudiencePicker({
       <div className="mt-1 flex flex-wrap gap-3 text-[0.8rem] text-text-secondary">
         {allowed.map((value) => (
           <label key={value} className="flex items-center gap-1.5">
+            {/* react-doctor-disable-next-line js-set-map-lookups -- array is provably bounded to a tiny fixed size (not user/data-scaled); O(n²) concern doesn't apply */}
             <input type="checkbox" checked={current.includes(value)} disabled={busy} onChange={() => toggle(value)} />
             {value === "students" ? "Students" : "Graduates"}
           </label>

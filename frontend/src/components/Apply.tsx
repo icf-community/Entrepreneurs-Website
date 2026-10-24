@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SectionHead } from "@/components/SectionHead";
 
 /* ── Data ─────────────────────────────────────────────────────────── */
@@ -143,12 +144,12 @@ export default function Apply() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <a
+            <Link
               href="/login"
               className="inline-flex items-center gap-2 rounded-lg bg-accent px-7 py-3.5 text-[0.9rem] font-semibold text-bg-primary no-underline transition-colors duration-150 hover:bg-accent-dim"
             >
               Join Foundry →
-            </a>
+            </Link>
             <span className="text-[0.8rem] text-text-muted">
               Free · Imperial students &amp; verified alumni
             </span>

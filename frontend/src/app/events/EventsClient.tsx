@@ -31,6 +31,7 @@ const MODE_VALUES = MODES.map((m) => m.value);
 const ONLINE_RE = /online|zoom|google meet|teams|lu\.ma|webinar|virtual/i;
 
 export default function EventsClient({
+  // react-doctor-disable-next-line react-doctor/rerender-memo-with-default-value -- component is not wrapped in React.memo; rule's premise doesn't apply here
   items, goingIds = [],
 }: {
   items: FoundryEvent[];

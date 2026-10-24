@@ -5,13 +5,18 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { browserClient } from "@/lib/supabase/browser";
-import { invalidateUnreadBadge } from "@/components/notifications/UnreadBadge";
+import { invalidateUnreadBadge } from "@/components/notifications/unreadBadgeStore";
 import type { Notification } from "@/lib/data/notifications";
-import { track } from "@/components/analytics/PostHogProvider";
+import { track } from "@/lib/analytics/track";
+
+// Hoisted: constructing an Intl.DateTimeFormat is comparatively expensive,
+// and `when` is called once per notification on every render.
+const WHEN_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+});
 
 function when(iso: string): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-    .format(new Date(iso));
+  return WHEN_FORMAT.format(new Date(iso));
 }
 
 export default function NotificationsList({ initial }: { initial: Notification[] }) {
@@ -24,6 +29,7 @@ export default function NotificationsList({ initial }: { initial: Notification[]
     const { error } = await browserClient().rpc("mark_notifications_read", ids ? { p_ids: ids } : {});
     if (error) throw error;
     const now = new Date().toISOString();
+    // react-doctor-disable-next-line js-set-map-lookups -- array is provably bounded to a tiny fixed size (not user/data-scaled); O(n²) concern doesn't apply
     setItems((prev) => prev.map((n) => (!ids || ids.includes(n.id) ? { ...n, readAt: n.readAt ?? now } : n)));
     invalidateUnreadBadge();
   }
@@ -67,7 +73,9 @@ export default function NotificationsList({ initial }: { initial: Notification[]
                   {!n.readAt && <span className="sr-only">Unread: </span>}
                   {n.title}
                 </span>
-                <span className="shrink-0 text-[0.72rem] text-text-muted">{when(n.createdAt)}</span>
+                {/* suppressHydrationWarning: formats in the viewer's local
+                    zone, which legitimately differs from the server's. */}
+                <span className="shrink-0 text-[0.72rem] text-text-muted" suppressHydrationWarning>{when(n.createdAt)}</span>
               </span>
               {n.body && <span className="mt-1 block text-[0.8rem] text-text-muted">{n.body}</span>}
             </>

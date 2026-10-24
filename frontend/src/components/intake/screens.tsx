@@ -5,7 +5,8 @@ import { inputCls } from "@/components/forms/styles";
 import { ChipGroup, type ChipItem } from "@/components/forms/ChipGroup";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { AvatarCropper } from "@/components/media/AvatarCropper";
-import { MemberDialog, memberSubtitle } from "@/components/members/MemberDialog";
+import { MemberDialog } from "@/components/members/MemberDialog";
+import { memberSubtitle } from "@/components/members/memberSubtitle";
 import type { DirectoryMember } from "@/lib/data/directory";
 import {
   MAX_CORE_SKILLS,
@@ -562,9 +563,11 @@ export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: Sc
 // ─── 04 · Skills ─────────────────────────────────────────────────────
 
 export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading, suggestionsGaveUp, rejectingCv, onRejectCv }: ScreenProps) {
+  const skillIdSet = new Set(s.skillIds);
+  const taxonomyById = new Map(skillTaxonomy.map((t) => [t.id, t]));
   const suggested = s.suggestedSkillIds
-    .filter((id) => !s.skillIds.includes(id))
-    .map((id) => skillTaxonomy.find((t) => t.id === id))
+    .filter((id) => !skillIdSet.has(id))
+    .map((id) => taxonomyById.get(id))
     .filter((t): t is SkillOption => !!t);
 
   const add = (id: number) => patch({ skillIds: [...s.skillIds, id] });
@@ -710,6 +713,7 @@ const YES_NO: { value: "yes" | "no"; label: string }[] = [
 export function WhereScreen({ s, patch }: ScreenProps) {
   const nameId = useId();
   const urlId = useId();
+  const oneLinerId = useId();
   const showDetail = VENTURE_STAGES_WITH_DETAIL.has(s.ventureStage);
 
   return (
@@ -783,8 +787,9 @@ export function WhereScreen({ s, patch }: ScreenProps) {
             </Field>
           </div>
 
-          <Field label="One line on what it does">
+          <Field label="One line on what it does" htmlFor={oneLinerId}>
             <input
+              id={oneLinerId}
               type="text"
               maxLength={140}
               value={s.ventureOneLiner}

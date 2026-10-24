@@ -243,34 +243,9 @@ export default function Sidebar({
   const primary = full ? PRIMARY : IN_REVIEW;
   const secondary = full ? SECONDARY : SECONDARY.filter((i) => i.key === "settings");
 
-  const row = (it: Item) => {
-    const on = it.key === active;
-    return (
-      <li key={it.key}>
-        <Link
-          href={it.href}
-          onClick={onNavigate}
-          aria-current={on ? "page" : undefined}
-          title={collapsed ? it.label : undefined}
-          className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-[0.825rem] no-underline transition-colors duration-150 ${
-            on
-              ? "border-border-strong bg-white/[0.08] font-medium text-text-primary"
-              : "border-transparent text-text-secondary hover:border-border hover:bg-white/[0.04] hover:text-text-primary"
-          }`}
-        >
-          {it.icon}
-          {!collapsed && <span className="truncate">{it.label}</span>}
-          <LinkPending />
-          {/* Only the Connections row carries a count, and only when
-              there is one. It fails to nothing — see PendingBadge. The
-              collapsed rail drops it: a bare number beside an unlabelled
-              icon says nothing, and the row is 4.5rem wide. */}
-          {it.key === "connections" && !collapsed && full && <PendingBadge />}
-          {it.key === "notifications" && !collapsed && full && <UnreadBadge />}
-        </Link>
-      </li>
-    );
-  };
+  const row = (it: Item) => (
+    <NavRow key={it.key} item={it} active={active} collapsed={collapsed} full={full} onNavigate={onNavigate} />
+  );
 
   return (
     <div
@@ -278,34 +253,7 @@ export default function Sidebar({
         collapsed ? "w-[4.5rem]" : "w-[15rem]"
       }`}
     >
-      {/* showWordmark={false}: the lockup asset is ~5:1, so at h-6 it is
-          already ~119px. With the "FOUNDRY" wordmark and the collapse button
-          beside it the header came to ~272px inside a 240px rail, and the
-          button rendered on top of the mark. The lockup carries the brand on
-          its own here; the page heading carries the rest.
-          overflow-hidden so a future change clips instead of overlapping. */}
-      <div
-        className={`flex items-center gap-2 overflow-hidden px-4 py-5 ${
-          collapsed ? "justify-center" : "justify-between"
-        }`}
-      >
-        {!collapsed && (
-          <Link href="/home" className="min-w-0 no-underline" onClick={onNavigate}>
-            <BrandLogo size="sm" showWordmark={false} priority />
-          </Link>
-        )}
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          aria-expanded={!collapsed}
-          className="hidden h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary lg:flex"
-        >
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            {collapsed ? <path d="M7 4l6 6-6 6" /> : <path d="M13 4l-6 6 6 6" />}
-          </svg>
-        </button>
-      </div>
+      <SidebarHeader collapsed={collapsed} onToggle={toggle} onNavigate={onNavigate} />
 
       <nav aria-label="Main" className="flex-1 overflow-y-auto px-3">
         {primary.length > 0 && (
@@ -318,51 +266,143 @@ export default function Sidebar({
         <ul className="space-y-1">{secondary.map(row)}</ul>
       </nav>
 
-      <div className="space-y-2 border-t border-border-subtle p-3">
-        {isAdmin && (
-          <Link
-            href="/admin"
-            onClick={onNavigate}
-            title={collapsed ? "Admin" : undefined}
-            className="flex items-center gap-3 rounded-lg border border-border-strong bg-white/[0.05] px-3 py-2 text-[0.8rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
-          >
-            <span aria-hidden className="w-[18px] shrink-0 text-center">←</span>
-            {!collapsed && <span className="truncate">Admin</span>}
-          </Link>
-        )}
+      <SidebarFooter collapsed={collapsed} isAdmin={isAdmin} name={name} onNavigate={onNavigate} />
+    </div>
+  );
+}
+
+// ─── One nav row ────────────────────────────────────────────────────
+function NavRow({
+  item, active, collapsed, full, onNavigate,
+}: {
+  item: Item;
+  active: NavKey;
+  collapsed: boolean;
+  full: boolean;
+  onNavigate?: () => void;
+}) {
+  const on = item.key === active;
+  return (
+    <li>
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={on ? "page" : undefined}
+        title={collapsed ? item.label : undefined}
+        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-[0.825rem] no-underline transition-colors duration-150 ${
+          on
+            ? "border-border-strong bg-white/[0.08] font-medium text-text-primary"
+            : "border-transparent text-text-secondary hover:border-border hover:bg-white/[0.04] hover:text-text-primary"
+        }`}
+      >
+        {item.icon}
+        {!collapsed && <span className="truncate">{item.label}</span>}
+        <LinkPending />
+        {/* Only the Connections row carries a count, and only when
+            there is one. It fails to nothing — see PendingBadge. The
+            collapsed rail drops it: a bare number beside an unlabelled
+            icon says nothing, and the row is 4.5rem wide. */}
+        {item.key === "connections" && !collapsed && full && <PendingBadge />}
+        {item.key === "notifications" && !collapsed && full && <UnreadBadge />}
+      </Link>
+    </li>
+  );
+}
+
+// ─── Brand + collapse toggle ────────────────────────────────────────
+function SidebarHeader({
+  collapsed, onToggle, onNavigate,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  onNavigate?: () => void;
+}) {
+  return (
+    // showWordmark={false}: the lockup asset is ~5:1, so at h-6 it is
+    // already ~119px. With the "FOUNDRY" wordmark and the collapse button
+    // beside it the header came to ~272px inside a 240px rail, and the
+    // button rendered on top of the mark. The lockup carries the brand on
+    // its own here; the page heading carries the rest.
+    // overflow-hidden so a future change clips instead of overlapping.
+    <div
+      className={`flex items-center gap-2 overflow-hidden px-4 py-5 ${
+        collapsed ? "justify-center" : "justify-between"
+      }`}
+    >
+      {!collapsed && (
+        <Link href="/home" className="min-w-0 no-underline" onClick={onNavigate}>
+          <BrandLogo size="sm" showWordmark={false} priority />
+        </Link>
+      )}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+        aria-expanded={!collapsed}
+        className="hidden h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary lg:flex"
+      >
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          {collapsed ? <path d="M7 4l6 6-6 6" /> : <path d="M13 4l-6 6 6 6" />}
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+// ─── Admin escape hatch + profile chip + sign out ──────────────────
+function SidebarFooter({
+  collapsed, isAdmin, name, onNavigate,
+}: {
+  collapsed: boolean;
+  isAdmin: boolean;
+  name?: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <div className="space-y-2 border-t border-border-subtle p-3">
+      {isAdmin && (
         <Link
-          href="/profile"
+          href="/admin"
           onClick={onNavigate}
-          title={collapsed ? (name ?? "View profile") : undefined}
-          className="flex items-center gap-3 rounded-lg border border-transparent px-2 py-2 no-underline transition-colors duration-150 hover:border-border hover:bg-white/[0.04]"
+          title={collapsed ? "Admin" : undefined}
+          className="flex items-center gap-3 rounded-lg border border-border-strong bg-white/[0.05] px-3 py-2 text-[0.8rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
         >
-          <span
-            aria-hidden
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-strong bg-white/[0.06] text-[0.75rem] font-medium text-text-primary"
-          >
-            {name?.trim().charAt(0).toUpperCase() || (
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-                <circle cx="10" cy="7" r="3" />
-                <path d="M4 17c0-3 2.7-4.5 6-4.5s6 1.5 6 4.5" />
-              </svg>
+          <span aria-hidden className="w-[18px] shrink-0 text-center">←</span>
+          {!collapsed && <span className="truncate">Admin</span>}
+        </Link>
+      )}
+      <Link
+        href="/profile"
+        onClick={onNavigate}
+        title={collapsed ? (name ?? "View profile") : undefined}
+        className="flex items-center gap-3 rounded-lg border border-transparent px-2 py-2 no-underline transition-colors duration-150 hover:border-border hover:bg-white/[0.04]"
+      >
+        <span
+          aria-hidden
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-strong bg-white/[0.06] text-[0.75rem] font-medium text-text-primary"
+        >
+          {name?.trim().charAt(0).toUpperCase() || (
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+              <circle cx="10" cy="7" r="3" />
+              <path d="M4 17c0-3 2.7-4.5 6-4.5s6 1.5 6 4.5" />
+            </svg>
+          )}
+        </span>
+        {!collapsed && (
+          <span className="min-w-0">
+            {name ? (
+              <>
+                <span className="block truncate text-[0.8rem] text-text-primary">{name}</span>
+                <span className="block text-[0.7rem] text-text-muted">View profile</span>
+              </>
+            ) : (
+              <span className="block text-[0.8rem] text-text-primary">View profile</span>
             )}
           </span>
-          {!collapsed && (
-            <span className="min-w-0">
-              {name ? (
-                <>
-                  <span className="block truncate text-[0.8rem] text-text-primary">{name}</span>
-                  <span className="block text-[0.7rem] text-text-muted">View profile</span>
-                </>
-              ) : (
-                <span className="block text-[0.8rem] text-text-primary">View profile</span>
-              )}
-            </span>
-          )}
-        </Link>
-        <div className={collapsed ? "flex justify-center" : ""}>
-          <SignOutButton />
-        </div>
+        )}
+      </Link>
+      <div className={collapsed ? "flex justify-center" : ""}>
+        <SignOutButton />
       </div>
     </div>
   );

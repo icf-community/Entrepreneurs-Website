@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog } from "@/components/ui/dialogCloser";
 import { Pager } from "@/components/ui/Pager";
 import { useUrlFilters } from "@/lib/filters/useUrlFilters";
 import { REPORT_CATEGORIES } from "@/lib/validation/posts";
@@ -101,7 +102,10 @@ export default function ReportsClient({
                   <h2 className="mt-3 text-[1rem] font-medium tracking-tight text-text-primary break-words">
                     {report.postTitle}
                   </h2>
-                  <p className="mt-1 text-[0.75rem] text-text-muted">
+                  {/* suppressHydrationWarning: the date below formats in the
+                      viewer's local zone, which legitimately differs from
+                      the server's. */}
+                  <p className="mt-1 text-[0.75rem] text-text-muted" suppressHydrationWarning>
                     Posted by {report.authorName}
                     <span aria-hidden className="mx-1.5">·</span>
                     Reported by {report.reporterName}

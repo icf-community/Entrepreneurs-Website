@@ -1,5 +1,5 @@
 import { cleanName, isValidName, MAX_NAME_LENGTH } from "@/lib/text";
-import { turnstileConfigured } from "@/components/forms/TurnstileWidget";
+import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { isImperialEmail } from "@/lib/auth/imperialEmail";
 import { checkOtpVerifyRateLimit } from "@/lib/auth/verifyOtpGate";
 import type { createClient } from "@/lib/supabase/client";

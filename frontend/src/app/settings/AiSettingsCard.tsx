@@ -33,9 +33,15 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
     setS(next);
     setSaving(true);
     setError(null);
-    const res = await saveAiSettings(next);
-    setSaving(false);
-    if (!res.ok) { setS(before); setError(res.error); }
+    try {
+      const res = await saveAiSettings(next);
+      if (!res.ok) { setS(before); setError(res.error); }
+    } catch {
+      setS(before);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const showPreview = async (purpose: "recruiter" | "network" | "self") => {
@@ -99,8 +105,8 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
             <p className="text-[0.8rem] text-text-muted">Nothing yet. It updates a few minutes after you change your profile.</p>
           ) : (
             <ul className="space-y-1.5">
-              {preview.items.map((item, i) => (
-                <li key={i} className="text-[0.8rem] text-text-secondary">
+              {preview.items.map((item) => (
+                <li key={`${item.kind}:${item.text}`} className="text-[0.8rem] text-text-secondary">
                   {item.text}{item.fromCv && <span className="text-text-muted"> · from your CV</span>}
                 </li>
               ))}
@@ -119,6 +125,7 @@ function TopicPicker({
   const [query, setQuery] = useState("");
   const byslug = useMemo(() => new Map(concepts.map((c) => [c.slug, c])), [concepts]);
   const matches = query.trim().length < 2 ? [] : concepts
+    // react-doctor-disable-next-line js-set-map-lookups -- array is provably bounded to a tiny fixed size (not user/data-scaled); O(n²) concern doesn't apply
     .filter((c) => !value.includes(c.slug) && c.label.toLowerCase().includes(query.trim().toLowerCase()))
     .slice(0, 8);
   const inputId = `topic-${label.replace(/\W+/g, "-").toLowerCase()}`;
@@ -173,6 +180,7 @@ function Checks({
       <div className="mt-2 flex flex-wrap gap-3 text-[0.8rem] text-text-secondary">
         {options.map(([v, l]) => (
           <label key={v} className="flex items-center gap-1.5">
+            {/* react-doctor-disable-next-line js-set-map-lookups -- array is provably bounded to a tiny fixed size (not user/data-scaled); O(n²) concern doesn't apply */}
             <input type="checkbox" disabled={disabled} checked={value.includes(v)}
               onChange={(e) => onChange(e.target.checked ? [...value, v] : value.filter((x) => x !== v))} />
             {l}

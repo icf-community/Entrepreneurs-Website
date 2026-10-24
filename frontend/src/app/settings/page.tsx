@@ -17,9 +17,11 @@ import { anyAiModeEnabled, listConcepts, myAiSettings } from "@/lib/ai/data";
 import { EducationForm } from "@/components/forms/EducationForm";
 import AiSettingsCard from "./AiSettingsCard";
 
-export default async function SettingsPage() {
-  const supabase = await createClient();
-
+// Fetches the settings page's cascading, approval-gated data (connections,
+// education, AI settings only load once we know the member is approved, and
+// AI settings only once we know an AI mode is on) and applies the auth and
+// onboarding gates. Pulled out so the page component's job is rendering.
+async function loadSettingsPageData(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
@@ -55,6 +57,15 @@ export default async function SettingsPage() {
 
   // OAuth-only users have no password to change. Surfaced in the password card.
   const hasPassword = (user.identities ?? []).some((i) => i.provider === "email");
+
+  return { user, profile, isAdmin, connectionSettings, education, aiSettings, concepts, hasPassword };
+}
+
+export default async function SettingsPage() {
+  const supabase = await createClient();
+  const {
+    user, profile, isAdmin, connectionSettings, education, aiSettings, concepts, hasPassword,
+  } = await loadSettingsPageData(supabase);
 
   return (
     <AppShell

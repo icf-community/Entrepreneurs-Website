@@ -2,18 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { Field, FieldError } from "@/components/forms/Field";
+import { Field } from "@/components/forms/Field";
+import { ContactEmailSection } from "@/components/forms/ContactEmailSection";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { inputCls } from "@/components/forms/styles";
-import { TurnstileWidget, turnstileConfigured } from "@/components/forms/TurnstileWidget";
+import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { submitEvent, updateOwnEvent } from "@/app/events/actions";
-import { eventSchema } from "@/lib/validation/listings";
+import { eventSchema, type EventPayload } from "@/lib/validation/listings";
 import { collectFieldErrors, showFieldErrors, FORM_ERROR, type FieldErrors } from "@/lib/validation/fields";
 import { Button } from "@/components/ui/Button";
 import RevisionQueuedNotice from "@/components/forms/RevisionQueuedNotice";
-import { track } from "@/components/analytics/PostHogProvider";
+import { track } from "@/lib/analytics/track";
 
 type Mode = "user" | "admin";
+type Router = ReturnType<typeof useRouter>;
 
 export type EventInitialValues = {
   title: string;
@@ -41,26 +44,203 @@ type Props = {
   reviewOnSave?: boolean;
 };
 
+// The two submit outcomes that leave isLoading untouched (the component
+// navigates away instead) vs. the ones that need it cleared so the form
+// is usable again. Letting the branches hand back a tag, instead of each
+// poking isLoading directly, keeps that one piece of state owned in one
+// place (handleSubmit) — preserving the invariant the no-unowned-async-
+// error-clear rule checks for.
+type EditSubmitOutcome =
+  | { tag: "error"; error: string }
+  | { tag: "staged"; remindAboutLuma: boolean }
+  | { tag: "done" };
+
+async function submitEditedEvent(
+  editingId: string,
+  payload: EventPayload,
+  editVersion: number | undefined,
+  iv: EventInitialValues | undefined,
+  mode: Mode,
+  router: Router,
+): Promise<EditSubmitOutcome> {
+  const res = await updateOwnEvent(editingId, payload, editVersion);
+  if (!res.ok) return { tag: "error", error: res.error };
+
+  track("listing_edited", { kind: "event", mode });
+  if (res.data.staged) {
+    // Only time and place get the Luma reminder: those are the two
+    // fields somebody who already registered has to be told about.
+    return {
+      tag: "staged",
+      remindAboutLuma:
+        payload.eventAtIso !== (iv?.eventAt ? new Date(iv.eventAt).toISOString() : "")
+        || payload.location !== iv?.location,
+    };
+  }
+
+  router.replace("/my-submissions");
+  router.refresh();
+  return { tag: "done" };
+}
+
+type NewSubmitOutcome = { tag: "error"; error: string } | { tag: "done" };
+
+async function submitNewEvent(
+  mode: Mode,
+  turnstileToken: string,
+  payload: EventPayload,
+  router: Router,
+): Promise<NewSubmitOutcome> {
+  const res = await submitEvent({ mode, turnstileToken, payload });
+  if (!res.ok) return { tag: "error", error: res.error };
+
+  track("listing_submitted", { kind: "event", mode });
+  router.replace(mode === "admin" ? "/admin/events" : "/events?submitted=1");
+  router.refresh();
+  return { tag: "done" };
+}
+
+function submitButtonLabel(editingId: string | undefined, reviewOnSave: boolean | undefined, mode: Mode) {
+  if (editingId) return reviewOnSave ? "Submit changes for review" : "Save changes";
+  return mode === "admin" ? "Publish event" : "Submit for review";
+}
+
+// Collapses every `iv?.field ?? default` pair the component used to
+// compute inline, one per useState call, into a single fallback lookup.
+function initialEventValues(iv: EventInitialValues | undefined, defaultOrganiser: string): EventInitialValues {
+  return iv ?? {
+    title: "",
+    description: "",
+    lumaLink: "",
+    eventAt: "",
+    location: "",
+    organiserName: defaultOrganiser,
+    contactEmail: "",
+    contactEmailVisible: false,
+  };
+}
+
+type ValidationResult =
+  | { ok: true; data: EventPayload }
+  | { ok: false; formError?: string; fieldErrors: FieldErrors };
+
+// Same schema the server action runs, so every failing field is reported
+// at once and the two definitions can't drift apart.
+function validateEventForm(values: {
+  title: string;
+  description: string;
+  lumaLink: string;
+  eventAt: string;
+  location: string;
+  organiserName: string;
+  contactEmail: string;
+  contactEmailVisible: boolean;
+  isSocietyEvent?: boolean;
+}): ValidationResult {
+  const parsed = collectFieldErrors(eventSchema, {
+    title:                 values.title.trim(),
+    description:           values.description.trim(),
+    lumaLink:               values.lumaLink.trim(),
+    eventAtIso:             values.eventAt ? new Date(values.eventAt).toISOString() : "",
+    location:               values.location.trim(),
+    organiserName:          values.organiserName.trim(),
+    contactEmail:           values.contactEmail,
+    contactEmailVisible:    values.contactEmailVisible,
+    isSocietyEvent:         values.isSocietyEvent,
+  });
+  if (!parsed.ok) return { ok: false, formError: parsed.errors[FORM_ERROR], fieldErrors: parsed.errors };
+  return { ok: true, data: parsed.data };
+}
+
+// Applies the side effects for each submit outcome, keeping isLoading's
+// clear/don't-clear decision (the invariant no-unowned-async-error-clear
+// checks for) in one place per path instead of scattered through the
+// component.
+function applyEditOutcome(
+  outcome: EditSubmitOutcome,
+  setError: (error: string) => void,
+  setStaged: (staged: { remindAboutLuma: boolean } | null) => void,
+  setIsLoading: (loading: boolean) => void,
+) {
+  if (outcome.tag === "error") {
+    setError(outcome.error);
+    setIsLoading(false);
+    return;
+  }
+  if (outcome.tag === "staged") {
+    setStaged({ remindAboutLuma: outcome.remindAboutLuma });
+    setIsLoading(false);
+    return;
+  }
+  // "done" navigated away; isLoading intentionally stays true.
+}
+
+function applyNewOutcome(
+  outcome: NewSubmitOutcome,
+  setError: (error: string) => void,
+  setIsLoading: (loading: boolean) => void,
+) {
+  if (outcome.tag === "error") {
+    setError(outcome.error);
+    setIsLoading(false);
+  }
+  // "done" navigated away; isLoading intentionally stays true.
+}
+
+function ErrorBannerIfAny({ error }: { error: string }) {
+  if (!error) return null;
+  return <ErrorBanner>{error}</ErrorBanner>;
+}
+
+function TurnstileSection({ show, onToken }: { show: boolean; onToken: (token: string) => void }) {
+  if (!show) return null;
+  return <TurnstileWidget onToken={onToken} />;
+}
+
+// Admin-only toggle: mark a direct-published event as an official society
+// event (rendered accent in the directory) vs. an external one. Hidden for
+// members and on edits; the DB trigger rejects non-admin attempts regardless.
+function SocietyTypeField({
+  show, value, onChange, error,
+}: {
+  show: boolean;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  error?: string;
+}) {
+  if (!show) return null;
+  return (
+    <Field label="Event type" required hint="Society events are highlighted in accent in the directory." error={error}>
+      <select
+        value={value ? "society" : "external"}
+        onChange={(e) => onChange(e.target.value === "society")}
+        className={inputCls}
+      >
+        <option value="external">External event</option>
+        <option value="society">Society event</option>
+      </select>
+    </Field>
+  );
+}
+
 export default function EventForm({ signupEmail, defaultOrganiser, mode, editingId, editVersion, initialValues, reviewOnSave }: Props) {
   const router = useRouter();
 
   const iv = initialValues;
   const initialContactIsCustom = !!iv && iv.contactEmail.toLowerCase() !== signupEmail.toLowerCase();
+  const initial = initialEventValues(iv, defaultOrganiser);
 
-  const [title, setTitle] = useState(iv?.title ?? "");
-  const [description, setDescription] = useState(iv?.description ?? "");
-  const [lumaLink, setLumaLink] = useState(iv?.lumaLink ?? "");
-  const [eventAt, setEventAt] = useState(iv?.eventAt ?? "");
-  const [location, setLocation] = useState(iv?.location ?? "");
-  const [organiserName, setOrganiserName] = useState(iv?.organiserName ?? defaultOrganiser);
+  const [title, setTitle] = useState(initial.title);
+  const [description, setDescription] = useState(initial.description);
+  const [lumaLink, setLumaLink] = useState(initial.lumaLink);
+  const [eventAt, setEventAt] = useState(initial.eventAt);
+  const [location, setLocation] = useState(initial.location);
+  const [organiserName, setOrganiserName] = useState(initial.organiserName);
   const [useCustomContact, setUseCustomContact] = useState(initialContactIsCustom);
   const [customContactEmail, setCustomContactEmail] = useState(initialContactIsCustom ? iv!.contactEmail : "");
-  const [contactEmailVisible, setContactEmailVisible] = useState(iv?.contactEmailVisible ?? false);
+  const [contactEmailVisible, setContactEmailVisible] = useState(initial.contactEmailVisible);
   const [isSocietyEvent, setIsSocietyEvent] = useState(false);
 
-  // Admin-only: mark a direct-published event as an official society event
-  // (rendered accent in the directory) vs. an external one. Hidden for members
-  // and on edits; the DB trigger rejects non-admin attempts regardless.
   const showSocietyToggle = mode === "admin" && !editingId;
 
   const [isLoading, setIsLoading] = useState(false);
@@ -75,6 +255,7 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError("");
     setFieldErrors({});
 
@@ -82,63 +263,37 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
       setError("Please complete the verification challenge below."); return;
     }
 
-    // Same schema the server action runs, so every failing field is
-    // reported at once and the two definitions can't drift apart.
-    const parsed = collectFieldErrors(eventSchema, {
-      title:                 title.trim(),
-      description:           description.trim(),
-      lumaLink:              lumaLink.trim(),
-      eventAtIso:            eventAt ? new Date(eventAt).toISOString() : "",
-      location:              location.trim(),
-      organiserName:         organiserName.trim(),
-      contactEmail:          useCustomContact ? customContactEmail.trim() : signupEmail,
+    const result = validateEventForm({
+      title, description, lumaLink, eventAt, location, organiserName,
+      contactEmail: useCustomContact ? customContactEmail.trim() : signupEmail,
       contactEmailVisible,
-      isSocietyEvent:        showSocietyToggle ? isSocietyEvent : undefined,
+      isSocietyEvent: showSocietyToggle ? isSocietyEvent : undefined,
     });
-    if (!parsed.ok) {
-      if (parsed.errors[FORM_ERROR]) setError(parsed.errors[FORM_ERROR]);
-      showFieldErrors(parsed.errors, setFieldErrors, formRef.current);
+    if (!result.ok) {
+      if (result.formError) setError(result.formError);
+      showFieldErrors(result.fieldErrors, setFieldErrors, formRef.current);
       return;
     }
-    const payload = parsed.data;
+    const payload = result.data;
 
     setIsLoading(true);
-
-    if (editingId) {
-      const res = await updateOwnEvent(editingId, payload, editVersion);
-      if (!res.ok) {
-        setError(res.error);
-        setIsLoading(false);
+    try {
+      if (editingId) {
+        const outcome = await submitEditedEvent(editingId, payload, editVersion, iv, mode, router);
+        applyEditOutcome(outcome, setError, setStaged, setIsLoading);
         return;
       }
-      track("listing_edited", { kind: "event", mode });
-      if (res.data.staged) {
-        // Only time and place get the Luma reminder: those are the two
-        // fields somebody who already registered has to be told about.
-        setStaged({
-          remindAboutLuma:
-            payload.eventAtIso !== (iv?.eventAt ? new Date(iv.eventAt).toISOString() : "")
-            || payload.location !== iv?.location,
-        });
-        setIsLoading(false);
-        return;
-      }
-      router.replace("/my-submissions");
-      router.refresh();
-      return;
-    }
 
-    const res = await submitEvent({ mode, turnstileToken, payload });
-
-    if (!res.ok) {
-      setError(res.error);
+      const outcome = await submitNewEvent(mode, turnstileToken, payload, router);
+      applyNewOutcome(outcome, setError, setIsLoading);
+    } catch {
+      // An unhandled rejection (network blip invoking the server action,
+      // not a typed Result failure) would otherwise leave isLoading stuck
+      // true forever, with the submit button disabled until a refresh.
+      setError("Something went wrong. Please try again.");
+      // react-doctor-disable-next-line react-doctor/no-unowned-async-error-clear -- overlapping submits are structurally impossible: no await between the isLoading guard and setIsLoading(true), and the submit button is disabled while loading
       setIsLoading(false);
-      return;
     }
-
-    track("listing_submitted", { kind: "event", mode });
-    router.replace(mode === "admin" ? "/admin/events" : "/events?submitted=1");
-    router.refresh();
   };
 
   if (staged) {
@@ -153,20 +308,9 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
-      {error && <ErrorBanner>{error}</ErrorBanner>}
+      <ErrorBannerIfAny error={error} />
 
-      {showSocietyToggle && (
-        <Field label="Event type" required hint="Society events are highlighted in accent in the directory." error={fieldErrors.isSocietyEvent}>
-          <select
-            value={isSocietyEvent ? "society" : "external"}
-            onChange={(e) => setIsSocietyEvent(e.target.value === "society")}
-            className={inputCls}
-          >
-            <option value="external">External event</option>
-            <option value="society">Society event</option>
-          </select>
-        </Field>
-      )}
+      <SocietyTypeField show={showSocietyToggle} value={isSocietyEvent} onChange={setIsSocietyEvent} error={fieldErrors.isSocietyEvent} />
 
       <Field label="Title" required error={fieldErrors.title}>
         <input type="text" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} required />
@@ -177,6 +321,7 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
       </Field>
 
       <Field label="Luma link" required error={fieldErrors.lumaLink}>
+        {/* react-doctor-disable-next-line react-doctor/no-placeholder-only-field -- input is a child of the shared <Field label=...> wrapper, which already renders a real associated <label> */}
         <input type="url" maxLength={512} placeholder="https://lu.ma/your-event" value={lumaLink} onChange={(e) => setLumaLink(e.target.value)} className={inputCls} required />
       </Field>
 
@@ -193,35 +338,21 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
         <input type="text" maxLength={200} value={organiserName} onChange={(e) => setOrganiserName(e.target.value)} className={inputCls} required />
       </Field>
 
-      <div className="pt-2 border-t border-border-subtle">
-        <div className="text-[0.85rem] text-text-primary mb-3 mt-3">Contact email</div>
-        <p className="text-[0.75rem] text-text-muted leading-relaxed mb-3">
-          Admins always see your signup email. Tick below to use a different inbox as the public contact.
-        </p>
-        <label className="flex items-center gap-2 text-[0.8rem] text-text-secondary mb-3 cursor-pointer">
-          <input type="checkbox" checked={useCustomContact} onChange={(e) => setUseCustomContact(e.target.checked)} />
-          Use a different contact email
-        </label>
-        <div data-invalid={fieldErrors.contactEmail ? "" : undefined}>
-          {useCustomContact ? (
-            <input type="email" aria-label="Contact email" placeholder="contact@example.com" value={customContactEmail} onChange={(e) => setCustomContactEmail(e.target.value)} className={inputCls} required />
-          ) : (
-            <div className="px-4 py-3 bg-white/[0.02] border border-border-subtle rounded-lg text-[0.8rem] text-text-muted">
-              {signupEmail}
-            </div>
-          )}
-          <FieldError>{fieldErrors.contactEmail}</FieldError>
-        </div>
-        <label className="flex items-start gap-2 text-[0.8rem] text-text-secondary mt-3 cursor-pointer">
-          <input type="checkbox" className="mt-0.5" checked={contactEmailVisible} onChange={(e) => setContactEmailVisible(e.target.checked)} />
-          <span>
-            Make this contact email visible to community members.
-            <span className="text-text-muted block text-[0.75rem] mt-0.5">If unchecked, attendees use the Luma link to RSVP.</span>
-          </span>
-        </label>
-      </div>
+      <ContactEmailSection
+        signupEmail={signupEmail}
+        useCustomContact={useCustomContact}
+        onUseCustomContactChange={setUseCustomContact}
+        customContactEmail={customContactEmail}
+        onCustomContactEmailChange={setCustomContactEmail}
+        contactEmailVisible={contactEmailVisible}
+        onContactEmailVisibleChange={setContactEmailVisible}
+        error={fieldErrors.contactEmail}
+        description="Admins always see your signup email. Tick below to use a different inbox as the public contact."
+        visibleLabel="Make this contact email visible to community members."
+        visibleHelp="If unchecked, attendees use the Luma link to RSVP."
+      />
 
-      {showTurnstile && <TurnstileWidget onToken={setTurnstileToken} />}
+      <TurnstileSection show={showTurnstile} onToken={setTurnstileToken} />
 
       <Button
         type="submit"
@@ -230,15 +361,8 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
         size="lg"
         className="w-full mt-3"
       >
-        {editingId ? (
-          reviewOnSave ? "Submit changes for review" : "Save changes"
-        ) : mode === "admin" ? (
-          "Publish event"
-        ) : (
-          "Submit for review"
-        )}
+        {submitButtonLabel(editingId, reviewOnSave, mode)}
       </Button>
     </form>
   );
 }
-

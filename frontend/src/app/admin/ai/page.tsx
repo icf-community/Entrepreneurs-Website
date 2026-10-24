@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { maybeRow, rowsOrThrow } from "@/lib/data/query";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import AiAdminClient, { type AiOverview } from "./AiAdminClient";
 
 // ════════════════════════════════════════════════════════════════════
@@ -28,18 +28,11 @@ export default async function AdminAiPage() {
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-4 sm:px-8 py-12">
       <div className="max-w-[960px] mx-auto">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
-          <div className="min-w-0">
-            <p className="label-wide text-text-secondary mb-3">Admin</p>
-            <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">AI</h1>
-            <p className="text-[0.85rem] text-text-muted mt-2 max-w-[60ch] leading-relaxed">
-              Health and limits for Foundry AI. Totals only; nothing here shows a member&apos;s searches.
-            </p>
-          </div>
-          <Link href="/admin" className="text-[0.8rem] rounded-lg border border-border-strong bg-white/[0.05] px-4 py-1.5 text-text-primary no-underline hover:border-accent">
-            ← Admin home
-          </Link>
-        </div>
+        <AdminPageHeader
+          eyebrow="Admin"
+          title="AI"
+          description="Health and limits for Foundry AI. Totals only; nothing here shows a member's searches."
+        />
         <AiAdminClient
           overview={overview as unknown as AiOverview}
           needingAudience={needingAudience.map((o) => ({
