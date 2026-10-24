@@ -288,8 +288,12 @@ def test_an_avatar_ticket_is_consumed_once(db):
 def test_a_double_submitted_post_is_posted_once(db):
     """The duplicate check exists for exactly this (a double click on a
     slow connection) and missed it whenever the two requests overlapped."""
-    saved = db.execute("select value from public.app_config where key='community_posts_enabled'").fetchone()[0]
-    db.execute("update public.app_config set value='true' where key='community_posts_enabled'")
+    row = db.execute("select value from public.app_config where key='community_posts_enabled'").fetchone()
+    saved = row[0] if row else None
+    db.execute(
+        "insert into public.app_config (key, value) values ('community_posts_enabled', 'true') "
+        "on conflict (key) do update set value = 'true'"
+    )
     try:
         m = db.member("poster")
         title = f"Hello {uuid.uuid4().hex[:6]}"
@@ -302,7 +306,10 @@ def test_a_double_submitted_post_is_posted_once(db):
         assert db.execute("select count(*) from public.posts where author_id = %s and title = %s",
                           (m, title)).fetchone()[0] == 1
     finally:
-        db.execute("update public.app_config set value=%s where key='community_posts_enabled'", (saved,))
+        if saved is None:
+            db.execute("delete from public.app_config where key='community_posts_enabled'")
+        else:
+            db.execute("update public.app_config set value=%s where key='community_posts_enabled'", (saved,))
 
 
 def test_concurrent_like_toggles_never_error(db):

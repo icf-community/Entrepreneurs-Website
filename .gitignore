@@ -92,3 +92,5 @@ envs.txt
 /backups/
 # scripts/audit-local-schema.py output: a point-in-time local DB snapshot.
 /docs/verification/
+# scripts/verify-all.sh per-step logs.
+/.verify-all-logs/
