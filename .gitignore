@@ -1,7 +1,13 @@
-.claude/
 /node_modules/
 tasks/
 venv/
+
+# Claude Code config (settings, hooks, agents, commands) is now checked in.
+# Installed skill packages and transient machine state stay out, same
+# reinstall-not-checkin rationale as .agents/ below.
+.claude/skills/
+.claude/worktrees/
+.claude/scheduled_tasks.lock
 
 # Agent skills installed from upstream (vercel-labs/agent-skills et al.).
 # Assistant tooling, not application code — same call as .claude/ and
