@@ -406,6 +406,50 @@ def test_fetch_readme_excerpt_truncates_long_readmes() -> None:
     assert len(excerpt) == 1500  # README_EXCERPT_CHARS
 
 
+@pytest.mark.parametrize(
+    "full_name",
+    [
+        "octocat/Hello-World",
+        "octo-cat/hello_world.js",
+        "a/b",
+        "myorg/repo.name",
+        "User123/Repo-2",
+    ],
+)
+def test_fetch_readme_excerpt_accepts_valid_full_names(full_name: str) -> None:
+    with patch("app.github_pipeline.requests.get", return_value=_fake_response(200, "readme")) as get:
+        assert _fetch_readme_excerpt("token", full_name) is not None
+    get.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "full_name",
+    [
+        "../../etc/passwd",
+        "octocat/../../etc/passwd",
+        "octocat/repo?x=1",
+        "octocat/repo#frag",
+        "octocat repo/x",
+        "-octocat/repo",
+        "octocat-/repo",
+        "oct--ocat/repo",
+        "octocat/.",
+        "octocat/..",
+        "octocat//repo",
+        "@octocat/repo",
+        "",
+        "octocat",
+    ],
+)
+def test_fetch_readme_excerpt_rejects_malformed_full_names_without_a_request(full_name: str) -> None:
+    """A full_name that doesn't match GitHub's own owner/repo grammar must
+    never reach requests.get — path-traversal and query/fragment tricks are
+    rejected before any network call, same as a missing README."""
+    with patch("app.github_pipeline.requests.get") as get:
+        assert _fetch_readme_excerpt("token", full_name) is None
+    get.assert_not_called()
+
+
 def _fake_chat_response(content: str | None) -> SimpleNamespace:
     message = SimpleNamespace(content=content)
     choice = SimpleNamespace(message=message)

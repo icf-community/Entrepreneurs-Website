@@ -295,11 +295,29 @@ def _repo_impressiveness_score(repo: dict) -> float:
     return stars * 3 + forks * 2 + math.log1p(size_kb) + (5 if has_description else 0)
 
 
+# GitHub's own owner/repo grammar (case-insensitive): an owner segment is
+# alphanumeric or single hyphens, no leading/trailing/doubled hyphen, up to
+# 39 chars; a repo segment is alphanumeric, hyphen, underscore or dot, 1-100
+# chars, not "." or "..". GITHUB_API is a fixed host, so this was never
+# reachable as SSRF, and full_name always comes from GitHub's own API
+# response — but it's never been independently checked against GitHub's own
+# rules before being spliced into a request path, so this is a defensive
+# backstop against that assumption changing later, not a fix for an
+# observed exploit.
+_GITHUB_FULL_NAME_RE = re.compile(
+    r"^(?!-)(?!.*--)[A-Za-z0-9-]{1,39}(?<!-)/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$"
+)
+
+
 def _fetch_readme_excerpt(access_token: str, full_name: str, *, max_chars: int = README_EXCERPT_CHARS) -> str | None:
     """Best-effort context for _select_impressive_repos — a missing README
     (common) or a transient failure (including a rate limit; this is an
     enhancement, not something worth failing the whole scan over) both
-    just mean that candidate is judged with less context, not an error."""
+    just mean that candidate is judged with less context, not an error.
+    An unrecognised full_name shape is treated the same way: skip, don't
+    fetch, rather than build a request path from it."""
+    if not _GITHUB_FULL_NAME_RE.match(full_name):
+        return None
     try:
         response = requests.get(
             f"{GITHUB_API}/repos/{full_name}/readme",
