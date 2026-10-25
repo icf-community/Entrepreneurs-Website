@@ -68,7 +68,9 @@ def is_valid_key(key: object, purpose: TicketPurpose) -> bool:
     """
     if not isinstance(key, str):
         return False
-    return _KEY_PATTERN_FOR_PURPOSE[purpose].match(key) is not None
+    # fullmatch, not match: `$` matches before a trailing newline, so
+    # match() alone would accept a key with one appended (audit follow-up, F9).
+    return _KEY_PATTERN_FOR_PURPOSE[purpose].fullmatch(key) is not None
 
 
 # Must match frontend/src/lib/storage/uploadTicket.ts.

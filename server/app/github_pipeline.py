@@ -316,7 +316,9 @@ def _fetch_readme_excerpt(access_token: str, full_name: str, *, max_chars: int =
     just mean that candidate is judged with less context, not an error.
     An unrecognised full_name shape is treated the same way: skip, don't
     fetch, rather than build a request path from it."""
-    if not _GITHUB_FULL_NAME_RE.match(full_name):
+    # fullmatch, not match: `$` matches before a trailing newline, so
+    # match() alone would accept "octo/repo\n" (audit follow-up, F9).
+    if not _GITHUB_FULL_NAME_RE.fullmatch(full_name):
         return None
     try:
         response = requests.get(
