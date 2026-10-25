@@ -4,7 +4,7 @@
 # of relying on a manual full-repo pass at the end of a session.
 set -euo pipefail
 
-REPO_ROOT="/Users/varunnayak/Downloads/EntrepreneursWebsite"
+REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}"
 FRONTEND_DIR="$REPO_ROOT/frontend"
 
 input="$(cat)"

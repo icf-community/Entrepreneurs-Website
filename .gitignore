@@ -3,18 +3,15 @@ tasks/
 venv/
 
 # Claude Code config (settings, hooks, agents, commands) is now checked in.
-# Installed skill packages and transient machine state stay out, same
-# reinstall-not-checkin rationale as .agents/ below.
-.claude/skills/
+# Skills are versioned with their local symlink targets for portable clones.
+.claude/settings.local.json
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 
-# Agent skills installed from upstream (vercel-labs/agent-skills et al.).
-# Assistant tooling, not application code — same call as .claude/ and
-# tasks/ above. skills-lock.json pins them by hash, so anyone who wants
-# the same set reinstalls rather than inheriting a checked-in copy.
-.agents/
-skills-lock.json
+# Claude skill links resolve into these versioned upstream packages.
+# Keep unrelated agent state private; skills-lock.json records provenance.
+.agents/*
+!.agents/skills/
 
 # Working notes and the running build list. Same call as tasks/ above:
 # planning docs churn faster than the code and aren't the record of what

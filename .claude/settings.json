@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/opt/anaconda3/bin/graphify hook-guard search"
+            "command": "graphify hook-guard search"
           }
         ]
       },
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/opt/anaconda3/bin/graphify hook-guard read"
+            "command": "graphify hook-guard read"
           }
         ]
       }
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /Users/varunnayak/Downloads/EntrepreneursWebsite/.claude/hooks/react-doctor-check.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/react-doctor-check.sh\""
           }
         ]
       }
