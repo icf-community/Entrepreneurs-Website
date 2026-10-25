@@ -85,8 +85,13 @@ def _build_world(conn, tag, members, saved_flags):
                                       "grad_year": 2028 if role == "student" else 2020})))
         with conn.transaction():
             # The trusted-call marker submit_onboarding uses; approval is
-            # otherwise an admin action.
+            # otherwise an admin action. is_committee (20261025000001) is
+            # admin-only too, with no onboarding-GUC escape — this raw
+            # connection has no JWT claims at all otherwise, so fake the
+            # service_role claim for this one setup statement, the same
+            # convention rls_smoke.sql/ai_smoke.sql's own seed blocks use.
             _sql(conn, "select set_config('foundry.onboarding_submission', 'true', true)")
+            _sql(conn, "select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', true)")
             _sql(conn, "update public.profiles set status = 'approved', course = %s, bio_focus = %s, "
                        "bio_hobbies = %s, is_committee = %s, cv_parse_consent = %s where id = %s",
                  (course, bio_focus, hobbies, committee, cv_skills is not None, uid))

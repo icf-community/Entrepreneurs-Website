@@ -5268,6 +5268,105 @@ begin
 end;
 $$;
 
+-- ─── S2. profiles lifecycle columns are locked (20261025000001) ─────
+-- Security audit finding: is_committee/committee_role/created_at and
+-- graduation_confirmed_at/graduation_prompted_at/intake_completed_at/
+-- profile_version had no write guard at all, so an ordinary member could
+-- PATCH their own row directly. The admin RPC path (already covered by
+-- the committee-sync tests elsewhere in this project) and the GUC-marked
+-- self-service RPCs (submit_intake, confirm_my_graduation) must keep
+-- working; a direct write from an ordinary member must not.
+do $$
+declare
+  v_student uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  -- auth.role() reads request.jwt.claims, not the actual Postgres role —
+  -- "set local role postgres" alone doesn't satisfy the protect triggers'
+  -- service_role escape hatch, and the claims GUC leaks forward from
+  -- whichever test ran last (file header note above). Set it explicitly.
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_student, 'lifecycle@imperial.ac.uk', '{"first_name":"Life","surname":"Cycle","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  update public.profiles
+     set status = 'approved', course = 'Computing', grad_year = extract(year from now())::int + 1,
+         cv_path = 'cv/lifecycle.pdf', linkedin_url = 'https://linkedin.com/in/lifecycle'
+   where id = v_student;
+
+  -- Direct writes, as the member themselves: every one of these must fail.
+  perform _set_caller(v_student);
+
+  begin
+    update public.profiles set is_committee = true, committee_role = 'President' where id = v_student;
+    raise exception 'FAIL: a member could self-promote to committee';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    update public.profiles set created_at = '2000-01-01' where id = v_student;
+    raise exception 'FAIL: a member could backdate created_at';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    update public.profiles set graduation_confirmed_at = now() where id = v_student;
+    raise exception 'FAIL: a member could self-set graduation_confirmed_at';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    update public.profiles set intake_completed_at = now(), profile_version = 2 where id = v_student;
+    raise exception 'FAIL: a member could self-set intake_completed_at/profile_version';
+  exception when sqlstate '42501' then null;
+  end;
+
+  -- The legitimate self-service RPC must still work: submit_intake sets
+  -- profile_version and intake_completed_at via the foundry.
+  -- profile_lifecycle_write GUC marker.
+  perform public.submit_intake('Life', 'Focus text long enough.', 'Hobbies text long enough.');
+
+  set local role postgres;
+  if not exists (
+    select 1 from public.profiles
+     where id = v_student and profile_version = 2 and intake_completed_at is not null
+  ) then
+    raise exception 'FAIL: submit_intake could not set profile_version/intake_completed_at after the trigger was added';
+  end if;
+
+  -- The legitimate self-service RPC for graduation must also still work.
+  perform _set_caller(v_student);
+  perform public.confirm_my_graduation(true, false, null);
+  set local role postgres;
+  if not exists (
+    select 1 from public.profiles
+     where id = v_student and role = 'recent_grad' and graduation_confirmed_at is not null
+  ) then
+    raise exception 'FAIL: confirm_my_graduation could not set graduation_confirmed_at after the trigger was added';
+  end if;
+end;
+$$;
+
+-- admin_set_committee (admin-only) must still work directly against the
+-- now-locked is_committee/committee_role columns.
+do $$
+declare
+  v_admin uuid := (select v from _test_ctx where k='admin');
+  v_b     uuid := (select v from _test_ctx where k='user_b');
+begin
+  set local role postgres;
+  perform _set_caller(v_admin);
+  perform public.admin_set_committee(v_b, true, 'Treasurer');
+  set local role postgres;
+  if not exists (
+    select 1 from public.profiles where id = v_b and is_committee and committee_role = 'Treasurer'
+  ) then
+    raise exception 'FAIL: admin_set_committee could not set is_committee/committee_role after the trigger was added';
+  end if;
+  -- Leave user_b as found for any test added after this one in future.
+  perform public.admin_set_committee(v_b, false, null);
+end;
+$$;
+
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
 -- above), so reset to the owner role before dropping the helper function.
