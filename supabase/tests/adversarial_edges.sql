@@ -1707,6 +1707,11 @@ begin
   select value into v_saved_network from public.app_config where key = 'ai_network_enabled';
 
   update public.app_config set value = 'true' where key in ('ai_enabled', 'ai_network_enabled');
+  -- ai_submit_turn (20261025000002) refuses admission while any model it
+  -- prices is unconfirmed; every new model_prices row starts
+  -- confirmed=false by convention, so this setup needs it explicit.
+  update ai_private.model_prices set confirmed = true
+   where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small');
 
   perform _set_caller(v_owner);
   select turn_id, conversation_id into v_turn, v_conv

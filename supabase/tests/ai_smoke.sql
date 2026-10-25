@@ -67,6 +67,13 @@ begin
 
   insert into t values ('student', v_student), ('grad', v_grad), ('unknown', v_unknown), ('poster', v_poster),
                        ('admin', v_admin), ('job', v_job), ('students_job', v_students);
+
+  -- ai_submit_turn (20261025000002) refuses admission while any model it
+  -- prices is unconfirmed — every new model_prices row starts
+  -- confirmed=false by convention, so this suite's own submissions need it
+  -- explicitly confirmed, same as the owner would do before prod use.
+  update ai_private.model_prices set confirmed = true
+   where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small');
 end $$;
 
 
@@ -309,6 +316,20 @@ begin
   if exists (select 1 from public.ai_turn_status(gen_random_uuid())) then
     raise exception 'FAIL: status of a turn that is not yours';
   end if;
+
+  -- 20261025000002: an unconfirmed price on any model the budget estimate
+  -- uses must refuse admission, not silently price it at whatever the
+  -- placeholder says. Un-confirm, probe, then restore for every later test.
+  perform pg_temp.as_owner();
+  update ai_private.model_prices set confirmed = false where model = 'gpt-6.1-sol';
+  perform pg_temp.as_member(v_grad);
+  select * into r2 from public.ai_submit_turn('network', null, null, 'message', 'golang', 'key-0000004b', null, false);
+  if r2.outcome <> 'price_unconfirmed' then
+    raise exception 'FAIL: turn admitted with an unconfirmed model price: %', r2.outcome;
+  end if;
+  perform pg_temp.as_owner();
+  update ai_private.model_prices set confirmed = true where model = 'gpt-6.1-sol';
+  perform pg_temp.as_member(v_grad);
 
   -- the executor: a lease, and a stale one refused
   perform pg_temp.as_owner();

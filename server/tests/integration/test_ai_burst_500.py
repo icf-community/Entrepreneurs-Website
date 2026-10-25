@@ -50,6 +50,11 @@ def members():
     conn = psycopg.connect(DSN, autocommit=True)
     saved_flags = dict(_sql(conn, "select key, value from public.app_config where key like 'ai_%%'"))
     _sql(conn, "update public.app_config set value = 'true' where key in ('ai_enabled', 'ai_network_enabled')")
+    # ai_submit_turn (20261025000002) refuses admission while any model it
+    # prices is unconfirmed; every new model_prices row starts
+    # confirmed=false by convention, so this fixture needs it explicit.
+    _sql(conn, "update ai_private.model_prices set confirmed = true "
+               "where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small')")
     _sql(conn, f"alter role ai_service password '{AI_SERVICE_PASSWORD}'")
     saved_capacity = _sql(conn, "select queue_capacity from ai_private.settings where id = 1")[0][0]
 

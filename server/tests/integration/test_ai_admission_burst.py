@@ -50,6 +50,11 @@ def members():
     saved = dict(conn.execute("select key, value from public.app_config where key like 'ai_%'").fetchall())
     saved_capacity = conn.execute("select queue_capacity from ai_private.settings where id = 1").fetchone()[0]
     conn.execute("update public.app_config set value = 'true' where key in ('ai_enabled', 'ai_network_enabled')")
+    # ai_submit_turn (20261025000002) refuses admission while any model it
+    # prices is unconfirmed; every new model_prices row starts
+    # confirmed=false by convention, so this fixture needs it explicit.
+    conn.execute("update ai_private.model_prices set confirmed = true "
+                 "where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small')")
     ids = []
     tag = uuid.uuid4().hex[:6]
     for i in range(16):
