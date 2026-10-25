@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { isInfraAuthError } from "@/lib/supabase/unavailable";
 import { emailBaseUrl } from "@/lib/siteUrl";
 import {
@@ -127,7 +128,15 @@ export async function GET(request: Request) {
     return redirectBack(origin, returnPath, "error");
   }
 
-  const { error } = await supabase.rpc("confirm_github_connected", {
+  // Security audit fix (2026-10-25, F5): confirm_github_connected now
+  // requires service_role and takes the member id explicitly, rather than
+  // trusting a caller-supplied GitHub identity/token from any
+  // authenticated caller via auth.uid(). The getUser() call above is the
+  // actual authorization check — this just carries its result to the RPC
+  // instead of letting the RPC re-derive (and any other caller
+  // re-define) it.
+  const { error } = await createServiceClient().rpc("confirm_github_connected", {
+    p_member_id: user.id,
     p_github_user_id: ghUser.id,
     p_github_username: ghUser.login,
     p_access_token: tokenJson.access_token,

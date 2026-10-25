@@ -784,7 +784,11 @@ declare
     -- (enqueue_*, due_*, mark_*, reap_stalled_jobs) are deliberately
     -- absent and stay service-role only.
     'get_my_cv_status','get_my_cv_profile',
-    'get_my_github_status','confirm_github_connected','disconnect_github',
+    -- confirm_github_connected is deliberately ABSENT here as of
+    -- 20261025000004 (F5): it's now service_role-only, called from the
+    -- callback route's service client with an explicit member id, not
+    -- re-derivable by any authenticated caller via auth.uid().
+    'get_my_github_status','disconnect_github',
     'get_my_github_showcase','set_my_github_showcase',
     'dismiss_my_github_showcase_prompt','set_my_github_nudges',
     -- post-approval listing revisions (20260907000005). The member pair
@@ -2723,10 +2727,12 @@ begin
   end if;
 
   -- 36b. confirm_github_connected: connection still recorded, scan job does not.
+  -- (20261025000004, F5): now service_role-only with an explicit
+  -- p_member_id, matching the real callback route's service-role client.
   select count(*) into v_scan_before from public.jobs where kind = 'scan_github';
 
-  perform _set_caller(v_m);
-  perform public.confirm_github_connected(123456789, 'kill-switch-octocat', 'fake-token', 'test-encryption-key-not-real');
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  perform public.confirm_github_connected(v_m, 123456789, 'kill-switch-octocat', 'fake-token', 'test-encryption-key-not-real');
   set local role postgres;
 
   select scan_status into v_gh_status from public.github_connections where member_id = v_m;
