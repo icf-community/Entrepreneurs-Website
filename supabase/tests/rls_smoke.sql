@@ -5367,6 +5367,81 @@ begin
 end;
 $$;
 
+-- ─── S3. a banned member can't edit their own listings (20261025000003) ─
+-- Security audit finding: update_event/update_opportunity/update_vc_grant
+-- checked ownership but not is_approved() — a rejected member could still
+-- edit their own already-approved, still-live listing.
+do $$
+declare
+  v_member uuid := gen_random_uuid();
+  v_opp    uuid := gen_random_uuid();
+  v_evt    uuid := gen_random_uuid();
+  v_vc     uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_member, 'ban3@imperial.ac.uk', '{"first_name":"Ban","surname":"Three","role":"alum"}'::jsonb, '{"provider":"email"}'::jsonb);
+  update public.profiles set status = 'approved', course = 'Computing', grad_year = 2020 where id = v_member;
+
+  insert into public.opportunities (
+    id, posted_by, status, position_name, company, pay, location_type, description,
+    start_month, start_year, application_deadline, contact_email, apply_method,
+    approved_at, approved_by, eligible_audience, edit_version, creation_source
+  ) values (
+    v_opp, v_member, 'approved', 'Role', 'Co', '£50k', 'remote',
+    'Description that is at least twenty chars long.', 1, 2027, current_date + 30,
+    'ban3@imperial.ac.uk', 'email', now(), v_member, 'both', 0, 'member'
+  );
+  insert into public.events (
+    id, posted_by, status, title, description, luma_link, event_at, location, organiser_name,
+    contact_email, approved_at, approved_by, edit_version
+  ) values (
+    v_evt, v_member, 'approved', 'Event', 'Description that is at least twenty chars long.',
+    'https://lu.ma/x', now() + interval '10 days', 'Here', 'Org', 'ban3@imperial.ac.uk', now(), v_member, 0
+  );
+  insert into public.vcs_grants (
+    id, posted_by, status, kind, name, description, link, approved_at, approved_by, edit_version
+  ) values (
+    v_vc, v_member, 'approved', 'vc', 'VC', 'Description that is at least twenty chars long.',
+    'https://example.com', now(), v_member, 0
+  );
+  insert into ai_private.job_requirements (opportunity_id, content_version, status) values (v_opp, 1, 'parsed');
+
+  -- Ban the member, then try to edit each listing as them.
+  update public.profiles set status = 'rejected' where id = v_member;
+  perform _set_caller(v_member);
+
+  begin
+    perform public.update_opportunity(v_opp, 'New', 'Co', '£99k', 'remote'::location_type, null,
+      'Description that is at least twenty chars long.', 1::smallint, 2027, current_date + 30,
+      'ban3@imperial.ac.uk', false, 'email'::apply_method, null, '{}'::smallint[], '{}'::smallint[], 'both', 0);
+    raise exception 'FAIL: a banned member could edit their own opportunity';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    perform public.update_event(v_evt, 'New', 'Description that is at least twenty chars long.',
+      'https://lu.ma/y', now() + interval '20 days', 'There', 'Org', 'ban3@imperial.ac.uk', false, 0);
+    raise exception 'FAIL: a banned member could edit their own event';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    perform public.update_vc_grant(v_vc, 'vc'::vc_grant_kind, 'New',
+      'Description that is at least twenty chars long.', 'https://example.com', null, null, null);
+    raise exception 'FAIL: a banned member could edit their own VC/grant listing';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    perform public.ai_confirm_job_requirements(v_opp, '[]'::jsonb, 1);
+    raise exception 'FAIL: a banned member could confirm AI job requirements for their own job';
+  exception when sqlstate '42501' then null;
+  end;
+end;
+$$;
+
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
 -- above), so reset to the owner role before dropping the helper function.
