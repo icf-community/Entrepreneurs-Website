@@ -55,8 +55,25 @@ type VerifiedOtp = {
 //
 // Running verifyOtp here instead — via the cookie-writing server client
 // from lib/supabase/server.ts, same helper src/app/auth/confirm/route.ts
-// already uses for the token_hash link flow — makes the gate authoritative:
-// there is no other path to GoTrue's verify endpoint that this app exposes.
+// already uses for the token_hash link flow — makes THIS APP'S OWN flow
+// go through the gate every time, instead of leaving a client-side path
+// that happens to skip it.
+//
+// CORRECTED (2026-10-25 follow-up audit, F1): this does NOT make the gate
+// authoritative against a real attacker. NEXT_PUBLIC_SUPABASE_ANON_KEY is
+// public by design, so /auth/v1/verify was always, and still is, directly
+// callable by anyone who skips this app entirely — moving our own call
+// server-side closes nothing for that attacker, it only stops our own UI
+// from being a second, redundant bypass of our own bucket. The actual
+// control against direct brute-forcing is Supabase Auth's own dashboard
+// rate limits (Authentication → Rate Limits: token verifications per IP,
+// OTP expiry) — verify those are tuned, don't rely on this file for it.
+// Separately, moving the call server-side means every verify now reaches
+// GoTrue from Vercel's shared egress IPs instead of each user's own IP;
+// if Supabase's limit is per-source-IP, confirm it won't let one abusive
+// burst (many distinct emails, since our own bucket here is per-email)
+// degrade sign-in for everyone sharing that egress IP — needs_validation,
+// not re-creatable from source.
 //
 // Returns the new session's tokens so the caller can sync them into the
 // *browser* client via supabase.auth.setSession() — the server sets the
