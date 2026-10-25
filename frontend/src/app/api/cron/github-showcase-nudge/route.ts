@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/lib/supabase/service";
+import { errorSummary } from "@/lib/errorSummary";
 import { enqueueEmailsBulk, renderShowcaseNudgeEmail } from "@/lib/email";
 import { emailBaseUrl } from "@/lib/siteUrl";
 
@@ -76,7 +77,7 @@ async function nudge(req: NextRequest): Promise<NextResponse> {
     Sentry.captureException(error, {
       level: "error", tags: { surface: "cron", path: "github-showcase-nudge-due" },
     });
-    return NextResponse.json({ error: `Lookup failed: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "Lookup failed", detail: errorSummary(error) }, { status: 500 });
   }
 
   const rows = (data ?? []) as DueRow[];

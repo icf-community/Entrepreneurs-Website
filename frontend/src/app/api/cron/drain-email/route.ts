@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { timingSafeEqual } from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/lib/supabase/service";
+import { errorSummary } from "@/lib/errorSummary";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Outbound email drain
@@ -117,7 +118,7 @@ async function drain(req: NextRequest): Promise<NextResponse> {
       level: "error", tags: { surface: "cron", path: "drain-email-claim" },
     });
     return NextResponse.json(
-      { error: `Claim failed: ${claimErr.message}` },
+      { error: "Claim failed", detail: errorSummary(claimErr) },
       { status: 500 },
     );
   }
