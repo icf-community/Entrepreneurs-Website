@@ -61,6 +61,11 @@ def world():
     saved_flags = dict(_sql(conn, "select key, value from public.app_config where key like 'ai_%%'"))
     _sql(conn, "update public.app_config set value = 'true' where key in "
                "('ai_enabled', 'ai_recruiter_enabled', 'ai_network_enabled', 'ai_opportunities_enabled')")
+    # ai_submit_turn (20261025000002) refuses admission while any model it
+    # prices is unconfirmed; every new model_prices row starts
+    # confirmed=false by convention, so this fixture needs it explicit.
+    _sql(conn, "update ai_private.model_prices set confirmed = true "
+               "where model in ('gpt-5.4-mini', 'gpt-5.4', 'text-embedding-3-small')")
 
     tag = uuid.uuid4().hex[:8]
     members: dict[str, uuid.UUID] = {}

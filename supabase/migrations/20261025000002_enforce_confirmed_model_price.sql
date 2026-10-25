@@ -6,10 +6,26 @@
 -- unconfirmed placeholder price (every new model row is inserted
 -- confirmed=false until the owner checks it against OpenAI's pricing page)
 -- silently governs the real spend caps instead of blocking admission until
--- it's confirmed. This also fixes admin_ai_overview's prices_confirmed
--- check, which still names 'gpt-5.4' (retired by 20261011000014) instead of
--- 'gpt-6.1-sol', so it could never have reflected the actual unconfirmed row
--- either.
+-- it's confirmed.
+--
+-- Recreated from 20261011000008 (the true latest *committed* definition),
+-- not from the later 20261011000014 — that migration, and the matching
+-- gpt-6.1-sol swap in server/app/ai/config.py, exist only as uncommitted
+-- working-tree changes (separate, unlanded WIP), not part of this branch's
+-- history. A follow-up security re-audit (2026-10-25) caught that an
+-- earlier version of this migration had copied 014's gpt-6.1-sol pricing
+-- forward anyway, which left the model actually configured on this branch
+-- (gpt-5.4, per config.py's committed default) completely unpriced and
+-- unchecked by this very fix — a ~27x underestimate of the real worst-case
+-- cost, confirmed with a direct predicate comparison against both model
+-- sets. Whoever lands 20261011000014 for real should recreate this
+-- function again at that point, swapping gpt-5.4 for gpt-6.1-sol then.
+--
+-- Also fixes admin_ai_overview's prices_confirmed check to use a count
+-- that can't silently pass when a priced model's row is missing entirely
+-- (the previous `not exists (... where not confirmed)` shape returns false
+-- — "all confirmed" — for zero matching rows just as readily as for three
+-- confirmed ones).
 
 alter table ai_private.admission_refusals drop constraint admission_refusals_reason_check;
 alter table ai_private.admission_refusals add constraint admission_refusals_reason_check
@@ -231,22 +247,23 @@ begin
   -- Budget headroom for this turn's worst case: interpreter + four
   -- assessors + one embedding, at current prices. Reservations happen
   -- per call in the executor; this only refuses a turn that cannot fit.
-  -- gpt-6.1-sol is the recruiter assessor's replacement for gpt-5.4, not
-  -- an additional model in play — summing both would price a turn as if
-  -- it called both assessors, roughly doubling the estimate.
-  select bool_or(not mp.confirmed),
+  select count(*) < 3 or bool_or(not mp.confirmed),
          coalesce(sum(case mp.model
                         when 'gpt-5.4-mini' then (6000 * mp.input_micro_per_mtok + 1500 * mp.output_micro_per_mtok)
-                        when 'gpt-6.1-sol' then 4 * (12000 * mp.input_micro_per_mtok + 3000 * mp.output_micro_per_mtok)
+                        when 'gpt-5.4' then 4 * (12000 * mp.input_micro_per_mtok + 3000 * mp.output_micro_per_mtok)
                         when 'text-embedding-3-small' then 2000 * mp.input_micro_per_mtok
                       end), 0) / 1000000
     into v_unconfirmed, v_estimate
     from ai_private.model_prices mp
-   where mp.model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small');
+   where mp.model in ('gpt-5.4-mini', 'gpt-5.4', 'text-embedding-3-small');
   -- Fail closed: a placeholder price (every new model row starts
   -- confirmed=false until the owner checks it against OpenAI's pricing
   -- page) must not silently govern a real spend cap — refuse admission
   -- until it's confirmed, same as every other admission check here.
+  -- `count(*) < 3` also fails closed if a priced model's row is missing
+  -- entirely — bool_or alone over zero/partial rows returns null/false
+  -- ("nothing unconfirmed"), which would silently admit with v_estimate
+  -- computed from fewer models than the turn can actually cost.
   if v_unconfirmed then
     perform ai_private.record_admission_refusal('price_unconfirmed');
     return query select null::uuid, p_conversation, 'price_unconfirmed'::text, null::timestamptz;
@@ -310,12 +327,13 @@ $$;
 revoke all on function public.ai_submit_turn(text, uuid, uuid, text, text, text, int, boolean) from public, anon, authenticated;
 grant execute on function public.ai_submit_turn(text, uuid, uuid, text, text, text, int, boolean) to authenticated;
 
--- ─── admin_ai_overview: fix the stale gpt-5.4 price check ─────────────
+-- ─── admin_ai_overview: fix the price-confirmed check to fail closed ──
 -- Identical to 20261011000011's definition except prices_confirmed now
--- names the models actually priced by ai_submit_turn's budget estimate
--- (gpt-5.4 was retired by 20261011000014; gpt-6.1-sol replaced it, and
--- was never added here, so this could never have reflected the real
--- unconfirmed row either).
+-- also fails (reports false) when a priced model's row is missing
+-- entirely, not just when it's present and unconfirmed — `not exists
+-- (... where not confirmed)` returns true ("all confirmed") for zero
+-- matching rows just as readily as for three actually-confirmed ones,
+-- which could report "confirmed" with no model_prices rows at all.
 create or replace function public.admin_ai_overview()
 returns jsonb
 language plpgsql
@@ -367,9 +385,8 @@ begin
                       'ingestion', coalesce(sum(ai_private.spend_charged(s)) filter (where s.purpose = 'ingestion'), 0),
                       'unreconciled', count(*) filter (where s.status in ('reserved', 'unknown')))
                       from ai_private.spend s where s.day = v_day),
-    'prices_confirmed', not exists (select 1 from ai_private.model_prices
-                                     where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small')
-                                       and not confirmed),
+    'prices_confirmed', (select count(*) = 3 and bool_and(confirmed) from ai_private.model_prices
+                          where model in ('gpt-5.4-mini', 'gpt-5.4', 'text-embedding-3-small')),
     'turns_24h', (select coalesce(jsonb_object_agg(status, n), '{}'::jsonb)
                     from (select t.status, count(*) as n from ai_private.turns t
                            where t.created_at > now() - interval '24 hours' group by t.status) x),

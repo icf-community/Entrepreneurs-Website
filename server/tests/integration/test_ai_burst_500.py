@@ -54,7 +54,7 @@ def members():
     # prices is unconfirmed; every new model_prices row starts
     # confirmed=false by convention, so this fixture needs it explicit.
     _sql(conn, "update ai_private.model_prices set confirmed = true "
-               "where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small')")
+               "where model in ('gpt-5.4-mini', 'gpt-5.4', 'text-embedding-3-small')")
     _sql(conn, f"alter role ai_service password '{AI_SERVICE_PASSWORD}'")
     saved_capacity = _sql(conn, "select queue_capacity from ai_private.settings where id = 1")[0][0]
 
