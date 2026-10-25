@@ -103,7 +103,7 @@ const DOUBLE_SUBMIT: Record<string, Why> = {
   "app/settings/actions.ts#saveAiSettings": { server: "upsert to the same values" },
   // ── public ────────────────────────────────────────────────────────
   "app/contact/actions.ts#submitContactTicket": { server: "Turnstile tokens are single-use: the second submit fails verification" },
-  "lib/auth/verifyOtpGate.ts#checkOtpVerifyRateLimit": { server: "counts an attempt; no state beyond the rate bucket" },
+  "lib/auth/verifyOtpGate.ts#verifyOtpServerSide": { server: "GoTrue OTP tokens are single-use: a resend of the same code after it already succeeded fails verification, it doesn't re-apply" },
   "app/reset-password/actions.ts#clearRecoveryMarker": { server: "clears a cookie" },
 };
 

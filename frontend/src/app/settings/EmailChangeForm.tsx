@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { isImperialEmail } from "@/lib/auth/imperialEmail";
-import { checkOtpVerifyRateLimit } from "@/lib/auth/verifyOtpGate";
+import { verifyOtpServerSide } from "@/lib/auth/verifyOtpGate";
 import { ErrorBanner } from "@/components/forms/Banners";
 import type { Affiliation } from "@/lib/intake/steps";
 
@@ -151,52 +151,50 @@ export default function EmailChangeForm({
 
     try {
       if (!currentConfirmed) {
-        const gate = await checkOtpVerifyRateLimit(currentEmail);
-        if (!gate.ok) {
-          setError(gate.error);
-          return;
-        }
         // Addressed to the CURRENT address: GoTrue finds this token by
-        // auth.users.email.
-        const { data, error: err } = await supabase.auth.verifyOtp({
-          email: currentEmail.trim().toLowerCase(),
-          token: codeCurrent.trim(),
-          type: "email_change",
-        });
-        if (err) {
-          setError(friendlyCodeError(err.message, "old"));
+        // auth.users.email. Rate limit + verifyOtp both run server-side now
+        // (verifyOtpServerSide) — see that file for why.
+        const result = await verifyOtpServerSide(currentEmail, codeCurrent, "email_change");
+        if (!result.ok) {
+          setError(friendlyCodeError(result.error, "old"));
           return;
         }
         // A project with "Secure email change" turned off applies the change
         // on this one code and hands back a session, leaving nothing to
         // confirm. Checking the returned address rather than assuming the
         // setting is what keeps this form correct either way.
-        if (data.user?.email?.toLowerCase() === pending) {
+        if (result.data.userEmail?.toLowerCase() === pending) {
+          if (result.data.session) {
+            await supabase.auth.setSession({
+              access_token: result.data.session.accessToken,
+              refresh_token: result.data.session.refreshToken,
+            });
+          }
           finish();
           return;
         }
+        // The expected "Secure email change" response: error is null, but
+        // there is also no user/session — this one code only confirms the
+        // old side, nothing to sync yet.
         setCurrentConfirmed(true);
       }
 
       // Addressed to the NEW address: GoTrue finds this token by
       // auth.users.email_change, so the current address will not match it.
-      const newGate = await checkOtpVerifyRateLimit(pending);
-      if (!newGate.ok) {
-        setError(newGate.error);
+      const result = await verifyOtpServerSide(pending, codeNew, "email_change");
+      if (!result.ok) {
+        setError(friendlyCodeError(result.error, "new"));
         return;
       }
-      const { data, error: err } = await supabase.auth.verifyOtp({
-        email: pending,
-        token: codeNew.trim(),
-        type: "email_change",
-      });
-      if (err) {
-        setError(friendlyCodeError(err.message, "new"));
-        return;
-      }
-      if (data.user?.email?.toLowerCase() !== pending) {
+      if (result.data.userEmail?.toLowerCase() !== pending) {
         setError("We couldn't complete the change. Start again to get a new pair of codes.");
         return;
+      }
+      if (result.data.session) {
+        await supabase.auth.setSession({
+          access_token: result.data.session.accessToken,
+          refresh_token: result.data.session.refreshToken,
+        });
       }
       finish();
     } finally {

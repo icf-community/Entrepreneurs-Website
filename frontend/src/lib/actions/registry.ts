@@ -167,7 +167,12 @@ export const ACTION_POLICIES: Record<string, ActionPolicy> = {
 
   // ── public ──────────────────────────────────────────────────────────
   "app/contact/actions.ts#submitContactTicket": { kind: "public", bucket: "submit" },
-  "lib/auth/verifyOtpGate.ts#checkOtpVerifyRateLimit": { kind: "public", bucket: "otpVerify" },
+  // The otpVerify check lives in checkOtpVerifyRateLimit, a private helper
+  // declared above this export in the same file — `exportedActions()` only
+  // captures a function's own slice forward to the next export, so it
+  // wouldn't see a check call in a helper declared earlier. `via` reads the
+  // whole file instead, the same escape used for a shared cross-file helper.
+  "lib/auth/verifyOtpGate.ts#verifyOtpServerSide": { kind: "public", bucket: "otpVerify", via: "lib/auth/verifyOtpGate.ts" },
   // Clears one cookie on the caller's own response; accepted in D2 (B28).
   "app/reset-password/actions.ts#clearRecoveryMarker": { kind: "public" },
 };

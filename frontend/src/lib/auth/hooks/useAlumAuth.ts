@@ -1,6 +1,6 @@
 import { cleanName, isValidName, MAX_NAME_LENGTH } from "@/lib/text";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
-import { checkOtpVerifyRateLimit } from "@/lib/auth/verifyOtpGate";
+import { verifyOtpServerSide } from "@/lib/auth/verifyOtpGate";
 import type { createClient } from "@/lib/supabase/client";
 import { friendlyVerifyError } from "./authErrorText";
 import type { Mode, Role } from "./loginTypes";
@@ -64,27 +64,28 @@ export function useAlumAuth(p: Params) {
   };
 
   // Verify the 6-digit code for an alum signup confirmation (type "signup",
-  // matching signUp / resend({ type: "signup" })). Same success routing.
+  // matching signUp / resend({ type: "signup" })). Rate-limit + verifyOtp
+  // both run server-side (verifyOtpServerSide) — see that file. On success
+  // the returned session is synced into this browser client before routing.
   const handleAlumVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     p.setVerifyError("");
     p.setVerifying(true);
-    const gate = await checkOtpVerifyRateLimit(p.email);
-    if (!gate.ok) {
+    const result = await verifyOtpServerSide(p.email, p.code, "signup");
+    if (!result.ok) {
       p.setVerifying(false);
-      p.setVerifyError(gate.error);
+      p.setVerifyError(friendlyVerifyError(result.error));
       return;
     }
-    const { error: vErr } = await p.supabase.auth.verifyOtp({
-      email: p.email.trim().toLowerCase(),
-      token: p.code.trim(),
-      type: "signup",
+    if (!result.data.session) {
+      p.setVerifying(false);
+      p.setVerifyError("We couldn't verify that code. Please try again.");
+      return;
+    }
+    await p.supabase.auth.setSession({
+      access_token: result.data.session.accessToken,
+      refresh_token: result.data.session.refreshToken,
     });
-    if (vErr) {
-      p.setVerifying(false);
-      p.setVerifyError(friendlyVerifyError(vErr.message));
-      return;
-    }
     await p.routeAfterSignIn();
   };
 
