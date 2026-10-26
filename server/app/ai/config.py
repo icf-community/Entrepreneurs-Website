@@ -53,7 +53,7 @@ def ai_settings() -> AiSettings:
         openai_api_key=_required("AI_OPENAI_API_KEY"),
         interpreter_model=os.environ.get("AI_INTERPRETER_MODEL", "gpt-5.4-mini"),
         assessor_models={
-            "recruiter": os.environ.get("AI_RECRUITER_ASSESSOR_MODEL", "gpt-5.4"),
+            "recruiter": os.environ.get("AI_RECRUITER_ASSESSOR_MODEL", "gpt-6.1-sol"),
             "network": os.environ.get("AI_NETWORK_ASSESSOR_MODEL", "gpt-5.4-mini"),
             "opportunities": os.environ.get("AI_OPPORTUNITIES_ASSESSOR_MODEL", "gpt-5.4-mini"),
         },

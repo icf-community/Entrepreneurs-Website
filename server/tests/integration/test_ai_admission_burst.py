@@ -54,7 +54,7 @@ def members():
     # prices is unconfirmed; every new model_prices row starts
     # confirmed=false by convention, so this fixture needs it explicit.
     conn.execute("update ai_private.model_prices set confirmed = true "
-                 "where model in ('gpt-5.4-mini', 'gpt-5.4', 'text-embedding-3-small')")
+                 "where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small')")
     ids = []
     tag = uuid.uuid4().hex[:6]
     for i in range(16):

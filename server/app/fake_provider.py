@@ -128,10 +128,17 @@ def answer(schema_name: str, user: str) -> dict:
         payload = _json_block(user, "job") or {}
         text = payload.get("description", "") if isinstance(payload, dict) else str(payload)
         candidates = payload.get("candidate_concepts", []) if isinstance(payload, dict) else []
+        labels = payload.get("candidate_labels", {}) if isinstance(payload, dict) else {}
+        lower = text.lower()
         atoms = []
         for slug in candidates[:10]:
-            idx = text.lower().find(str(slug).replace("-", " "))
-            window = text.lower()[max(0, idx - 60): idx + 10] if idx >= 0 else ""
+            term = str(labels.get(slug) or str(slug).replace("-", " ")).lower()
+            idx = lower.find(term)
+            # Look back only to the start of the sentence the concept is in,
+            # not a blind character count — otherwise "You must know X. Y is
+            # a plus." lets "must" leak into Y's required check.
+            sentence_start = max(lower.rfind(".", 0, idx), lower.rfind(";", 0, idx)) + 1 if idx >= 0 else 0
+            window = lower[sentence_start: idx + 10] if idx >= 0 else ""
             required = bool(re.search(r"\b(must|required|essential|need)\b", window))
             atoms.append({"concept": slug, "free_text": None, "required": required})
         level = "internship" if re.search(r"\bintern(ship)?\b", text, re.I) else "unspecified"

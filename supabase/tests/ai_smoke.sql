@@ -216,7 +216,7 @@ begin
     raise exception 'FAIL: settling twice changed the charge';
   end if;
   begin
-    perform ai_private.spend_reserve('matching', 'network', null, null, null, 'test', 'gpt-5.4', 10, 10);
+    perform ai_private.spend_reserve('matching', 'network', null, null, null, 'test', 'gpt-6.1-sol', 10, 10);
     raise exception 'FAIL: an unconfirmed price was accepted for matching';
   exception when raise_exception then
     if sqlerrm not like 'unconfirmed_price%' then raise; end if;
@@ -301,7 +301,7 @@ begin
   -- now, after that test, so every admission check below gets 'queued'
   -- instead of 'price_unconfirmed'.
   update ai_private.model_prices set confirmed = true
-   where model in ('gpt-5.4-mini', 'gpt-5.4', 'text-embedding-3-small');
+   where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small');
 
   perform pg_temp.as_member(v_grad);
   select * into r from public.ai_submit_turn('network', null, null, 'message', 'python', 'key-0000002', null, false);
@@ -322,14 +322,14 @@ begin
   -- uses must refuse admission, not silently price it at whatever the
   -- placeholder says. Un-confirm, probe, then restore for every later test.
   perform pg_temp.as_owner();
-  update ai_private.model_prices set confirmed = false where model = 'gpt-5.4';
+  update ai_private.model_prices set confirmed = false where model = 'gpt-6.1-sol';
   perform pg_temp.as_member(v_grad);
   select * into r2 from public.ai_submit_turn('network', null, null, 'message', 'golang', 'key-0000004b', null, false);
   if r2.outcome <> 'price_unconfirmed' then
     raise exception 'FAIL: turn admitted with an unconfirmed model price: %', r2.outcome;
   end if;
   perform pg_temp.as_owner();
-  update ai_private.model_prices set confirmed = true where model = 'gpt-5.4';
+  update ai_private.model_prices set confirmed = true where model = 'gpt-6.1-sol';
   perform pg_temp.as_member(v_grad);
 
   -- the executor: a lease, and a stale one refused

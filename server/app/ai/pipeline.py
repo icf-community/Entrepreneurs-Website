@@ -401,7 +401,19 @@ class Turn:
                              "key": self._cache_key(target, ev["projection_hash"], criteria_atoms, model)})
 
         if needs_model and prepared:
-            await self._model_assess(prepared, criteria_atoms, model)
+            # A candidate with zero evidenced or related criteria gains
+            # nothing from a model call when every criterion here is a
+            # concept the dictionary already checked deterministically
+            # (no free text left for the model to judge): score_candidate's
+            # coverage-only fallback already gives them the same zero.
+            # The real-provider run (2026-10-24) confirmed candidates in
+            # this shape score ~0 from the model anyway — skipping the
+            # call is a pure cost cut, not a quality change in practice.
+            to_assess = prepared if free_atoms else [
+                p for p in prepared if any(s.state in ("met", "related") for s in p["states"].values())
+            ]
+            if to_assess:
+                await self._model_assess(to_assess, criteria_atoms, model)
         return self._score(prepared, criteria)
 
     async def _model_assess(self, prepared: list[dict], criteria_atoms: list[Atom], model: str) -> None:
@@ -555,7 +567,15 @@ class Turn:
                                                     requirements, model)})
 
         if prepared:
-            await self._model_assess_jobs(prepared, evidence, model)
+            # Same cost cut as assess_members: skip the model for a job
+            # whose requirements are all concepts (nothing free-text left
+            # to judge) and whose member evidence met or related to none
+            # of them — the coverage-only fallback already scores them 0.
+            to_assess = [p for p in prepared
+                        if any(a.free_text for a in p["requirements"])
+                        or any(s.state in ("met", "related") for s in p["states"].values())]
+            if to_assess:
+                await self._model_assess_jobs(to_assess, evidence, model)
 
         scored = []
         for p in prepared:

@@ -1711,7 +1711,7 @@ begin
   -- prices is unconfirmed; every new model_prices row starts
   -- confirmed=false by convention, so this setup needs it explicit.
   update ai_private.model_prices set confirmed = true
-   where model in ('gpt-5.4-mini', 'gpt-5.4', 'text-embedding-3-small');
+   where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small');
 
   perform _set_caller(v_owner);
   select turn_id, conversation_id into v_turn, v_conv
