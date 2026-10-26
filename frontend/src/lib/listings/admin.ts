@@ -23,12 +23,12 @@ import { invalidate } from "@/lib/cache";
 // action endpoints.
 // ════════════════════════════════════════════════════════════════════
 
-export async function approveListing(kind: ListingKind, id: string): Promise<Result> {
+export async function approveListing(kind: ListingKind, id: string, editVersion: number): Promise<Result> {
   const def = LISTINGS[kind];
   const auth = await requireAdmin();
   if (!auth.ok) return err(auth.error);
 
-  const { error } = await def.approve(auth.supabase, id);
+  const { error } = await def.approve(auth.supabase, id, editVersion);
   if (error) return err(describeSupabaseError(error));
 
   // Cache first, then Next's path revalidation: a re-render triggered by
@@ -90,16 +90,20 @@ export async function rejectListing(
 // is_admin() on every call regardless, so the boundary is unchanged —
 // what goes away is the repeated getUser + profiles round trip, and the
 // per-item cache drop and revalidate that made a large batch time out.
-export async function bulkApproveListings(kind: ListingKind, ids: string[]): Promise<BulkResult> {
+export async function bulkApproveListings(
+  kind: ListingKind,
+  items: { id: string; editVersion: number }[],
+): Promise<BulkResult> {
   const def = LISTINGS[kind];
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
   const { supabase } = auth;
 
   // Approval notifies nobody, so there is no email stage here.
-  return runBulk(ids, {
+  const versionById = new Map(items.map((i) => [i.id, i.editVersion]));
+  return runBulk(items.map((i) => i.id), {
     one: async (id) => {
-      const { error } = await def.approve(supabase, id);
+      const { error } = await def.approve(supabase, id, versionById.get(id) as number);
       return error
         ? { recipient: null, error: describeSupabaseError(error) }
         : { recipient: null };

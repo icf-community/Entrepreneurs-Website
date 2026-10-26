@@ -1092,11 +1092,13 @@ begin
   ) values (v_vc, 'vc', v_a, 'pending', 'Soon approved fund',
             'Description that is at least twenty chars long.', 'https://example.com/d');
 
-  -- Approve all three through the real admin RPCs.
+  -- Approve all three through the real admin RPCs. edit_version starts at
+  -- 0 (20261011000007's default) and approve_* now requires it match
+  -- (audit follow-up F4).
   perform _set_caller(v_adm);
-  perform public.approve_opportunity(v_opp, null);
-  perform public.approve_event(v_ev, null);
-  perform public.approve_vc_grant(v_vc, null);
+  perform public.approve_opportunity(v_opp, null, 0);
+  perform public.approve_event(v_ev, null, 0);
+  perform public.approve_vc_grant(v_vc, null, 0);
 
   -- The owner's edit window is now shut on every one of them.
   perform _set_caller(v_a);
@@ -1195,8 +1197,8 @@ begin
   --     nothing a member types reaches the published row without a human
   --     approving it. Section 34 covers the rest of that path.
   perform _set_caller(v_adm);
-  perform public.approve_event(v_ev, null);
-  perform public.approve_vc_grant(v_vc, null);
+  perform public.approve_event(v_ev, null, (select edit_version from public.events where id = v_ev));
+  perform public.approve_vc_grant(v_vc, null, (select edit_version from public.vcs_grants where id = v_vc));
 
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'TOO LATE',
@@ -2323,29 +2325,33 @@ begin
 
   perform _set_caller(v_admin);
 
-  -- (a) double-approve is refused, for all three types.
-  perform public.approve_opportunity(v_opp, null);
+  -- (a) double-approve is refused, for all three types. The first call of
+  -- each pair passes the real edit_version (0, fresh insert); the second
+  -- deliberately keeps passing it too — it must still fail, but on the
+  -- status check (P0001), not the version check (PT409), since the status
+  -- check runs first.
+  perform public.approve_opportunity(v_opp, null, 0);
   v_ok := false;
   begin
-    perform public.approve_opportunity(v_opp, null);
+    perform public.approve_opportunity(v_opp, null, 0);
     raise exception 'FAIL: approve_opportunity re-processed an already-approved listing';
   exception when sqlstate 'P0001' then v_ok := true;
   end;
   if not v_ok then raise exception 'FAIL: approve_opportunity did not guard against re-approval'; end if;
 
-  perform public.approve_event(v_ev, null);
+  perform public.approve_event(v_ev, null, 0);
   v_ok := false;
   begin
-    perform public.approve_event(v_ev, null);
+    perform public.approve_event(v_ev, null, 0);
     raise exception 'FAIL: approve_event re-processed an already-approved listing';
   exception when sqlstate 'P0001' then v_ok := true;
   end;
   if not v_ok then raise exception 'FAIL: approve_event did not guard against re-approval'; end if;
 
-  perform public.approve_vc_grant(v_vc, null);
+  perform public.approve_vc_grant(v_vc, null, 0);
   v_ok := false;
   begin
-    perform public.approve_vc_grant(v_vc, null);
+    perform public.approve_vc_grant(v_vc, null, 0);
     raise exception 'FAIL: approve_vc_grant re-processed an already-approved listing';
   exception when sqlstate 'P0001' then v_ok := true;
   end;
@@ -5531,6 +5537,50 @@ begin
   select count(*) into v_seen from public.list_my_bookmarked_opportunities() where id = v_opb;
   if v_seen <> 1 then
     raise exception 'FAIL: an approved member could not read their own bookmark (got %)', v_seen;
+  end if;
+end;
+$$;
+
+-- 40. Audit follow-up (F4): approve_* refuses a stale edit_version. An
+--     admin's own-pending-review state can silently go stale if the owner
+--     edits the listing between the admin loading it and clicking Approve
+--     — without this check, the admin's "approve" click would publish
+--     whatever the row currently holds, not what they actually reviewed.
+set local role postgres;
+do $$
+declare
+  v_a   uuid := (select v from _test_ctx where k='user_a');
+  v_adm uuid := (select v from _test_ctx where k='admin');
+  v_opp uuid := gen_random_uuid();
+begin
+  insert into public.opportunities (
+    id, posted_by, status, position_name, company, pay, location_type,
+    description, start_month, start_year, application_deadline,
+    contact_email, apply_method, eligible_audience
+  ) values (
+    v_opp, v_a, 'pending', 'Version-pin test', 'Co', '£50k', 'remote',
+    'Description that is at least twenty chars long.', 1, 2027, current_date + 30,
+    'a@imperial.ac.uk', 'email', 'both'
+  );
+
+  -- The owner edits after the admin would have loaded the queue —
+  -- edit_version is now 1, but the admin's stale client still thinks 0.
+  perform _set_caller(v_a);
+  perform public.update_opportunity(v_opp, 'Version-pin test (edited)', 'Co', '£50k', 'remote'::location_type, null,
+    'Description that is at least twenty chars long.', 1::smallint, 2027, current_date + 30,
+    'a@imperial.ac.uk', false, 'email'::apply_method, null, '{}'::smallint[], '{}'::smallint[], 'both', 0);
+
+  perform _set_caller(v_adm);
+  begin
+    perform public.approve_opportunity(v_opp, null, 0);
+    raise exception 'FAIL: approve_opportunity approved a listing against a stale edit_version';
+  exception when sqlstate 'PT409' then null;
+  end;
+
+  -- The correct, current version still approves normally.
+  perform public.approve_opportunity(v_opp, null, 1);
+  if (select status from public.opportunities where id = v_opp) <> 'approved' then
+    raise exception 'FAIL: approve_opportunity did not approve against the current edit_version';
   end if;
 end;
 $$;

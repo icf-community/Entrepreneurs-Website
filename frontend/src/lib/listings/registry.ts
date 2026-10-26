@@ -58,7 +58,7 @@ export type ListingDef = {
    * so a fourth listing type has one place to get this right.
    */
   cacheKeys: readonly CacheKey[];
-  approve: (db: Db, id: string) => Promise<{ error: { message?: string; code?: string } | null }>;
+  approve: (db: Db, id: string, editVersion: number) => Promise<{ error: { message?: string; code?: string } | null }>;
   reject: (db: Db, id: string, reason: string) => Promise<{
     data: RejectedPoster[] | RejectedPoster | null;
     error: { message?: string; code?: string } | null;
@@ -84,7 +84,8 @@ export const LISTINGS = {
     // The directory shows each member's open roles, sourced from approved
     // opportunities — so approving or editing one changes /community too.
     cacheKeys: ["directoryFacets"],
-    approve: async (db, id) => await db.rpc("approve_opportunity", { p_opportunity_id: id, p_notes: null }),
+    approve: async (db, id, editVersion) =>
+      await db.rpc("approve_opportunity", { p_opportunity_id: id, p_notes: null, p_expected_version: editVersion }),
     reject: async (db, id, reason) =>
       await db.rpc("reject_opportunity", { p_opportunity_id: id, p_reason: reason }),
     create: async (db, mode, payload) => {
@@ -111,7 +112,8 @@ export const LISTINGS = {
     // Events aren't cached (contact_email is masked per caller), and
     // nothing else derives from them.
     cacheKeys: [],
-    approve: async (db, id) => await db.rpc("approve_event", { p_event_id: id, p_notes: null }),
+    approve: async (db, id, editVersion) =>
+      await db.rpc("approve_event", { p_event_id: id, p_notes: null, p_expected_version: editVersion }),
     reject: async (db, id, reason) => await db.rpc("reject_event", { p_event_id: id, p_reason: reason }),
     create: async (db, mode, payload) => {
       const parsed = validate(eventSchema, payload);
@@ -139,7 +141,8 @@ export const LISTINGS = {
     emailKind: "VC/grant submission",
     revalidate: { admin: "/admin/vcs", public: "/vcs" },
     cacheKeys: ["vcs"],
-    approve: async (db, id) => await db.rpc("approve_vc_grant", { p_id: id, p_notes: null }),
+    approve: async (db, id, editVersion) =>
+      await db.rpc("approve_vc_grant", { p_id: id, p_notes: null, p_expected_version: editVersion }),
     reject: async (db, id, reason) => await db.rpc("reject_vc_grant", { p_id: id, p_reason: reason }),
     create: async (db, mode, payload) => {
       const parsed = validate(vcGrantSchema, payload);

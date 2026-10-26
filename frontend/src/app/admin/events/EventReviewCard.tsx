@@ -25,6 +25,7 @@ type Ev = {
     signupEmail: string | null;
   };
   createdAt: string;
+  editVersion: number;
 };
 
 export default function EventReviewCard({ ev }: { ev: Ev }) {
@@ -40,7 +41,7 @@ export default function EventReviewCard({ ev }: { ev: Ev }) {
   const handleApprove = () => {
     setError("");
     startTransition(async () => {
-      const res = await approveEvent(ev.id);
+      const res = await approveEvent(ev.id, ev.editVersion);
       if (!res.ok) setError(res.error);
     });
   };

@@ -13,7 +13,15 @@ export default function OpportunitiesReview({ items }: { items: Item[] }) {
       items={items}
       getId={(o) => o.id}
       renderCard={(o) => <OpportunityReviewCard opportunity={o} />}
-      bulkApprove={bulkApproveOpportunities}
+      bulkApprove={(ids) => {
+        const versionById = new Map(items.map((o) => [o.id, o.editVersion]));
+        return bulkApproveOpportunities(
+          ids.flatMap((id) => {
+            const editVersion = versionById.get(id);
+            return editVersion === undefined ? [] : [{ id, editVersion }];
+          }),
+        );
+      }}
       bulkReject={bulkRejectOpportunities}
       noun="opportunity"
       emptyMessage="Nothing pending. The queue is clear."

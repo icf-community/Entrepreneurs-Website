@@ -23,6 +23,7 @@ type Vc = {
     signupEmail: string | null;
   };
   createdAt: string;
+  editVersion: number;
 };
 
 export default function VcReviewCard({ vc: v }: { vc: Vc }) {
@@ -38,7 +39,7 @@ export default function VcReviewCard({ vc: v }: { vc: Vc }) {
   const handleApprove = () => {
     setError("");
     startTransition(async () => {
-      const res = await approveVcGrant(v.id);
+      const res = await approveVcGrant(v.id, v.editVersion);
       if (!res.ok) setError(res.error);
     });
   };

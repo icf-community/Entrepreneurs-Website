@@ -13,7 +13,15 @@ export default function EventsReview({ items }: { items: Item[] }) {
       items={items}
       getId={(e) => e.id}
       renderCard={(e) => <EventReviewCard ev={e} />}
-      bulkApprove={bulkApproveEvents}
+      bulkApprove={(ids) => {
+        const versionById = new Map(items.map((e) => [e.id, e.editVersion]));
+        return bulkApproveEvents(
+          ids.flatMap((id) => {
+            const editVersion = versionById.get(id);
+            return editVersion === undefined ? [] : [{ id, editVersion }];
+          }),
+        );
+      }}
       bulkReject={bulkRejectEvents}
       noun="event"
       emptyMessage="Nothing pending. The queue is clear."

@@ -178,6 +178,7 @@ type PendingEventRow = PosterRow & {
   contact_email_visible: boolean;
   posted_by: string;
   created_at: string;
+  edit_version: number;
 };
 
 function toEventReviewItem(r: PendingEventRow, signupEmail: string | null) {
@@ -193,6 +194,7 @@ function toEventReviewItem(r: PendingEventRow, signupEmail: string | null) {
     contactEmailVisible: r.contact_email_visible,
     postedBy: toPoster(r, signupEmail),
     createdAt: r.created_at,
+    editVersion: r.edit_version,
   };
 }
 
@@ -230,6 +232,7 @@ type PendingOpportunityRow = PosterRow & {
   created_at: string;
   skill_names: string[] | null;
   sector_names: string[] | null;
+  edit_version: number;
 };
 
 function toOpportunityReviewItem(r: PendingOpportunityRow, signupEmail: string | null) {
@@ -252,6 +255,7 @@ function toOpportunityReviewItem(r: PendingOpportunityRow, signupEmail: string |
     skills:  r.skill_names  ?? [],
     sectors: r.sector_names ?? [],
     createdAt: r.created_at,
+    editVersion: r.edit_version,
   };
 }
 
@@ -276,6 +280,7 @@ type PendingVcRow = {
   stage: string | null;
   posted_by: string;
   created_at: string;
+  edit_version: number;
   profiles: { first_name: string; surname: string; linkedin_url: string | null } | null;
 };
 
@@ -296,6 +301,7 @@ function toVcReviewItem(r: PendingVcRow, signupEmail: string | null) {
       signupEmail,
     },
     createdAt: r.created_at,
+    editVersion: r.edit_version,
   };
 }
 
@@ -317,7 +323,7 @@ export async function listPendingVcs(db: Db): Promise<VcReviewItem[]> {
       .select(`
         id, kind, name, description, link,
         amount, deadline, stage,
-        posted_by, created_at,
+        posted_by, created_at, edit_version,
         profiles:posted_by ( first_name, surname, linkedin_url )
       `)
       .eq("status", "pending")

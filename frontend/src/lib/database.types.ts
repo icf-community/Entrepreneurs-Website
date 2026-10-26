@@ -2301,11 +2301,19 @@ export type Database = {
         Returns: undefined
       }
       approve_event: {
-        Args: { p_event_id: string; p_notes?: string }
+        Args: {
+          p_event_id: string
+          p_expected_version?: number
+          p_notes?: string
+        }
         Returns: undefined
       }
       approve_opportunity: {
-        Args: { p_notes?: string; p_opportunity_id: string }
+        Args: {
+          p_expected_version?: number
+          p_notes?: string
+          p_opportunity_id: string
+        }
         Returns: undefined
       }
       approve_user: {
@@ -2316,7 +2324,7 @@ export type Database = {
         }[]
       }
       approve_vc_grant: {
-        Args: { p_id: string; p_notes?: string }
+        Args: { p_expected_version?: number; p_id: string; p_notes?: string }
         Returns: undefined
       }
       assert_audience: { Args: { p_audience: string }; Returns: undefined }
@@ -2372,6 +2380,7 @@ export type Database = {
           p_encryption_key: string
           p_github_user_id: number
           p_github_username: string
+          p_member_id: string
         }
         Returns: undefined
       }
@@ -3082,6 +3091,7 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          edit_version: number
           event_at: string
           id: string
           location: string
@@ -3105,6 +3115,7 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          edit_version: number
           id: string
           location_text: string
           location_type: Database["public"]["Enums"]["location_type"]

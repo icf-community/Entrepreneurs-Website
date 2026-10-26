@@ -32,6 +32,7 @@ type Opportunity = {
   skills: string[];
   sectors: string[];
   createdAt: string;
+  editVersion: number;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -57,7 +58,7 @@ export default function OpportunityReviewCard({ opportunity: o }: { opportunity:
   const handleApprove = () => {
     setError("");
     startTransition(async () => {
-      const res = await approveOpportunity(o.id);
+      const res = await approveOpportunity(o.id, o.editVersion);
       if (!res.ok) setError(res.error);
     });
   };
