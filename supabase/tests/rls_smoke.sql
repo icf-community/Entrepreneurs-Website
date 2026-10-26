@@ -5448,6 +5448,93 @@ begin
 end;
 $$;
 
+-- 37. Audit follow-up (run-2): direct table UPDATE on profiles is gone
+--     entirely, not just narrowed by RLS. profiles_update_own used to
+--     allow any column on the caller's own row (id = auth.uid(), no
+--     status/content check) and the table-level UPDATE grant was never
+--     revoked — every legitimate self-edit already goes through a
+--     SECURITY DEFINER RPC, so the grant had no legitimate caller left.
+--     Expect a bare permission-denied (42501) from the missing grant,
+--     for an ordinary column and not just the already-trigger-guarded
+--     committee ones.
+set local role postgres;
+do $$
+declare
+  v_a uuid := (select v from _test_ctx where k='user_a');
+begin
+  perform _set_caller(v_a);
+  begin
+    update public.profiles set linkedin_url = 'https://evil.example/hijacked' where id = v_a;
+    raise exception 'FAIL: a member updated their own profiles row by direct PostgREST UPDATE';
+  exception when sqlstate '42501' then null;
+  end;
+end;
+$$;
+
+-- 38. Audit follow-up (run-2): list_my_bookmarked_opportunities and the
+--     opportunity_bookmarks insert policy both gate on the CALLER's own
+--     approval status now, not just the opportunity's audience. Before
+--     this fix, a pending member could bookmark a known approved
+--     opportunity (the insert policy only checked user_id = auth.uid())
+--     and read it back in full through the RPC — a read every other
+--     approved-members-only surface correctly withholds.
+set local role postgres;
+do $$
+declare
+  v_pending uuid := gen_random_uuid();
+  v_opb     uuid := (select v from _test_ctx where k='opp_b');
+  v_seen    int;
+begin
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_pending, 'pending-bm@imperial.ac.uk',
+          '{"first_name":"Pending","surname":"Bookmarker","role":"student"}'::jsonb,
+          '{"provider":"email"}'::jsonb)
+  on conflict do nothing;
+  insert into public.profiles (id, role, status, first_name, surname)
+  values (v_pending, 'student', 'pending_onboarding', 'Pending', 'Bookmarker')
+  on conflict (id) do update set status = excluded.status;
+
+  perform _set_caller(v_pending);
+  begin
+    insert into public.opportunity_bookmarks (user_id, opportunity_id) values (v_pending, v_opb);
+    raise exception 'FAIL: a pending member bookmarked an approved opportunity';
+  exception when sqlstate '42501' then null;
+  end;
+
+  -- Seed the bookmark as service_role to isolate the RPC's own gate from
+  -- the insert-policy gate just proven above.
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into public.opportunity_bookmarks (user_id, opportunity_id) values (v_pending, v_opb)
+  on conflict do nothing;
+
+  perform _set_caller(v_pending);
+  select count(*) into v_seen from public.list_my_bookmarked_opportunities();
+  if v_seen <> 0 then
+    raise exception 'FAIL: a pending member read % bookmarked listing(s) via the RPC', v_seen;
+  end if;
+end;
+$$;
+
+-- 39. Regression: an approved member's bookmark flow is unaffected by 38.
+set local role postgres;
+do $$
+declare
+  v_a   uuid := (select v from _test_ctx where k='user_a');
+  v_opb uuid := (select v from _test_ctx where k='opp_b');
+  v_seen int;
+begin
+  perform _set_caller(v_a);
+  insert into public.opportunity_bookmarks (user_id, opportunity_id) values (v_a, v_opb)
+  on conflict do nothing;
+  select count(*) into v_seen from public.list_my_bookmarked_opportunities() where id = v_opb;
+  if v_seen <> 1 then
+    raise exception 'FAIL: an approved member could not read their own bookmark (got %)', v_seen;
+  end if;
+end;
+$$;
+
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note
 -- above), so reset to the owner role before dropping the helper function.

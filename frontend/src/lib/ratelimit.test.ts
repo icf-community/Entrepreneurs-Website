@@ -243,6 +243,25 @@ describe("in-process limiter fallback", () => {
       expect(checkLocal("otpVerify", "x")).not.toBe("unavailable");
     }
   });
+
+  // Audit follow-up (run-2): the map used to be wiped entirely once it grew
+  // past LOCAL_MAX_KEYS, resetting every OTHER key's count too — an
+  // attacker who can cheaply mint 10,000+ distinct identifiers during a
+  // real outage could reset a specific victim's otpVerify count on demand.
+  // Eviction should only ever remove keys that are not the victim's.
+  it("an attacker flooding distinct identifiers cannot reset a victim's count", () => {
+    for (let i = 0; i < 10; i += 1) {
+      expect(checkLocal("otpVerify", "victim@ic.ac.uk")).toBe("allowed");
+    }
+    expect(checkLocal("otpVerify", "victim@ic.ac.uk")).toBe("limited");
+
+    // Push the shared map well past LOCAL_MAX_KEYS (10,000) with distinct
+    // identifiers in an unrelated bucket.
+    for (let i = 0; i < 10_050; i += 1) checkLocal("postReport", `flood-${i}`);
+
+    // The victim's own bucket must still be limited, not reset back to 0.
+    expect(checkLocal("otpVerify", "victim@ic.ac.uk")).toBe("limited");
+  });
 });
 
 describe("bucket key namespace", () => {

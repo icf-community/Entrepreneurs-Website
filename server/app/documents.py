@@ -58,6 +58,16 @@ MIN_BYTES = 256  # Below this nothing resembling a real CV can exist.
 # anything downstream) unzips it.
 MAX_ZIP_EXPANSION_RATIO = 60
 
+# The ratio cap alone lets an honestly-declared archive (no forged
+# metadata needed — CPython's zipfile truncates decompression output at
+# the declared size regardless) expand to MAX_DOCUMENT_BYTES * 60: at the
+# default 8 MB upload cap, ~480 MB, well past what the CV-ingest worker's
+# memory limit can hold. No real CV's extracted XML needs anywhere close
+# to this; it exists only to bound worst-case memory during unzip+parse,
+# independent of whatever the upload-size cap happens to be configured to
+# (audit follow-up, run-2).
+MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+
 
 class RejectedDocument(Exception):
     """The upload is not something we are prepared to store."""
@@ -176,6 +186,9 @@ def _validate_docx(data: bytes) -> None:
             if total_compressed > 0 and (
                 total_uncompressed / total_compressed > MAX_ZIP_EXPANSION_RATIO
             ):
+                raise RejectedDocument("That file could not be read.")
+
+            if total_uncompressed > MAX_DOCX_UNCOMPRESSED_BYTES:
                 raise RejectedDocument("That file could not be read.")
 
     except zipfile.BadZipFile as exc:

@@ -282,7 +282,9 @@ end $$;
 -- ─── 5. Admission, idempotency and leases ───────────────────────────
 do $$
 declare
-  v_grad uuid := (select v from t where k = 'grad');
+  v_grad    uuid := (select v from t where k = 'grad');
+  v_student uuid := (select v from t where k = 'student');
+  v_poster  uuid := (select v from t where k = 'poster');
   r      record;
   r2     record;
   v_ctx  jsonb;
@@ -314,6 +316,29 @@ begin
   if r2.outcome <> 'invalid_message' then raise exception 'FAIL: oversize message admitted'; end if;
   select * into r2 from public.ai_submit_turn('network', null, null, 'message', 'find sam student', 'key-0000004', null, false);
   if r2.outcome <> 'named_person' then raise exception 'FAIL: name search admitted: %', r2.outcome; end if;
+
+  -- Audit follow-up (run-2): named_person used to build an unescaped LIKE
+  -- pattern from a member-writable name. A name of '%' turned the pattern
+  -- into '% %', matching any message with a space — blocking every other
+  -- member platform-wide. strpos() has no wildcard semantics, so this must
+  -- no longer happen even with the table-level UPDATE grant gone (the
+  -- direct write below goes through postgres, bypassing that revoke, the
+  -- same way an admin RPC or a future bug reaching the column still
+  -- could — the regression this guards is in the matching logic itself,
+  -- not just in who can reach it).
+  -- A different member (v_poster) submits this probe so it doesn't
+  -- consume one of v_grad's two concurrent-turn admission slots — the
+  -- later price_unconfirmed check below depends on v_grad's count.
+  perform pg_temp.as_owner();
+  update public.profiles set first_name = '%', surname = '%' where id = v_student;
+  perform pg_temp.as_member(v_poster);
+  select * into r2 from public.ai_submit_turn('network', null, null, 'message', 'any message with a space', 'key-0000004c', null, false);
+  if r2.outcome <> 'queued' then
+    raise exception 'FAIL: a wildcard profile name blocked an unrelated message: %', r2.outcome;
+  end if;
+  perform pg_temp.as_owner();
+  update public.profiles set first_name = 'Sam', surname = 'Student' where id = v_student;
+  perform pg_temp.as_member(v_grad);
   if exists (select 1 from public.ai_turn_status(gen_random_uuid())) then
     raise exception 'FAIL: status of a turn that is not yours';
   end if;

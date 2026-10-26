@@ -429,15 +429,32 @@ const LIMIT: Record<RateBucket, number> = {
 type LocalEntry = { count: number; resetAt: number };
 const localBuckets = new Map<string, LocalEntry>();
 // Hard ceiling on the map so a flood of distinct identifiers during an
-// outage cannot grow it without bound. Evicting the whole map is crude
-// and correct here: it resets every window early, which errs toward
-// allowing traffic, and this path only runs while Upstash is down.
+// outage cannot grow it without bound.
 const LOCAL_MAX_KEYS = 10_000;
+
+// Evicting the whole map (the previous behaviour) resets every key's
+// count, not just the one that pushed the map over the ceiling — during a
+// real Upstash outage, an attacker who can cheaply mint 10,000+ distinct
+// identifiers (e.g. spamming otpVerify with different emails) could reset
+// a fail-closed bucket's count for a specific victim on demand (audit
+// follow-up, run-2). Only an expired entry (resetAt already passed, so its
+// count is stale and about to be replaced on next access anyway) is ever
+// evicted here — an unexpired entry, which is the data an attacker would
+// actually be trying to reset, is never touched by this function, even if
+// the map stays over LOCAL_MAX_KEYS until those entries expire on their
+// own. That is a bounded, temporary memory overshoot during an outage, not
+// a security hole.
+function evictOverCeiling(now: number): void {
+  if (localBuckets.size <= LOCAL_MAX_KEYS) return;
+  for (const [k, v] of localBuckets) {
+    if (v.resetAt <= now) localBuckets.delete(k);
+  }
+}
 
 export function checkLocal(bucket: RateBucket, identifier: string): RateDecision {
   const key = `${bucket}:${identifier}`;
   const now = Date.now();
-  if (localBuckets.size > LOCAL_MAX_KEYS) localBuckets.clear();
+  evictOverCeiling(now);
 
   const entry = localBuckets.get(key);
   if (!entry || entry.resetAt <= now) {
