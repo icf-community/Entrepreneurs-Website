@@ -763,6 +763,10 @@ declare
     -- public / member reads
     'list_approved_opportunities','list_approved_events',
     'list_approved_vcs_grants',
+    -- 20261026000004: the caller's own posted-row contact_email, so the
+    -- app can restore it on top of the cache-safe (visible-flag-only)
+    -- listing result. Scoped to posted_by = auth.uid() internally.
+    'my_posted_opportunity_contact_emails','my_posted_event_contact_emails',
     -- /home's newest strips (20260917000019): same visibility gate, no
     -- contact_email, nothing viewer-dependent.
     'list_newest_events','list_newest_opportunities',
@@ -4610,6 +4614,93 @@ begin
   update public.profiles set status = 'approved' where id = v_member;
   delete from public.opportunities where id = v_opp;
   delete from public.events where id = v_ev;
+end; $$;
+
+-- L2. p_cache_safe listing RPCs and the self-contact-email overlay helpers
+-- (20261026000004). The cache-safe variant must return the row set
+-- unfiltered by audience (so the app can cache one copy for every
+-- non-admin caller) while still masking contact_email exactly as before;
+-- the default (no-arg) call must still apply the audience filter, since
+-- that's the app's admin-only live path, unchanged by this feature. The
+-- self-contact-email helpers must return only the caller's own rows.
+do $$
+declare
+  v_poster uuid := (select v from _conn_ctx where k='ma');
+  v_member uuid := (select v from _conn_ctx where k='mb');
+  v_admin  uuid := (select v from _conn_ctx where k='madm');
+  v_opp    uuid := gen_random_uuid();
+  v_ev     uuid := gen_random_uuid();
+begin
+  set local role none;
+  insert into public.opportunities (
+    id, posted_by, status, position_name, company, pay, location_type,
+    description, start_month, start_year, application_deadline,
+    contact_email, contact_email_visible, apply_method, approved_at, approved_by, eligible_audience
+  ) values (
+    v_opp, v_poster, 'approved', 'L2 role', 'Co', '£1', 'remote',
+    'Description that is at least twenty chars long.', 1, 2027, current_date + 30,
+    'l2-hidden@imperial.ac.uk', false, 'email', now(), v_admin, 'students'
+  );
+  insert into public.events (
+    id, posted_by, status, title, description, luma_link,
+    event_at, location, organiser_name, contact_email, contact_email_visible, is_society_event,
+    approved_at, approved_by
+  ) values (
+    v_ev, v_poster, 'approved', 'L2 event',
+    'Description that is at least twenty chars long.',
+    'https://lu.ma/l2', now() + interval '7 days', 'Imperial',
+    'L2 Organiser', 'l2-hidden@imperial.ac.uk', false, false,
+    now(), v_admin
+  );
+  -- v_member is a graduate, not a student: the default (audience-filtered)
+  -- RPC must exclude the students-only opportunity, and p_cache_safe must
+  -- include it anyway — the app layer does the audience filtering itself
+  -- (admitsAudience() in lib/data/opportunities.ts) once it has the cached
+  -- result.
+  insert into public.member_education (member_id, currently_enrolled, has_completed_degree)
+  values (v_member, false, true)
+  on conflict (member_id) do update set currently_enrolled = false, has_completed_degree = true;
+
+  perform _set_caller(v_member);
+  if exists (select 1 from public.list_approved_opportunities() where id = v_opp) then
+    raise exception 'FAIL(L2): a graduate sees a students-only opportunity through the default (audience-filtered) RPC';
+  end if;
+  if not exists (select 1 from public.list_approved_opportunities(p_cache_safe => true) where id = v_opp) then
+    raise exception 'FAIL(L2): p_cache_safe=true must return every approved opportunity regardless of audience';
+  end if;
+  if (select contact_email from public.list_approved_opportunities(p_cache_safe => true) where id = v_opp) is not null then
+    raise exception 'FAIL(L2): p_cache_safe leaked a hidden opportunity contact_email to a non-poster';
+  end if;
+  if (select contact_email from public.list_approved_events(p_cache_safe => true) where id = v_ev) is not null then
+    raise exception 'FAIL(L2): p_cache_safe leaked a hidden event contact_email to a non-poster';
+  end if;
+
+  -- The helpers return only the caller's own posted rows.
+  if exists (select 1 from public.my_posted_opportunity_contact_emails() where id = v_opp)
+     or exists (select 1 from public.my_posted_event_contact_emails() where id = v_ev) then
+    raise exception 'FAIL(L2): a non-poster sees another member''s row from the self-contact-email helpers';
+  end if;
+
+  perform _set_caller(v_poster);
+  if (select contact_email from public.my_posted_opportunity_contact_emails() where id = v_opp)
+       is distinct from 'l2-hidden@imperial.ac.uk'
+     or (select contact_email from public.my_posted_event_contact_emails() where id = v_ev)
+       is distinct from 'l2-hidden@imperial.ac.uk' then
+    raise exception 'FAIL(L2): the poster does not get their own contact_email back from the helpers';
+  end if;
+
+  -- An admin's own default (non-cache-safe) call is untouched by this feature.
+  perform _set_caller(v_admin);
+  if (select contact_email from public.list_approved_opportunities() where id = v_opp)
+       is distinct from 'l2-hidden@imperial.ac.uk' then
+    raise exception 'FAIL(L2): an admin no longer sees a hidden contact_email on the default RPC call';
+  end if;
+
+  set local role none;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  delete from public.opportunities where id = v_opp;
+  delete from public.events where id = v_ev;
+  delete from public.member_education where member_id = v_member;
 end; $$;
 
 -- A10. Cron functions are unreachable from every client role; service_role can claim.

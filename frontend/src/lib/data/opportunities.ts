@@ -1,4 +1,5 @@
 import "server-only";
+import { cached } from "../cache";
 import { rows, type Db } from "./query";
 
 // Opportunity reads. The shape below is the single declaration of what an
@@ -126,11 +127,73 @@ export async function newestOpportunities(db: Db, limit = 3): Promise<NewestOppo
   }));
 }
 
-export async function listApprovedOpportunities(db: Db): Promise<Opportunity[]> {
-  const data = await rows("list_approved_opportunities", () =>
-    db.rpc("list_approved_opportunities"),
-  );
-  return data.map(toOpportunity);
+/**
+ * member_admits_audience (20261006000002), ported to JS. Must stay
+ * logically identical — including the "no audience set" case falling
+ * through to `false`, same as the SQL's unmatched CASE — since this is
+ * what re-applies the audience filter that the cache-safe RPC call below
+ * skips at the database layer. `education` mirrors myEducation()'s shape;
+ * `!!` matches the SQL's `coalesce(..., false)`.
+ */
+function admitsAudience(
+  audience: string | null,
+  education: { enrolled: boolean | null; graduated: boolean | null },
+): boolean {
+  switch (audience) {
+    case "students":  return !!education.enrolled;
+    case "graduates": return !!education.graduated;
+    case "both":      return !!education.enrolled || !!education.graduated;
+    default:          return false;
+  }
+}
+
+/**
+ * Approved, not-yet-expired opportunities.
+ *
+ * Admins call the RPC live, exactly as before this cache existed — admin
+ * traffic is a rounding error, and skipping the cache for them means their
+ * "see every job, every contact email" view can never be a stale or
+ * wrongly-shared cache entry.
+ *
+ * Everyone else reads a cache-safe RPC result (20261026000004 — no
+ * audience row-filter, contact_email masked by the visible flag only,
+ * identical for every non-admin caller) and the app layer restores what
+ * the database skipped: admitsAudience() re-applies the audience filter
+ * using the viewer's own education status, and the poster's own rows get
+ * their real contact_email back from my_posted_opportunity_contact_emails
+ * — both exemptions the SQL version grants unconditionally.
+ */
+export async function listApprovedOpportunities(
+  db: Db,
+  viewer: { userId: string; isAdmin: boolean },
+): Promise<Opportunity[]> {
+  if (viewer.isAdmin) {
+    const data = await rows("list_approved_opportunities", () =>
+      db.rpc("list_approved_opportunities"),
+    );
+    return data.map(toOpportunity);
+  }
+
+  const [data, mine, education] = await Promise.all([
+    cached(
+      "opportunities",
+      () => rows("list_approved_opportunities (cache-safe)", () =>
+        db.rpc("list_approved_opportunities", { p_cache_safe: true })),
+      { isCacheable: (r) => r.length > 0 },
+    ),
+    rows("my_posted_opportunity_contact_emails", () =>
+      db.rpc("my_posted_opportunity_contact_emails")),
+    myEducation(db),
+  ]);
+  const myEmails = new Map(mine.map((r) => [r.id, r.contact_email]));
+
+  return data
+    .filter((r) => r.posted_by === viewer.userId || admitsAudience(r.eligible_audience, education))
+    .map((r) => {
+      const o = toOpportunity(r);
+      if (r.posted_by === viewer.userId) o.contactEmail = myEmails.get(r.id) ?? o.contactEmail;
+      return o;
+    });
 }
 
 /**

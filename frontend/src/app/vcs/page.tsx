@@ -48,7 +48,7 @@ export default async function VcsPage({
   // running. Both consumers below await the *same* promise, so it stays one
   // query, and they resolve in the same tick — the count and the list swap
   // in together rather than flickering one after the other.
-  const data = loadVcs(supabase, filters);
+  const data = loadVcs(supabase, filters, isAdmin);
 
   return (
     <ListingPageShell
@@ -85,11 +85,11 @@ type VcsData = {
   appliedIds: string[];
 };
 
-async function loadVcs(supabase: Db, filters: VcFilters): Promise<VcsData> {
+async function loadVcs(supabase: Db, filters: VcFilters, isAdmin: boolean): Promise<VcsData> {
   // The listing rows are filtered/paged live; get_my_listing_actions is
   // per-user by definition and is always read live too. See lib/data/vcs.ts.
   const [{ items, matching }, appliedIds] = await Promise.all([
-    listApprovedVcs(supabase, filters),
+    listApprovedVcs(supabase, filters, { isAdmin }),
     markedIds(supabase, "vc_grant", "applied"),
   ]);
   return { items, matching, appliedIds };

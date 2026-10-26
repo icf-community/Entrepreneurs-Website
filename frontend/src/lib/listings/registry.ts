@@ -83,7 +83,9 @@ export const LISTINGS = {
     revalidate: { admin: "/admin/opportunities", public: "/opportunities" },
     // The directory shows each member's open roles, sourced from approved
     // opportunities — so approving or editing one changes /community too.
-    cacheKeys: ["directoryFacets"],
+    // "opportunities" is the listing's own cache-safe cached result
+    // (lib/data/opportunities.ts, 20261026000004).
+    cacheKeys: ["directoryFacets", "opportunities"],
     approve: async (db, id, editVersion) =>
       await db.rpc("approve_opportunity", { p_opportunity_id: id, p_notes: null, p_expected_version: editVersion }),
     reject: async (db, id, reason) =>
@@ -109,9 +111,9 @@ export const LISTINGS = {
     submitNoun: "an event",
     emailKind: "event",
     revalidate: { admin: "/admin/events", public: "/events" },
-    // Events aren't cached (contact_email is masked per caller), and
-    // nothing else derives from them.
-    cacheKeys: [],
+    // "events" is the listing's own cache-safe cached result
+    // (lib/data/events.ts, 20261026000004); nothing else derives from it.
+    cacheKeys: ["events"],
     approve: async (db, id, editVersion) =>
       await db.rpc("approve_event", { p_event_id: id, p_notes: null, p_expected_version: editVersion }),
     reject: async (db, id, reason) => await db.rpc("reject_event", { p_event_id: id, p_reason: reason }),

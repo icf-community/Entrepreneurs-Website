@@ -1,4 +1,5 @@
 import "server-only";
+import { cached } from "../cache";
 import { rows, type Db } from "./query";
 
 export type FoundryEvent = {
@@ -82,9 +83,38 @@ export async function newestEvents(db: Db, limit = 3): Promise<NewestEvent[]> {
   }));
 }
 
-export async function listApprovedEvents(db: Db): Promise<FoundryEvent[]> {
-  const data = await rows("list_approved_events", () => db.rpc("list_approved_events"));
-  return data.map(toEvent);
+/**
+ * Admins call the RPC live, exactly as before this cache existed — see
+ * the identical note on listApprovedOpportunities in opportunities.ts.
+ * Events have no audience filter, so everyone else just needs their own
+ * contact_email restored on top of the cache-safe (visible-flag-only)
+ * result, via my_posted_event_contact_emails.
+ */
+export async function listApprovedEvents(
+  db: Db,
+  viewer: { userId: string; isAdmin: boolean },
+): Promise<FoundryEvent[]> {
+  if (viewer.isAdmin) {
+    const data = await rows("list_approved_events", () => db.rpc("list_approved_events"));
+    return data.map(toEvent);
+  }
+
+  const [data, mine] = await Promise.all([
+    cached(
+      "events",
+      () => rows("list_approved_events (cache-safe)", () =>
+        db.rpc("list_approved_events", { p_cache_safe: true })),
+      { isCacheable: (r) => r.length > 0 },
+    ),
+    rows("my_posted_event_contact_emails", () => db.rpc("my_posted_event_contact_emails")),
+  ]);
+  const myEmails = new Map(mine.map((r) => [r.id, r.contact_email]));
+
+  return data.map((r) => {
+    const e = toEvent(r);
+    if (r.posted_by === viewer.userId) e.contactEmail = myEmails.get(r.id) ?? e.contactEmail;
+    return e;
+  });
 }
 
 /**
@@ -109,7 +139,11 @@ export async function eventForEdit(db: Db, id: string) {
  * direct table read would leak it. The RPC's event_at >= now() filter
  * means an event that has already happened is a miss.
  */
-export async function approvedEvent(db: Db, id: string): Promise<FoundryEvent | null> {
-  const items = await listApprovedEvents(db);
+export async function approvedEvent(
+  db: Db,
+  id: string,
+  viewer: { userId: string; isAdmin: boolean },
+): Promise<FoundryEvent | null> {
+  const items = await listApprovedEvents(db, viewer);
   return items.find((e) => e.id === id) ?? null;
 }

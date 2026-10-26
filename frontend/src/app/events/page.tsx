@@ -13,7 +13,7 @@ export default async function EventsPage({
 }: {
   searchParams: Promise<{ submitted?: string; e?: string }>;
 }) {
-  const { supabase, isAdmin } = await requireApprovedUser();
+  const { supabase, user, isAdmin } = await requireApprovedUser();
   const sp = await searchParams;
 
   // /events?e=<id> was how a listing was linked to before it had a
@@ -28,7 +28,7 @@ export default async function EventsPage({
 
   // Started, not awaited — see the note in app/vcs/page.tsx. One query, two
   // awaits, both resolving in the same tick.
-  const data = loadEvents(supabase);
+  const data = loadEvents(supabase, user.id, isAdmin);
 
   return (
     <ListingPageShell
@@ -64,9 +64,9 @@ type EventsData = {
   goingIds: string[];
 };
 
-async function loadEvents(supabase: Db): Promise<EventsData> {
+async function loadEvents(supabase: Db, userId: string, isAdmin: boolean): Promise<EventsData> {
   const [items, goingIds] = await Promise.all([
-    listApprovedEvents(supabase),
+    listApprovedEvents(supabase, { userId, isAdmin }),
     markedIds(supabase, "event", "going"),
   ]);
   return { items, goingIds };

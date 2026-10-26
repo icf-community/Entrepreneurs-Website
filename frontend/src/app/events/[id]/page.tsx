@@ -27,12 +27,12 @@ const BACK = { href: "/events", label: "All events" };
 type Params = { id: string };
 
 export default async function EventPage({ params }: { params: Promise<Params> }) {
-  const [{ id }, { supabase, isAdmin }] = await Promise.all([
+  const [{ id }, { supabase, user, isAdmin }] = await Promise.all([
     params,
     requireApprovedUser(),
   ]);
 
-  const ev = await approvedEvent(supabase, id);
+  const ev = await approvedEvent(supabase, id, { userId: user.id, isAdmin });
 
   if (!ev) {
     return (

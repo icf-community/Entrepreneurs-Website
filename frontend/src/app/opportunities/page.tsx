@@ -35,7 +35,7 @@ export default async function OpportunitiesPage({
   const justSubmitted = sp?.submitted === "1";
 
   // Started, not awaited — see the note in app/vcs/page.tsx.
-  const data = loadOpportunities(supabase, user.id);
+  const data = loadOpportunities(supabase, user.id, isAdmin);
   const aiEnabled = aiModeEnabled(supabase, "opportunities");
   // Jobs are for students, graduates or both (AI-plan §7.2). Until a member
   // says which they are, they see none, so ask rather than show an empty
@@ -89,9 +89,9 @@ type OpportunitiesData = {
   appliedIds: string[];
 };
 
-async function loadOpportunities(supabase: Db, userId: string): Promise<OpportunitiesData> {
+async function loadOpportunities(supabase: Db, userId: string, isAdmin: boolean): Promise<OpportunitiesData> {
   const [items, bookmarkedIds, appliedIds] = await Promise.all([
-    listApprovedOpportunities(supabase),
+    listApprovedOpportunities(supabase, { userId, isAdmin }),
     bookmarkedOpportunityIds(supabase, userId),
     markedIds(supabase, "opportunity", "applied"),
   ]);

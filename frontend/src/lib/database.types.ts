@@ -2729,7 +2729,7 @@ export type Database = {
       is_imperial_email: { Args: { p_email: string }; Returns: boolean }
       issue_upload_ticket: { Args: { p_purpose?: string }; Returns: string }
       list_approved_events: {
-        Args: never
+        Args: { p_cache_safe?: boolean }
         Returns: {
           contact_email: string
           contact_email_visible: boolean
@@ -2749,7 +2749,7 @@ export type Database = {
         }[]
       }
       list_approved_opportunities: {
-        Args: never
+        Args: { p_cache_safe?: boolean }
         Returns: {
           application_deadline: string
           apply_method: Database["public"]["Enums"]["apply_method"]
@@ -3200,6 +3200,20 @@ export type Database = {
         }[]
       }
       my_pending_connection_count: { Args: never; Returns: number }
+      my_posted_event_contact_emails: {
+        Args: never
+        Returns: {
+          contact_email: string
+          id: string
+        }[]
+      }
+      my_posted_opportunity_contact_emails: {
+        Args: never
+        Returns: {
+          contact_email: string
+          id: string
+        }[]
+      }
       my_unread_notification_count: { Args: never; Returns: number }
       notification_name: { Args: { p_user: string }; Returns: string }
       notify: {

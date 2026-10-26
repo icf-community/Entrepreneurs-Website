@@ -13,14 +13,28 @@ import * as Sentry from "@sentry/nextjs";
 // WHAT MAY BE CACHED HERE — read this before adding a key.
 //
 // Only responses that are byte-identical for every member. Several of
-// this app's RPCs are deliberately caller-dependent:
-// list_approved_opportunities and list_approved_events return
-// contact_email only when the row is marked visible OR the caller is the
-// poster OR the caller is an admin (migration 20260530000002). Caching
-// one member's response and serving it to another would disclose
-// posters' private contact addresses. Those lists are therefore NOT
-// cached here, and anything per-user (bookmarks, listing actions,
-// submissions) obviously isn't either.
+// this app's RPCs are deliberately caller-dependent — list_approved_opportunities
+// and list_approved_events return contact_email only when the row is
+// marked visible OR the caller is the poster OR the caller is an admin,
+// and list_approved_opportunities additionally filters which ROWS appear
+// at all by the caller's own education status (20261026000004). Caching
+// one member's response and serving it to another would disclose posters'
+// private contact addresses, or hide/show audience-gated jobs wrongly.
+//
+// `opportunities`/`events` below ARE cached, but never with that raw,
+// caller-dependent RPC result: lib/data/opportunities.ts and events.ts
+// call the RPCs with p_cache_safe=true (20261026000004), which strips the
+// poster/admin contact_email override and, for opportunities, the
+// audience row-filter — making the cached payload identical for every
+// non-admin caller. Admins skip the cache entirely and call the RPCs
+// live with p_cache_safe left at its default (false), getting the exact
+// same per-admin result as before this existed. The app layer then
+// restores the caller's own contact_email (via
+// my_posted_opportunity_contact_emails/my_posted_event_contact_emails)
+// and, for opportunities, re-applies the audience filter in JS using the
+// viewer's own already-fetched education status — see admitsAudience() in
+// lib/data/opportunities.ts. Anything per-user beyond that (bookmarks,
+// listing actions, submissions) obviously still isn't cached.
 //
 // QUOTA COUPLING — READ THIS BEFORE ADDING CACHE TRAFFIC.
 //
@@ -167,7 +181,8 @@ const VERSION = 1;
 
 export type CacheKey =
   | "directoryFacets" | "directoryFirstPage" | "directoryNewest"
-  | "vcs" | "lookups" | "skills" | "skillsDetailed" | "sectors" | "siteBanner"
+  | "vcs" | "opportunities" | "events"
+  | "lookups" | "skills" | "skillsDetailed" | "sectors" | "siteBanner"
   | "adminConnectionStats";
 
 const key = (k: CacheKey) => `cache:v${VERSION}:${k}`;
@@ -215,6 +230,13 @@ const TTL_SECONDS: Record<CacheKey, number> = {
   directoryFirstPage: 60,
   directoryNewest: 60,
   vcs: 300,
+  // The two highest-traffic listing reads in the app (D8-cost/C2 findings).
+  // Short TTL, same reasoning as directoryFirstPage/directoryNewest: a new
+  // approval should show up quickly, and the explicit invalidate() calls
+  // in lib/listings/admin.ts/user.ts/edits.ts are the real mechanism —
+  // this just bounds a missed one.
+  opportunities: 60,
+  events: 60,
   lookups: 3600,
   // Skills/sectors are a seeded taxonomy a human edits by migration — see
   // lib/data/taxonomy.ts's own header — so an hour-long TTL costs nothing
