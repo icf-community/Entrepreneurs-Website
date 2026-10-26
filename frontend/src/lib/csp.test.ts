@@ -140,6 +140,19 @@ describe("buildStaticCsp", () => {
     }
   });
 
+  it("excludes only the exact STATIC_CSP_ROUTES, not any path with that prefix", () => {
+    // Audit follow-up: the matcher used to exclude on a bare "privacy" /
+    // "terms" / "cookies" alternative with no boundary, so a future route
+    // like /privacy-settings would also silently skip session refresh.
+    const matcher = new RegExp(`^${proxyConfig.matcher[0]}$`);
+    for (const path of ["/privacy-settings", "/termsofservice", "/cookiesmonster"]) {
+      expect(matcher.test(path)).toBe(true); // true = middleware DOES run
+    }
+    for (const route of ["/privacy", "/terms", "/cookies"]) {
+      expect(matcher.test(route)).toBe(false); // false = correctly excluded
+    }
+  });
+
   it("covers only routes that render no user-supplied content", () => {
     // A guard against someone adding /login or /contact here later: both
     // are public, but both take user input, so both must keep the strict

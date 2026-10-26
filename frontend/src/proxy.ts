@@ -27,9 +27,17 @@ export const config = {
     // skipped. Any other path has characters left, so `$` cannot match
     // there and nothing else is affected.
     //
+    // privacy/terms/cookies are each anchored with (?:$|/) — without it,
+    // the bare alternative "privacy" matches as a PREFIX, so a future
+    // route like /privacy-settings would also be silently excluded from
+    // session refresh (audit follow-up: confirmed with a direct regex
+    // test against /privacy-settings, /termsofservice-x, /cookiesmonster
+    // — all three matched the unanchored version before this fix, none of
+    // the three are real routes today, so this was dormant, not live).
+    //
     // Also skipped: /api/banner (F-x4). It reads no session and is CDN
     // cached, so the proxy's getUser() would be an Auth round trip per
     // page view for nothing.
-    "/((?!_next/static|_next/image|favicon.ico|privacy|terms|cookies|api/banner$|$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|css|js)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|privacy(?:$|/)|terms(?:$|/)|cookies(?:$|/)|api/banner$|$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|css|js)$).*)",
   ],
 };
