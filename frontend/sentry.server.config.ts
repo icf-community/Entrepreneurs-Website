@@ -5,15 +5,17 @@
 // itself (use an ingest URL from a Sentry EU-region org, e.g.
 // https://...@o123.ingest.de.sentry.io/...).
 import * as Sentry from "@sentry/nextjs";
+import { tracesSampler } from "./src/lib/observability/tracesSampler";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
 if (dsn) {
   Sentry.init({
     dsn,
-    // Errors only — no performance tracing (keeps us inside the free-tier
-    // error quota without consuming the separate performance budget).
-    tracesSampleRate: 0,
+    // A small trace sample, authenticated routes only — see
+    // tracesSampler's own header for why. Keeps us inside the free-tier
+    // performance quota while still getting production latency signal.
+    tracesSampler,
     // Don't phone home in development.
     enabled: process.env.NODE_ENV === "production",
     // G6: production / preview / development, so a preview deploy's errors

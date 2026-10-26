@@ -1,6 +1,6 @@
 # Observability
 
-Launch programme Part G. Errors and health only in production: Sentry `tracesSampleRate` is 0, and nothing records performance or Web Vitals. Read/write timing stays a local load-test tool (`PERF_METRICS=1`, E1c). No new SaaS: Sentry, PostHog and our own Postgres.
+Launch programme Part G. Errors and health in production, plus a small trace sample: Sentry's `tracesSampler` (`src/lib/observability/tracesSampler.ts`, 2026-10-26) returns 0.05 for authenticated-route transactions and 0 for everything else, so Web Vitals/performance spans exist only where the auth-latency question actually lives, without materially touching the free tier. Read/write timing otherwise stays a local load-test tool (`PERF_METRICS=1`, E1c). No new SaaS: Sentry, PostHog and our own Postgres.
 
 ## G1 · Surfaces and how each is watched
 
