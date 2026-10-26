@@ -388,7 +388,11 @@ function PendingOutgoingFooter({
             </p>
           }
           confirmLabel="Withdraw"
-          onConfirm={() => withdrawConnectionRequest({ connectionId })}
+          onConfirm={async () => {
+            const res = await withdrawConnectionRequest({ connectionId });
+            if (res.ok) track("connection_request_withdrawn");
+            return res;
+          }}
           onSuccess={onWithdrawSuccess}
           onClose={() => setWithdrawing(false)}
         />

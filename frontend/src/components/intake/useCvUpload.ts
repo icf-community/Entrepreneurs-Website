@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { createClient } from "@/lib/supabase/client";
 import { requestCvTicket, confirmCvUpload, removeCv } from "@/app/profile/mediaActions";
+import { track } from "@/lib/analytics/track";
 import type { StepId } from "@/lib/intake/steps";
 import type { IntakeState } from "@/lib/intake/state";
 
@@ -115,6 +116,7 @@ export function useCvUpload(
 
       const confirmed = await confirmCvUpload(stored.key, s.cvFile.name, s.cvConsent);
       if (!confirmed.ok) return confirmed.error;
+      track("cv_uploaded", { consent: s.cvConsent });
 
       // Suggestion chips are no longer returned inline — confirmCvUpload
       // parses the CV in the background and persists the result, so a

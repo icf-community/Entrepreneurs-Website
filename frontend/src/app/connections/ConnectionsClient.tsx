@@ -952,7 +952,11 @@ function SentTab({ page }: { page: RequestsPage<SentRequest> }) {
             </p>
           }
           confirmLabel="Withdraw"
-          onConfirm={() => withdrawConnectionRequest({ connectionId: withdrawing.connectionId })}
+          onConfirm={async () => {
+            const res = await withdrawConnectionRequest({ connectionId: withdrawing.connectionId });
+            if (res.ok) track("connection_request_withdrawn");
+            return res;
+          }}
           onSuccess={() =>
             setItems((prev) => prev.filter((x) => x.connectionId !== withdrawing.connectionId))
           }

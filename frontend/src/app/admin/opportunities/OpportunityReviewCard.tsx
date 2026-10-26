@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { approveOpportunity, rejectOpportunity } from "./actions";
+import { track } from "@/lib/analytics/track";
 import { formatDate } from "@/lib/dates";
 import { ApprovalActions, RejectionForm } from "@/components/admin/ReviewActions";
 import { ErrorBanner } from "@/components/forms/Banners";
@@ -60,6 +61,7 @@ export default function OpportunityReviewCard({ opportunity: o }: { opportunity:
     startTransition(async () => {
       const res = await approveOpportunity(o.id, o.editVersion);
       if (!res.ok) setError(res.error);
+      else track("admin_listing_approved", { kind: "opportunity", id: o.id });
     });
   };
 
@@ -68,7 +70,7 @@ export default function OpportunityReviewCard({ opportunity: o }: { opportunity:
     startTransition(async () => {
       const res = await rejectOpportunity(o.id, reason);
       if (!res.ok) setError(res.error);
-      else { setShowReject(false); setReason(""); }
+      else { track("admin_listing_rejected", { kind: "opportunity", id: o.id }); setShowReject(false); setReason(""); }
     });
   };
 

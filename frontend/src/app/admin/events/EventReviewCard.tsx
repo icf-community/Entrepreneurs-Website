@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { approveEvent, rejectEvent } from "./actions";
+import { track } from "@/lib/analytics/track";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { Button } from "@/components/ui/Button";
 import { ErrorBanner } from "@/components/forms/Banners";
@@ -43,6 +44,7 @@ export default function EventReviewCard({ ev }: { ev: Ev }) {
     startTransition(async () => {
       const res = await approveEvent(ev.id, ev.editVersion);
       if (!res.ok) setError(res.error);
+      else track("admin_listing_approved", { kind: "event", id: ev.id });
     });
   };
 
@@ -51,7 +53,7 @@ export default function EventReviewCard({ ev }: { ev: Ev }) {
     startTransition(async () => {
       const res = await rejectEvent(ev.id, reason);
       if (!res.ok) setError(res.error);
-      else { setShowReject(false); setReason(""); }
+      else { track("admin_listing_rejected", { kind: "event", id: ev.id }); setShowReject(false); setReason(""); }
     });
   };
 

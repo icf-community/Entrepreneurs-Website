@@ -14,6 +14,7 @@ import { cleanName, cleanText, isValidName, MAX_NAME_LENGTH } from "@/lib/text";
 import { gradYearOptions, validateGradYear } from "@/lib/gradYears";
 import { describeSupabaseError, isSessionExpiredError } from "@/lib/supabaseErrors";
 import { Button } from "@/components/ui/Button";
+import { track } from "@/lib/analytics/track";
 import { invalidateDirectoryCache } from "@/app/profile/actions";
 import {
   requestAvatarTicket, confirmAvatarUpload, removeAvatar,
@@ -853,6 +854,7 @@ function CvSection({
       const stored = await res.json();
       const confirmed = await confirmCvUpload(stored.key, file.name, consent);
       if (!confirmed.ok) { setError(confirmed.error); return; }
+      track("cv_uploaded", { consent });
 
       setPresent(true);
       setFilename(file.name);

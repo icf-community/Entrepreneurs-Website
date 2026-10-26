@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { approveUser, rejectUser } from "./actions";
+import { track } from "@/lib/analytics/track";
 import SocialLinks from "@/components/SocialLinks";
 import { formatDate } from "@/lib/dates";
 import { ErrorBanner } from "@/components/forms/Banners";
@@ -36,6 +37,7 @@ export default function UserCard({ member }: { member: Member }) {
     startTransition(async () => {
       const res = await approveUser(member.id);
       if (!res.ok) setError(res.error);
+      else track("admin_member_approved", { userId: member.id });
     });
   };
 
@@ -46,6 +48,7 @@ export default function UserCard({ member }: { member: Member }) {
       if (!res.ok) {
         setError(res.error);
       } else {
+        track("admin_member_rejected", { userId: member.id });
         setShowReject(false);
         setReason("");
       }

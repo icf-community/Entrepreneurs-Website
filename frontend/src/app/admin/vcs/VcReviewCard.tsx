@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { approveVcGrant, rejectVcGrant } from "./actions";
+import { track } from "@/lib/analytics/track";
 import { formatDate } from "@/lib/dates";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { ApprovalActions, RejectionForm } from "@/components/admin/ReviewActions";
@@ -41,6 +42,7 @@ export default function VcReviewCard({ vc: v }: { vc: Vc }) {
     startTransition(async () => {
       const res = await approveVcGrant(v.id, v.editVersion);
       if (!res.ok) setError(res.error);
+      else track("admin_listing_approved", { kind: "vc_grant", id: v.id });
     });
   };
 
@@ -49,7 +51,7 @@ export default function VcReviewCard({ vc: v }: { vc: Vc }) {
     startTransition(async () => {
       const res = await rejectVcGrant(v.id, reason);
       if (!res.ok) setError(res.error);
-      else { setShowReject(false); setReason(""); }
+      else { track("admin_listing_rejected", { kind: "vc_grant", id: v.id }); setShowReject(false); setReason(""); }
     });
   };
 
