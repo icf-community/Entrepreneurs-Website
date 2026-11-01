@@ -2452,6 +2452,105 @@ begin
   if not exists (select 1 from public.admins where user_id = v_admin) then
     raise exception 'FAIL: an unrelated admin lost admin access during this test';
   end if;
+
+  -- 25f. Security audit (2026-10-26): leaving committee must not demote
+  --      someone who was ALSO granted admin independently of committee
+  --      (the exact gap 25e doesn't cover — v_admin there never touches
+  --      committee at all). Grant v_b admin the documented manual way
+  --      first (insert into admins), then add and remove them from
+  --      committee, and confirm they're still admin afterward.
+  set local role postgres;
+  insert into public.admins (user_id) values (v_b) on conflict (user_id) do nothing;
+  perform _set_caller(v_admin);
+  perform public.admin_set_committee(v_b, true, 'Committee member');
+  perform public.admin_set_committee(v_b, false, null);
+  if not exists (select 1 from public.admins where user_id = v_b) then
+    raise exception 'FAIL: committee revoke demoted an admin who was independently granted admin';
+  end if;
+  set local role postgres;
+  delete from public.admins where user_id = v_b;
+end;
+$$;
+
+-- 26. Security audit (2026-10-26): the member-facing create flow for all
+--     three listing types goes exclusively through SECURITY DEFINER RPCs
+--     (submit_opportunity, submit_event, the vc_grant equivalent), which
+--     bypass RLS and enforce Turnstile + the submit rate limit
+--     themselves. The *_insert_own policies that used to let an approved
+--     member INSERT the table directly were never needed for that path —
+--     they only gave a direct PostgREST POST a way around both checks,
+--     plus the ability to forge creation_source on opportunities and
+--     backdate/forward-date created_at on any of the three. Dropped
+--     entirely (20261026000005); this asserts a direct insert into each
+--     table is now rejected outright, even with every other column
+--     honest.
+do $$
+declare
+  v_a  uuid := (select v from _test_ctx where k='user_a');
+  v_ok boolean;
+begin
+  perform _set_caller(v_a);
+
+  v_ok := false;
+  begin
+    insert into public.opportunities (
+      posted_by, status, position_name, company, pay, location_type, description,
+      start_month, start_year, application_deadline, contact_email, apply_method
+    ) values (
+      v_a, 'pending', 'Forged role', 'Co', '£1', 'remote',
+      'Description that is at least twenty chars long.',
+      1, 2027, current_date + 30, 'a@imperial.ac.uk', 'email'
+    );
+    raise exception 'FAIL: direct opportunities insert succeeded with no insert policy';
+  exception when sqlstate '42501' then v_ok := true;
+  end;
+  if not v_ok then raise exception 'FAIL: opportunities insert did not raise 42501'; end if;
+
+  -- The specific forgery this closes: creation_source = 'admin' changes
+  -- how the row is treated by the AI job-matching paths (20261006000002
+  -- only trusts creation_source = 'member' there).
+  v_ok := false;
+  begin
+    insert into public.opportunities (
+      posted_by, status, position_name, company, pay, location_type, description,
+      start_month, start_year, application_deadline, contact_email, apply_method, creation_source
+    ) values (
+      v_a, 'pending', 'Forged role', 'Co', '£1', 'remote',
+      'Description that is at least twenty chars long.',
+      1, 2027, current_date + 30, 'a@imperial.ac.uk', 'email', 'admin'
+    );
+    raise exception 'FAIL: direct opportunities insert forged creation_source = admin';
+  exception when sqlstate '42501' then v_ok := true;
+  end;
+  if not v_ok then raise exception 'FAIL: forged-creation_source insert did not raise 42501'; end if;
+
+  v_ok := false;
+  begin
+    insert into public.events (
+      posted_by, status, title, description, luma_link,
+      event_at, location, organiser_name, contact_email
+    ) values (
+      v_a, 'pending', 'Forged event',
+      'Description that is at least twenty chars long.',
+      'https://lu.ma/x', now() + interval '7 days', 'Imperial', 'A User', 'a@imperial.ac.uk'
+    );
+    raise exception 'FAIL: direct events insert succeeded with no insert policy';
+  exception when sqlstate '42501' then v_ok := true;
+  end;
+  if not v_ok then raise exception 'FAIL: events insert did not raise 42501'; end if;
+
+  v_ok := false;
+  begin
+    insert into public.vcs_grants (
+      posted_by, status, name, kind, description, link
+    ) values (
+      v_a, 'pending', 'Forged fund', 'vc',
+      'Description that is at least twenty chars long.', 'https://example.com'
+    );
+    raise exception 'FAIL: direct vcs_grants insert succeeded with no insert policy';
+  exception when sqlstate '42501' then v_ok := true;
+  end;
+  if not v_ok then raise exception 'FAIL: vcs_grants insert did not raise 42501'; end if;
 end;
 $$;
 

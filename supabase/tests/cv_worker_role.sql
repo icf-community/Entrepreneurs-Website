@@ -76,7 +76,8 @@ begin
   update public.cvs set raw_text = 'text', raw_text_hash = 'h' where id = x.cv;
   perform c.id from public.cvs c
    where c.member_id = x.member and c.raw_text_hash = 'h' and c.status = 'ready' and c.id <> x.cv
-     and exists (select 1 from public.cv_profiles cp where cp.cv_id = c.id)
+     and exists (select 1 from public.cv_profiles cp
+                  where cp.cv_id = c.id and cp.prompt_version = 'v' and cp.policy_version = 'p')
    order by c.created_at desc limit 1;
   update public.cvs set status = 'failed', failure_reason = 'r'
    where id = x.cv and status not in ('ready', 'flagged', 'failed');

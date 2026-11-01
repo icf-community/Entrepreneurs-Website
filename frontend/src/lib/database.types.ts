@@ -67,14 +67,17 @@ export type Database = {
       admins: {
         Row: {
           created_at: string
+          granted_by_committee: boolean
           user_id: string
         }
         Insert: {
           created_at?: string
+          granted_by_committee?: boolean
           user_id: string
         }
         Update: {
           created_at?: string
+          granted_by_committee?: boolean
           user_id?: string
         }
         Relationships: []
@@ -3231,6 +3234,7 @@ export type Database = {
       purge_connection_records: { Args: never; Returns: number }
       purge_deleted_account_tombstones: { Args: never; Returns: number }
       purge_expired_posts: { Args: never; Returns: number }
+      purge_finished_jobs: { Args: never; Returns: number }
       purge_moderation_records: { Args: never; Returns: number }
       purge_old_notifications: { Args: never; Returns: number }
       purge_rejected_listings: { Args: never; Returns: number }

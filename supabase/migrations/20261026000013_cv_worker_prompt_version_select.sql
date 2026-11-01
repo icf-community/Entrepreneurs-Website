@@ -1,0 +1,26 @@
+-- ════════════════════════════════════════════════════════════════════
+-- cv_worker could not run the worker's own CV-reuse query.
+--
+-- Since the version-aware hash-match (AI plan §3, worker.py process_ingest_cv)
+-- the worker asks whether an earlier CV with the same text already has a
+-- profile built by THIS extractor under THIS privacy policy:
+--
+--     exists (select 1 from public.cv_profiles cp
+--              where cp.cv_id = c.id and cp.prompt_version = %s and cp.policy_version = %s)
+--
+-- 20261006000001 granted cv_worker SELECT on cv_profiles.policy_version only;
+-- prompt_version had INSERT (20260928000013) but never SELECT, so the query
+-- failed with `permission denied for table cv_profiles` before any CV could
+-- be processed. Every CV long enough to pass the length check ended as
+-- "Couldn't be processed". Found by the CV upload E2E once its sample PDF was
+-- long enough to reach this query (the old 66-character sample stopped at the
+-- 200-character minimum, so the query was never run) and by
+-- supabase/tests/cv_worker_role.sql, whose copy of the statement had gone stale.
+--
+-- One column, read-only, on a column that holds a version label.
+--
+-- Prod pre-check: none, no data is touched.
+-- Rollback: revoke select (prompt_version) on public.cv_profiles from cv_worker;
+-- ════════════════════════════════════════════════════════════════════
+
+grant select (prompt_version) on public.cv_profiles to cv_worker;

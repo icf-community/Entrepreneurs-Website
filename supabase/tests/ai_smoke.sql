@@ -516,5 +516,185 @@ begin
   end if;
 end $$;
 
+-- L-2 (20261026000010): the money caps have hard ceilings on the table itself,
+-- validated, sized to the $150/month OpenAI budget.
+do $$
+declare v_bad text;
+begin
+  select string_agg(c.name, ', ') into v_bad
+    from (values ('settings_matching_monthly_cap_max'), ('settings_matching_daily_cap_max'), ('settings_member_daily_cap_max')) c(name)
+   where not exists (select 1 from pg_constraint k
+                      where k.conrelid = 'ai_private.settings'::regclass and k.conname = c.name and k.convalidated);
+  if v_bad is not null then raise exception 'FAIL: money-cap ceiling missing or not validated: %', v_bad; end if;
+  begin
+    update ai_private.settings set member_daily_cap_micro = 1000001 where id = 1;
+    raise exception 'FAIL: a per-member cap above $1 was written';
+  exception when check_violation then null;
+  end;
+  begin
+    update ai_private.settings set matching_monthly_cap_micro = 150000001 where id = 1;
+    raise exception 'FAIL: a monthly cap above $150 was written';
+  exception when check_violation then null;
+  end;
+  if (select matching_monthly_cap_micro from ai_private.settings where id = 1) > 150000000 then
+    raise exception 'FAIL: the stored monthly cap is above the budget';
+  end if;
+end $$;
+
+-- Retention (20261026000014): the ledger rolls old rows into exact daily totals, finished
+-- jobs are purged, and neither function is reachable from an API role.
+do $$
+declare
+  v_moved int;
+  v_row ai_private.spend_daily%rowtype;
+  v_old date := (now() at time zone 'utc')::date - 60;
+begin
+  insert into ai_private.spend (day, created_at, purpose, mode, stage, model, price_version, max_input_tokens,
+                                max_output_tokens, reserved_micro, settled_micro, input_tokens, output_tokens, status)
+  values
+    (v_old, now() - interval '60 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 100, 80, 10, 5, 'settled'),
+    (v_old, now() - interval '60 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 100, 20, 7, 3, 'settled'),
+    (v_old, now() - interval '60 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 100, null, null, null, 'released'),
+    (v_old, now() - interval '60 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 50, null, null, null, 'unknown'),
+    -- Not eligible: an open reservation (the reaper's), and a row inside the window.
+    (v_old, now() - interval '60 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 9, null, null, null, 'reserved'),
+    ((now() at time zone 'utc')::date - 10, now() - interval '10 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 11, 11, 1, 1, 'settled');
+
+  v_moved := ai_private.cron_rollup_spend();
+  if v_moved < 4 then raise exception 'FAIL: rollup moved % rows, expected at least the 4 eligible ones', v_moved; end if;
+  if exists (select 1 from ai_private.spend where stage = 'rolltest' and day = v_old and status <> 'reserved') then
+    raise exception 'FAIL: an eligible ledger row survived the rollup';
+  end if;
+  if not exists (select 1 from ai_private.spend where stage = 'rolltest' and day = v_old and status = 'reserved')
+     or not exists (select 1 from ai_private.spend where stage = 'rolltest' and day = (now() at time zone 'utc')::date - 10) then
+    raise exception 'FAIL: the rollup removed an open reservation or a row inside the 45-day window';
+  end if;
+  select * into v_row from ai_private.spend_daily where stage = 'rolltest' and day = v_old;
+  -- settled 80 + settled 20 + released 0 + unknown (its reservation) 50 = 150 charged, 4 calls, 17/8 tokens.
+  if v_row.calls <> 4 or v_row.charged_micro <> 150 or v_row.input_tokens <> 17 or v_row.output_tokens <> 8 then
+    raise exception 'FAIL: rollup totals are wrong: calls %, charged %, in %, out %', v_row.calls, v_row.charged_micro, v_row.input_tokens, v_row.output_tokens;
+  end if;
+  if ai_private.cron_rollup_spend() <> 0 and exists (select 1 from ai_private.spend where stage = 'rolltest' and day = v_old and status <> 'reserved') then
+    raise exception 'FAIL: a second rollup run is not a no-op';
+  end if;
+  -- A late row for the same key accumulates into the existing daily row rather than colliding.
+  insert into ai_private.spend (day, created_at, purpose, mode, stage, model, price_version, max_input_tokens,
+                                max_output_tokens, reserved_micro, settled_micro, input_tokens, output_tokens, status)
+  values (v_old, now() - interval '60 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 5, 5, 2, 1, 'settled');
+  perform ai_private.cron_rollup_spend();
+  select * into v_row from ai_private.spend_daily where stage = 'rolltest' and day = v_old;
+  if v_row.calls <> 5 or v_row.charged_micro <> 155 then
+    raise exception 'FAIL: a second batch for the same day did not accumulate (calls %, charged %)', v_row.calls, v_row.charged_micro;
+  end if;
+  if (select count(*) from ai_private.spend_daily where stage = 'rolltest') <> 1 then
+    raise exception 'FAIL: the rollup wrote more than one row for one key';
+  end if;
+
+  -- Finished jobs: done after 30 days, dead after 90; pending and recent rows stay.
+  insert into public.jobs (kind, payload, status, updated_at) values
+    ('ingest_cv', '{"t":"purge-done-old"}',   'done',    now() - interval '40 days'),
+    ('ingest_cv', '{"t":"purge-done-new"}',   'done',    now() - interval '5 days'),
+    ('ingest_cv', '{"t":"purge-dead-mid"}',   'dead',    now() - interval '60 days'),
+    ('ingest_cv', '{"t":"purge-dead-old"}',   'dead',    now() - interval '100 days'),
+    ('ingest_cv', '{"t":"purge-pending-old"}', 'pending', now() - interval '100 days');
+  perform public.purge_finished_jobs();
+  if exists (select 1 from public.jobs where payload->>'t' in ('purge-done-old', 'purge-dead-old')) then
+    raise exception 'FAIL: an expired finished job survived the purge';
+  end if;
+  if (select count(*) from public.jobs where payload->>'t' in ('purge-done-new', 'purge-dead-mid', 'purge-pending-old')) <> 3 then
+    raise exception 'FAIL: the purge removed a job that should have stayed';
+  end if;
+
+  -- Not reachable from any API role; the new table is closed like the rest of ai_private.
+  if has_function_privilege('anon', 'ai_private.cron_rollup_spend()', 'execute')
+     or has_function_privilege('authenticated', 'ai_private.cron_rollup_spend()', 'execute')
+     or has_function_privilege('anon', 'public.purge_finished_jobs()', 'execute')
+     or has_function_privilege('authenticated', 'public.purge_finished_jobs()', 'execute')
+     or has_table_privilege('authenticated', 'ai_private.spend_daily', 'select')
+     or has_table_privilege('anon', 'ai_private.spend_daily', 'select') then
+    raise exception 'FAIL: a retention function or the rollup table is reachable from an API role';
+  end if;
+  if not (select relrowsecurity from pg_class where oid = 'ai_private.spend_daily'::regclass) then
+    raise exception 'FAIL: spend_daily has no row level security';
+  end if;
+  if not exists (select 1 from cron.job where jobname = 'ai-spend-rollup')
+     or not exists (select 1 from cron.job where jobname = 'purge-finished-jobs-daily') then
+    raise exception 'FAIL: a retention job is not scheduled';
+  end if;
+end $$;
+
+-- Retrieval (20261026000015): the vector legs must keep scanning the HNSW index until the LIMIT is
+-- met, or they silently return fewer candidates than asked for once the planner uses the index. A
+-- later migration that recreates exec_retrieve from an older body would drop this line without any
+-- other test noticing (the same way cron_purge once lost two lines), so it is asserted here.
+do $$
+begin
+  if position('hnsw.iterative_scan' in (select prosrc from pg_proc
+                                           where oid = 'ai_private.exec_retrieve(uuid,uuid,text[],text[],text,text,integer)'::regprocedure)) = 0 then
+    raise exception 'FAIL: exec_retrieve no longer enables the HNSW iterative scan';
+  end if;
+  if not has_function_privilege('ai_service', 'ai_private.exec_retrieve(uuid,uuid,text[],text[],text,text,integer)', 'execute') then
+    raise exception 'FAIL: the executor lost execute on exec_retrieve';
+  end if;
+end $$;
+
+-- Monthly cap (20261026000016): the month-to-date total comes from cached closed days plus today's live
+-- rows, and must equal the brute-force sum at the cap boundary; a day with an open reservation is not cached.
+do $$
+declare
+  v_day   date := (now() at time zone 'utc')::date;
+  v_m     date := date_trunc('month', (now() at time zone 'utc'))::date;
+  v_bound bigint;
+  v_brute bigint;
+  v_cap0  bigint;
+  v_ok    uuid;
+begin
+  if v_day < v_m + 2 then
+    raise notice 'ai_smoke: monthly closed-day check skipped (needs at least two earlier days in the month)';
+    return;
+  end if;
+  delete from ai_private.spend_closed_days;
+  insert into ai_private.spend (day, created_at, purpose, mode, stage, model, price_version, max_input_tokens,
+                                max_output_tokens, reserved_micro, settled_micro, input_tokens, output_tokens, status)
+  values
+    (v_m,     v_m::timestamptz,     'matching', 'network', 'closedtest', 'fake-mini', 1, 10, 10, 100, 40, 1, 1, 'settled'),
+    (v_m,     v_m::timestamptz,     'matching', 'network', 'closedtest', 'fake-mini', 1, 10, 10, 100, 60, 1, 1, 'settled'),
+    (v_m,     v_m::timestamptz,     'matching', 'network', 'closedtest', 'fake-mini', 1, 10, 10, 100, null, null, null, 'released'),
+    (v_m + 1, (v_m + 1)::timestamptz, 'matching', 'network', 'closedtest', 'fake-mini', 1, 10, 10, 7, null, null, null, 'reserved'),
+    (v_m + 1, (v_m + 1)::timestamptz, 'matching', 'network', 'closedtest', 'fake-mini', 1, 10, 10, 30, 3, 1, 1, 'settled');
+  select ceil((100::numeric * input_micro_per_mtok + 10::numeric * output_micro_per_mtok) / 1000000) into v_bound
+    from ai_private.model_prices where model = 'fake-mini';
+
+  -- Cap just below "everything so far + this call" refuses; at it, admits. Same arithmetic as a full scan.
+  select sum(ai_private.spend_charged(s)) into v_brute from ai_private.spend s
+   where s.purpose = 'matching' and s.day >= v_m;
+  select matching_monthly_cap_micro into v_cap0 from ai_private.settings where id = 1;
+  update ai_private.settings set matching_monthly_cap_micro = least(v_brute + v_bound - 1, 150000000)
+   where id = 1 and v_brute + v_bound - 1 <= 150000000;
+  begin
+    perform ai_private.spend_reserve('matching', 'network', null, null, null, 'closedtest', 'fake-mini', 100, 10);
+    raise exception 'FAIL: the monthly cap admitted a call that takes the month one microdollar over';
+  exception when raise_exception then
+    if sqlerrm not like 'budget_exhausted: matching_monthly%' then raise; end if;
+  end;
+  update ai_private.settings set matching_monthly_cap_micro = v_brute + v_bound where id = 1;
+  v_ok := ai_private.spend_reserve('matching', 'network', null, null, null, 'closedtest', 'fake-mini', 100, 10);
+  if v_ok is null then raise exception 'FAIL: the monthly cap refused a call that lands exactly on the cap'; end if;
+  update ai_private.settings set matching_monthly_cap_micro = v_cap0 where id = 1;
+
+  -- A fully settled earlier day is cached at its exact charge; a day with an open reservation is not cached.
+  if (select charged_micro from ai_private.spend_closed_days where purpose = 'matching' and day = v_m) is distinct from 100 then
+    raise exception 'FAIL: the closed day was cached at % instead of 100',
+      (select charged_micro from ai_private.spend_closed_days where purpose = 'matching' and day = v_m);
+  end if;
+  if exists (select 1 from ai_private.spend_closed_days where purpose = 'matching' and day = v_m + 1) then
+    raise exception 'FAIL: a day with an open reservation was cached';
+  end if;
+  if has_table_privilege('authenticated', 'ai_private.spend_closed_days', 'select')
+     or has_table_privilege('anon', 'ai_private.spend_closed_days', 'select') then
+    raise exception 'FAIL: spend_closed_days is reachable from an API role';
+  end if;
+end $$;
+
 select 'ai_smoke: all checks passed' as result;
 rollback;
