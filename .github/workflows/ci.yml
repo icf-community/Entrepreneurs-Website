@@ -83,7 +83,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          # 3.12 to match server/Dockerfile's python:3.12-slim-bookworm base —
+          # 3.12 to match server/Dockerfile's python:3.12-slim-trixie base —
           # what actually runs in production now. Testing on a newer
           # interpreter than the one that runs in production is how a Pillow
           # or PyJWT behaviour difference reaches the box unnoticed.
@@ -129,7 +129,7 @@ jobs:
       # HIGH/CRITICAL CVEs so a vulnerable build never reaches deploy.sh.
       #
       # --ignore-unfixed: verified locally (`trivy image` against this exact
-      # image) that python:3.12-slim-bookworm currently carries several
+      # image) that python:3.12-slim-bookworm (the previous base; Debian 12) carried several
       # HIGH/CRITICAL findings in perl-base/util-linux/zlib1g with no
       # upstream fix available yet (Debian hasn't backported one) — failing
       # on those would be permanently red for a reason nobody here can
@@ -220,6 +220,23 @@ jobs:
         run: |
           DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/adversarial_edges.sql
+      # Adversarial sweep F1-F8: event date bounds, the pending-listing cap,
+      # delete-vs-mark orphans, blank/oversized/far-future values, and the
+      # error wording the app maps to "already handled".
+      - name: Run listing hardening tests
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/listing_hardening.sql
+      # Structural authz invariants: anon surface, pinned search_path, RLS on
+      # every table, admin_* guards, no write policy on audit/ledger tables.
+      - name: Run authz invariants
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/authz_invariants.sql
+      - name: Run helper-function tests
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/helper_functions.sql
       # F25: every statement the worker runs, executed as the scoped
       # cv_worker role, and the tables it must not reach.
       - name: cv_worker role
@@ -670,4 +687,83 @@ jobs:
         with:
           name: playwright-report-ratelimit
           path: frontend/playwright-report
+          retention-days: 7
+
+  # The adversarial sweep (frontend/scripts/adversarial-local.sh, `pnpm test:adversarial`):
+  # DB-only RPC specs first (authorization matrix, tenant isolation, injection,
+  # concurrency, input fuzz, admin/AI operator flows), then the browser specs
+  # (hostile URLs and params, focus, offline, mobile, AI composer edges). About
+  # 10 minutes on a laptop. It stands up its own throwaway Supabase stack and,
+  # for the AI specs, the executor and projection worker against the fake
+  # provider, so it needs no secrets. ai-live.spec.ts spends real money and stays
+  # skipped here (it needs AI_LIVE=1 and a key, neither of which CI has).
+  e2e-adversarial:
+    name: E2E adversarial sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: changes
+    # Same gate as the other Supabase-backed E2E jobs.
+    if: >
+      github.event_name == 'push' ||
+      github.base_ref == 'main' ||
+      needs.changes.outputs.db == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'e2e')
+    env:
+      CRON_SECRET: e2e-cron-secret
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
+        with:
+          # Pinned for the reason given on the e2e job (2.106.0 regressed the
+          # local stack's default table grants).
+          version: 2.105.0
+      - run: supabase init || true
+      - run: supabase start
+
+      # The sweep's scripts/local-env.sh exports the stack's URL and keys itself
+      # (and refuses anything that is not local); only the Python interpreter
+      # for the AI services needs passing in.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - name: Install server deps
+        run: |
+          python -m pip install -r server/requirements.txt
+          echo "E2E_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 11
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Builds, then runs both Playwright configs. `timeout` is the hang guard
+      # (see scripts/ci-playwright.sh for why a run that never exits must fail
+      # loudly): it fails the step well inside the job ceiling.
+      - name: Run the adversarial sweep
+        working-directory: frontend
+        run: timeout --signal=TERM --kill-after=30s 40m scripts/adversarial-local.sh
+
+      - if: always()
+        run: supabase stop || true
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-adversarial
+          path: |
+            frontend/playwright-report
+            frontend/test-results
           retention-days: 7

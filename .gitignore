@@ -97,3 +97,4 @@ envs.txt
 /docs/verification/
 # scripts/verify-all.sh per-step logs.
 /.verify-all-logs/
+supabase/signing_keys.json
