@@ -82,6 +82,21 @@ export function startAiServices(): () => void {
   };
 }
 
+/**
+ * SIGTERM is not synchronous: the executor finishes its current poll before
+ * it exits, and in that window it can still claim a turn queued a moment
+ * after the stop. A test that needs "no executor" waits for the ai_service
+ * database role to hold no connections, which is what the executor's exit
+ * actually looks like from the database.
+ */
+export async function waitForExecutorGone(timeoutMs = 20_000): Promise<void> {
+  await waitFor(
+    () => psql("select count(*) from pg_stat_activity where usename = 'ai_service'").trim() === "0",
+    "the AI executor to exit",
+    timeoutMs,
+  );
+}
+
 /** Waits until the worker has built the projections the spec relies on. */
 export async function waitFor(check: () => boolean, label: string, timeoutMs = 30_000): Promise<void> {
   const started = Date.now();

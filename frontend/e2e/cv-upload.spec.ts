@@ -53,7 +53,10 @@ test.describe("CV upload through the real UI (gap 24)", () => {
     await page.getByRole("button", { name: "Upload CV" }).click();
 
     // extracting -> embedding -> ready, through the real worker.
-    await expect(page.getByText("Processed")).toBeVisible({ timeout: 30_000 });
+    // Anchored and case-sensitive: getByText("Processed") is a case-insensitive
+    // substring match and also matches "Couldn't be processed". (Not exact:true
+    // either: the label shares its span with the "View details" button.)
+    await expect(page.getByText(/^Processed/)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("cv.pdf")).toBeVisible();
 
     await page.getByRole("button", { name: "View details" }).click();

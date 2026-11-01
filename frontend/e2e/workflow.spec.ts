@@ -116,7 +116,15 @@ for (const kind of KINDS) {
     await adminCtx.close();
 
     // 5. It's now live on the members' board for the student.
-    await page.goto(kind.listPath);
+    //
+    // Searched rather than loaded unfiltered: each board only renders one
+    // page at a time, and a fresh/edited listing has no guaranteed spot
+    // on page one once enough approved rows exist ahead of it in sort
+    // order — on a board with more rows than fit on page one, the plain
+    // list would never reach this card at all. The search box filters the
+    // same rows the card markup comes from, so this still exercises the
+    // real card, just without depending on how many other rows exist.
+    await page.goto(`${kind.listPath}?q=${encodeURIComponent(title)}`);
     // Count first, then visibility. The list streams, and during that commit
     // the card can briefly exist twice — enough for a strict locator to fail
     // on a page that settles correctly a moment later. toHaveCount retries,
@@ -140,7 +148,7 @@ for (const kind of KINDS) {
     await expect(page.getByText("Your changes are with an admin")).toBeVisible();
 
     // The published board still shows the approved version, not the proposal.
-    await page.goto(kind.listPath);
+    await page.goto(`${kind.listPath}?q=${encodeURIComponent(title)}`);
     await expect(page.getByText(editedTitle)).toHaveCount(1);
     await expect(page.getByText(revisedTitle)).toHaveCount(0);
 
@@ -155,7 +163,7 @@ for (const kind of KINDS) {
     await editCtx.close();
 
     // 8. Only now is the change public.
-    await page.goto(kind.listPath);
+    await page.goto(`${kind.listPath}?q=${encodeURIComponent(title)}`);
     const revisedCard = page.getByText(revisedTitle);
     await expect(revisedCard).toHaveCount(1);
     await expect(revisedCard).toBeVisible();

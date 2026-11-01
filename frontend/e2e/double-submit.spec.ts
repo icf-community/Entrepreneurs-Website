@@ -105,7 +105,12 @@ test("double submit: a bookmark tapped twice on a slow connection ends bookmarke
     page.on("request", (r) => { if (r.method() === "POST" && r.headers()["next-action"]) posts.push(r.url()); });
     page.on("response", async (r) => {
       if (r.request().method() === "POST" && r.request().headers()["next-action"]) {
-        console.log("action response", r.status(), (await r.text()).slice(0, 300));
+        // Diagnostic only — a slowed response's body can legitimately be
+        // gone by the time this fires (CDP "No data found for resource"),
+        // which an unhandled rejection here would otherwise turn into a
+        // test failure unrelated to the double-submit assertion below.
+        const body = await r.text().catch((e) => `<unreadable: ${e.message}>`);
+        console.log("action response", r.status(), body.slice(0, 300));
       }
     });
     const save = page.getByRole("button", { name: "Bookmark this opportunity" });

@@ -162,8 +162,53 @@ import sys
 import pymupdf as fitz
 doc = fitz.open()
 page = doc.new_page()
-page.insert_text((72, 72), "Jordan Example\\nSoftware Engineer\\nSkills: Python, React, SQL, Docker")
+# Long enough to clear the worker's minimum (cv_sanitise.MIN_EXTRACTED_CHARS = 200): a CV
+# shorter than that is refused as "not enough extractable text", which is the right
+# behaviour for a scan but made a one-line sample fail without anyone noticing.
+lines = [
+    "Jordan Example",
+    "Software Engineer, Imperial College London",
+    "Summary: Full-stack engineer with four years of experience building web products.",
+    "Experience: Built a React and Python platform used by two thousand students;",
+    "designed the SQL schema, wrote the Docker deployment, and ran the on-call rota.",
+    "Projects: A recommendation service in Python and PyTorch; a React dashboard for founders.",
+    "Skills: Python, React, SQL, Docker, TypeScript, PostgreSQL, Git",
+    "Education: MEng Computing, Imperial College London",
+]
+y = 72
+for line in lines:
+    page.insert_text((72, y), line)
+    y += 18
 doc.save(sys.argv[1])
+`;
+
+/** Names of the blobs currently in the CV container (Azurite). Lets a spec
+ *  prove that a refused upload stored nothing. */
+export function listCvBlobs(): string[] {
+  const out = execFileSync(PYTHON, ["-c", LIST_BLOBS_PY, AZURITE_CONNECTION_STRING, CV_CONTAINER], { encoding: "utf8" });
+  return out.split("\n").map((l) => l.trim()).filter(Boolean);
+}
+
+const LIST_BLOBS_PY = `
+import sys
+from azure.storage.blob import BlobServiceClient
+svc = BlobServiceClient.from_connection_string(sys.argv[1])
+print("\\n".join(b.name for b in svc.get_container_client(sys.argv[2]).list_blobs()))
+`;
+
+/** A .docx whose parts are tiny compressed but expand enormously (a zip bomb). */
+export function makeDocxBomb(): Buffer {
+  const out = execFileSync(PYTHON, ["-c", DOCX_BOMB_PY], { maxBuffer: 64 * 1024 * 1024 });
+  return Buffer.from(out);
+}
+
+const DOCX_BOMB_PY = `
+import io, sys, zipfile
+buf = io.BytesIO()
+with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+    z.writestr("[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+    z.writestr("word/document.xml", b"<w:t>" + b"0" * (120 * 1024 * 1024) + b"</w:t>")
+sys.stdout.buffer.write(buf.getvalue())
 `;
 
 export { waitForHttp };

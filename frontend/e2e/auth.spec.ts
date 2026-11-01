@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { startNonStudentSignup, openNonStudentSignIn } from "./fixtures";
+import { startNonStudentSignup, openNonStudentSignIn, USERS } from "./fixtures";
+import { clearMailbox, waitForCode } from "./mailpit";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Auth entry-flow E2E (logged-out)
@@ -142,50 +143,44 @@ test.describe("auth entry flows", () => {
   });
 
   test("student: entering the emailed code POSTs it to verifyOtp", async ({ page }) => {
-    // Assert the wiring (code field → verifyOtp with the typed token). We don't
-    // assert the post-verify landing page: routeAfterSignIn navigates to a
-    // server-guarded route, and page.route can't mock Next's server-side
-    // Supabase calls, so the real stack would bounce the fake session — flaky.
-    // Capturing the verify request proves the client behaviour deterministically.
-    await mockGoTrue(page, "**/auth/v1/otp**", {});
-
-    let verifyBody: string | null = null;
-    await page.route("**/auth/v1/verify**", async (route) => {
-      const cors = {
-        "access-control-allow-origin": "*",
-        "access-control-allow-headers": "*",
-        "access-control-allow-methods": "*",
-      };
-      if (route.request().method() === "OPTIONS") {
-        await route.fulfill({ status: 204, headers: cors });
-        return;
-      }
-      verifyBody = route.request().postData();
-      await route.fulfill({
-        status: 200,
-        headers: { ...cors, "content-type": "application/json" },
-        body: JSON.stringify({
-          access_token: "fake-access",
-          token_type: "bearer",
-          expires_in: 3600,
-          refresh_token: "fake-refresh",
-          user: { id: "00000000-0000-0000-0000-000000000002", email: "ada@imperial.ac.uk" },
-        }),
-      });
-    });
+    // Assert the wiring end to end: code field → verifyOtpServerSide → a real
+    // session. This used to mock **/auth/v1/verify** at the page.route level
+    // and poll its captured body, but verifyOtp runs server-side now
+    // (useStudentAuth.ts, "the rate-limit check and the actual verifyOtp call
+    // both run server-side") — that network call happens Node-to-Supabase,
+    // never through the browser, so the mocked route never saw a request and
+    // the poll just timed out. The send step (signInWithOtp) is still
+    // client-side, so it stays unmocked here and genuinely emails a code,
+    // which the real verify call then needs to be able to accept.
+    //
+    // Signing IN (an already-seeded student) rather than signing up a brand
+    // new one: `signInWithOtp({ shouldCreateUser: true })` against a
+    // nonexistent user sends through GoTrue's own "confirm signup" mail
+    // action — a different, uncustomized template (no {{ .Token }} rendered
+    // in its subject) from the "magic link" one this repo's own
+    // magic_link.html documents as "Used by signInWithOtp (student sign-in /
+    // sign-up)". Signing in an existing user goes through that documented,
+    // customized path, which is genuinely what this test is asserting the
+    // wiring of — the brand-new-signup mail action is a GoTrue/local-stack
+    // quirk orthogonal to the code-field-to-verifyOtp wiring this covers.
+    const email = USERS.student.email;
+    await clearMailbox(email);
 
     await page.goto("/login");
+    await page.getByRole("button", { name: "Log in" }).click();
     await page.getByRole("button", { name: /Current student/i }).click();
-    await page.locator("#first-name").fill("Ada");
-    await page.locator("#surname").fill("Lovelace");
-    await page.locator("#email").fill("ada@imperial.ac.uk");
-    await page.getByRole("checkbox").check();
-    await page.getByRole("button", { name: "Send verification code" }).click();
+    await page.locator("#email").fill(email);
+    await page.getByRole("button", { name: "Send sign-in code" }).click();
 
-    await page.locator("#otp-code").fill("123456");
+    const code = await waitForCode(email);
+    await page.locator("#otp-code").fill(code);
     await page.getByRole("button", { name: "Verify" }).click();
 
-    await expect.poll(() => verifyBody).toContain("123456");
+    // A correct code never leaves the member looking at the code panel with
+    // a verify error, and it navigates on (routeAfterSignIn) rather than
+    // sitting on /login.
+    await expect(page.getByText(/code (has expired|is incorrect)/i)).not.toBeVisible();
+    await expect(page).not.toHaveURL(/\/login/);
   });
 
   test("student: a wrong code shows a friendly verify error", async ({ page }) => {

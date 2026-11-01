@@ -124,7 +124,7 @@ export default defineConfig({
     // hanging against a control the composer never rendered.
     {
       name: "cv",
-      testMatch: /cv-upload\.spec\.ts/,
+      testMatch: /cv-upload(-hostile)?\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: storageStatePath("student") },
     },
     // Route × role matrix (AI-plan §14.4, gap 23). No storageState: the
@@ -139,6 +139,14 @@ export default defineConfig({
     // (which scopes to public/member/admin) — it only runs in the isolated
     // `e2e-ratelimit` CI job that wires Upstash via an SRH sidecar, so the
     // process-wide limiter can't make the rest of the suite flaky.
+    //
+    // To run this project locally: `scripts/perf/redis-up.sh`, then export
+    // UPSTASH_REDIS_REST_URL=http://127.0.0.1:8079 and
+    // UPSTASH_REDIS_REST_TOKEN=perf-token *after* sourcing local-env.sh (it
+    // blanks any *_URL/*_TOKEN it finds declared in .env.local, so setting
+    // these before that source call is silently wiped). Without that, every
+    // limiter is a no-op (see the startup log) and this project's tests fail
+    // outright rather than flake — that's expected, not a regression.
     {
       name: "ratelimit",
       testMatch: /ratelimit\.spec\.ts/,

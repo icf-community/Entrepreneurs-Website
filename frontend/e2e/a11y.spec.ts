@@ -73,6 +73,12 @@ test("the skip link is first in the tab order and moves focus into <main>", asyn
 // post exercises a disclosure button, two labelled fields and a submit.
 test("a member can create a post using only the keyboard", async ({ page }) => {
   const title = `kbd post ${Date.now()}`;
+  // The community kill switch defaults CLOSED and nothing seeds it: this test
+  // used to pass only on a database where community.spec (which runs later)
+  // had already opened it, and failed every time on a freshly reset one.
+  await createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  }).from("app_config").upsert({ key: "community_posts_enabled", value: "true" }, { onConflict: "key" });
   await page.goto("/community");
   const open = page.getByRole("button", { name: "Create a post" });
   await open.waitFor();
@@ -99,7 +105,6 @@ test("a member can create a post using only the keyboard", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
 
-  const { createClient } = await import("@supabase/supabase-js");
   await createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false },
   }).from("posts").delete().eq("title", title);

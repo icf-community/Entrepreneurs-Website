@@ -265,8 +265,18 @@ async function seedUser(admin: SupabaseClient, user: SeedUser): Promise<string> 
 }
 
 async function findUserId(admin: SupabaseClient, email: string): Promise<string | undefined> {
-  const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-  return data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase())?.id;
+  // Page through everything: the first 200 is not enough once any other suite
+  // (the adversarial sweep creates hundreds of throwaway members) has left
+  // users behind, and a seeded user beyond page 1 made setup fail with
+  // "already been registered" for an account it could not find.
+  const PER_PAGE = 200;
+  for (let page = 1; page <= 50; page++) {
+    const { data } = await admin.auth.admin.listUsers({ page, perPage: PER_PAGE });
+    const hit = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+    if (hit) return hit.id;
+    if (data.users.length < PER_PAGE) return undefined;
+  }
+  return undefined;
 }
 
 async function passwordSession(url: string, anon: string, user: SeedUser): Promise<Session> {

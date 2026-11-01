@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createClient } from "@supabase/supabase-js";
 import { USERS } from "./fixtures";
-import { psql, setAiFlags, startAiServices, waitFor } from "./ai-services";
+import { psql, setAiFlags, startAiServices, waitFor, waitForExecutorGone } from "./ai-services";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry AI through the browser (AI-plan §14.4), against a fresh build,
@@ -68,6 +68,13 @@ test.beforeAll(async () => {
   job(ids.ownJob, ids.student, "E2E Vision Engineer", "You must know PyTorch and have deep learning experience.", "member");
   job(ids.adminJob, ids.student, "E2E Admin Posted Role", "An admin-posted role using Python and SQL daily.", "admin");
 
+  // ai_submit_turn (20261025000002) refuses admission while any model it
+  // prices is unconfirmed, and every real model_prices row ships
+  // confirmed=false until the owner checks it against the provider's price
+  // page. Confirmed for this run only; afterAll puts it back.
+  psql(`update ai_private.model_prices set confirmed = true
+         where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small')`);
+
   setAiFlags(true);
   stopServices = startAiServices();
   psql("select ai_private.enqueue_ai_backfill(5000)");
@@ -83,6 +90,8 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   stopServices?.();
   setAiFlags(false);
+  psql(`update ai_private.model_prices set confirmed = false
+         where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small')`);
   psql(`delete from public.opportunities where id in ('${ids.candJob}', '${ids.ownJob}', '${ids.adminJob}');
         delete from ai_private.conversations where owner_id = '${ids.student}';
         delete from ai_private.usage_events where owner_id = '${ids.student}';
@@ -155,7 +164,7 @@ test("an off-task request is refused and adds no criteria", async ({ page }) => 
 
 test("recruiter: requirements are confirmed first, admin-created jobs never appear, then candidates are found", async ({ page }) => {
   await page.goto("/foundry-ai?mode=recruiter");
-  const picker = page.getByLabel("Job");
+  const picker = page.getByRole("combobox", { name: /Job/ });
   await expect(picker).toBeVisible();
   await expect(picker.locator("option", { hasText: "E2E Admin Posted Role" })).toHaveCount(0);
   await picker.selectOption({ label: "E2E Vision Engineer · E2E AI Co" });
@@ -255,6 +264,7 @@ test("queue busy refuses admission and keeps the draft message (gap 22)", async 
   const saved = psql("select queue_capacity from ai_private.settings where id = 1").trim();
   stopServices?.();
   stopServices = null;
+  await waitForExecutorGone();
   psql("update ai_private.settings set queue_capacity = 1 where id = 1");
   try {
     // Reuse the recruiter conversation from the earlier test rather than a
@@ -265,7 +275,7 @@ test("queue busy refuses admission and keeps the draft message (gap 22)", async 
     // The rail (and the rest of the page) only renders once a job is
     // picked — picking it sets state only, no submission, so this doesn't
     // start a new conversation on its own.
-    await page.getByLabel("Job").selectOption({ label: "E2E Vision Engineer · E2E AI Co" });
+    await page.getByRole("combobox", { name: /Job/ }).selectOption({ label: "E2E Vision Engineer · E2E AI Co" });
     // Titled from its first message ("python", from the earlier recruiter
     // test), not from the job — this is the only recruiter conversation.
     await page.getByRole("main").getByRole("complementary")
@@ -296,6 +306,7 @@ test("an executor outage leaves the turn queued, and it drains once the executor
   await openMainConversation(page);
   stopServices?.();
   stopServices = null;
+  await waitForExecutorGone();
   try {
     await search(page, "find more chess enthusiasts");
     // No executor claims it: the turn sits queued/running with the "waiting" stage for several seconds.
@@ -458,7 +469,7 @@ test("deleting a chat removes it from the rail (gap 22)", async ({ page }) => {
   // The recruiter-mode conversation from the earlier test — the network
   // conversation other tests above still need is left alone.
   await page.goto("/foundry-ai?mode=recruiter");
-  await page.getByLabel("Job").selectOption({ label: "E2E Vision Engineer · E2E AI Co" });
+  await page.getByRole("combobox", { name: /Job/ }).selectOption({ label: "E2E Vision Engineer · E2E AI Co" });
   await page.getByRole("main").getByRole("complementary").getByRole("listitem").first()
     .getByRole("button").click();
   await page.getByRole("button", { name: "Delete this chat" }).click();
