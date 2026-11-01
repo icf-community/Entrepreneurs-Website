@@ -320,7 +320,7 @@ def test_r11_twenty_concurrent_reservations_never_overspend(ai):
                        "and day = (now() at time zone 'utc')::date").fetchone()[0]
     saved = ai.execute("select ingestion_daily_cap_micro, member_daily_cap_micro from ai_private.settings where id = 1").fetchone()
     ai.execute("update ai_private.settings set ingestion_daily_cap_micro = %s, member_daily_cap_micro = %s where id = 1",
-               (spent + 10 * one, 10**12))
+               (spent + 10 * one, 1_000_000))  # the member cap's ceiling (20261026000010), out of play here
     ok: list[uuid.UUID] = []
     refused: list[str] = []
     barrier = threading.Barrier(20)

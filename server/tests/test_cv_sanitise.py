@@ -57,6 +57,65 @@ def _docx(paragraphs: list[str]) -> bytes:
     return buf.getvalue()
 
 
+# ─── Damaged files are a permanent, member-visible failure ──────────
+# A file the gateway lets through (right magic bytes, plausible structure) can
+# still be unreadable. That must come out as ExtractionFailed, which the worker
+# turns into an immediate "failed" status with a sentence the member can act on.
+# An unnamed parser error instead looks transient: the job is retried five times
+# with backoff and the member watches "Processing" for minutes.
+# PyMuPDF repairs some cut-off PDFs and then finds too little text; that is the same
+# kind of outcome (named, immediate, actionable), just the other sentence.
+_DAMAGED = "That file couldn't be read|doesn't contain enough extractable text"
+
+
+def _zip_with(parts: dict[str, bytes]) -> bytes:
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, data in parts.items():
+            z.writestr(name, data)
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize(
+    "name,data",
+    [
+        ("truncated PDF", lambda: _pdf(VISIBLE_CV_TEXT)[: len(_pdf(VISIBLE_CV_TEXT)) // 2]),
+        ("PDF header then junk", lambda: b"%PDF-1.7\n" + bytes(range(256)) * 20),
+        ("PDF header only", lambda: b"%PDF-1.4\n"),
+    ],
+)
+def test_a_damaged_pdf_is_a_named_extraction_failure(name: str, data) -> None:
+    with pytest.raises(ExtractionFailed, match=_DAMAGED):
+        sanitise_cv(data(), PDF_CONTENT_TYPE)
+
+
+@pytest.mark.parametrize(
+    "name,data",
+    [
+        ("truncated DOCX", lambda: _docx([VISIBLE_CV_TEXT])[: len(_docx([VISIBLE_CV_TEXT])) // 2]),
+        ("zip magic then junk", lambda: b"PK\x03\x04" + bytes(range(256)) * 10),
+        ("a zip with no document parts", lambda: _zip_with({"a.txt": b"x"})),
+        (
+            "a package whose document.xml is not XML",
+            lambda: _zip_with({
+                "[Content_Types].xml": b'<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+                "word/document.xml": b"<w:document><unclosed",
+            }),
+        ),
+    ],
+)
+def test_a_damaged_docx_is_a_named_extraction_failure(name: str, data) -> None:
+    with pytest.raises(ExtractionFailed, match=_DAMAGED):
+        sanitise_cv(data(), DOCX_CONTENT_TYPE)
+
+
+def test_a_readable_file_is_unaffected_by_the_damage_handling() -> None:
+    assert "Jane Doe" in sanitise_cv(_pdf(VISIBLE_CV_TEXT), PDF_CONTENT_TYPE).raw_text
+    assert "Jane Doe" in sanitise_cv(_docx([VISIBLE_CV_TEXT]), DOCX_CONTENT_TYPE).raw_text
+
+
 # ─── Hidden-text detection (PDF) ────────────────────────────────────
 
 

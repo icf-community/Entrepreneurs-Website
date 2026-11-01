@@ -297,6 +297,17 @@ def _spent_today(ai, purpose, *, member=None, this_month=False, all_purposes=Fal
     return row[0]
 
 
+# "Out of play" for a boundary test means as high as the column may go. Since
+# 20261026000010 the money caps have hard ceilings (sized to the $150/month
+# budget), so 10**12 is no longer writable; the controller cap has none.
+_CEILING = {
+    "member_daily_cap_micro": 1_000_000,
+    "matching_daily_cap_micro": 10_000_000,
+    "matching_monthly_cap_micro": 150_000_000,
+    "controller_daily_cap_micro": 10**12,
+    "ingestion_daily_cap_micro": 10**12,
+}
+
 _OTHER_DAILY_CAPS = {
     "controller_daily_cap_micro": ["matching_daily_cap_micro", "member_daily_cap_micro"],
     "matching_daily_cap_micro": ["controller_daily_cap_micro", "member_daily_cap_micro"],
@@ -318,7 +329,7 @@ def test_daily_money_cap_boundary(ai, column, expect, all_purposes, scoped_to_me
     member_arg = uid if scoped_to_member else None
     try:
         ai.execute("update ai_private.settings set " + ", ".join(f"{c} = %s" for c in others) + " where id = 1",
-                  tuple(10**12 for _ in others))
+                  tuple(_CEILING[c] for c in others))
         ai.execute(f"update ai_private.settings set {column} = %s where id = 1", (baseline + one - 1,))
         with pytest.raises(psycopg.errors.RaiseException, match=expect):
             ai.execute("select ai_private.spend_reserve('matching', 'network', %s, null, null, 'limtest', "
@@ -340,7 +351,7 @@ def test_matching_monthly_cap_boundary(ai):
                        "from ai_private.settings where id = 1").fetchone()
     try:
         ai.execute("update ai_private.settings set matching_daily_cap_micro = %s, controller_daily_cap_micro = %s "
-                   "where id = 1", (10**12, 10**12))
+                   "where id = 1", (_CEILING["matching_daily_cap_micro"], _CEILING["controller_daily_cap_micro"]))
         ai.execute("update ai_private.settings set matching_monthly_cap_micro = %s where id = 1", (baseline + one - 1,))
         with pytest.raises(psycopg.errors.RaiseException, match="budget_exhausted: matching_monthly"):
             ai.execute("select ai_private.spend_reserve('matching', 'network', null, null, null, 'limmonth', "

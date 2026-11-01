@@ -32,3 +32,20 @@ def test_compare_reports_flipped_cases() -> None:
     b = runner.run(list(SUITES))
     b["results"][0] = {**b["results"][0], "status": "fail"}
     assert "CASES THAT CHANGED (1)" in runner.compare(a, b)
+
+
+def test_live_cost_is_read_after_the_cases_have_run() -> None:
+    """The report's live_cost_usd used to read 0.0 for every live run: the CLI
+    computed the spend as an argument, before runner.run made any model call.
+    A callable is read when the report is built, so it sees the spend."""
+    state = {"spent": 0.0}
+
+    def model(payload: dict) -> dict:
+        state["spent"] += 0.001
+        return {"decision": "clarify", "ops": []}
+
+    report = runner.run(["interpret"], provider="openai:stub", model=model, live_cost=lambda: round(state["spent"], 4))
+    assert state["spent"] > 0, "the stub model was never called, so this test proves nothing"
+    assert report["run"]["live_cost_usd"] == round(state["spent"], 4) > 0
+    # A plain value still works (offline runs pass None).
+    assert runner.run(["interpret"], provider="fake")["run"]["live_cost_usd"] is None

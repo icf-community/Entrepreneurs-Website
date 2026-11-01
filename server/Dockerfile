@@ -7,12 +7,12 @@
 # — see server/README.md for how to regenerate it. Installing from it first,
 # then the app with --no-deps, keeps that (expensive, rarely-changing) layer
 # cached across builds where only app/ changed.
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-trixie
 
 WORKDIR /app
 
 # upgrade, not just install: the base image's OS packages are whatever
-# the python:3.12-slim-bookworm snapshot shipped with, and Debian ships
+# the python:3.12-slim-trixie snapshot shipped with, and Debian ships
 # CVE fixes as point-release package updates. Trivy scans this image in
 # CI (HIGH/CRITICAL fails the build) and has caught this gap before.
 RUN apt-get update && apt-get upgrade -y \

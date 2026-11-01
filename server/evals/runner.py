@@ -63,7 +63,10 @@ def run(suites: list[str], *, provider: str = "fake", model=None, live_cost=None
                          "rubric": RUBRIC_VERSION, "interpret_prompt": INTERPRET_PROMPT_VERSION,
                          "interpret_prompt_hash": prompt_hash("interpret"), "assess_prompt": ASSESS_PROMPT_VERSION,
                          "assess_prompt_hash": prompt_hash("assess")},
-            "live_cost_usd": live_cost,
+            # A callable is read NOW, after the cases have run: the CLI passes one because
+            # the spend only exists once the model has been called, and a plain value
+            # computed as an argument was always read before the first call (0.0).
+            "live_cost_usd": live_cost() if callable(live_cost) else live_cost,
         },
         "verdict": "pass" if not critical_failures and not skipped else "fail",
         "skipped_suites": skipped,

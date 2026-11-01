@@ -459,7 +459,30 @@ class Turn:
         value = await self.with_retry(self.metered_json, "assess", model, "assessment", "assess", payload,
                                       ASSESS_SCHEMA, ASSESS_MAX_OUTPUT)
         by_ref = {c["ref"]: c for c in value["candidates"]}
-        owner_scoped = any(a.source == "message" for a in criteria_atoms)
+        # Always owner-scoped (security audit, 2026-10-26): this used to be
+        # `any(a.source == "message" for a in criteria_atoms)`, sharing a
+        # command-sourced criterion's verdict across every member. The
+        # cache_key hashes atom *content* (kind/concept/free_text/required),
+        # which is id-independent by design — but the verdict JSON this
+        # writes is NOT: _bind() keys its "atoms" map by the literal
+        # `a.id` the model echoed back (the "ref" each criterion was sent
+        # under), and that id is a per-conversation sequential counter
+        # (ai_private.turns.spec's next_id), not content-derived. A later
+        # member (or the same member in a later conversation) whose
+        # equivalent free-text atom happens to land on a different id
+        # reuses this exact verdict via the content-matched cache_key, but
+        # _apply_verdict() then writes it under the FIRST writer's id —
+        # a key the second request's own `states` dict never looks at — so
+        # the real criterion silently scores as unassessed (observed as a
+        # full 100-to-0 tier skew). Owner-scoping prevents the cross-member
+        # half of that (one member can still hit this against their own
+        # past conversations if their own id numbering drifts, which is a
+        # narrower, self-contained inconsistency rather than a bleed
+        # between members — fixing that fully would mean re-keying _bind
+        # by atom content instead of id, a larger change than this audit
+        # finding calls for). The cost given up is cross-member reuse of
+        # identical free-text criteria, which was the vulnerable sharing.
+        owner_scoped = True
         expiry = min((a.expires_at for a in criteria_atoms if a.expires_at), default=None)
         for i, p in enumerate(batch):
             raw = by_ref.get(f"c{i + 1}")

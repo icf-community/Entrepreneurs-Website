@@ -111,6 +111,25 @@ before freezing. Then re-derive `requirements-dev.txt`'s dev-only lines (`pytest
 whatever they pull in) the same way, on top of that same venv. Review the resulting diff — a
 version bump you didn't ask for anywhere in the closure is worth understanding before committing.
 
+The 2026-10-31 refresh was done this way: a clean Python 3.12 venv, the direct dependencies
+installed unpinned (`azure-identity azure-storage-blob fastapi gunicorn "uvicorn[standard]" openai
+pikepdf "psycopg[binary]" "pymupdf<2" python-docx python-multipart sentry-sdk pillow`), `pip freeze`
+into `requirements.txt`, the AI executor's slim closure from `openai "psycopg[binary]" sentry-sdk`
+alone into `requirements-ai.txt` (a test pins that it is a strict subset with identical pins), and
+`pytest` on top of the full closure for `requirements-dev.txt`. Then `pip-audit -r <file> --no-deps`
+on all three (clean), a check that every pin has wheels for CPython 3.12 on both architectures
+(`pip download --only-binary=:all: --platform manylinux_2_28_x86_64 ...`, also `aarch64`, with
+`--python-version 3.12 --implementation cp --abi cp312`), the full test suite, and the offline evals.
+
+Two things to know when you refresh next time:
+
+- **`pymupdf` stays on 1.x.** The 2.0 release pulls `onnxruntime`, `numpy`, `networkx`, `protobuf`
+  and more into the image (via `pymupdf-layout` and `pymupdf4llm`): an ML runtime inside the PDF
+  parser's trust boundary, for features this service doesn't use. Install it as `"pymupdf<2"`.
+- **Both images are built on `python:3.12-slim-trixie`** (Debian 13), still Python 3.12 so the
+  interpreter matches CI's `setup-python` and the wheels. Moving to a newer Python minor means
+  changing the Dockerfiles, `ci.yml`'s `python-version` lines and re-checking every wheel together.
+
 **Running the built image locally**, to check the actual artifact `infra/deploy.sh` ships (not just
 the source): `docker compose up gateway` runs it as production does; `docker compose --profile dev
 up gateway-dev` bind-mounts `app/` and runs `uvicorn --reload` for fast iteration inside a

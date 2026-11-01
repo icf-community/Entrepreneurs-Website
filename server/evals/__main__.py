@@ -28,6 +28,10 @@ def _live_model(args):
         sys.exit("live mode needs --input-price and --output-price (USD per million tokens) for the spend ceiling")
     provider = OpenAIProvider(key)
     state = {"spent": 0.0, "calls": 0}
+    # One event loop for the whole run: the provider's HTTP client pools
+    # connections per loop, so a fresh asyncio.run() per case made every
+    # second call fail with APIConnectionError.
+    loop = asyncio.new_event_loop()
 
     def model(payload: dict) -> dict:
         if state["calls"] >= args.max_cases:
@@ -35,9 +39,9 @@ def _live_model(args):
         if state["spent"] >= args.max_spend_usd:
             raise RuntimeError("spend ceiling reached")
         state["calls"] += 1
-        result = asyncio.run(provider.json(uuid.uuid4(), model=args.model, name="interpretation",
-                                           system=prompt("interpret"), user=json.dumps(payload),
-                                           schema=INTERPRET_SCHEMA, max_output_tokens=1500, timeout=30))
+        result = loop.run_until_complete(provider.json(uuid.uuid4(), model=args.model, name="interpretation",
+                                                       system=prompt("interpret"), user=json.dumps(payload),
+                                                       schema=INTERPRET_SCHEMA, max_output_tokens=1500, timeout=30))
         state["spent"] += (result.input_tokens * args.input_price + result.output_tokens * args.output_price) / 1e6
         return result.value
 
@@ -158,12 +162,12 @@ def main() -> None:
     provider = "replay:" + str(args.cache) if args.replay else ("openai:" + args.model if args.live else "fake")
     if args.repeats > 1:
         reports = [runner.run(suites, provider=provider, model=model,
-                              live_cost=round(state["spent"], 4) if state else None, split=args.split)
+                              live_cost=(lambda: round(state["spent"], 4)) if state else None, split=args.split)
                   for _ in range(args.repeats)]
         report = runner.aggregate_repeats(reports)
     else:
         report = runner.run(suites, provider=provider, model=model,
-                            live_cost=round(state["spent"], 4) if state else None, split=args.split)
+                            live_cost=(lambda: round(state["spent"], 4)) if state else None, split=args.split)
     if args.release:
         from .review import unconfirmed_critical
         unresolved = unconfirmed_critical(suites)

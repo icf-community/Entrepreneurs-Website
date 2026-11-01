@@ -183,8 +183,10 @@ def test_approve_and_reject_of_one_listing_cannot_both_succeed(db, admins, kind)
         "vc_grant": (_pending_vc, "approve_vc_grant", "reject_vc_grant", "vcs_grants"),
     }[kind]
     listing = make(db, owner)
+    # approve_* refuses a null expected version since b87df86 (the TOCTOU pin).
+    version = db.execute(f"select edit_version from public.{table} where id = %s", (listing,)).fetchone()[0]
     first, second = hold_then_race(
-        lambda cur: _one(cur, f"select public.{approve}(%s, null)", (listing,)),
+        lambda cur: _one(cur, f"select public.{approve}(%s, null, %s)", (listing, version)),
         lambda cur: _one(cur, f"select * from public.{reject}(%s, 'Spam')", (listing,)),
         first_as=a, second_as=b,
     )
@@ -339,24 +341,25 @@ def test_an_edit_racing_approval_goes_through_review(db, admins, kind):
     owner = db.member(f"editor{kind}")
     if kind == "opportunity":
         listing = _pending_opportunity(db, owner)
-        approve = ("select public.approve_opportunity(%s, null)", (listing,))
+        approve = ("select public.approve_opportunity(%s, null, %s)", (listing, None))
         edit = ("""select public.update_opportunity(%s, 'Edited title', 'Acme', 'Paid', 'remote', null,
                      'Edited description of the role.', 6::smallint, 2027, current_date + 30, 'jobs@acme.test', false,
                      'email', null, '{}'::smallint[], '{}'::smallint[], 'both')""", (listing,))
         table, column, original = "opportunities", "position_name", "Original title"
     elif kind == "event":
         listing = _pending_event(db, owner)
-        approve = ("select public.approve_event(%s, null)", (listing,))
+        approve = ("select public.approve_event(%s, null, %s)", (listing, None))
         edit = ("""select public.update_event(%s, 'Edited title', 'Edited description of the event for members.', 'https://lu.ma/x',
                      now() + interval '9 days', 'Huxley', 'ICF', 'e@imperial.ac.uk', false)""", (listing,))
         table, column, original = "events", "title", "Demo night"
     else:
         listing = _pending_vc(db, owner)
-        approve = ("select public.approve_vc_grant(%s, null)", (listing,))
+        approve = ("select public.approve_vc_grant(%s, null, %s)", (listing, None))
         edit = ("""select public.update_vc_grant(%s, 'vc', 'Edited title', 'Edited description of the fund for founders.', 'https://vc.test',
                      null, null, null)""", (listing,))
         table, column, original = "vcs_grants", "name", "Seed fund"
     version = db.execute(f"select edit_version from public.{table} where id=%s", (listing,)).fetchone()[0]
+    approve = (approve[0], (listing, version))
     edit = (edit[0][:-1] + f", p_expected_version => {version})", edit[1])
     _, second = hold_then_race(
         lambda cur: _one(cur, *approve),
