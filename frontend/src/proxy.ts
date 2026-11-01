@@ -1,7 +1,21 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
+import { buildStaticCsp } from "@/lib/csp";
+import { isKnownRoute } from "@/lib/knownRoutes";
 
 export async function proxy(request: NextRequest) {
+  // A GET/HEAD to a path the app has no route for can only render the
+  // prerendered 404. That page cannot carry a nonce, so give it the
+  // nonce-free static policy (otherwise its scripts are blocked and the
+  // starfield never starts) and skip the session round trip a 404 does not
+  // need. Mutations still take the full path below: that is where the
+  // rate-limit backstop lives. See knownRoutes.ts for why this list is
+  // guarded by a test.
+  if ((request.method === "GET" || request.method === "HEAD") && !isKnownRoute(request.nextUrl.pathname)) {
+    const res = NextResponse.next();
+    res.headers.set("content-security-policy", buildStaticCsp());
+    return res;
+  }
   return await updateSession(request, request.nextUrl.pathname + request.nextUrl.search);
 }
 
@@ -12,7 +26,7 @@ export const config = {
     // running getUser() on every font request is wasted DB chatter.
     //
     // Also skipped: the pure-content public pages in csp.ts's
-    // STATIC_CSP_ROUTES (/privacy, /terms, /cookies). They need neither a
+    // STATIC_CSP_ROUTES (/privacy, /terms, /cookies, /ai-notice). They need neither a
     // session nor a nonce, and during a traffic spike anonymous hits to
     // content pages are a large share of the load — each one was costing
     // a middleware invocation plus a Supabase Auth round trip for
@@ -38,6 +52,6 @@ export const config = {
     // Also skipped: /api/banner (F-x4). It reads no session and is CDN
     // cached, so the proxy's getUser() would be an Auth round trip per
     // page view for nothing.
-    "/((?!_next/static|_next/image|favicon.ico|privacy(?:$|/)|terms(?:$|/)|cookies(?:$|/)|api/banner$|$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|css|js)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|privacy(?:$|/)|terms(?:$|/)|cookies(?:$|/)|ai-notice(?:$|/)|api/banner$|$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|css|js)$).*)",
   ],
 };

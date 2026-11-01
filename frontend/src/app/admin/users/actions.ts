@@ -10,7 +10,7 @@ import {
   acceptanceReplyTo, rejectionReplyTo,
 } from "@/lib/email";
 import { emailBaseUrl } from "@/lib/siteUrl";
-import { describeSupabaseError } from "@/lib/supabaseErrors";
+import { describeSupabaseError, isAlreadyHandledError } from "@/lib/supabaseErrors";
 import type { BulkResult } from "@/app/admin/bulkTypes";
 import { runBulk } from "@/lib/admin/bulk";
 
@@ -29,7 +29,11 @@ export async function approveUser(userId: string): Promise<Result> {
     p_user_id: userId,
     p_notes:   null,
   });
-  if (error) return { ok: false, error: describeSupabaseError(error) };
+  if (error) {
+    // Another admin already decided this member: refresh so the stale row goes.
+    if (isAlreadyHandledError(error)) revalidatePath("/admin/users");
+    return { ok: false, error: describeSupabaseError(error) };
+  }
 
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.email) {
@@ -82,7 +86,11 @@ export async function rejectUser(userId: string, reason: string): Promise<Result
   // first_name so we can email them without a second round-trip.
   const { data, error } = await supabase
     .rpc("reject_user", { p_user_id: userId, p_reason: trimmed });
-  if (error) return { ok: false, error: describeSupabaseError(error) };
+  if (error) {
+    // Another admin already decided this member: refresh so the stale row goes.
+    if (isAlreadyHandledError(error)) revalidatePath("/admin/users");
+    return { ok: false, error: describeSupabaseError(error) };
+  }
 
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.email) {

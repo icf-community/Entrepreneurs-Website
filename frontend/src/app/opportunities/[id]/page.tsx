@@ -1,3 +1,5 @@
+import { isUuid } from "@/lib/uuid";
+import { notFound } from "next/navigation";
 import { ViewProfileButton } from "@/components/members/ViewProfileButton";
 import { audienceLabel } from "@/lib/listings/audience";
 import ListingDetailShell, {
@@ -35,6 +37,9 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
     params,
     requireApprovedUser(),
   ]);
+
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
 
   const o = await approvedOpportunity(supabase, id);
 

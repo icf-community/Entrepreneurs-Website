@@ -134,3 +134,37 @@ describe("day keys", () => {
     );
   });
 });
+
+// A value that cannot be a real instant must never take a page down. Postgres
+// can hold 'infinity' in a timestamptz, PostgREST serialises it as the string
+// "infinity", and Intl.DateTimeFormat.formatToParts throws a RangeError on the
+// Invalid Date that produces. One such row used to crash /admin/events for
+// every admin (adversarial sweep F1), so every formatter fails soft.
+describe("invalid instants", () => {
+  const BAD: (string | Date)[] = ["infinity", "-infinity", "", "not a date", new Date(NaN), "+275761-01-01T00:00:00Z"];
+
+  it.each(BAD.map((b) => [String(b), b] as const))("do not throw for %s", (_label, bad) => {
+    expect(() => formatDate(bad)).not.toThrow();
+    expect(() => formatDateWeekday(bad)).not.toThrow();
+    expect(() => formatTime(bad)).not.toThrow();
+    expect(() => formatDateTime(bad)).not.toThrow();
+    expect(() => formatDateLong(bad)).not.toThrow();
+    expect(() => formatDateTimeLong(bad)).not.toThrow();
+    expect(() => londonDayKey(bad)).not.toThrow();
+  });
+
+  it("render a readable placeholder, never NaN or undefined", () => {
+    for (const out of [formatDate("infinity"), formatDateTime("infinity"), formatDateTimeLong("infinity"), formatTime("infinity")]) {
+      expect(out).toBe("Date unavailable");
+    }
+  });
+
+  it("give a day key that formatDayKeyLong also renders as the placeholder", () => {
+    expect(formatDayKeyLong(londonDayKey("infinity"))).toBe("Date unavailable");
+  });
+
+  it("leave valid instants untouched", () => {
+    expect(formatDate("2026-09-15T12:00:00Z")).toBe("15 Sep 2026");
+  });
+});
+

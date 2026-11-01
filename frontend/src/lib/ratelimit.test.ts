@@ -28,6 +28,10 @@ const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
   connectionRespond: "closed",
   // Fail-closed: each staged edit emails the admins (B23).
   listingEdit: "closed",
+  // Fail-open: a pure notification dedupe, not an abuse control — on
+  // Upstash unavailable the old behaviour (email every resave) is the
+  // worst case, not a security regression.
+  listingEditNotify: "open",
   // Fail-closed: a whole-account read, capped so it is not a load generator (F-x2).
   dataExport: "closed",
   otpVerify: "closed",
@@ -85,6 +89,57 @@ describe("clientIp", () => {
 
   it("returns 'unknown' when no proxy headers are present", () => {
     expect(clientIp(new Headers())).toBe("unknown");
+  });
+
+  // Spoofing. Behind Vercel's edge the LAST hop is the real peer, appended by
+  // the edge itself; everything to its left is client-controlled. These are the
+  // shapes a client can send, and none may change the key the edge decided on.
+  describe("spoofing, as seen behind an edge that appends the real peer", () => {
+    const PEER = "203.0.113.9";
+    const forged = [
+      "1.1.1.1",
+      "1.1.1.1, 2.2.2.2, 3.3.3.3",
+      "  8.8.8.8  ,  9.9.9.9 ",
+      "::1",
+      "not-an-ip",
+      "10.0.0.1,, ,",
+      "0.0.0.0",
+      "127.0.0.1",
+      "unknown",
+      "a".repeat(2000),
+    ];
+    for (const lead of forged) {
+      it(`a forged leftmost chain (${JSON.stringify(lead.slice(0, 24))}) does not move the key`, () => {
+        expect(clientIp(new Headers({ "x-forwarded-for": `${lead}, ${PEER}` }))).toBe(PEER);
+      });
+    }
+
+    it("a forged cf-connecting-ip from a non-Cloudflare peer does not move the key", () => {
+      for (const cf of ["4.4.4.4", "1.2.3.4, 5.6.7.8", "", "unknown", "x".repeat(500)]) {
+        expect(clientIp(new Headers({ "cf-connecting-ip": cf, "x-forwarded-for": `9.9.9.9, ${PEER}` }))).toBe(PEER);
+      }
+    });
+
+    it("a forged cf-connecting-ip with only a forged XFF claiming to be Cloudflare is still the last hop", () => {
+      // The client can write 173.245.48.1 into the chain, but it is not the LAST hop:
+      // the edge appended the real peer after it.
+      const h = new Headers({ "cf-connecting-ip": "4.4.4.4", "x-forwarded-for": `173.245.48.1, ${PEER}` });
+      expect(clientIp(h)).toBe(PEER);
+    });
+
+    it("an IPv4-mapped IPv6 Cloudflare address is not trusted (fails closed to the peer)", () => {
+      const h = new Headers({ "cf-connecting-ip": "4.4.4.4", "x-forwarded-for": "1.2.3.4, ::ffff:173.245.48.1" });
+      expect(clientIp(h)).toBe("::ffff:173.245.48.1");
+    });
+
+    it("x-real-ip is only a fallback: it never overrides x-forwarded-for", () => {
+      expect(clientIp(new Headers({ "x-real-ip": "6.6.6.6", "x-forwarded-for": `1.1.1.1, ${PEER}` }))).toBe(PEER);
+    });
+
+    it("an empty x-forwarded-for falls through to x-real-ip, then to unknown", () => {
+      expect(clientIp(new Headers({ "x-forwarded-for": " , ,", "x-real-ip": "7.7.7.7" }))).toBe("7.7.7.7");
+      expect(clientIp(new Headers({ "x-forwarded-for": " , ," }))).toBe("unknown");
+    });
   });
 });
 

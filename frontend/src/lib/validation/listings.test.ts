@@ -56,6 +56,22 @@ describe("opportunitySchema", () => {
     expect(r.ok).toBe(false);
   });
 
+  // Adversarial sweep F8: these passed zod and ended as a generic error (or a
+  // stored oddity) once they reached Postgres.
+  it.each(["2027-02-30", "2027-13-01", "2027-00-10", "9999-12-31", "2100-01-01"])(
+    "rejects an impossible or absurd application deadline %s", (applicationDeadline) => {
+      expect(validate(opportunitySchema, { ...validOpportunity, applicationDeadline }).ok).toBe(false);
+    });
+
+  it.each([[0], [-5], [999999], [40000], [1.5]])("rejects skill id %j (not a real, smallint-sized id)", (id) => {
+    expect(validate(opportunitySchema, { ...validOpportunity, skillIds: [id] }).ok).toBe(false);
+    expect(validate(opportunitySchema, { ...validOpportunity, sectorIds: [id] }).ok).toBe(false);
+  });
+
+  it("still accepts ordinary ids", () => {
+    expect(validate(opportunitySchema, { ...validOpportunity, skillIds: [1, 167], sectorIds: [7] }).ok).toBe(true);
+  });
+
   it("requires applyUrl when applyMethod is link", () => {
     const r = validate(opportunitySchema, { ...validOpportunity, applyUrl: null });
     expect(r.ok).toBe(false);
@@ -114,9 +130,23 @@ describe("eventSchema", () => {
     expect(validate(eventSchema, { ...validEvent, eventAtIso: "not-a-date" }).ok).toBe(false);
   });
 
+  it("rejects an event date years in the future or beyond the representable range", () => {
+    // Adversarial sweep F1/F8: these parse, so the Date.parse check alone let
+    // them through to the RPC. Mirrors submit_event's five-year ceiling.
+    const sixYears = new Date(Date.now() + 6 * 365 * 864e5).toISOString();
+    for (const eventAtIso of [sixYears, "9999-12-31T00:00:00Z", "+275760-09-13T00:00:00.000Z"]) {
+      expect(validate(eventSchema, { ...validEvent, eventAtIso }).ok, eventAtIso).toBe(false);
+    }
+  });
+
   it("rejects a luma link longer than 512 characters", () => {
     const longUrl = "https://lu.ma/" + "a".repeat(512);
     expect(validate(eventSchema, { ...validEvent, lumaLink: longUrl }).ok).toBe(false);
+  });
+
+  it("rejects a luma link carrying an embedded CR/LF (ICS injection source)", () => {
+    const injected = "https://lu.ma/x\r\nORGANIZER:attacker@evil.example";
+    expect(validate(eventSchema, { ...validEvent, lumaLink: injected }).ok).toBe(false);
   });
 
   it("accepts the optional isSocietyEvent flag (true / false / omitted)", () => {
@@ -152,6 +182,18 @@ describe("vcGrantSchema", () => {
   it("rejects a link longer than 512 characters", () => {
     const longUrl = "https://seedcamp.com/" + "a".repeat(512);
     expect(validate(vcGrantSchema, { ...validVc, link: longUrl }).ok).toBe(false);
+  });
+
+  describe("deadline (F8)", () => {
+    it("accepts none (rolling applications), today and the future", () => {
+      expect(validate(vcGrantSchema, { ...validVc, deadline: null }).ok).toBe(true);
+      expect(validate(vcGrantSchema, { ...validVc, deadline: futureDate }).ok).toBe(true);
+      expect(validate(vcGrantSchema, { ...validVc, deadline: new Date().toISOString().slice(0, 10) }).ok).toBe(true);
+    });
+    it.each(["2020-05-05", "2027-02-30", "2027-13-01", "9999-12-31", "2100-01-01", "not-a-date"])(
+      "rejects %s", (deadline) => {
+        expect(validate(vcGrantSchema, { ...validVc, deadline }).ok).toBe(false);
+      });
   });
 });
 

@@ -9,12 +9,14 @@ import {
 } from "@/lib/data/admin";
 import MembersAdminClient from "./MembersAdminClient";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { flattenSearchParams, pageParam, yearParam } from "@/lib/filters/serverParams";
 
 type SearchParams = {
   q?: string; role?: string; status?: string; course?: string;
   sector?: string; skill?: string; gradMin?: string; gradMax?: string; page?: string;
 };
 
+const MULTI_PARAMS = ["role", "status", "course", "sector", "skill"] as const;
 const ROLES: string[] = ["student", "alum"];
 const STATUSES: string[] = ["pending_onboarding", "pending_review", "approved", "rejected"];
 
@@ -22,7 +24,6 @@ const list = (v: string | undefined): string[] =>
   (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
 function parseFilters(sp: SearchParams): AdminMemberFilters {
-  const page = Number.parseInt(sp.page ?? "1", 10);
   return {
     q: sp.q ?? "",
     // Dropping unknown values rather than passing them through: ?role=nonsense
@@ -33,9 +34,9 @@ function parseFilters(sp: SearchParams): AdminMemberFilters {
     courses: list(sp.course),
     sectors: list(sp.sector),
     skills: list(sp.skill),
-    gradMin: sp.gradMin ?? "",
-    gradMax: sp.gradMax ?? "",
-    page: Number.isFinite(page) && page > 0 ? page : 1,
+    gradMin: yearParam(sp.gradMin),
+    gradMax: yearParam(sp.gradMax),
+    page: pageParam(sp.page),
   };
 }
 
@@ -45,7 +46,8 @@ export default async function AdminCommunityPage({
   searchParams: Promise<SearchParams>;
 }) {
   const { supabase } = await requireAdminPage();
-  const filters = parseFilters(await searchParams);
+  // A repeated param arrives as an array; flatten before anything .split()s it.
+  const filters = parseFilters(flattenSearchParams(await searchParams, MULTI_PARAMS));
 
   // Started, not awaited: the header renders while the query is in flight.
   const data = adminMemberPage(supabase, filters);

@@ -28,4 +28,16 @@ describe("isImperialEmail", () => {
     expect(isImperialEmail("no-at-sign")).toBe(false);
     expect(isImperialEmail("trailing@")).toBe(false);
   });
+
+  // The SQL used to take the second '@' segment only, so these passed there.
+  it("rejects a second '@', whatever follows or precedes it", () => {
+    expect(isImperialEmail("a@ic.ac.uk@evil.com")).toBe(false);
+    expect(isImperialEmail("a@evil.com@ic.ac.uk")).toBe(false);
+    expect(isImperialEmail('"a@ic.ac.uk"@evil.com')).toBe(false);
+  });
+
+  it("rejects an empty local part and whitespace inside it", () => {
+    expect(isImperialEmail("@ic.ac.uk")).toBe(false);
+    expect(isImperialEmail("a b@ic.ac.uk")).toBe(false);
+  });
 });

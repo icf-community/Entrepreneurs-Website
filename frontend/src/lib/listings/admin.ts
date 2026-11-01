@@ -6,7 +6,7 @@ import {
   renderListingRejectionEmail,
   listingRejectionReplyTo,
 } from "@/lib/email";
-import { describeSupabaseError } from "@/lib/supabaseErrors";
+import { describeSupabaseError, isAlreadyHandledError } from "@/lib/supabaseErrors";
 import { ok, err, type Result } from "@/lib/result";
 import type { BulkResult } from "@/app/admin/bulkTypes";
 import { runBulk } from "@/lib/admin/bulk";
@@ -29,7 +29,12 @@ export async function approveListing(kind: ListingKind, id: string, editVersion:
   if (!auth.ok) return err(auth.error);
 
   const { error } = await def.approve(auth.supabase, id, editVersion);
-  if (error) return err(describeSupabaseError(error));
+  if (error) {
+    // Someone else already approved/rejected/removed it: refresh the queue
+    // so this tab's stale card goes away instead of staying to be clicked.
+    if (isAlreadyHandledError(error)) revalidatePath(def.revalidate.admin);
+    return err(describeSupabaseError(error));
+  }
 
   // Cache first, then Next's path revalidation: a re-render triggered by
   // revalidatePath must not be able to read the stale entry and put it
@@ -53,7 +58,10 @@ export async function rejectListing(
   if (!auth.ok) return err(auth.error);
 
   const { data, error } = await def.reject(auth.supabase, id, trimmed);
-  if (error) return err(describeSupabaseError(error));
+  if (error) {
+    if (isAlreadyHandledError(error)) revalidatePath(def.revalidate.admin);
+    return err(describeSupabaseError(error));
+  }
 
   // The rejection itself has already committed at this point. Everything
   // below is the notification, so a failure there is reported without

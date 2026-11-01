@@ -14,6 +14,12 @@ import { googleCalendarUrl, icsDataUri, type CalendarEvent } from "@/lib/calenda
 // Stops click propagation so opening the menu inside an event card
 // doesn't toggle the card's expand state. Click-outside closes the
 // menu without leaking handlers across mounts.
+//
+// A disclosure (a button that reveals two links), not an ARIA menu: role=menu
+// promises arrow-key navigation and a roving focus that this does not have,
+// so Tab moves through the links like any other. Escape and choosing an item
+// close it and give focus back to the button, otherwise a keyboard user is
+// dropped back at the top of the page when the focused link unmounts.
 // ════════════════════════════════════════════════════════════════════
 
 type Props = CalendarEvent;
@@ -21,13 +27,17 @@ type Props = CalendarEvent;
 export function AddToCalendarMenu(props: Props) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const close = () => { setOpen(false); buttonRef.current?.focus(); };
 
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
       if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
     };
-    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setOpen(false); buttonRef.current?.focus(); }
+    };
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown",   onEsc);
     return () => {
@@ -43,9 +53,9 @@ export function AddToCalendarMenu(props: Props) {
   return (
     <div ref={wrapperRef} className="relative inline-block">
       <button
+        ref={buttonRef}
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        aria-haspopup="menu"
         aria-expanded={open}
         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.8rem] font-medium transition-colors cursor-pointer hover:bg-white/[0.10] hover:border-accent"
       >
@@ -56,25 +66,22 @@ export function AddToCalendarMenu(props: Props) {
 
       {open && (
         <div
-          role="menu"
           className="absolute z-20 mt-1 right-0 min-w-[210px] rounded-xl border border-border-subtle bg-bg-card shadow-xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           <a
-            role="menuitem"
             href={gcalUrl}
             target="_blank"
             rel="noreferrer noopener"
-            onClick={() => setOpen(false)}
+            onClick={close}
             className="block px-4 py-2.5 text-[0.825rem] text-text-secondary no-underline transition-colors hover:bg-white/[0.04] hover:text-text-primary"
           >
             Google Calendar ↗
           </a>
           <a
-            role="menuitem"
             href={icsUrl}
             download={`${icsName}.ics`}
-            onClick={() => setOpen(false)}
+            onClick={close}
             className="block px-4 py-2.5 text-[0.825rem] text-text-secondary no-underline transition-colors hover:bg-white/[0.04] hover:text-text-primary border-t border-border-subtle"
           >
             Download .ics (Apple / Outlook)

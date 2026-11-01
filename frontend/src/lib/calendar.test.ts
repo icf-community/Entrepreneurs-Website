@@ -49,6 +49,21 @@ describe("buildIcs", () => {
     const ics = buildIcs({ ...base, title: "A".repeat(80) });
     expect(ics).toContain("\r\n ");
   });
+
+  it("strips an injected CRLF out of the URL: property instead of emitting it raw", () => {
+    const ics = buildIcs({ ...base, url: "https://evil.example\r\nORGANIZER:attacker@evil.example" });
+    expect(ics).not.toContain("\r\nORGANIZER:attacker@evil.example");
+    expect(ics).toContain("URL:https://evil.exampleORGANIZER:attacker@evil.example");
+    // Exactly one VEVENT, one URL: line, and nothing injected before END:VEVENT.
+    expect(ics.match(/BEGIN:VEVENT/g)?.length).toBe(1);
+    expect(ics.match(/^URL:/m)?.length).toBe(1);
+  });
+
+  it("escapes a bare \\r (no \\n) in a TEXT property the same as \\n", () => {
+    const ics = buildIcs({ ...base, description: "line one\rline two" });
+    expect(ics).toContain("DESCRIPTION:line one\\nline two");
+    expect(ics).not.toMatch(/DESCRIPTION:.*\r.*\r\n/);
+  });
 });
 
 describe("icsDataUri", () => {

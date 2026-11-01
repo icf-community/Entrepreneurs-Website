@@ -1,3 +1,4 @@
+import { flattenSearchParams, yearParam } from "@/lib/filters/serverParams";
 import { Suspense } from "react";
 import AppShell from "@/components/app/AppShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
@@ -40,6 +41,7 @@ type SearchParams = {
   cursor?: string;
 };
 
+const MULTI_PARAMS = ["role", "course", "sector", "skill"] as const;
 const TABS: Tab[] = ["connections", "pending", "sent"];
 
 const list = (v: string | undefined): string[] =>
@@ -52,8 +54,8 @@ function parseFilters(sp: SearchParams): MemberFilters {
     courses: list(sp.course),
     sectors: list(sp.sector),
     skills: list(sp.skill),
-    gradMin: sp.gradMin ?? "",
-    gradMax: sp.gradMax ?? "",
+    gradMin: yearParam(sp.gradMin),
+    gradMax: yearParam(sp.gradMax),
     // Keyset paging, so there is no page number. The field stays on the
     // shared MemberFilters shape because filterArgs() takes the whole
     // thing; nothing here reads it.
@@ -67,7 +69,8 @@ export default async function ConnectionsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const { supabase, isAdmin, displayName, user } = await requireApprovedUser();
-  const sp = await searchParams;
+  // A repeated param arrives as an array; flatten before anything .split()s it.
+  const sp = flattenSearchParams(await searchParams, MULTI_PARAMS);
   const tab: Tab = TABS.includes(sp.tab as Tab) ? (sp.tab as Tab) : "connections";
   // Card view is the default, and it is the default deliberately: it is
   // the accessible equivalent, it is the mobile experience, and it is the

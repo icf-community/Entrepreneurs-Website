@@ -477,7 +477,12 @@ function FlaggedSenders({
           Nobody is flagged. No member has attracted a block or an upheld report recently.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border-subtle">
+        <div
+          className="overflow-x-auto rounded-xl border border-border-subtle"
+          role="region"
+          aria-label="Members with blocks, upheld reports, or an unusual decline rate"
+          tabIndex={0}
+        >
           <table className="w-full min-w-[640px] border-collapse text-[0.8rem]">
             <caption className="sr-only">
               Members with blocks, upheld reports, or an unusual decline rate

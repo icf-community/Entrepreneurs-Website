@@ -192,7 +192,11 @@ export default function FoundryAiClient({ state, initialMode, initialJobId, init
           jobs={state.jobs}
           educationKnown={state.education_known}
           jobNeedsConfirming={jobNeedsConfirming}
-          onJobChange={(id) => { setJobId(id); selectConversation(null); setConversations(null); }}
+          // The rail reloads from an effect keyed on jobId. A "change" to the job
+          // already selected (the first job is preselected, and automation or a
+          // re-dispatched change event can re-pick it) would blank the rail
+          // without that effect re-running, leaving it on its skeleton.
+          onJobChange={(id) => { if (id === jobId) return; setJobId(id); selectConversation(null); setConversations(null); }}
           onConfirmed={() => setJobsConfirmed((s) => new Set([...s, jobId!]))}
           conversation={conversation}
           loadingConversation={loadingConversation}

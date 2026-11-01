@@ -40,6 +40,7 @@ export type RateBucket =
   | "connectionRequest"
   | "connectionRespond"
   | "listingEdit"
+  | "listingEditNotify"
   | "dataExport"
   | "otpVerify"
   | "aiSubmit"
@@ -253,6 +254,18 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // fixing a listing never uses up the allowance for posting a new one.
   listingEdit: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(20, "1 h"), prefix: p("edit"), analytics: false }),
+  // Security audit (2026-10-26): `listingEdit` above caps how often one
+  // member can trigger a stage — it doesn't stop each one from emailing
+  // admins separately. stage_listing_edit upserts into the same pending
+  // row (on conflict ... do update) and bumps created_at on every call,
+  // so repeated saves of the same still-unreviewed edit (a second typo
+  // fix, autosave, double-click) each look like a fresh proposal to the
+  // caller and each sent a fresh email — unbounded by this listing's own
+  // activity, only by the per-member cap above. Keyed by listing id, not
+  // member id: one notification per listing per window, no matter who
+  // or how many times it's resaved while still pending.
+  listingEditNotify: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(1, "15 m"), prefix: p("editnotify"), analytics: false }),
   // F-x2: "Download my data" reads every table a member has rows in, in
   // one call. Nobody needs it more than a few times a day; the ceiling is
   // there so a script can't turn it into a DB load generator.
@@ -394,6 +407,7 @@ const WINDOW_MS: Record<RateBucket, number> = {
   connectionRequest: 86_400_000,
   connectionRespond: 86_400_000,
   listingEdit: 3_600_000,
+  listingEditNotify: 900_000,
   dataExport: 86_400_000,
   otpVerify: 600_000,
   aiSubmit: 60_000,
@@ -417,6 +431,7 @@ const LIMIT: Record<RateBucket, number> = {
   connectionRequest: 15,
   connectionRespond: 100,
   listingEdit: 20,
+  listingEditNotify: 1,
   dataExport: 5,
   otpVerify: 10,
   aiSubmit: 10,

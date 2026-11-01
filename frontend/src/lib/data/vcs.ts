@@ -1,5 +1,6 @@
 import "server-only";
 import { cached } from "../cache";
+import { escapeLike } from "../likeEscape";
 import { rows, maybeRow, type Db } from "./query";
 
 export type Vc = {
@@ -28,7 +29,7 @@ export type VcFilters = {
 
 function vcFilterArgs(f: VcFilters) {
   return {
-    p_query: f.q || undefined,
+    p_query: f.q ? escapeLike(f.q) : undefined,
     p_kind:  f.kind === "all" ? undefined : f.kind,
     p_from:  f.from || undefined,
     p_to:    f.to || undefined,

@@ -1,3 +1,4 @@
+import { pageParam } from "@/lib/filters/serverParams";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Skeleton, RowListSkeleton } from "@/components/ui/Skeleton";
@@ -28,8 +29,7 @@ export default async function AdminUsersPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const { supabase } = await requireAdminPage();
-  const parsed = Number.parseInt((await searchParams).page ?? "1", 10);
-  const page = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  const page = pageParam((await searchParams).page);
 
   // Started, not awaited: the header renders while the query is in flight.
   const data = loadPending(supabase, page);

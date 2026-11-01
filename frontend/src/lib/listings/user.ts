@@ -85,14 +85,26 @@ export async function updateOwnListing(
     // Nothing published changed, so no public cache is stale. What is
     // needed is a human: this is the one notification on the path, and
     // it is deliberately immediate rather than batched.
-    const current  = (revision.current_values ?? {}) as Record<string, unknown>;
-    const proposed = (revision.proposed ?? {}) as Record<string, unknown>;
-    await notifyEditProposed({
-      kind,
-      listingTitle: String(current.title ?? current.name ?? current.position_name ?? "(untitled)"),
-      proposerName: await proposerDisplayName(supabase, user.id),
-      changed: changedFields(current, proposed),
-    });
+    //
+    // stage_listing_edit upserts into the same still-pending row on a
+    // repeat save (on conflict ... do update), so a second typo fix
+    // before an admin reviews the first proposal looks identical from
+    // here: a revision exists, same as the first time. Without this,
+    // each resave emailed admins again for a listing they'd already been
+    // told about. Keyed by listing id, not member id — `listingEdit`
+    // above already caps how often any one member can trigger a stage;
+    // this caps how often any one *listing* re-notifies while its
+    // existing proposal sits unreviewed.
+    if ((await check("listingEditNotify", id)) === "allowed") {
+      const current  = (revision.current_values ?? {}) as Record<string, unknown>;
+      const proposed = (revision.proposed ?? {}) as Record<string, unknown>;
+      await notifyEditProposed({
+        kind,
+        listingTitle: String(current.title ?? current.name ?? current.position_name ?? "(untitled)"),
+        proposerName: await proposerDisplayName(supabase, user.id),
+        changed: changedFields(current, proposed),
+      });
+    }
     revalidatePath("/my-submissions");
     return ok({ staged: true });
   }

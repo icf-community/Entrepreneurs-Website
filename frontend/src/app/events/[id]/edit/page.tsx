@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/uuid";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/app/AppShell";
@@ -24,6 +25,9 @@ export default async function EditEventPage({ params }: { params: Promise<Params
     params,
     requireApprovedUser(),
   ]);
+
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
 
   // Need first/last for the organiser default. Guard only returned status,
   // so re-query the two extra columns. Independent of the snapshot lookup

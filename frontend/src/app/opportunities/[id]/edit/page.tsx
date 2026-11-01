@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/uuid";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/app/AppShell";
@@ -14,6 +15,9 @@ export default async function EditOpportunityPage({ params }: { params: Promise<
     params,
     requireApprovedUser(),
   ]);
+
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
 
   // SECURITY DEFINER RPC enforces caller = poster and returns
   // contact_email accordingly (migration 20260530000002).

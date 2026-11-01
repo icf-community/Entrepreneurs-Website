@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/uuid";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/app/AppShell";
@@ -13,6 +14,9 @@ export default async function EditVcGrantPage({ params }: { params: Promise<Para
     params,
     requireApprovedUser(),
   ]);
+
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
 
   const snapshot = await listingEditSnapshot(supabase, "vc_grant", id);
   const row = snapshot?.row;

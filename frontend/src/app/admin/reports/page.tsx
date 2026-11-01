@@ -1,3 +1,4 @@
+import { pageParam } from "@/lib/filters/serverParams";
 import Link from "next/link";
 import { adminReportsPage, REPORTS_PAGE_SIZE } from "@/lib/data/posts";
 import ReportsClient from "./ReportsClient";
@@ -32,8 +33,7 @@ export default async function AdminReportsPage({
   // An unrecognised ?status= narrows to the default rather than being
   // handed to the RPC as if it were a status.
   const status = STATUSES.includes(sp.status ?? "") ? sp.status! : "open";
-  const parsedPage = Number.parseInt(sp.page ?? "1", 10);
-  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const page = pageParam(sp.page);
 
   const { reports, matching } = await adminReportsPage(supabase, { status, page });
 

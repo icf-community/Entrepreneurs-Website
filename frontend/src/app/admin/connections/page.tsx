@@ -1,3 +1,4 @@
+import { pageParam } from "@/lib/filters/serverParams";
 import Link from "next/link";
 import {
   adminConnectionReportsPage,
@@ -46,8 +47,7 @@ export default async function AdminConnectionsPage({
   // An unrecognised ?status= narrows to the default rather than being
   // handed to the RPC as if it were a status.
   const status = STATUSES.includes(sp.status ?? "") ? sp.status! : "open";
-  const parsedPage = Number.parseInt(sp.page ?? "1", 10);
-  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const page = pageParam(sp.page);
 
   const [{ reports, matching }, senders, stats, connectionsStatus] = await Promise.all([
     adminConnectionReportsPage(supabase, { status, page }),

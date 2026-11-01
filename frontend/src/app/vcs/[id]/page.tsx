@@ -1,3 +1,5 @@
+import { isUuid } from "@/lib/uuid";
+import { notFound } from "next/navigation";
 import ListingDetailShell, {
   ListingGone, Fact, Description,
 } from "@/components/ListingDetailShell";
@@ -29,6 +31,9 @@ export default async function VcPage({ params }: { params: Promise<Params> }) {
     params,
     requireApprovedUser(),
   ]);
+
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
 
   const v = await approvedVc(supabase, id);
 

@@ -20,6 +20,9 @@ export const IMPERIAL_DOMAINS = ["ic.ac.uk", "imperial.ac.uk"];
 
 /** True if the address is on an Imperial domain. Students are pinned to these. */
 export function isImperialEmail(email: string): boolean {
-  const domain = email.trim().toLowerCase().split("@")[1];
-  return !!domain && IMPERIAL_DOMAINS.includes(domain);
+  // Exactly one "@", like the SQL's anchored pattern: 'a@ic.ac.uk@evil.com'
+  // must not pass just because its second segment is an Imperial domain.
+  const parts = email.trim().toLowerCase().split("@");
+  if (parts.length !== 2 || !parts[0] || /\s/.test(parts[0])) return false;
+  return IMPERIAL_DOMAINS.includes(parts[1]);
 }

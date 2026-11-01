@@ -2,6 +2,7 @@ import "server-only";
 import { rows, rowsOrThrow, type Db } from "./query";
 import { isServiceUnavailable } from "@/lib/supabase/unavailable";
 import { cached } from "@/lib/cache";
+import { escapeLike } from "@/lib/likeEscape";
 import { signedImageUrls } from "@/lib/storage/blobRead";
 import type { Affiliation } from "@/lib/intake/steps";
 
@@ -74,7 +75,7 @@ export type MemberFilters = {
  */
 export function filterArgs(f: MemberFilters) {
   return {
-    p_query:    f.q || undefined,
+    p_query:    f.q ? escapeLike(f.q) : undefined,
     p_roles:    f.roles.length ? f.roles : undefined,
     p_courses:  f.courses.length ? f.courses : undefined,
     p_sectors:  f.sectors.length ? f.sectors : undefined,

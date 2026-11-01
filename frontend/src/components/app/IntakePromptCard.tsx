@@ -31,7 +31,6 @@ export function IntakePromptCard() {
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        aria-label="Dismiss"
         className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-1.5 text-[0.75rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
       >
         Not now
