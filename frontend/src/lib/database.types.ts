@@ -2488,6 +2488,10 @@ export type Database = {
       cron_github_showcase_nudge: { Args: never; Returns: undefined }
       cron_health_check: { Args: never; Returns: undefined }
       defer_intake: { Args: never; Returns: undefined }
+      defer_outbound_email: {
+        Args: { p_error: string; p_id: string; p_minutes?: number }
+        Returns: undefined
+      }
       delete_my_account: { Args: never; Returns: undefined }
       delete_my_post: { Args: { p_post_id: string }; Returns: undefined }
       disconnect_github: { Args: never; Returns: undefined }
@@ -3297,6 +3301,10 @@ export type Database = {
           first_name: string
           title: string
         }[]
+      }
+      release_github_showcase_nudges: {
+        Args: { p_member_ids: string[] }
+        Returns: undefined
       }
       remove_connection: { Args: { p_id: string }; Returns: undefined }
       remove_my_avatar: { Args: never; Returns: undefined }

@@ -2,8 +2,8 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import type { NextRequest } from "next/server";
 
 // D3: the weekly nudge had no tests. Its contract: bearer auth before any
-// DB work; enqueue THEN mark (so a failed enqueue re-nudges next week rather
-// than silently dropping the member); a failed mark still answers 200,
+// DB work; enqueue THEN mark; a failed enqueue RELEASES the claim the lookup
+// made (otherwise the member is silent for 30 days); a failed mark still answers 200,
 // because the mail is already in the outbox.
 
 function req(auth?: string): NextRequest {
@@ -60,9 +60,17 @@ describe("github-showcase-nudge", () => {
     expect(calls).toEqual(["rpc:due_github_showcase_nudges", "enqueue:2", "rpc:mark_github_showcase_nudged"]);
   });
 
-  it("does not mark anyone when the enqueue fails", async () => {
-    const { calls } = await run({ due, enqueueThrows: true });
+  it("releases every claimed member and marks nobody when the enqueue fails", async () => {
+    const { res, calls, rpc } = await run({ due, enqueueThrows: true });
+    expect((res as Response).status).toBe(500);
     expect(calls).not.toContain("rpc:mark_github_showcase_nudged");
+    expect(rpc).toHaveBeenCalledWith("release_github_showcase_nudges", { p_member_ids: ["m1", "m2"] });
+  });
+
+  it("releases a claimed member it had nothing to say to", async () => {
+    const { rpc } = await run({ due: [...due, { member_id: "m3", email: "c@x.com", first_name: "C", new_repos: [] }] });
+    expect(rpc).toHaveBeenCalledWith("release_github_showcase_nudges", { p_member_ids: ["m3"] });
+    expect(rpc).toHaveBeenCalledWith("mark_github_showcase_nudged", { p_member_ids: ["m1", "m2"] });
   });
 
   it("still answers 200 when marking fails, since the mail is already queued", async () => {

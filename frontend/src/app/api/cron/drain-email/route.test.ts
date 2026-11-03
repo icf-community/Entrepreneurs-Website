@@ -66,6 +66,7 @@ describe("drain-email send outcomes", () => {
     vi.resetModules();
 
     const updates: Update[] = [];
+    const rpcs: { fn: string; args: Record<string, unknown> }[] = [];
     const sends: { idempotencyKey?: string }[] = [];
     const row = {
       id: "row-1", to_address: "m@example.com", subject: "s", text_body: "t", html_body: "<p>t</p>",
@@ -73,7 +74,11 @@ describe("drain-email send outcomes", () => {
     };
     vi.doMock("@/lib/supabase/service", () => ({
       createServiceClient: () => ({
-        rpc: async () => ({ data: [row], error: null }),
+        rpc: async (fn: string, args: Record<string, unknown>) => {
+          if (fn === "claim_outbound_email_batch") return { data: [row], error: null };
+          rpcs.push({ fn, args });
+          return { data: null, error: null };
+        },
         from: () => ({
           update: (patch: Record<string, unknown>) => ({
             eq: async (_c: string, id: string) => { updates.push({ id, patch }); return { error: null }; },
@@ -96,7 +101,7 @@ describe("drain-email send outcomes", () => {
     const res = await POST(req("Bearer topsecret"));
     vi.doUnmock("@/lib/supabase/service");
     vi.doUnmock("resend");
-    return { res, updates, sends };
+    return { res, updates, sends, rpcs };
   }
 
   it("marks a sent row sent, and pins Resend's idempotency key to the row id", async () => {
@@ -108,11 +113,10 @@ describe("drain-email send outcomes", () => {
     expect(updates[0].patch.sent_at).toEqual(expect.any(String));
   });
 
-  it("a 429 waits without burning an attempt", async () => {
-    const { updates } = await drainOne({ error: { statusCode: 429, message: "slow down" } });
-    expect(updates[0].patch).not.toHaveProperty("attempts");
-    expect(updates[0].patch).not.toHaveProperty("sent_at");
-    expect(Date.parse(updates[0].patch.next_attempt_at as string)).toBeGreaterThan(Date.now() + 29 * 60_000);
+  it("a 429 waits through defer_outbound_email, which owns the attempt count", async () => {
+    const { updates, rpcs } = await drainOne({ error: { statusCode: 429, message: "slow down" } });
+    expect(updates).toHaveLength(0);
+    expect(rpcs).toEqual([{ fn: "defer_outbound_email", args: { p_id: "row-1", p_error: expect.any(String), p_minutes: 30 } }]);
   });
 
   it("a 5xx retries with backoff and counts the attempt", async () => {

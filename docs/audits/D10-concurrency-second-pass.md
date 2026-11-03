@@ -103,22 +103,36 @@ failed first.
 **Checked and not a bug.** The opportunity-skill cap (50) looked unlocked but is already serialised: the row-level
 edit-version trigger takes the parent opportunity's lock before the statement-level count runs. A test pins it.
 
-**Accepted, with the reason.**
-- Two administrators deleting *each other* in the same instant (`admin_delete_user`) could still leave none. It needs two
-  admins acting simultaneously on each other; the realistic case (the last admin leaving) is closed.
-- The weekly showcase nudge claims its recipients before emailing them, so a failed bulk insert suppresses that
-  week's nudge for 30 days. Low harm.
-- An email row that always answers 429 is retried forever (it does not burn an attempt by design). Cosmetic.
-- The AI edit quota is counted over live conversations, so deleting a conversation resets it. A soft guard.
-- A deleted or banned member can linger in the 60 to 300 second directory caches.
-- Profile-skills policies do not check approval, so a banned member can still edit their skills (not a boundary:
-  the directory hides them).
+**Third sweep: four former accepted risks, fixed (migration `20261026000020_accepted_risk_fixes.sql`).**
+
+| # | Was | Now | Test |
+|---|---|---|---|
+| R1 | Two administrators deleting each other at once "could leave none" | `admin_delete_user` takes the same roster lock as `delete_my_account` when the target is an administrator, then re-reads the caller's own admin status. **Honest note:** this was not reproducible. The audit-row foreign key already made one side fail (error or deadlock victim), so the old code never emptied the roster in 8 randomised rounds or the forced interleaving; the change makes the refusal clean and ordered, it does not close a live hole | `test_concurrency.py` (both tests also pass on the old code) |
+| R2 | A rejected member could still edit their skills and sectors by a direct API write | The write policies refuse a member whose status is `rejected` (pending members keep working, onboarding needs it) | `test_concurrency.py` (failed on the old policy) |
+| R3 | An email row that always answered 429 was retried every 30 minutes forever | New `defer_outbound_email`: no attempt is charged for the first day, then each deferral counts and the row is buried at `max_attempts`. Service role only | `test_concurrency.py` (failed first), `drain-email/route.test.ts` |
+| R4 | A failed enqueue left the showcase nudge claimed, silencing that member for 30 days | The route releases every claimed member it did not email (new `release_github_showcase_nudges`), and answers 500 on an enqueue failure so the cron run is visible | `test_concurrency.py` (failed first), `github-showcase-nudge/route.test.ts` |
+
+**Still accepted, with the reason.**
+- Approve and reject queue their email in a separate step after the decision commits (F11). The realistic failure,
+  the queue insert erroring, already reaches Sentry and the admin; only the process dying in that window is uncovered.
+- Blocks and request cooldowns between two members reset when either deletes their account, and a banned person
+  using a *different* email is a different person to the system. Both are product and privacy decisions (keeping more
+  data about deleted people), not defects.
+- The AI edit quota is counted over live conversations, so deleting one resets it. A soft guard; draft edits cost nothing.
+- A deleted or banned member can linger in the 60 to 300 second directory caches (the TTL is the design).
+- `tg_related_edit_version` can deadlock a direct child write against an RPC on the parent; Postgres aborts one side
+  with a retryable error and nothing is corrupted.
+
+**Frontend order:** the new drain-email and showcase-nudge routes call `defer_outbound_email` and
+`release_github_showcase_nudges`, so deploy the web app only after `…020` is applied.
 
 ## Not provable here
 
-Real two-process timing on the production VM (the tests force the interleavings with locks and
-injected calls); the reaper against a genuinely crashed worker; Upstash.
+Real two-process timing on the production VM, and Upstash (the local tests use a Redis stand-in; the real service is checked after
+deploy). **No longer in this list:** the reaper against a genuinely crashed worker. `test_worker_races.py` now starts a real worker
+process, SIGKILLs it mid-job, runs the real `reap_stalled_jobs` (it leaves the job alone until it is 15 minutes stale) and
+checks the retry publishes once, with one extraction paid.
 
-**Deploy order:** apply both migrations (`…018`, `…019`) **before** the new worker image. The new worker calls
-`worker_cv_wanted`; the new image on the old database would fail every CV ingest. The migration alone
-is safe with the old worker (the old code never calls the guard, and the new locks only add waiting).
+**Deploy order:** apply the migrations (`…018`, `…019`, `…020`) **before** the new worker image. The new worker calls
+`worker_cv_wanted`; the new image on the old database would fail every CV ingest. The migrations alone
+are safe with the old worker (the old code never calls the guard, and the new locks only add waiting).

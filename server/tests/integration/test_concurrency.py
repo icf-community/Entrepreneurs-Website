@@ -804,3 +804,99 @@ def test_an_administrator_can_delete_their_account_while_another_remains(db):
         cur.execute("select public.delete_my_account()")
     assert not db.execute("select exists (select 1 from auth.users where id = %s)", (leaving,)).fetchone()[0]
     assert db.execute("select exists (select 1 from public.admins where user_id = %s)", (staying,)).fetchone()[0]
+
+
+# ─── Former accepted risks (migration 20261026000020) ───────────────
+def _service(cur) -> None:
+    """Run as the service role, the way the Next.js cron routes do."""
+    cur.execute("set local role service_role")
+    cur.execute("select set_config('request.jwt.claims', %s, true)", (json.dumps({"role": "service_role"}),))
+
+
+def test_two_administrators_deleting_each_other_at_once_leave_one_of_them(db):
+    for i in range(8):
+        a, b = db.member(f"mutuala{i}", admin=True), db.member(f"mutualb{i}", admin=True)
+        barrier = threading.Barrier(2)
+        out: dict = {}
+
+        def delete(caller, target, key):
+            try:
+                with psycopg.connect(DSN) as c, c.cursor() as cur:
+                    _as(cur, caller)
+                    barrier.wait(5)
+                    cur.execute("select * from public.admin_delete_user(%s, 'mutual')", (target,))
+                out[key] = "deleted"
+            except psycopg.Error as exc:
+                out[key] = exc
+
+        threads = [threading.Thread(target=delete, args=(a, b, "ab")), threading.Thread(target=delete, args=(b, a, "ba"))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(15)
+        survivors = db.execute("select count(*) from public.admins where user_id in (%s, %s)", (a, b)).fetchone()[0]
+        assert survivors >= 1, f"round {i}: both administrators were deleted ({out})"
+
+
+def test_an_administrator_deleted_mid_call_cannot_go_on_to_delete_another(db):
+    a, b = db.member("midcalla", admin=True), db.member("midcallb", admin=True)
+    first, second = hold_then_race(
+        lambda cur: _one(cur, "select * from public.admin_delete_user(%s, 'first')", (b,)),
+        lambda cur: _one(cur, "select * from public.admin_delete_user(%s, 'second')", (a,)),
+        first_as=a, second_as=b,
+    )
+    assert first is not None
+    assert isinstance(second, psycopg.Error), "a deleted administrator went on to delete the one who deleted them"
+    assert db.execute("select exists (select 1 from public.admins where user_id = %s)", (a,)).fetchone()[0]
+
+
+@pytest.mark.parametrize("table,col", [("profile_skills", "skill_id"), ("profile_sectors", "sector_id")])
+def test_a_rejected_member_cannot_edit_their_skills_or_sectors(db, table, col):
+    banned, pending, approved = db.member("rj" + table[8:10], status="rejected"), \
+        db.member("pe" + table[8:10], status="pending_review"), db.member("ap" + table[8:10])
+    sql = f"insert into public.{table} (profile_id, {col}) values (%s, 1) on conflict do nothing"
+    assert _direct_update(approved, sql, (approved,)) == 1, "control: an approved member can edit"
+    assert _direct_update(pending, sql, (pending,)) == 1, "control: onboarding must keep working"
+    assert isinstance(_direct_update(banned, sql, (banned,)), psycopg.Error), "a rejected member edited their interests"
+    db.execute(f"insert into public.{table} (profile_id, {col}) values (%s, 1) on conflict do nothing", (banned,))
+    assert _direct_update(banned, f"delete from public.{table} where profile_id = %s", (banned,)) == 0
+
+
+def _email_row(db, age_hours: float) -> uuid.UUID:
+    return db.execute(
+        """insert into public.outbound_email (to_address, subject, text_body, html_body, created_at)
+           values ('r3@example.com', 's', 't', 'h', now() - make_interval(secs => %s)) returning id""",
+        (age_hours * 3600,)).fetchone()[0]
+
+
+def test_a_rate_limited_email_is_deferred_without_a_charge_until_it_is_a_day_old(db):
+    fresh, stale = _email_row(db, 1), _email_row(db, 25)
+    with psycopg.connect(DSN) as c, c.cursor() as cur:
+        _service(cur)
+        for row in (fresh, stale):
+            cur.execute("select public.defer_outbound_email(%s, '429 slow down', 30)", (row,))
+        c.commit()
+    fresh_row = db.execute("select attempts, next_attempt_at > now() + interval '29 minutes', last_error "
+                           "from public.outbound_email where id = %s", (fresh,)).fetchone()
+    stale_row = db.execute("select attempts from public.outbound_email where id = %s", (stale,)).fetchone()
+    assert fresh_row == (0, True, "429 slow down")
+    assert stale_row == (1,), "a row refused for over a day must start counting toward burial"
+    db.execute("delete from public.outbound_email where id in (%s, %s)", (fresh, stale))
+
+
+def test_only_the_service_role_can_run_the_new_queue_functions(db):
+    # has_function_privilege, not a call: a permission-denied SECURITY DEFINER call crashes the local image.
+    for fn in ("public.defer_outbound_email(uuid, text, int)", "public.release_github_showcase_nudges(uuid[])"):
+        granted = {role: db.execute("select has_function_privilege(%s, %s, 'execute')", (role, fn)).fetchone()[0]
+                   for role in ("anon", "authenticated", "service_role")}
+        assert granted == {"anon": False, "authenticated": False, "service_role": True}, (fn, granted)
+
+
+def test_a_released_showcase_nudge_is_due_again(db):
+    m = _due_nudge_member(db, "released")
+    claimed = db.execute("select member_id from public.due_github_showcase_nudges(500)").fetchall()
+    assert m in {r[0] for r in claimed}
+    assert m not in {r[0] for r in db.execute("select member_id from public.due_github_showcase_nudges(500)").fetchall()}, \
+        "control: a claimed member is not handed out twice"
+    db.execute("select public.release_github_showcase_nudges(%s)", ([m],))
+    assert m in {r[0] for r in db.execute("select member_id from public.due_github_showcase_nudges(500)").fetchall()}

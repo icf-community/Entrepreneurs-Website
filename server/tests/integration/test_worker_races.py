@@ -367,3 +367,114 @@ def test_a_late_skill_suggestion_for_a_replaced_cv_is_ignored(db):
     _member_call(uid, "select public.set_cv_suggested_skills(%s::smallint[], %s)", ([4], new_key))
     assert _scalar(db, "select cv_suggested_skill_ids from public.profiles where id = %s", (uid,)) is None, \
         "suggestions from a removed CV came back"
+
+
+# ─── A worker that really dies ──────────────────────────────────────
+# Everything above forces an interleaving inside one process. This one kills a real worker process with
+# SIGKILL in the middle of a job (no cleanup code runs, exactly as when the VM or the OOM killer takes it),
+# then runs the real reaper and the real retry. It is the nearest thing to the production failure that
+# can be staged without the production VM.
+_DIES_MID_JOB = r"""
+import hashlib, os, sys, time, uuid
+from types import SimpleNamespace
+import psycopg
+from contextlib import contextmanager
+from app import worker
+
+DSN, JOB_ID = os.environ["KILL_TEST_DSN"], uuid.UUID(os.environ["KILL_TEST_JOB"])
+
+@contextmanager
+def connection():
+    conn = psycopg.connect(DSN)
+    try:
+        yield conn
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+def claim_ours(conn):
+    with conn.cursor() as cur:
+        cur.execute("select id, kind, payload, attempts, max_attempts from public.jobs "
+                    "where id = %s and status = 'pending' for update skip locked", (JOB_ID,))
+        row = cur.fetchone()
+        if row is None:
+            return None
+        cur.execute("update public.jobs set status = 'running' where id = %s", (JOB_ID,))
+        return row
+
+def die_here(*_a, **_k):
+    print("MID-JOB", flush=True)
+    time.sleep(600)
+
+worker.connection = connection
+worker._claim_job = claim_ours
+worker._sanitise_cv = die_here
+worker.worker_settings = lambda: SimpleNamespace(cv_container="member-cvs")
+worker.run_once()
+"""
+
+
+def test_a_worker_killed_mid_job_is_reaped_and_the_cv_is_processed_exactly_once(db, pipe):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    uid = db.member("killed")
+    cv_id, _ = db.cv(uid)
+    job_id = _scalar(db, "insert into public.jobs (kind, payload) values ('ingest_cv', %s::jsonb) returning id",
+                     (json.dumps({"cv_id": str(cv_id)}),))
+
+    proc = subprocess.Popen(
+        [sys.executable, "-c", _DIES_MID_JOB], cwd=Path(__file__).resolve().parents[2],
+        env={**os.environ, "KILL_TEST_DSN": DSN, "KILL_TEST_JOB": str(job_id)},
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        line = proc.stdout.readline()
+        assert line.strip() == "MID-JOB", f"the worker never reached the job: {line!r} {proc.stderr.read() if proc.poll() else ''}"
+        proc.kill()      # SIGKILL: no handlers, no finally blocks
+        proc.wait(10)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+    assert proc.returncode < 0, "the worker was supposed to be killed by a signal"
+    assert _scalar(db, "select status::text from public.jobs where id = %s", (job_id,)) == "running", "stranded, as in production"
+    assert _scalar(db, "select status::text from public.cvs where id = %s", (cv_id,)) == "extracting"
+
+    # Not stalled yet: the reaper must leave a job that may still be running alone.
+    db.execute("select public.reap_stalled_jobs()")
+    assert _scalar(db, "select status::text from public.jobs where id = %s", (job_id,)) == "running"
+
+    # Sixteen minutes later. The updated_at trigger would stamp now(), so step around it for this row only.
+    with db.transaction():
+        db.execute("set local session_replication_role = replica")
+        db.execute("update public.jobs set updated_at = now() - interval '16 minutes' where id = %s", (job_id,))
+    assert db.execute("select public.reap_stalled_jobs()").fetchone()[0] >= 1
+    assert db.execute("select status::text, attempts from public.jobs where id = %s", (job_id,)).fetchone() == ("pending", 1)
+
+    # The retry runs in this process with the same stubs as the other tests and claims the very same job.
+    def claim_ours(conn):
+        with conn.cursor() as cur:
+            cur.execute("select id, kind, payload, attempts, max_attempts from public.jobs "
+                        "where id = %s and status = 'pending' for update skip locked", (job_id,))
+            row = cur.fetchone()
+            if row is None:
+                return None
+            cur.execute("update public.jobs set status = 'running' where id = %s", (job_id,))
+            return row
+
+    pipe_claim = worker._claim_job
+    worker._claim_job = claim_ours
+    try:
+        assert worker.run_once() is True
+    finally:
+        worker._claim_job = pipe_claim
+
+    assert _scalar(db, "select status::text from public.jobs where id = %s", (job_id,)) == "done"
+    assert _scalar(db, "select status::text from public.cvs where id = %s", (cv_id,)) == "ready"
+    assert pipe.extract_calls == 1, "the dead worker had not extracted, so the retry pays exactly once"
+    assert _scalar(db, "select count(*) from public.cv_profiles where cv_id = %s", (cv_id,)) == 1
+    assert _scalar(db, "select count(*) from public.cvs where member_id = %s and is_current", (uid,)) == 1

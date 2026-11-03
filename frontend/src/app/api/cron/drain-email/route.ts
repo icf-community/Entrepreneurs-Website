@@ -242,14 +242,14 @@ async function recordResult(
 
   if (result.kind === "rate_limited") {
     // Don't burn an attempt — this is a "come back later" signal, not
-    // a bad row. Push next_attempt_at well past the cron interval.
-    await supabase
-      .from("outbound_email")
-      .update({
-        next_attempt_at: minutesFromNowIso(BACKOFF_429_MIN),
-        last_error:      result.error,
-      })
-      .eq("id", row.id);
+    // a bad row. Push next_attempt_at well past the cron interval. The
+    // function counts an attempt once the row is a day old, so a row that
+    // is never accepted ends up buried instead of retried forever.
+    await supabase.rpc("defer_outbound_email", {
+      p_id:      row.id,
+      p_error:   result.error,
+      p_minutes: BACKOFF_429_MIN,
+    });
     return;
   }
 

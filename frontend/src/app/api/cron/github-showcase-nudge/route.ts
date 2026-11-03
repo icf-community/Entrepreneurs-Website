@@ -98,12 +98,37 @@ async function nudge(req: NextRequest): Promise<NextResponse> {
       return { to: row.email, subject, text, html };
     });
 
-  if (emails.length === 0) return NextResponse.json({ nudged: 0 });
+  // due_github_showcase_nudges has already stamped every row it returned. Anyone we do not email
+  // is released again, otherwise a failed enqueue would silence them for the next 30 days.
+  const emailed = new Set(rows.filter((row) => (row.new_repos?.length ?? 0) > 0).map((row) => row.member_id));
+  const release = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const { error: releaseError } = await supabase.rpc("release_github_showcase_nudges", { p_member_ids: ids });
+    if (releaseError) {
+      Sentry.captureException(releaseError, {
+        level: "error", tags: { surface: "cron", path: "github-showcase-nudge-release" },
+      });
+    }
+  };
 
-  await enqueueEmailsBulk(emails);
+  if (emails.length === 0) {
+    await release(rows.map((row) => row.member_id));
+    return NextResponse.json({ nudged: 0 });
+  }
+
+  try {
+    await enqueueEmailsBulk(emails);
+  } catch (e) {
+    await release(rows.map((row) => row.member_id));
+    Sentry.captureException(e, {
+      level: "error", tags: { surface: "cron", path: "github-showcase-nudge-enqueue" },
+    });
+    return NextResponse.json({ error: "Enqueue failed" }, { status: 500 });
+  }
+  await release(rows.filter((row) => !emailed.has(row.member_id)).map((row) => row.member_id));
 
   const { error: markError } = await supabase.rpc("mark_github_showcase_nudged", {
-    p_member_ids: rows.map((row) => row.member_id),
+    p_member_ids: [...emailed],
   });
   if (markError) {
     // The mail is already queued. Failing to mark means these members
