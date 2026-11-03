@@ -253,7 +253,7 @@ def _replace_member_skills(
             )
 
 
-def _reactivate_hash_match(conn: psycopg.Connection, new_cv_id: uuid.UUID, member_id: uuid.UUID, existing_cv_id: uuid.UUID) -> None:
+def _reactivate_hash_match(new_cv_id: uuid.UUID, member_id: uuid.UUID, existing_cv_id: uuid.UUID) -> None:
     """Hash-match short circuit: this exact text was already processed
     for this member. Flip currency back to the existing ready row instead
     of re-running extraction and chunk embedding — the spec's "no
@@ -261,18 +261,26 @@ def _reactivate_hash_match(conn: psycopg.Connection, new_cv_id: uuid.UUID, membe
     different CV may have become current (and so replaced member_skills)
     in between. That costs one small embeddings call per skill string,
     not the expensive extraction/chunk-embedding steps this whole path
-    exists to skip."""
-    with conn.cursor() as cur:
+    exists to skip.
+
+    Like the full path, the embeddings calls happen before the publishing
+    transaction, and that transaction opens by asking whether the member
+    still wants this upload (see _cv_wanted)."""
+    with connection() as conn, conn.cursor() as cur:
         cur.execute("select profile from public.cv_profiles where cv_id = %s", (existing_cv_id,))
         row = cur.fetchone()
         skills_raw = row[0].get("skills_raw", []) if row else []
+        matches = cv_pipeline.normalise_skills(skills_raw, conn)
 
-    matches = cv_pipeline.normalise_skills(skills_raw, conn)
-    _replace_member_skills(conn, member_id, matches, source="cv")
-
-    with conn.cursor() as cur:
-        cur.execute("select public.update_cv_currency(%s)", (existing_cv_id,))
-        cur.execute("update public.cvs set status = 'ready' where id = %s", (new_cv_id,))
+    with connection() as conn, conn.cursor() as cur:
+        wanted = _cv_wanted(cur, new_cv_id)
+        if wanted:
+            _replace_member_skills(conn, member_id, matches, source="cv")
+            cur.execute("select public.update_cv_currency(%s)", (existing_cv_id,))
+            cur.execute("update public.cvs set status = 'ready' where id = %s", (new_cv_id,))
+            cur.execute("select public.worker_purge_superseded_cvs(%s)", (new_cv_id,))
+    if not wanted:
+        _drop_unwanted_cv(new_cv_id)
 
 
 def _sanitise_cv(cv_id: uuid.UUID, cv_container: str, blob_key: str) -> SanitisedCv | None:
@@ -298,13 +306,51 @@ def _sanitise_cv(cv_id: uuid.UUID, cv_container: str, blob_key: str) -> Sanitise
         return None
 
 
+SUPERSEDED_CV_REASON = "Replaced or removed before processing finished."
+
+
+def _cv_wanted(cur: psycopg.Cursor, cv_id: uuid.UUID) -> bool:
+    """Whether the member's profile still points at this CV (public.worker_cv_wanted).
+
+    Takes the member's CV lock, which is held to the end of the transaction it
+    is called in, and remove_my_cv / confirm_cv_upload take the same lock. So
+    the first statement of every transaction that publishes CV data asks this:
+    a removal or a newer upload either happened already (False, publish
+    nothing) or waits until this transaction has committed."""
+    cur.execute("select public.worker_cv_wanted(%s)", (cv_id,))
+    return bool(cur.fetchone()[0])
+
+
+def _drop_unwanted_cv(cv_id: uuid.UUID) -> None:
+    """The member removed this CV or uploaded a newer one while it was queued or being read.
+    Nothing is published and nothing more is spent; the status is terminal so no dialog waits on it."""
+    log.info("cv %s was replaced or removed before it was processed; skipping", cv_id)
+    _set_cv_status(cv_id, "failed", failure_reason=SUPERSEDED_CV_REASON)
+
+
 def process_ingest_cv(cv_id: uuid.UUID) -> None:
     with connection() as conn, conn.cursor() as cur:
-        cur.execute("select member_id, blob_key from public.cvs where id = %s", (cv_id,))
+        cur.execute("select member_id, blob_key, status from public.cvs where id = %s", (cv_id,))
         row = cur.fetchone()
-    if row is None:
-        raise RuntimeError(f"cvs row {cv_id} not found")
-    member_id, blob_key = row
+        if row is None:
+            # Removed or replaced while the job sat in the queue (their rows are deleted with the
+            # CV): not a failure to retry five times and dead-letter.
+            log.info("cv %s no longer exists; nothing to do", cv_id)
+            return
+        member_id, blob_key, status = row
+        # A finished CV run again must change nothing. The stalled-job reaper
+        # requeues a job left "running", and a worker can die after the
+        # publish below has committed but before the job is marked done.
+        if status in ("ready", "flagged"):
+            log.info("cv %s is already %s; nothing to do", cv_id, status)
+            return
+        # Checked before the first blob read or provider call so a CV the member
+        # has already replaced or removed costs nothing (its blob is already
+        # queued for deletion, too).
+        wanted = _cv_wanted(cur, cv_id)
+    if not wanted:
+        _drop_unwanted_cv(cv_id)
+        return
 
     cv_container = worker_settings().cv_container
 
@@ -318,6 +364,7 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
             "update public.cvs set raw_text = %s, raw_text_hash = %s where id = %s",
             (sanitised.raw_text, sanitised.raw_text_hash, cv_id),
         )
+    with connection() as conn, conn.cursor() as cur:
         # The exists() matters: a ready cv row can itself be a prior
         # hash-match target with no cv_profiles of its own (currency was
         # pointed at it, not created for it). Reactivating onto such a
@@ -339,9 +386,9 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
             (member_id, sanitised.raw_text_hash, cv_id, cv_pipeline.EXTRACTION_PROMPT_VERSION, privacy.POLICY_VERSION),
         )
         existing = cur.fetchone()
-        if existing is not None:
-            _reactivate_hash_match(conn, cv_id, member_id, existing[0])
-            return
+    if existing is not None:
+        _reactivate_hash_match(cv_id, member_id, existing[0])
+        return
 
     if sanitised.flagged:
         log.warning("cv %s flagged by sanitisation: %s", cv_id, sanitised.flag_reasons)
@@ -383,53 +430,72 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
 
     profile = {**extraction.profile, "links": privacy.extract_links(sanitised.raw_text)}
 
-    with connection() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            insert into public.cv_profiles (cv_id, profile, summary, model_name, prompt_version, policy_version)
-            values (%s, %s, %s, %s, %s, %s)
-            """,
-            (
-                cv_id,
-                Jsonb(profile),
-                extraction.summary,
-                extraction.model_name,
-                extraction.prompt_version,
-                privacy.POLICY_VERSION,
-            ),
-        )
-
+    # Everything slow (the embeddings calls) happens BEFORE the transaction that
+    # publishes, so the member's CV lock below is held only for the writes.
+    with connection() as conn:
         matches = cv_pipeline.normalise_skills(profile.get("skills_raw", []), conn)
-        _replace_member_skills(conn, member_id, matches, source="cv")
+    chunks = cv_pipeline.chunk_and_embed(profile)
 
-        for chunk in cv_pipeline.chunk_and_embed(profile):
+    github_row = None
+    with connection() as conn, conn.cursor() as cur:
+        # First statement of the publish: has the member removed this CV or
+        # uploaded a newer one while the model was reading it? If so nothing
+        # below runs, so nothing the member deleted comes back and an older
+        # upload cannot displace a newer one. Taking the lock before any row
+        # lock also fixes the lock order against remove_my_cv.
+        wanted = _cv_wanted(cur, cv_id)
+        if wanted:
             cur.execute(
                 """
-                insert into public.cv_chunks (cv_id, member_id, chunk_type, content, embedding, embedding_model)
-                values (%s, %s, %s, %s, %s::vector, %s)
+                insert into public.cv_profiles (cv_id, profile, summary, model_name, prompt_version, policy_version)
+                values (%s, %s, %s, %s, %s, %s)
                 """,
                 (
                     cv_id,
-                    member_id,
-                    chunk.chunk_type,
-                    chunk.content,
-                    cv_pipeline.vector_literal(chunk.embedding),
-                    chunk.embedding_model,
+                    Jsonb(profile),
+                    extraction.summary,
+                    extraction.model_name,
+                    extraction.prompt_version,
+                    privacy.POLICY_VERSION,
                 ),
             )
 
-        cur.execute("update public.cvs set status = 'ready' where id = %s", (cv_id,))
-        cur.execute("select public.update_cv_currency(%s)", (cv_id,))
+            _replace_member_skills(conn, member_id, matches, source="cv")
 
-        # GitHub-connects-first ordering: a scan already finished for
-        # this member before this CV did, so fold it in now. (The
-        # symmetric CV-first ordering is handled at the end of
-        # process_scan_github.)
-        cur.execute(
-            "select github_signal from public.github_connections where member_id = %s and scan_status = 'ready'",
-            (member_id,),
-        )
-        github_row = cur.fetchone()
+            for chunk in chunks:
+                cur.execute(
+                    """
+                    insert into public.cv_chunks (cv_id, member_id, chunk_type, content, embedding, embedding_model)
+                    values (%s, %s, %s, %s, %s::vector, %s)
+                    """,
+                    (
+                        cv_id,
+                        member_id,
+                        chunk.chunk_type,
+                        chunk.content,
+                        cv_pipeline.vector_literal(chunk.embedding),
+                        chunk.embedding_model,
+                    ),
+                )
+
+            cur.execute("update public.cvs set status = 'ready' where id = %s", (cv_id,))
+            cur.execute("select public.update_cv_currency(%s)", (cv_id,))
+            # The CV this one replaces keeps its text and embeddings in the database until now.
+            cur.execute("select public.worker_purge_superseded_cvs(%s)", (cv_id,))
+
+            # GitHub-connects-first ordering: a scan already finished for
+            # this member before this CV did, so fold it in now. (The
+            # symmetric CV-first ordering is handled at the end of
+            # process_scan_github.)
+            cur.execute(
+                "select github_signal from public.github_connections where member_id = %s and scan_status = 'ready'",
+                (member_id,),
+            )
+            github_row = cur.fetchone()
+
+    if not wanted:
+        _drop_unwanted_cv(cv_id)
+        return
 
     if github_row is not None and github_row[0] is not None:
         try:
@@ -558,6 +624,17 @@ def _refresh_combined_summary(member_id: uuid.UUID, cv_id: uuid.UUID, github_sig
     summary_chunk = cv_pipeline.re_embed_summary(new_summary)
 
     with connection() as conn, conn.cursor() as cur:
+        # The GitHub evidence in this summary is only publishable while the
+        # connection still exists and is ready: a disconnect during the model
+        # call has already queued the revert to the CV-only text, and writing
+        # this afterwards would put the GitHub text back.
+        cur.execute(
+            "select 1 from public.github_connections where member_id = %s and scan_status = 'ready' for update",
+            (member_id,),
+        )
+        if cur.fetchone() is None:
+            log.info("combined summary for member %s dropped: GitHub is no longer connected", member_id)
+            return
         cur.execute(
             """
             update public.cv_profiles
@@ -697,8 +774,20 @@ def process_scan_github(member_id: uuid.UUID) -> None:
 
     pruned_picks = _prune_dead_picks(existing_picks, signal.available_repos)
 
-    with connection() as conn, conn.cursor() as cur:
+    # The embeddings calls come first, outside the publishing transaction.
+    with connection() as conn:
         matches = cv_pipeline.normalise_skills(signal.languages, conn)
+
+    with connection() as conn, conn.cursor() as cur:
+        # First statement of the publish: hold the connection row. The member
+        # may have disconnected while GitHub and the model were being read; if
+        # the row is gone, publish nothing (their skills were deleted on
+        # disconnect and must not come back). disconnect_github deletes this
+        # row first, so it waits for a publish in progress.
+        cur.execute("select 1 from public.github_connections where member_id = %s for update", (member_id,))
+        if cur.fetchone() is None:
+            log.info("github scan for member %s: disconnected during the scan, nothing published", member_id)
+            return
         _replace_member_skills(conn, member_id, matches, source="github")
 
         # showcase_repos is written ONLY to remove picks that no longer

@@ -71,7 +71,10 @@ begin
                         and j.status in ('pending', 'running') and (j.payload->>'member_id')::uuid = x.member);
 
   -- worker.py: the CV
-  perform member_id, blob_key from public.cvs where id = x.cv;
+  perform member_id, blob_key, status from public.cvs where id = x.cv;
+  -- concurrency audit: "does the member still want this CV?", first statement of every publish
+  -- (it reads profiles on the worker's behalf; the worker itself cannot, see the checks below)
+  perform public.worker_cv_wanted(x.cv);
   update public.cvs set mime_type = 'application/pdf' where id = x.cv;
   update public.cvs set raw_text = 'text', raw_text_hash = 'h' where id = x.cv;
   perform c.id from public.cvs c
@@ -103,10 +106,13 @@ begin
    where cv_id = x.cv and chunk_type = 'summary';
   update public.cvs set status = 'ready' where id = x.cv;
   perform public.update_cv_currency(x.cv);
+  perform public.worker_purge_superseded_cvs(x.cv);  -- clears what a new upload replaced (it cannot delete cvs itself)
   perform id from public.cvs where member_id = x.member and status = 'ready' and is_current = true
    order by created_at desc limit 1;
 
-  -- worker.py: GitHub
+  -- worker.py: GitHub (the publish transactions take the connection row first)
+  perform 1 from public.github_connections where member_id = x.member for update;
+  perform 1 from public.github_connections where member_id = x.member and scan_status = 'ready' for update;
   perform pgp_sym_decrypt(access_token_encrypted, 'k'), github_username, scan_fingerprint, showcase_repos
      from public.github_connections where member_id = x.member;
   perform pgp_sym_decrypt(decode(encode(extensions.pgp_sym_encrypt('t', 'k'), 'hex'), 'hex'), 'k');
@@ -143,6 +149,21 @@ begin
   end if;
   if has_table_privilege('cv_worker', 'public.cvs', 'delete') or has_table_privilege('cv_worker', 'public.jobs', 'delete') then
     raise exception 'FAIL: cv_worker can delete CVs or jobs';
+  end if;
+  -- worker_cv_wanted reads profiles on the worker's behalf: only the worker may ask.
+  if not has_function_privilege('cv_worker', 'public.worker_cv_wanted(uuid)', 'execute') then
+    raise exception 'FAIL: cv_worker cannot call worker_cv_wanted';
+  end if;
+  if has_function_privilege('authenticated', 'public.worker_cv_wanted(uuid)', 'execute')
+     or has_function_privilege('anon', 'public.worker_cv_wanted(uuid)', 'execute') then
+    raise exception 'FAIL: a member or anonymous caller can call worker_cv_wanted';
+  end if;
+  if not has_function_privilege('cv_worker', 'public.worker_purge_superseded_cvs(uuid)', 'execute') then
+    raise exception 'FAIL: cv_worker cannot call worker_purge_superseded_cvs';
+  end if;
+  if has_function_privilege('authenticated', 'public.worker_purge_superseded_cvs(uuid)', 'execute')
+     or has_function_privilege('anon', 'public.worker_purge_superseded_cvs(uuid)', 'execute') then
+    raise exception 'FAIL: a member or anonymous caller can call worker_purge_superseded_cvs';
   end if;
   if (select rolbypassrls or rolsuper or rolinherit from pg_roles where rolname = 'cv_worker') then
     raise exception 'FAIL: cv_worker bypasses RLS, is a superuser, or inherits';

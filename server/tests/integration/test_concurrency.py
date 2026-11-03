@@ -498,3 +498,309 @@ def test_every_scheduled_sql_job_tolerates_an_overlapping_run(db, call):
     finish without error (the outcome checks are in the tests above)."""
     first, second = hold_then_race(lambda cur: _one(cur, call), lambda cur: _one(cur, call))
     assert not isinstance(second, psycopg.Error), second
+
+
+# ─── Per-member caps and privileged flags (concurrency audit) ───────
+def test_the_outstanding_ticket_cap_holds_under_a_parallel_burst(db):
+    """The 60-ticket ceiling counted open tickets and then inserted, with no lock: two overlapping calls both
+    saw 59 and both issued, so a burst walked straight past the cap."""
+    m = db.member("ticketcap")
+    for _ in range(59):
+        db.execute("insert into public.upload_tickets (blob_key, user_id, purpose) values (%s, %s, 'cv')",
+                   (f"{uuid.uuid4()}.cv", m))
+    _, second = hold_then_race(
+        lambda cur: _one(cur, "select public.issue_upload_ticket('cv')"),
+        lambda cur: _one(cur, "select public.issue_upload_ticket('cv')"),
+        first_as=m, second_as=m,
+    )
+    assert isinstance(second, psycopg.Error), "the second ticket was issued past the cap"
+    assert db.execute("select count(*) from public.upload_tickets where user_id = %s and consumed_at is null",
+                      (m,)).fetchone()[0] == 60
+
+
+def test_the_daily_post_report_cap_holds_under_a_parallel_burst(db):
+    author, reporter = db.member("rpauthor"), db.member("rpreporter")
+    posts = [db.execute("insert into public.posts (author_id, title, body) values (%s, 'A title', 'A body') "
+                        "returning id", (author,)).fetchone()[0] for _ in range(11)]
+    for p in posts[:9]:
+        db.execute("insert into public.post_reports (post_id, post_title_snapshot, reporter_id, category, reason) "
+                   "values (%s, 'A title', %s, 'spam', 'spam')", (p, reporter))
+    _, second = hold_then_race(
+        lambda cur: _one(cur, "select * from public.report_post(%s, 'spam', 'spam')", (posts[9],)),
+        lambda cur: _one(cur, "select * from public.report_post(%s, 'spam', 'spam')", (posts[10],)),
+        first_as=reporter, second_as=reporter,
+    )
+    assert isinstance(second, psycopg.Error), "an eleventh report was filed in one day"
+    assert db.execute("select count(*) from public.post_reports where reporter_id = %s", (reporter,)).fetchone()[0] == 10
+
+
+def test_the_daily_connection_report_cap_holds_under_a_parallel_burst(db):
+    reporter = db.member("rcreporter2")
+    conns = []
+    for i in range(11):
+        other = db.member(f"rcother{i}")
+        conns.append((db.execute("insert into public.connections (requester_id, addressee_id) values (%s, %s) "
+                                 "returning id", (reporter, other)).fetchone()[0], other))
+    for cid, other in conns[:9]:
+        db.execute("insert into public.connection_reports (connection_id, reporter_id, reported_member_id, category, reason) "
+                   "values (%s, %s, %s, 'spam', 'spam')", (cid, reporter, other))
+    _, second = hold_then_race(
+        lambda cur: _one(cur, "select * from public.report_connection(%s, 'spam', 'spam')", (conns[9][0],)),
+        lambda cur: _one(cur, "select * from public.report_connection(%s, 'spam', 'spam')", (conns[10][0],)),
+        first_as=reporter, second_as=reporter,
+    )
+    assert isinstance(second, psycopg.Error), "an eleventh report was filed in one day"
+    assert db.execute("select count(*) from public.connection_reports where reporter_id = %s",
+                      (reporter,)).fetchone()[0] == 10
+
+
+def test_two_admins_changing_one_committee_flag_leave_it_consistent(db, admins):
+    """admin_set_committee read the old flag without a lock, so a grant and a revoke at once could leave a
+    member holding admin rights with the committee flag off."""
+    a, b = admins
+    target = db.member("committee")
+    hold_then_race(
+        lambda cur: _one(cur, "select public.admin_set_committee(%s, true, 'Treasurer')", (target,)),
+        lambda cur: _one(cur, "select public.admin_set_committee(%s, false, null)", (target,)),
+        first_as=a, second_as=b,
+    )
+    flag = db.execute("select is_committee from public.profiles where id = %s", (target,)).fetchone()[0]
+    has_admin = db.execute("select exists (select 1 from public.admins where user_id = %s)", (target,)).fetchone()[0]
+    assert flag == has_admin, f"is_committee={flag} but admin row present={has_admin}"
+
+
+def test_a_cv_publish_in_progress_makes_remove_wait_and_then_wipe_it(db):
+    """The worker takes the member's CV lock before it publishes; remove_my_cv takes the same lock. Whichever
+    comes first, the end state is the same: nothing of the removed CV remains."""
+    uid = db.member("lockorder", role="alum")
+    key = f"{uuid.uuid4()}.cv"
+    cv_id = db.execute("insert into public.cvs (member_id, blob_key) values (%s, %s) returning id", (uid, key)).fetchone()[0]
+    with db.transaction():
+        db.execute("select set_config('foundry.media_write', 'true', true)")
+        db.execute("update public.profiles set cv_path = %s where id = %s", (key, uid))
+
+    def publish(cur):
+        wanted = _one(cur, "select public.worker_cv_wanted(%s)", (cv_id,))[0]
+        cur.execute("insert into public.member_skills (member_id, raw_text, confidence, source) "
+                    "values (%s, 'Python', 0.9, 'cv')", (uid,))
+        cur.execute("select public.update_cv_currency(%s)", (cv_id,))
+        return wanted
+
+    wanted, second = hold_then_race(publish, lambda cur: _one(cur, "select public.remove_my_cv()"), second_as=uid)
+    assert wanted is True
+    assert not isinstance(second, psycopg.Error), second
+    assert db.execute("select count(*) from public.member_skills where member_id = %s and source = 'cv'",
+                      (uid,)).fetchone()[0] == 0
+    assert db.execute("select count(*) from public.cvs where member_id = %s and is_current", (uid,)).fetchone()[0] == 0
+    assert db.execute("select public.worker_cv_wanted(%s)", (cv_id,)).fetchone()[0] is False
+
+
+def test_a_double_submitted_intake_ends_completed_once_without_a_raw_error(db):
+    """Probe: submit_intake checks `profile_version >= 2` without a lock, so two overlapping calls both pass
+    it. Both apply the member's own answers, so the end state must be the same as one call: version 2, one
+    completion time, and nothing but the friendly refusal (if anything) reaching the second caller."""
+    uid = db.member("intake", role="alum")
+    sql = ("select public.submit_intake('Dee', 'Building a thing for founders', 'Climbing and chess')")
+    _, second = hold_then_race(lambda cur: _one(cur, sql), lambda cur: _one(cur, sql), first_as=uid, second_as=uid)
+    if isinstance(second, psycopg.Error):
+        assert "already completed" in str(second), second
+    version, completed = db.execute("select profile_version, intake_completed_at from public.profiles where id = %s",
+                                    (uid,)).fetchone()
+    assert version == 2 and completed is not None
+
+
+# ─── Second pass (D10 addendum) ─────────────────────────────────────
+def _queued(db, keys):
+    return dict(db.execute("select blob_key, container from public.blob_deletion_queue where blob_key = any(%s)",
+                           (list(keys),)).fetchall())
+
+
+def test_a_stale_upload_ticket_queues_its_blob_in_the_container_its_purpose_names(db):
+    """Before: every purged ticket's blob was queued against the post-images default, so an orphaned CV was
+    rejected by the gateway and an orphaned avatar 404'd (counted as deleted): neither was ever removed."""
+    m = db.member("ticketorphan")
+    keys = {"cv": f"{uuid.uuid4()}.cv", "profile_picture": f"{uuid.uuid4()}.webp", "post_image": f"{uuid.uuid4()}.webp"}
+    try:
+        for purpose, key in keys.items():
+            db.execute("insert into public.upload_tickets (blob_key, user_id, purpose, issued_at) "
+                       "values (%s, %s, %s, now() - interval '2 days')", (key, m, purpose))
+        db.execute("select public.purge_stale_upload_tickets()")
+        assert _queued(db, keys.values()) == {
+            keys["cv"]: "member-cvs", keys["profile_picture"]: "profile-pictures", keys["post_image"]: "post-images"}
+    finally:
+        db.execute("delete from public.blob_deletion_queue where blob_key = any(%s)", (list(keys.values()),))
+
+
+def test_deleting_an_account_queues_the_blobs_of_its_unconsumed_tickets(db):
+    """The tickets vanish with the account (cascade) and, before, nothing queued the file they were for."""
+    m = db.member("ticketowner")
+    key = f"{uuid.uuid4()}.cv"
+    consumed = f"{uuid.uuid4()}.cv"
+    try:
+        db.execute("insert into public.upload_tickets (blob_key, user_id, purpose) values (%s, %s, 'cv')", (key, m))
+        db.execute("insert into public.upload_tickets (blob_key, user_id, purpose, consumed_at) values (%s, %s, 'cv', now())",
+                   (consumed, m))
+        db.execute("delete from auth.users where id = %s", (m,))
+        assert _queued(db, [key, consumed]) == {key: "member-cvs"}, "only the unconsumed ticket's blob is orphaned"
+    finally:
+        db.execute("delete from public.blob_deletion_queue where blob_key = any(%s)", ([key, consumed],))
+
+
+def _ban(db, uid) -> None:
+    """status = 'rejected', the way the ban procedure leaves a member (the status guard needs the lifecycle flag)."""
+    with db.transaction():
+        db.execute("select set_config('foundry.onboarding_submission', 'true', true)")
+        db.execute("update public.profiles set status = 'rejected' where id = %s", (uid,))
+
+
+def test_a_banned_members_email_does_not_get_instant_approval_after_they_delete_and_return(db):
+    """Before: delete_my_account removed every trace of a ban, and a student address was auto-approved on re-signup."""
+    tag = uuid.uuid4().hex[:8]
+    email = f"banned-{tag}@imperial.ac.uk"
+
+    def signup() -> uuid.UUID:
+        uid = uuid.uuid4()
+        db.execute(
+            """insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data, confirmation_token,
+                 recovery_token, email_change_token_new, email_change, aud, role)
+               values (%s, %s, '{"first_name":"B","surname":"Anned","role":"student"}', '{"provider":"email"}',
+                 '', '', '', '', 'authenticated', 'authenticated')""", (uid, email))
+        return uid
+
+    def onboard(uid) -> str:
+        with psycopg.connect(DSN) as c, c.cursor() as cur:
+            _as(cur, uid)
+            cur.execute("select public.submit_onboarding('Computing', %s, null, null, null)", (2030,))
+        return db.execute("select status::text from public.profiles where id = %s", (uid,)).fetchone()[0]
+
+    first = signup()
+    try:
+        assert onboard(first) == "approved", "control: a first sign-up is approved"
+        _ban(db, first)                                                                         # the ban
+        db.execute("delete from auth.users where id = %s", (first,))                            # and the escape
+        second = signup()
+        assert onboard(second) == "pending_review", "a banned address was approved instantly"
+    finally:
+        db.execute("delete from auth.users where email = %s", (email,))
+        db.execute("delete from public.banned_email_hashes where email_hash = public.email_ban_hash(%s)", (email,))
+
+
+def test_deleting_an_account_that_was_not_banned_leaves_no_ban_behind(db):
+    tag = uuid.uuid4().hex[:8]
+    email = f"leaver-{tag}@imperial.ac.uk"
+    uid = uuid.uuid4()
+    db.execute(
+        """insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data, confirmation_token,
+             recovery_token, email_change_token_new, email_change, aud, role)
+           values (%s, %s, '{"first_name":"L","surname":"Eaver","role":"student"}', '{"provider":"email"}',
+             '', '', '', '', 'authenticated', 'authenticated')""", (uid, email))
+    db.execute("delete from auth.users where id = %s", (uid,))
+    assert db.execute("select count(*) from public.banned_email_hashes where email_hash = public.email_ban_hash(%s)",
+                      (email,)).fetchone()[0] == 0
+
+
+def test_a_post_cannot_land_after_the_authors_ban(db):
+    """create_post checked approval once, before its lock. A ban purges the author's posts when it commits, so a
+    post that slipped in between the check and the insert survived the purge."""
+    saved = db.execute("select value from public.app_config where key='community_posts_enabled'").fetchone()
+    db.execute("insert into public.app_config (key, value) values ('community_posts_enabled', 'true') "
+               "on conflict (key) do update set value = 'true'")
+    try:
+        m = db.member("bannedposter")
+        _, second = hold_then_race(
+            lambda cur: (cur.execute("select set_config('foundry.onboarding_submission', 'true', true)"),
+                         _one(cur, "update public.profiles set status = 'rejected' where id = %s", (m,))),
+            lambda cur: _one(cur, "select * from public.create_post('A title', 'A body')"),
+            second_as=m,
+        )
+        assert isinstance(second, psycopg.Error), "a banned member's post was accepted"
+        assert db.execute("select count(*) from public.posts where author_id = %s", (m,)).fetchone()[0] == 0
+    finally:
+        if saved:
+            db.execute("update public.app_config set value = %s where key = 'community_posts_enabled'", (saved[0],))
+
+
+def test_the_core_skill_cap_holds_under_parallel_direct_inserts(db):
+    m = db.member("coreskills")
+    ids = [r[0] for r in db.execute("select id from public.skills order by id limit 6").fetchall()]
+    for sid in ids[:2]:
+        db.execute("insert into public.profile_skills (profile_id, skill_id, is_core) values (%s, %s, true)", (m, sid))
+    _, second = hold_then_race(
+        lambda cur: _one(cur, "insert into public.profile_skills (profile_id, skill_id, is_core) values (%s, %s, true)", (m, ids[2])),
+        lambda cur: _one(cur, "insert into public.profile_skills (profile_id, skill_id, is_core) values (%s, %s, true)", (m, ids[3])),
+    )
+    assert isinstance(second, psycopg.Error), "a fourth core skill was accepted"
+    assert db.execute("select count(*) from public.profile_skills where profile_id = %s and is_core", (m,)).fetchone()[0] == 3
+
+
+def test_the_opportunity_skill_cap_holds_under_parallel_statements(db):
+    """Pinned, not fixed: this already held. The row-level edit-version trigger bumps the parent opportunity (a row
+    lock) before the statement-level cap trigger counts, so the second writer waits and then sees the first's rows.
+    If that trigger ever changes, this is what notices."""
+    owner = db.member("skillsowner")
+    opp = _pending_opportunity(db, owner)
+    ids = [r[0] for r in db.execute("select id from public.skills order by id limit 52").fetchall()]
+    sql = "insert into public.opportunity_skills (opportunity_id, skill_id) select %s, unnest(%s::smallint[])"
+    _, second = hold_then_race(
+        lambda cur: _one(cur, sql, (opp, ids[:26])),
+        lambda cur: _one(cur, sql, (opp, ids[26:])),
+    )
+    assert isinstance(second, psycopg.Error), "an opportunity ended up with more than 50 skills"
+    assert db.execute("select count(*) from public.opportunity_skills where opportunity_id = %s", (opp,)).fetchone()[0] <= 50
+
+
+def test_a_member_cannot_hold_more_than_twenty_draft_handoffs(db):
+    m = db.member("handoffs")
+    for _ in range(20):
+        with psycopg.connect(DSN) as c, c.cursor() as cur:
+            _as(cur, m)
+            cur.execute("select public.ai_create_draft_handoff('network', '{}'::jsonb)")
+    with pytest.raises(psycopg.Error, match="too_many_handoffs"):
+        with psycopg.connect(DSN) as c, c.cursor() as cur:
+            _as(cur, m)
+            cur.execute("select public.ai_create_draft_handoff('network', '{}'::jsonb)")
+    db.execute("delete from ai_private.draft_handoffs where owner_id = %s", (m,))
+
+
+def _direct_update(uid, sql, params):
+    """A PostgREST-style direct UPDATE as the member; returns the number of rows changed or the error."""
+    try:
+        with psycopg.connect(DSN) as c, c.cursor() as cur:
+            _as(cur, uid)
+            cur.execute(sql, params)
+            return cur.rowcount
+    except psycopg.Error as exc:
+        return exc
+
+
+def test_a_member_cannot_move_their_listing_into_the_past_with_a_direct_update(db):
+    owner = db.member("pastdates")
+    event, opp = _pending_event(db, owner), _pending_opportunity(db, owner)
+    future_event = "update public.events set event_at = now() + interval '20 days' where id = %s"
+    past_event = "update public.events set event_at = now() - interval '3 days' where id = %s"
+    future_opp = "update public.opportunities set application_deadline = current_date + 40 where id = %s"
+    past_opp = "update public.opportunities set application_deadline = current_date - 3 where id = %s"
+    assert _direct_update(owner, future_event, (event,)) == 1, "control: a future date is allowed (so RLS is not what refused)"
+    assert _direct_update(owner, future_opp, (opp,)) == 1
+    assert isinstance(_direct_update(owner, past_event, (event,)), psycopg.Error), "a past event date was accepted"
+    assert isinstance(_direct_update(owner, past_opp, (opp,)), psycopg.Error), "a past deadline was accepted"
+
+
+def test_the_only_administrator_cannot_delete_their_own_account(db):
+    sole = db.member("soleadmin", admin=True)
+    with psycopg.connect(DSN) as c, c.cursor() as cur:
+        cur.execute("delete from public.admins where user_id <> %s", (sole,))   # rolled back below
+        _as(cur, sole)
+        with pytest.raises(psycopg.Error, match="only administrator"):
+            cur.execute("select public.delete_my_account()")
+        c.rollback()
+    assert db.execute("select exists (select 1 from auth.users where id = %s)", (sole,)).fetchone()[0]
+
+
+def test_an_administrator_can_delete_their_account_while_another_remains(db):
+    leaving, staying = db.member("leavingadmin", admin=True), db.member("stayingadmin", admin=True)
+    with psycopg.connect(DSN) as c, c.cursor() as cur:
+        _as(cur, leaving)
+        cur.execute("select public.delete_my_account()")
+    assert not db.execute("select exists (select 1 from auth.users where id = %s)", (leaving,)).fetchone()[0]
+    assert db.execute("select exists (select 1 from public.admins where user_id = %s)", (staying,)).fetchone()[0]

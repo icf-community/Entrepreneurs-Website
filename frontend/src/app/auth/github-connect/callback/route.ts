@@ -1,9 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getActionAuth } from "@/lib/auth/actionAuth";
 import { createServiceClient } from "@/lib/supabase/service";
-import { isInfraAuthError } from "@/lib/supabase/unavailable";
 import { emailBaseUrl } from "@/lib/siteUrl";
 import {
   GITHUB_OAUTH_RETURN_COOKIE,
@@ -63,15 +62,16 @@ export async function GET(request: Request) {
     return redirectBack(origin, returnPath, "error");
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const { user, isAdmin, status, unreachable } = await getActionAuth();
   // An outage is not a signed-out member: land on the existing error
   // outcome ("try again") rather than /login.
-  if (isInfraAuthError(authError)) return redirectBack(origin, returnPath, "error");
+  if (unreachable) return redirectBack(origin, returnPath, "error");
   if (!user) return NextResponse.redirect(`${origin}/login`);
+  // The same approval gate as ../start/route.ts. The state check above ties this
+  // request to a cookie the browser held, not to an approved member: a pending or
+  // rejected member can run GitHub's authorize URL themselves with a state of their
+  // choosing and land here. Without this they could store a token and queue scan jobs.
+  if (!isAdmin && status !== "approved") return redirectBack(origin, returnPath, "error");
 
   const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;

@@ -203,7 +203,12 @@ async function prefillCvSkillsInBackground(
     );
     if (suggestedSkillIds.length === 0) return;
 
-    const { error } = await supabase.rpc("set_cv_suggested_skills", { p_skill_ids: suggestedSkillIds });
+    // The key says which CV was parsed: if the member has replaced or removed it
+    // by now, the database ignores these suggestions.
+    const { error } = await supabase.rpc("set_cv_suggested_skills", {
+      p_skill_ids: suggestedSkillIds,
+      p_blob_key: key,
+    });
     if (error) throw error;
   } catch (e) {
     // The CV is already saved — a parsing hiccup here must not look like

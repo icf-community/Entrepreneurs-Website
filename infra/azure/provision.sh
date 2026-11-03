@@ -227,26 +227,30 @@ fi
 ok "delete-retention, container-retention and versioning all off"
 
 # ─── 4. Lifecycle backstop ──────────────────────────────────────────
-# Posts die at 7 days, so anything older than 30 is definitionally orphaned.
+# Posts die at 7 days, so a POST IMAGE older than 30 is definitionally orphaned.
 # A net beneath the deletion queue, not the mechanism — this rule is what
-# catches bytes left behind if the drain (app/api/cron/drain-blob-deletions)
-# stops running, for all three containers alike. Avatars and CVs are
-# single-slot (one per member, replaced or removed, never versioned), so
-# the same 30-days-since-last-write logic that already runs for posts is
-# correct for them too — a live avatar or CV is, by definition, written
-# again well within 30 days of any change, and an orphan is exactly what
-# this backstop exists to catch.
-say "Lifecycle rule (30-day orphan sweep)"
+# catches post-image bytes left behind if the drain
+# (app/api/cron/drain-blob-deletions) stops running.
+#
+# It covers the post-images container ONLY. Avatars and CVs live as long as
+# the member keeps them, and a blob is written once (uploads are create-only,
+# overwrite=False, and nothing ever rewrites one), so "30 days since last
+# modification" is simply "30 days since upload": a rule on those containers
+# deletes every member's current avatar and CV a month after they upload it,
+# while the profile row still points at it. Their orphans are queued for
+# deletion by the upload-ticket trigger (container-aware) instead.
+# server/tests/test_infra_lifecycle.py fails if another container is added here.
+say "Lifecycle rule (30-day sweep of post images only)"
 POLICY=$(mktemp)
 cat > "$POLICY" <<JSON
 {"rules":[{"enabled":true,"name":"purge-orphans","type":"Lifecycle",
 "definition":{"actions":{"baseBlob":{"delete":{"daysAfterModificationGreaterThan":30}}},
-"filters":{"blobTypes":["blockBlob"],"prefixMatch":["$CONTAINER/","$AVATAR_CONTAINER/","$CV_CONTAINER/"]}}}]}
+"filters":{"blobTypes":["blockBlob"],"prefixMatch":["$CONTAINER/"]}}}]}
 JSON
 az storage account management-policy create --account-name "$SA" -g "$RG" --policy @"$POLICY" -o none 2>/dev/null \
   || az storage account management-policy update --account-name "$SA" -g "$RG" --set "policy=@$POLICY" -o none
 rm -f "$POLICY"
-ok "orphans deleted after 30 days"
+ok "orphaned post images deleted after 30 days"
 
 # ─── 5. VM ──────────────────────────────────────────────────────────
 say "Virtual machine"

@@ -9,7 +9,7 @@ export const metadata = {
   title: "Privacy Policy · Foundry",
 };
 
-const LAST_UPDATED = "20 September 2026";
+const LAST_UPDATED = "3 November 2026";
 
 export default function PrivacyPage() {
   return (
@@ -207,7 +207,8 @@ export default function PrivacyPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
               <li><strong>Community posts and their images — 7 days.</strong> Every post is deleted automatically seven days after it is published, along with any images attached to it. You can delete a post sooner at any time from Community → My posts.</li>
-              <li><strong>Profile photo and CV — until you replace, remove, or your account is deleted.</strong> We keep one of each at a time; uploading a new one, removing it, or deleting your account queues the old file for deletion within minutes.</li>
+              <li><strong>Profile photo and CV — until you replace, remove, or your account is deleted.</strong> We keep one of each at a time; uploading a new one, removing it, or deleting your account queues the old file for deletion within minutes, and deletes the text and search data we extracted from the old CV at the same time. The one thing we keep is the CV you currently have: if you upload an identical file again we recognise it and reuse that data instead of reading it a second time.</li>
+              <li><strong>Removed accounts — 12 months.</strong> If an account is removed from Foundry for breaking the rules and then deleted, we keep a one-way hash of its email address for 12 months so that the same address cannot rejoin with automatic approval; it would wait in the normal review queue instead. We keep this because it is needed to enforce a removal, which is a legitimate interest. The hash cannot be turned back into the address, and it is not kept for accounts that were not removed. Deleting your account is never refused.</li>
               <li><strong>Moderation records — 12 months.</strong> If an admin removes one of your posts, we keep a record of the removal: the post&rsquo;s title and text, the reason given, and who removed it and when. We keep this so that a removal can be explained, reviewed, or defended if it is challenged, which is a legitimate interest and, where the record relates to a potential legal claim, is permitted under Article 17(3)(e) UK GDPR even if you ask us to erase your data. It is deleted after 12 months unless a specific dispute is still live.</li>
               <li><strong>Reports — 12 months.</strong> If you report a post or a connection, we keep your report, what you told us, and the outcome, on the same 12-month clock. A report that is still open when the 12 months are up is kept until it is resolved, so that nothing is deleted out from under an investigation.</li>
               <li><strong>Connections — while they last.</strong> A connection you remove is deleted permanently within a day. A request that is withdrawn or declined is deleted permanently three weeks later, along with any note that was sent with it. The three weeks are not storage for its own sake: that is the period during which the member who sent the request cannot send another to the same person, and the record is what enforces it. A request nobody answers expires after six months and is deleted at that point. A block is kept until you lift it, because the block is the record. We also keep a record of connection activity (a request sent, accepted, declined, blocked) for 12 months, which is what lets us spot someone sending unwanted requests to many people. As with moderation records, that activity log is kept even if you delete your account, for the same reason and under the same Article 17(3)(e) basis.</li>

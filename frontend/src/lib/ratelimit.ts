@@ -43,6 +43,8 @@ export type RateBucket =
   | "listingEditNotify"
   | "dataExport"
   | "otpVerify"
+  | "otpVerifyEmail"
+  | "directoryRefresh"
   | "aiSubmit"
   | "aiEdit"
   | "aiRead"
@@ -171,13 +173,13 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // these two buckets alone.
   avatarUpload: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("ava"), analytics: false }),
-  cvUpload: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: p("cv"), analytics: false }),
   // CVs are 5/day, half the avatar allowance: every upload whose text changed
   // costs an extraction against the shared ingestion budget (about a cent,
   // up to ~5c for a maximum-size CV), which an avatar never does. The ticket
   // is counted when it is requested, so a rejected file uses one too. The
   // in-process fallback table (LIMIT, below) must carry the same number.
+  cvUpload: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: p("cv"), analytics: false }),
   // The two GitHub buckets exist because both actions behind them spend
   // money and worker time on someone else's behalf, which none of the
   // buckets above do. 20260908000002 stops the *duplicate* job — a second
@@ -249,13 +251,23 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // and unlimited 6-digit-code guesses. Keyed on the email being verified
   // (see verifyOtpGate.ts), not the caller, and generous enough for a
   // typo-prone human: 10 tries in 10 minutes.
-  otpVerify: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: p("otp"), analytics: false }),
   //
   // Keyed on the email AND the caller's IP (verifyOtpGate.ts). Keyed on the email alone,
   // anyone could lock a known address out of signing in by sending wrong codes for it, from
   // anywhere, indefinitely. With the IP in the key an attacker only spends their own allowance;
   // the victim's attempts come from a different IP and are untouched.
+  otpVerify: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: p("otp"), analytics: false }),
+  // The ceiling that is still per email alone, so guessing spread over many IPs is bounded
+  // too. 100/hour is about 1.7x what one IP could try before, and far above a human typing a
+  // code, so locking someone out now takes sustained, distributed effort rather than ten requests.
+  otpVerifyEmail: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(100, "1 h"), prefix: p("otp:em"), analytics: false }),
+  // Dropping the cached directory is cheap to ask for and expensive to serve: every read after
+  // it goes to Postgres. The profile form calls it once per save, so 10 a minute is far above
+  // real use and stops one account looping it to keep the cache permanently cold.
+  directoryRefresh: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 m"), prefix: p("dir"), analytics: false }),
   // B23: a member editing a published listing. Every staged edit emails the
   // admins immediately, and before this bucket the only ceiling was the
   // fail-open 60/min backstop, so a loop could spend the shared Resend
@@ -362,7 +374,7 @@ function instance(bucket: RateBucket): Ratelimit | null {
 const FAIL_CLOSED: readonly RateBucket[] = [
   "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload",
   "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "listingEdit",
-  "dataExport", "otpVerify", "aiSubmit", "aiReportMatch",
+  "dataExport", "otpVerify", "otpVerifyEmail", "aiSubmit", "aiReportMatch",
 ];
 
 export function failOpen(bucket: RateBucket): boolean {
@@ -420,6 +432,8 @@ const WINDOW_MS: Record<RateBucket, number> = {
   listingEditNotify: 900_000,
   dataExport: 86_400_000,
   otpVerify: 600_000,
+  otpVerifyEmail: 3_600_000,
+  directoryRefresh: 60_000,
   aiSubmit: 60_000,
   aiEdit: 60_000,
   aiRead: 60_000,
@@ -444,6 +458,8 @@ const LIMIT: Record<RateBucket, number> = {
   listingEditNotify: 1,
   dataExport: 5,
   otpVerify: 10,
+  otpVerifyEmail: 100,
+  directoryRefresh: 10,
   aiSubmit: 10,
   aiEdit: 30,
   aiRead: 60,

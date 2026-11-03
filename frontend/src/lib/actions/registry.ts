@@ -112,8 +112,9 @@ export const ACTION_POLICIES: Record<string, ActionPolicy> = {
   "app/my-submissions/actions.ts#deleteOwnListing": cheap,
 
   // ── profile and media ───────────────────────────────────────────────
-  // Only drops the cached directory facets for the next read; takes no input.
-  "app/profile/actions.ts#invalidateDirectoryCache": cheap,
+  // Drops the cached directory facets, so the next read goes to Postgres: approved members only,
+  // and rate limited so one account cannot keep the cache cold.
+  "app/profile/actions.ts#invalidateDirectoryCache": { kind: "write-costly", bucket: "directoryRefresh" },
   // A whole-account read (F-x2), so it gets its own daily ceiling.
   "app/settings/actions.ts#exportMyData": { kind: "read", bucket: "dataExport" },
   "app/profile/mediaActions.ts#requestAvatarTicket": { kind: "write-costly", bucket: "avatarUpload" },

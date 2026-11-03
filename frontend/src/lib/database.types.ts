@@ -118,6 +118,21 @@ export type Database = {
         }
         Relationships: []
       }
+      banned_email_hashes: {
+        Row: {
+          banned_at: string
+          email_hash: string
+        }
+        Insert: {
+          banned_at?: string
+          email_hash: string
+        }
+        Update: {
+          banned_at?: string
+          email_hash?: string
+        }
+        Relationships: []
+      }
       blob_deletion_queue: {
         Row: {
           attempts: number
@@ -2486,6 +2501,7 @@ export type Database = {
           new_repos: string[]
         }[]
       }
+      email_ban_hash: { Args: { p_email: string }; Returns: string }
       enqueue_github_rescans: { Args: never; Returns: number }
       enqueue_outbound_email: {
         Args: {
@@ -3231,6 +3247,7 @@ export type Database = {
         Returns: undefined
       }
       posting_enabled: { Args: never; Returns: boolean }
+      purge_banned_email_hashes: { Args: never; Returns: number }
       purge_connection_records: { Args: never; Returns: number }
       purge_deleted_account_tombstones: { Args: never; Returns: number }
       purge_expired_posts: { Args: never; Returns: number }
@@ -3324,7 +3341,7 @@ export type Database = {
         Returns: undefined
       }
       set_cv_suggested_skills: {
-        Args: { p_skill_ids: number[] }
+        Args: { p_blob_key?: string; p_skill_ids: number[] }
         Returns: undefined
       }
       set_my_affiliation: {
@@ -3544,6 +3561,11 @@ export type Database = {
       withdraw_connection_request: {
         Args: { p_id: string }
         Returns: undefined
+      }
+      worker_cv_wanted: { Args: { p_cv_id: string }; Returns: boolean }
+      worker_purge_superseded_cvs: {
+        Args: { p_cv_id: string }
+        Returns: number
       }
     }
     Enums: {

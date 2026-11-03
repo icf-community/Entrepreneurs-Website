@@ -5,7 +5,9 @@ const captureMessageMock = vi.hoisted(() => vi.fn());
 const verifyOtpMock = vi.hoisted(() => vi.fn());
 const createClientMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/ratelimit", () => ({ check: checkMock }));
+vi.mock("@/lib/ratelimit", () => ({ check: checkMock, clientIp: (h: Headers) => h.get("x-test-ip") ?? "unknown" }));
+const callerIp = vi.hoisted(() => ({ value: "1.2.3.4" }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-test-ip": callerIp.value }) }));
 vi.mock("@sentry/nextjs", () => ({ captureMessage: captureMessageMock }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: createClientMock }));
 
@@ -34,14 +36,54 @@ describe("verifyOtpServerSide", () => {
     expect(verifyOtpMock).not.toHaveBeenCalled();
   });
 
-  it("keys the otpVerify bucket on the normalised target email", async () => {
+  it("keys the per-caller bucket on the normalised email and the caller's IP, then the address-wide ceiling on the email", async () => {
     checkMock.mockResolvedValue("allowed");
     verifyOtpMock.mockResolvedValue({
       data: { session: { access_token: "at", refresh_token: "rt", user: {} }, user: { email: "person@example.com" } },
       error: null,
     });
     await verifyOtpServerSide(" Person@Example.com ", "123456", "email");
-    expect(checkMock).toHaveBeenCalledWith("otpVerify", "person@example.com");
+    expect(checkMock.mock.calls).toEqual([
+      ["otpVerify", "person@example.com|1.2.3.4"],
+      ["otpVerifyEmail", "person@example.com"],
+    ]);
+  });
+
+  it("does not let a stranger's wrong codes use up the allowance of the real owner of the address", async () => {
+    // The bucket id includes the caller's IP, so the attacker and the owner draw on different allowances.
+    const used = new Set<string>();
+    checkMock.mockImplementation(async (bucket: string, id: string) => {
+      if (bucket !== "otpVerify") return "allowed";
+      if (id.startsWith("victim@ic.ac.uk|6.6.6.6") && used.has(id)) return "limited";
+      used.add(id);
+      return "allowed";
+    });
+    verifyOtpMock.mockResolvedValue({ data: { session: null, user: null }, error: { message: "invalid" } });
+
+    callerIp.value = "6.6.6.6";
+    await verifyOtpServerSide("victim@ic.ac.uk", "000000", "email");
+    const attacker = await verifyOtpServerSide("victim@ic.ac.uk", "000001", "email");
+    expect(attacker.ok).toBe(false);
+    if (!attacker.ok) expect(attacker.error).toMatch(/too many attempts/i);
+
+    callerIp.value = "9.9.9.9"; // the real owner, from their own network
+    const owner = await verifyOtpServerSide("victim@ic.ac.uk", "123456", "email");
+    if (!owner.ok) expect(owner.error).not.toMatch(/too many attempts/i);
+    expect(verifyOtpMock).toHaveBeenCalledTimes(2); // the attacker's second try never reached Supabase; the owner's did
+    callerIp.value = "1.2.3.4";
+  });
+
+  it("does not spend the address-wide ceiling on a request the caller's own bucket already refused", async () => {
+    checkMock.mockImplementation(async (bucket: string) => (bucket === "otpVerify" ? "limited" : "allowed"));
+    await verifyOtpServerSide("person@example.com", "123456", "email");
+    expect(checkMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks when the address-wide ceiling is hit, even for a caller with allowance left", async () => {
+    checkMock.mockImplementation(async (bucket: string) => (bucket === "otpVerifyEmail" ? "limited" : "allowed"));
+    const res = await verifyOtpServerSide("person@example.com", "123456", "email");
+    expect(res.ok).toBe(false);
+    expect(verifyOtpMock).not.toHaveBeenCalled();
   });
 
   it("blocks once the per-email guess limit is hit, without calling verifyOtp", async () => {

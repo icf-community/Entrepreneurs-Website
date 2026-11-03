@@ -21,6 +21,8 @@ test("the health check runs the snapshot with the cron secret, and refuses witho
   const known = [
     "email_backlog", "email_dead_24h", "blob_deletion_backlog", "worker_backlog", "jobs_dead_24h",
     "moderation_age", "cron_failures", "cron_http_failures", "config_missing",
+    "ai_queue_age", "ai_unreconciled_24h", "ai_spend_80pct", "ai_turn_failures", "ai_sustained_denial",
+    "ai_query_embedding_churn",
   ];
   for (const name of body.failing) expect(known).toContain(name);
 });

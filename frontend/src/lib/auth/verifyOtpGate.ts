@@ -2,7 +2,8 @@
 
 import * as Sentry from "@sentry/nextjs";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { check } from "@/lib/ratelimit";
+import { headers } from "next/headers";
+import { check, clientIp } from "@/lib/ratelimit";
 import { createClient } from "@/lib/supabase/server";
 import { ok, err, type Result } from "@/lib/result";
 
@@ -13,18 +14,26 @@ async function checkOtpVerifyRateLimit(email: string): Promise<Result> {
   const key = email.trim().toLowerCase();
   if (!key) return err("Enter your email first.");
 
-  const decision = await check("otpVerify", key);
-  if (decision === "limited") {
-    return err("Too many attempts. Please wait a few minutes and try again.");
-  }
-  if (decision === "unavailable") {
-    // otpVerify fails closed, like `submit` and the upload buckets — an
-    // outage must not become a way to bypass the per-email guess limit.
-    Sentry.captureMessage(
-      "otpVerify rate-limit bucket unreachable — code verification is being refused (fail-closed)",
-      { level: "error", tags: { bucket: "otpVerify", surface: "verifyOtpGate" } },
-    );
-    return err("We can't verify codes right now. Please try again in a few minutes.");
+  // Two buckets, asked in this order. First the caller's own allowance for this address
+  // (email + IP): somebody sending wrong codes for a victim's address from their own IP
+  // spends only their own tries, so they cannot lock the victim out. Only a request that
+  // passes it is then counted against the address-wide ceiling, which is what bounds
+  // guessing spread over many IPs.
+  const ip = clientIp(await headers());
+  for (const [bucket, id] of [["otpVerify", `${key}|${ip}`], ["otpVerifyEmail", key]] as const) {
+    const decision = await check(bucket, id);
+    if (decision === "limited") {
+      return err("Too many attempts. Please wait a few minutes and try again.");
+    }
+    if (decision === "unavailable") {
+      // Both buckets fail closed, like `submit` and the upload buckets — an
+      // outage must not become a way to bypass the guess limit.
+      Sentry.captureMessage(
+        `${bucket} rate-limit bucket unreachable — code verification is being refused (fail-closed)`,
+        { level: "error", tags: { bucket, surface: "verifyOtpGate" } },
+      );
+      return err("We can't verify codes right now. Please try again in a few minutes.");
+    }
   }
   return ok();
 }

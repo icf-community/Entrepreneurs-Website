@@ -385,3 +385,35 @@ def test_the_member_token_ceiling_refuses_past_the_daily_allowance(ai):
     with pytest.raises(psycopg.errors.RaiseException, match="member_tokens"):
         ai.execute(reserve, (turn, ctx["lease"], 1500, 1000))
     ai.execute("update ai_private.spend set status = 'released' where turn_id = %s", (turn,))
+
+
+# ─── Probe: forgetting the message of a running turn ────────────────
+def test_forgetting_the_message_of_a_running_turn_leaves_a_coherent_state(ai):
+    """ai_forget_message deletes the member's message and strips the criteria taken from it. Done while that
+    message's turn is running, the turn is detached from the message (ON DELETE SET NULL) and carries on. What
+    must hold: no raw database error reaches either side, and nothing keeps pointing at the forgotten message."""
+    _clear_queue(ai)
+    owner = ai.member("forget")
+    turn, conv, _ = _submit(ai, owner, "python and pytorch")
+    ctx = _claim(ai)
+    cand = ai.candidate("forgetcand")
+    _issue(ai, turn, [cand])
+    message = ai.execute("select message_id from ai_private.turns where id = %s", (turn,)).fetchone()[0]
+    assert message is not None
+
+    with ai.transaction(), ai.cursor() as cur:
+        _as(cur, owner)
+        cur.execute("select public.ai_forget_message(%s)", (message,))
+
+    assert ai.execute("select count(*) from ai_private.messages where id = %s", (message,)).fetchone()[0] == 0
+    assert ai.execute("select message_id from ai_private.turns where id = %s", (turn,)).fetchone()[0] is None
+    spec = ai.execute("select spec::text from ai_private.conversations where id = %s", (conv,)).fetchone()[0]
+    assert str(message) not in spec, "the conversation criteria still cite the forgotten message"
+
+    # The turn finishes: either it publishes or it refuses cleanly. Never a raw error.
+    try:
+        ai.execute(_publish_sql(), (turn, ctx["lease"], ctx["fence"], _revision(ai, conv), _results([cand])))
+    except psycopg.errors.RaiseException as exc:
+        assert any(word in str(exc) for word in ("stale_lease", "cancelled", "spec_changed")), exc
+    assert ai.execute("select status from ai_private.turns where id = %s", (turn,)).fetchone()[0] in (
+        "completed", "partial", "running", "failed", "cancelled")

@@ -35,6 +35,10 @@ const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
   // Fail-closed: a whole-account read, capped so it is not a load generator (F-x2).
   dataExport: "closed",
   otpVerify: "closed",
+  otpVerifyEmail: "closed",
+  // Fail-open: cache busting is not an abuse boundary a lockout should hang on; the approval gate in the
+  // action is. This only keeps one account from looping it.
+  directoryRefresh: "open",
   aiSubmit: "closed",
   aiEdit: "open",
   aiRead: "open",
@@ -293,10 +297,6 @@ describe("in-process limiter fallback", () => {
     expect(checkLocal("postReport", "u2")).toBe("limited");
   });
 
-  it("never returns 'unavailable' — that is the value that locked members out", () => {
-    for (let i = 0; i < 20; i += 1) {
-      expect(checkLocal("otpVerify", "x")).not.toBe("unavailable");
-    }
   it("holds CV uploads to 5 a day, the same number as the Upstash limiter", () => {
     // The fallback table and the Upstash limiter in ratelimit.ts each carry this
     // number; an outage must not quietly restore the old, looser ceiling.
@@ -305,6 +305,10 @@ describe("in-process limiter fallback", () => {
     expect(checkLocal("avatarUpload", "u3")).toBe("allowed");
   });
 
+  it("never returns 'unavailable' — that is the value that locked members out", () => {
+    for (let i = 0; i < 20; i += 1) {
+      expect(checkLocal("otpVerify", "x")).not.toBe("unavailable");
+    }
   });
 
   // Audit follow-up (run-2): the map used to be wiped entirely once it grew
