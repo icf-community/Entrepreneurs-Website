@@ -1,5 +1,7 @@
 import "server-only";
 import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth/currentUser";
 import { signedImageUrls, type BlobPurpose } from "@/lib/storage/blobRead";
 
 // ════════════════════════════════════════════════════════════════════
@@ -13,14 +15,13 @@ import { signedImageUrls, type BlobPurpose } from "@/lib/storage/blobRead";
 // cached (a plain 302, no Cache-Control set here); only the underlying
 // blob bytes are, by whatever caches the final Azure response.
 //
-// Allow-listed to profile_picture only, and this is the whole of the
-// access control here — this route does NO caller-identity check.
-// Every other caller of signedImageUrls gates on membership/ownership
-// before minting a URL (see blobRead.ts's own module docstring); this
-// route by design cannot, so post_image and cv must never be reachable
-// through it. profile_picture is safe specifically because /committee is
-// the one page in the app that shows an avatar to a signed-out visitor by
-// design — nothing else needs an unauthenticated image redirect today.
+// Allow-listed to profile_picture only. Previously this route did no
+// caller check because /committee showed avatars to signed-out visitors.
+// /committee now requires an approved session, and list_committee_cards
+// is revoked from anon, so the unauthenticated justification no longer
+// holds. An approved member who already knows another member's avatar
+// key must not be able to mint a permanent public read URL by logging
+// out and hitting this path. Require an approved session before signing.
 // ════════════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
@@ -28,12 +29,6 @@ export const runtime = "nodejs";
 
 const ALLOWED_PURPOSES: readonly BlobPurpose[] = ["profile_picture"];
 
-// The only key shape the upload pipeline generates for an image: uuid4 +
-// ".webp" (issue_upload_ticket; the gateway's is_valid_key enforces the
-// same). The key is the one input this unauthenticated route trusts, so
-// nothing else reaches the signer. No per-IP limit on purpose: GET traffic
-// is left to Cloudflare (see ratelimit.ts), and campus NAT would make an IP
-// bucket a whole-university bucket for /committee.
 const IMAGE_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
 
 export async function GET(
@@ -47,6 +42,16 @@ export async function GET(
   }
   if (!IMAGE_KEY.test(key)) {
     return NextResponse.json({ error: "Image not found" }, { status: 404 });
+  }
+
+  const supabase = await createClient();
+  const { user } = await currentUser(supabase);
+  if (!user) {
+    return NextResponse.json({ error: "unauthorised" }, { status: 401 });
+  }
+  const { data: approved, error: gateError } = await supabase.rpc("is_approved");
+  if (gateError || approved !== true) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const [url] = await signedImageUrls([key], purpose as BlobPurpose);

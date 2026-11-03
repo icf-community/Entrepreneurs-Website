@@ -5,7 +5,7 @@ import { AddToCalendarMenu } from "@/components/AddToCalendarMenu";
 import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import type { FoundryEvent } from "@/lib/data/events";
-import { externalHref } from "@/lib/safeUrl";
+import { externalHref, mailtoHref } from "@/lib/safeUrl";
 
 // The browser-side half of /events/[id]: the RSVP click-through, the
 // calendar menu, the going pill — and the mailto in the facts grid, which
@@ -59,7 +59,7 @@ export function ContactOrganiserLink({
 }) {
   return (
     <a
-      href={`mailto:${email}?subject=${encodeURIComponent(subject)}`}
+      href={mailtoHref(email, subject)}
       onClick={() => recordListingEvent("event", id, "contact_click")}
       className="break-all text-[0.85rem] text-text-secondary no-underline transition-colors hover:text-text-primary"
     >

@@ -1,16 +1,19 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { isCloudflareIp } from "@/lib/cloudflareIps";
+import { isProductionDeploy } from "@/lib/productionEnv";
 import * as Sentry from "@sentry/nextjs";
 
 // ════════════════════════════════════════════════════════════════════
 // Upstash rate limiting — app layer (precision). Cloudflare's edge is
 // the flood/DDoS shield; this is per-identity abuse control.
 //
-// ENV-GATED: with no UPSTASH_REDIS_REST_* env, every check returns
-// success=true, so local dev, CI, `next build`, and unconfigured
-// deploys behave exactly as before. It only "turns on" once the two
-// env vars are set.
+// ENV-GATED: with no UPSTASH_REDIS_REST_* env, local / CI / preview
+// still allow every check (so those environments run without Redis).
+// A real production deploy without the env vars used to fail OPEN for
+// every bucket, including FAIL_CLOSED ones like `submit` — that is now
+// routed through the in-process limiter for fail-closed buckets so a
+// dropped Vercel env var cannot silently disable abuse caps.
 //
 // NAT: Imperial students on campus share one public IP, so an IP bucket
 // is a campus bucket. Mutations are therefore keyed on the signed-in user
@@ -375,6 +378,10 @@ const FAIL_CLOSED: readonly RateBucket[] = [
   "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload",
   "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "listingEdit",
   "dataExport", "otpVerify", "otpVerifyEmail", "aiSubmit", "aiReportMatch",
+  // Cache-busting is cheap per call but unbounded during an Upstash outage
+  // (check falls through to "allowed" for fail-open buckets). Keep a
+  // per-instance ceiling so one account cannot keep directoryFacets cold.
+  "directoryRefresh",
 ];
 
 export function failOpen(bucket: RateBucket): boolean {
@@ -512,11 +519,14 @@ export function __resetLocalBuckets(): void {
   localBuckets.clear();
 }
 
-// Allows everything when rate limiting is disabled (no Upstash env) — the
-// documented local/CI behaviour.
+// Local/CI/preview with no Upstash env: allow (documented). Production
+// without Upstash: fail-closed buckets still get the in-process ceiling.
 export async function check(bucket: RateBucket, identifier: string): Promise<RateDecision> {
   const inst = instance(bucket);
-  if (!inst) return "allowed";
+  if (!inst) {
+    if (isProductionDeploy() && !failOpen(bucket)) return checkLocal(bucket, identifier);
+    return "allowed";
+  }
   try {
     const { success } = await inst.limit(identifier);
     return success ? "allowed" : "limited";

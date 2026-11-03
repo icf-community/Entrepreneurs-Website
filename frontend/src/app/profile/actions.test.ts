@@ -46,11 +46,11 @@ describe("invalidateDirectoryCache", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/members");
   });
 
-  it("keeps working when the bucket is unreachable (fail-open: it only protects load)", async () => {
+  it("refuses when the bucket is unreachable (fail-closed with directoryRefresh)", async () => {
     auth.mockResolvedValue({ user: { id: "u" }, isAdmin: false, status: "approved" });
     check.mockResolvedValue("unavailable");
     await invalidateDirectoryCache();
-    expect(invalidate).toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
   });
 
   it("lets an admin through", async () => {

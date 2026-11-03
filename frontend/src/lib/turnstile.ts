@@ -1,17 +1,21 @@
 import "server-only";
 
+import { isProductionDeploy } from "@/lib/productionEnv";
+
 // Cloudflare Turnstile server-side verification.
 //
 // ENV-GATED: with no TURNSTILE_SECRET_KEY, verifyTurnstile() returns true
-// (skips the check), so local dev / CI / unconfigured deploys behave as
-// before. It only enforces once the secret is set.
+// in local / CI / preview so those environments run without ceremony. A
+// real production deploy without the secret used to fail OPEN (and only
+// log at boot) — that is now fail-closed so a dropped Vercel env var
+// cannot silently disable bot protection on the contact form.
 
 const SECRET = process.env.TURNSTILE_SECRET_KEY;
 
 export const turnstileServerEnabled = Boolean(SECRET);
 
 export async function verifyTurnstile(token: string | null | undefined): Promise<boolean> {
-  if (!SECRET) return true; // not configured → skip
+  if (!SECRET) return !isProductionDeploy(); // prod without secret → refuse
   if (!token) return false; // configured but no token → fail
 
   try {

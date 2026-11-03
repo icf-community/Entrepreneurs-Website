@@ -11,7 +11,7 @@ import { AddToCalendarMenu } from "@/components/AddToCalendarMenu";
 import { recordListingEvent } from "@/lib/analytics";
 import { formatDateWeekday, formatTime } from "@/lib/dates";
 import type { FoundryEvent } from "@/lib/data/events";
-import { externalHref } from "@/lib/safeUrl";
+import { externalHref, mailtoHref } from "@/lib/safeUrl";
 import { Button } from "@/components/ui/Button";
 
 // D1: same cap as OpportunitiesClient — only the first PAGE matches render
@@ -236,7 +236,7 @@ function EventCard({ ev, going, onDismiss }: {
               <div>
                 <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Contact organiser</div>
                 <a
-                  href={`mailto:${ev.contactEmail}?subject=${encodeURIComponent(ev.title)}`}
+                  href={mailtoHref(ev.contactEmail, ev.title)}
                   onClick={() => recordListingEvent("event", ev.id, "contact_click")}
                   className="text-[0.8rem] text-text-secondary no-underline hover:text-text-primary break-all"
                 >

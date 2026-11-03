@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useId, useState } from "react";
 import { ViewProfileButton } from "@/components/members/ViewProfileButton";
-import { externalHref } from "@/lib/safeUrl";
+import { externalHref, mailtoHref } from "@/lib/safeUrl";
 import { formatDate } from "@/lib/dates";
 import { audienceLabel, type Audience } from "@/lib/listings/audience";
 import { reportMatch, type MatchReportReason } from "./actions";
@@ -209,7 +209,7 @@ function JobFacts({ card }: { card: ResultCard }) {
           </a>
         ) : job.contactEmail ? (
           <a
-            href={`mailto:${job.contactEmail}?subject=${encodeURIComponent(card.title)}`}
+            href={mailtoHref(job.contactEmail, card.title)}
             className="inline-flex items-center rounded-lg bg-accent px-4 py-2 text-[0.8rem] font-medium text-bg-primary no-underline hover:bg-accent-dim"
           >
             Email to apply ↗

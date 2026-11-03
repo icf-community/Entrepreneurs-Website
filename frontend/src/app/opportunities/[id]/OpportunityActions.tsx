@@ -6,7 +6,7 @@ import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import { toggleOpportunityBookmark } from "../actions";
 import type { Opportunity } from "@/lib/data/opportunities";
-import { externalHref } from "@/lib/safeUrl";
+import { externalHref, mailtoHref } from "@/lib/safeUrl";
 import { settle } from "@/lib/settle";
 import { useToast } from "@/components/ui/Toast";
 
@@ -70,7 +70,7 @@ export default function OpportunityActions({
         </a>
       ) : o.contactEmail ? (
         <a
-          href={`mailto:${o.contactEmail}?subject=${encodeURIComponent(o.positionName)}`}
+          href={mailtoHref(o.contactEmail, o.positionName)}
           onClick={() => recordListingEvent("opportunity", o.id, "contact_click")}
           className="inline-block rounded-lg bg-accent px-4 py-2 text-[0.825rem] font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
         >

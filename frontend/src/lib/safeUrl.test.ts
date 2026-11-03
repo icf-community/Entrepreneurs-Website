@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { externalHref } from "./safeUrl";
+import { externalHref, mailtoHref } from "./safeUrl";
 
 describe("externalHref", () => {
   it("passes http and https through", () => {
@@ -42,5 +42,20 @@ describe("externalHref", () => {
 
   it("returns the parsed form, so the href and what was checked cannot differ", () => {
     expect(externalHref("https://EXAMPLE.com")).toBe("https://example.com/");
+  });
+});
+
+describe("mailtoHref", () => {
+  it("encodes the addr-spec so a query-bearing address cannot inject headers", () => {
+    const href = mailtoHref("recruiter@x.example?bcc=evil@y.example&x=", "Role");
+    expect(href.startsWith("mailto:recruiter%40")).toBe(true);
+    expect(href).toContain("%3Fbcc%3D");
+    expect(href).toMatch(/\?subject=Role$/);
+    // The injected ? must not start a second URI query before subject.
+    expect(href.indexOf("?")).toBe(href.lastIndexOf("?"));
+  });
+
+  it("builds a plain mailto when there is no subject", () => {
+    expect(mailtoHref("a@b.co")).toBe("mailto:a%40b.co");
   });
 });

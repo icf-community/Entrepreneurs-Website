@@ -32,7 +32,10 @@ const email = z
   .string()
   .trim()
   .max(254, "Email is too long.")
-  .regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Email is invalid.");
+  // Reject ?, &, #, %, whitespace and controls so a stored address cannot
+  // inject mailto: headers (e.g. addr?bcc=attacker) when interpolated into
+  // an href. Mirrors opportunities_contact_email_format / events_*.
+  .regex(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/, "Email is invalid.");
 
 // A calendar day that exists (the regex alone let 2027-02-30 through, which
 // Postgres then refused with a message nobody could act on) and falls in the

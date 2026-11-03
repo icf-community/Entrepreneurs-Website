@@ -50,3 +50,15 @@ export function externalHref(value: string | null | undefined): string | undefin
   }
   return undefined;
 }
+
+/**
+ * Build a mailto: href that cannot inject extra headers from a stored
+ * address. `encodeURIComponent` on the addr-spec turns `?`/`&` into
+ * percent-escapes inside the path, so a legacy `user@x?bcc=evil` value
+ * cannot open a Bcc field before the member's mail client sends.
+ */
+export function mailtoHref(email: string, subject?: string): string {
+  const addr = encodeURIComponent(email);
+  if (subject == null || subject === "") return `mailto:${addr}`;
+  return `mailto:${addr}?subject=${encodeURIComponent(subject)}`;
+}

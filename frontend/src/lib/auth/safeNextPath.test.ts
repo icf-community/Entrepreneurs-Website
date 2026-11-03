@@ -41,6 +41,14 @@ describe("safeNextPath", () => {
     expect(safeNextPath("/\t/evil.example", ORIGIN)).toBeNull();
   });
 
+  // Dot-segment collapse: "/.//evil.example" parses same-origin on the
+  // first pass but returns pathname "//evil.example", which the router
+  // then treats as scheme-relative.
+  it("rejects a dot-segment protocol-relative collapse", () => {
+    expect(safeNextPath("/.//evil.example", ORIGIN)).toBeNull();
+    expect(safeNextPath("/foo/..//evil.example", ORIGIN)).toBeNull();
+  });
+
   it("allows a same-origin absolute URL, reduced to its path", () => {
     expect(safeNextPath(`${ORIGIN}/settings`, ORIGIN)).toBe("/settings");
   });

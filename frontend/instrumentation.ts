@@ -13,15 +13,16 @@ export async function register() {
   }
 }
 
-// Rate limiting (Upstash) and bot protection (Turnstile) fail OPEN when their
-// env vars are absent — deliberate, so local dev / CI / `next build` run
-// unprotected without ceremony. The risk that buys is a *production* deploy
-// silently shipping with a protection layer disabled because a var was dropped
-// or mistyped. This makes that loud at boot instead of silent.
+// Rate limiting (Upstash) and bot protection (Turnstile) fail OPEN in local /
+// CI / preview when their env vars are absent — deliberate, so those
+// environments run unprotected without ceremony. On a real production
+// deploy, lib/ratelimit.ts and lib/turnstile.ts now also fail CLOSED for
+// the sensitive paths when the vars are missing; this boot check still
+// logs loudly so a dropped Vercel env var is visible in Sentry, not only
+// as refused form submissions.
 //
 // Non-fatal on purpose: an abuse-control gap must never pass unnoticed, but it
-// also shouldn't take the whole site down (availability shouldn't hinge on a
-// rate-limiter being reachable). If you'd rather fail closed, throw here.
+// also shouldn't take the whole site down at boot.
 function assertProductionAbuseControls() {
   if (process.env.NODE_ENV !== "production") return;
   // Vercel preview deploys also run with NODE_ENV=production but deliberately

@@ -15,7 +15,7 @@ import { formatDate } from "@/lib/dates";
 import { startLabel, locationLabel } from "@/lib/listings/format";
 import { toggleOpportunityBookmark } from "./actions";
 import type { Opportunity } from "@/lib/data/opportunities";
-import { externalHref } from "@/lib/safeUrl";
+import { externalHref, mailtoHref } from "@/lib/safeUrl";
 import { settle } from "@/lib/settle";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
@@ -310,7 +310,7 @@ function OpportunityCard({
                 </a>
               ) : o.contactEmail ? (
                 <a
-                  href={`mailto:${o.contactEmail}?subject=${encodeURIComponent(o.positionName)}`}
+                  href={mailtoHref(o.contactEmail, o.positionName)}
                   onClick={() => recordListingEvent("opportunity", o.id, "contact_click")}
                   className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.825rem] font-medium no-underline transition-colors hover:bg-accent-light"
                 >

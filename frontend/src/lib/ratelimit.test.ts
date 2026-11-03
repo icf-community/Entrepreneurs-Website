@@ -36,9 +36,9 @@ const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
   dataExport: "closed",
   otpVerify: "closed",
   otpVerifyEmail: "closed",
-  // Fail-open: cache busting is not an abuse boundary a lockout should hang on; the approval gate in the
-  // action is. This only keeps one account from looping it.
-  directoryRefresh: "open",
+  // Fail-closed: without a ceiling during an Upstash outage one account can
+  // keep directoryFacets cold and revalidate /members unboundedly.
+  directoryRefresh: "closed",
   aiSubmit: "closed",
   aiEdit: "open",
   aiRead: "open",

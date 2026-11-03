@@ -24,7 +24,10 @@ export async function invalidateDirectoryCache(): Promise<void> {
   // Every directory read after this goes to Postgres, so it is not for pending or rejected
   // accounts, and one account cannot loop it to keep the cache permanently cold.
   if (!isAdmin && status !== "approved") return;
-  if ((await check("directoryRefresh", user.id)) === "limited") return;
+  // Fail-closed: limited OR unavailable both refuse (unavailable uses the
+  // in-process limiter via FAIL_CLOSED, so a true Redis throw still has a
+  // ceiling; "unavailable" here means that fallback also refused).
+  if ((await check("directoryRefresh", user.id)) !== "allowed") return;
 
   await invalidate("directoryFacets");
   revalidatePath("/members");

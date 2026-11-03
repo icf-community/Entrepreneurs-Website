@@ -24,7 +24,18 @@ export function safeNextPath(raw: string | null | undefined, origin: string): st
   try {
     const resolved = new URL(raw, origin);
     if (resolved.origin !== origin) return null;
-    return resolved.pathname + resolved.search + resolved.hash;
+    // Dot-segment normalisation can turn "/.//evil.example" into a
+    // pathname of "//evil.example". The first parse stays same-origin,
+    // but Next's router (and location.replace) treat a leading "//" as
+    // scheme-relative and navigate off-site. Reject that shape, then
+    // re-parse the string we are about to return so a second pass cannot
+    // change the origin either.
+    const next = resolved.pathname + resolved.search + resolved.hash;
+    if (next.startsWith("//") || resolved.pathname.startsWith("//")) return null;
+    const again = new URL(next, origin);
+    if (again.origin !== origin) return null;
+    if (again.pathname.startsWith("//")) return null;
+    return again.pathname + again.search + again.hash;
   } catch {
     return null;
   }
