@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { deleteMyAccount } from "@/app/settings/actions";
 import { ErrorBanner } from "@/components/forms/Banners";
 
 export default function DeleteAccountSection({ email }: { email: string }) {
@@ -22,9 +23,10 @@ export default function DeleteAccountSection({ email }: { email: string }) {
 
     setIsLoading(true);
     try {
-      const { error: rpcError } = await supabase.rpc("delete_my_account");
-      if (rpcError) {
-        setError(rpcError.message);
+      const result = await deleteMyAccount();
+      if (!result.ok) {
+        setError(result.error);
+        setIsLoading(false);
         return;
       }
 

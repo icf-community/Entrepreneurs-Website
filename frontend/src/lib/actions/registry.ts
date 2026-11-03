@@ -158,6 +158,7 @@ export const ACTION_POLICIES: Record<string, ActionPolicy> = {
   "lib/ai/entryPoint.ts#consumeAiDraftHandoff": cheap,
   "app/members/actions.ts#getMemberCard": read,
   "app/settings/actions.ts#setMyEducation": cheap,
+  "app/settings/actions.ts#deleteMyAccount": cheap,
   "app/home/actions.ts#confirmGraduation": cheap,
   "app/settings/actions.ts#saveAiSettings": cheap,
   "app/settings/actions.ts#previewMyProjection": read,

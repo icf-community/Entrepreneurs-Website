@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: [["list"], ["json", { outputFile: "adversarial-results.json" }]],
   projects: [
     { name: "adv-rpc", testMatch: /adversarial\/(concurrency|input-fuzz)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
-    { name: "adv-ui", testMatch: /adversarial\/(focus|offline|mobile-auth)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
+    { name: "adv-ui", testMatch: /adversarial\/(focus|offline|mobile-auth|account-deletion)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     { name: "adv-browser", testMatch: /adversarial\/(browser|ui-races|security|email)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     { name: "adv-ai", testMatch: /adversarial\/ai-ui-edges\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
   ],

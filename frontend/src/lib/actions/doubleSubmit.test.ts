@@ -101,6 +101,7 @@ const DOUBLE_SUBMIT: Record<string, Why> = {
   "app/settings/actions.ts#setMyEducation": { server: "upsert to the same values" },
   "app/home/actions.ts#confirmGraduation": { server: "locks the profile; the second call is refused once the member is no longer a student" },
   "app/settings/actions.ts#saveAiSettings": { server: "upsert to the same values" },
+  "app/settings/actions.ts#deleteMyAccount": { server: "the account row is locked and deleted once; the second call has no signed-in user left and is refused" },
   // ── public ────────────────────────────────────────────────────────
   "app/contact/actions.ts#submitContactTicket": { server: "Turnstile tokens are single-use: the second submit fails verification" },
   "lib/auth/verifyOtpGate.ts#verifyOtpServerSide": { server: "GoTrue OTP tokens are single-use: a resend of the same code after it already succeeded fails verification, it doesn't re-apply" },

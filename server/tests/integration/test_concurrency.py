@@ -900,3 +900,134 @@ def test_a_released_showcase_nudge_is_due_again(db):
         "control: a claimed member is not handed out twice"
     db.execute("select public.release_github_showcase_nudges(%s)", ([m],))
     assert m in {r[0] for r in db.execute("select member_id from public.due_github_showcase_nudges(500)").fetchall()}
+
+
+# ─── Blocks survive re-registration, one lock order (migrations …021, …022) ─
+def _email_of(db, uid) -> str:
+    return db.execute("select email from auth.users where id = %s", (uid,)).fetchone()[0]
+
+
+def _signup(db, email: str) -> uuid.UUID:
+    uid = uuid.uuid4()
+    db.execute(
+        """insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data, confirmation_token,
+             recovery_token, email_change_token_new, email_change, aud, role)
+           values (%s, %s, %s, '{"provider":"email"}', '', '', '', '', 'authenticated', 'authenticated')""",
+        (uid, email, json.dumps({"first_name": "Cc", "surname": "Again", "role": "student", "grad_year": 2028})))
+    return uid
+
+
+def _blocked_by(db, a, b):
+    row = db.execute("select blocked_by from public.connections where status = 'blocked' and "
+                     "least(requester_id, addressee_id) = least(%s::uuid, %s::uuid) and "
+                     "greatest(requester_id, addressee_id) = greatest(%s::uuid, %s::uuid)", (a, b, a, b)).fetchone()
+    return row[0] if row else None
+
+
+def _block(db, blocker, target):
+    with psycopg.connect(DSN) as c, c.cursor() as cur:
+        _as(cur, blocker)
+        cur.execute("select public.block_member(%s)", (target,))
+
+
+def test_a_block_comes_back_when_the_blocked_person_deletes_and_signs_up_again(db):
+    blocker, blocked = db.member("blocker1"), db.member("blocked1")
+    email = _email_of(db, blocked)
+    _block(db, blocker, blocked)
+    assert _blocked_by(db, blocker, blocked) == blocker, "control: the block exists"
+    db.execute("delete from auth.users where id = %s", (blocked,))
+    assert db.execute("select count(*) from public.connections where blocked_by = %s", (blocker,)).fetchone()[0] == 0, \
+        "control: the deletion removed the row"
+
+    again = _signup(db, email)
+    try:
+        assert _blocked_by(db, blocker, again) == blocker, "the blocked person got a clean slate by re-registering"
+        assert db.execute("select count(*) from public.block_tombstones where blocker_id = %s", (blocker,)).fetchone()[0] == 0
+    finally:
+        db.execute("delete from auth.users where id = %s", (again,))
+
+
+def test_a_block_that_was_lifted_is_not_revived_by_a_stale_tombstone(db):
+    blocker, blocked = db.member("blocker2"), db.member("blocked2")
+    email = _email_of(db, blocked)
+    _block(db, blocker, blocked)
+    db.execute("delete from auth.users where id = %s", (blocked,))
+    again = _signup(db, email)                       # the block is restored and the tombstone consumed
+    with psycopg.connect(DSN) as c, c.cursor() as cur:
+        _as(cur, blocker)
+        cur.execute("select public.unblock_member(%s)", (again,))
+    assert _blocked_by(db, blocker, again) is None
+    db.execute("delete from auth.users where id = %s", (again,))
+    third = _signup(db, email)
+    try:
+        assert _blocked_by(db, blocker, third) is None, "a lifted block came back"
+    finally:
+        db.execute("delete from auth.users where id = %s", (third,))
+
+
+def test_the_blockers_own_deletion_takes_their_tombstones_with_it(db):
+    blocker, blocked = db.member("blocker3"), db.member("blocked3")
+    email = _email_of(db, blocked)
+    _block(db, blocker, blocked)
+    db.execute("delete from auth.users where id = %s", (blocked,))
+    assert db.execute("select count(*) from public.block_tombstones where blocker_id = %s", (blocker,)).fetchone()[0] == 1, \
+        "control: the deletion left a tombstone"
+    db.execute("delete from auth.users where id = %s", (blocker,))
+    assert db.execute("select count(*) from public.block_tombstones where blocker_id = %s", (blocker,)).fetchone()[0] == 0
+    again = _signup(db, email)                       # nobody left to restore a block for: no error, no row
+    try:
+        assert db.execute("select count(*) from public.connections where requester_id = %s or addressee_id = %s",
+                          (again, again)).fetchone()[0] == 0
+    finally:
+        db.execute("delete from auth.users where id = %s", (again,))
+
+
+def test_a_different_email_is_not_matched(db):
+    blocker, blocked = db.member("blocker4"), db.member("blocked4")
+    _block(db, blocker, blocked)
+    db.execute("delete from auth.users where id = %s", (blocked,))
+    other = _signup(db, f"someone-else-{uuid.uuid4().hex[:8]}@imperial.ac.uk")
+    try:
+        assert _blocked_by(db, blocker, other) is None
+    finally:
+        db.execute("delete from auth.users where id = %s", (other,))
+        db.execute("delete from public.block_tombstones where blocker_id = %s", (blocker,))
+
+
+def test_a_direct_child_write_and_an_rpc_on_the_same_row_no_longer_deadlock(db):
+    """The RPC locks the parent then touches the child; a direct write used to take the child then the parent."""
+    uid = db.member("childparent")
+    db.execute("delete from public.profile_skills where profile_id = %s", (uid,))
+    results: dict = {}
+    first_has_parent = threading.Event()
+    second_started = threading.Event()
+
+    def rpc_style():
+        try:
+            with psycopg.connect(DSN) as c, c.cursor() as cur:
+                cur.execute("select 1 from public.profiles where id = %s for update", (uid,))
+                first_has_parent.set()
+                second_started.wait(5)
+                time.sleep(0.4)                       # the direct write is now inside its statement
+                cur.execute("insert into public.profile_skills (profile_id, skill_id) values (%s, 3) on conflict do nothing", (uid,))
+            results["rpc"] = "ok"
+        except psycopg.Error as exc:
+            results["rpc"] = exc
+
+    def direct():
+        first_has_parent.wait(5)
+        try:
+            with psycopg.connect(DSN) as c, c.cursor() as cur:
+                second_started.set()
+                cur.execute("insert into public.profile_skills (profile_id, skill_id) values (%s, 3) on conflict do nothing", (uid,))
+            results["direct"] = "ok"
+        except psycopg.Error as exc:
+            results["direct"] = exc
+
+    threads = [threading.Thread(target=rpc_style), threading.Thread(target=direct)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(20)
+    assert results == {"rpc": "ok", "direct": "ok"}, results
+    assert db.execute("select count(*) from public.profile_skills where profile_id = %s and skill_id = 3", (uid,)).fetchone()[0] == 1

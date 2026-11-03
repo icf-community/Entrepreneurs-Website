@@ -224,23 +224,76 @@ def test_rescan_cooldown_and_limit_boundary(ai):
         ai.execute("delete from public.opportunities where id = %s", (job,))
 
 
+def _set_edits_today(ai, uid, n):
+    ai.execute("insert into ai_private.edit_counter (owner_id, day, n) values (%s, current_date, %s) "
+               "on conflict (owner_id, day) do update set n = excluded.n", (uid, n))
+
+
+_ADD = '[{"op": "add", "kind": "tool", "concept": "%s", "required": false, "negated": false}]'
+
+
 def test_edit_limit_boundary(ai):
     uid = ai.member("limedit")
     turn, conv, outcome = _submit(ai, uid, "python")
     assert outcome == "queued"
     ai.execute("update ai_private.turns set status = 'completed', lease_token = null where id = %s", (turn,))
-    ai.execute("update ai_private.conversations set spec = spec || jsonb_build_object("
-               "'edits_today', 199, 'edits_day', current_date::text) where id = %s", (conv,))
+    _set_edits_today(ai, uid, 199)
     rev = ai.execute("select spec_revision from ai_private.conversations where id = %s", (conv,)).fetchone()[0]
     # N-1 = 199 recorded edits: one more is the 200th and must still be admitted.
-    _call_as(ai, uid, "select * from public.ai_edit_spec(%s, %s, %s)",
-            (conv, rev, '[{"op": "add", "kind": "tool", "concept": "python", "required": false, "negated": false}]'))
-    ai.execute("update ai_private.conversations set spec = spec || jsonb_build_object("
-               "'edits_today', 200, 'edits_day', current_date::text) where id = %s", (conv,))
+    _call_as(ai, uid, "select * from public.ai_edit_spec(%s, %s, %s)", (conv, rev, _ADD % "python"))
+    assert ai.execute("select n from ai_private.edit_counter where owner_id = %s and day = current_date", (uid,)).fetchone()[0] == 200
     rev = ai.execute("select spec_revision from ai_private.conversations where id = %s", (conv,)).fetchone()[0]
     with pytest.raises(psycopg.errors.ProgramLimitExceeded, match="edit_limit"):
-        _call_as(ai, uid, "select * from public.ai_edit_spec(%s, %s, %s)",
-                (conv, rev, '[{"op": "add", "kind": "tool", "concept": "rust", "required": false, "negated": false}]'))
+        _call_as(ai, uid, "select * from public.ai_edit_spec(%s, %s, %s)", (conv, rev, _ADD % "rust"))
+
+
+def test_deleting_conversations_does_not_reset_the_edit_limit(ai):
+    """The count used to live inside each conversation, so deleting them started a member again from zero."""
+    uid = ai.member("limeditdel")
+    turn, first, _ = _submit(ai, uid, "python")
+    ai.execute("update ai_private.turns set status = 'completed', lease_token = null where id = %s", (turn,))
+    _set_edits_today(ai, uid, 200)
+    ai.execute("delete from ai_private.conversations where id = %s", (first,))
+
+    turn, second, outcome = _submit(ai, uid, "python")
+    assert outcome == "queued"
+    ai.execute("update ai_private.turns set status = 'completed', lease_token = null where id = %s", (turn,))
+    rev = ai.execute("select spec_revision from ai_private.conversations where id = %s", (second,)).fetchone()[0]
+    with pytest.raises(psycopg.errors.ProgramLimitExceeded, match="edit_limit"):
+        _call_as(ai, uid, "select * from public.ai_edit_spec(%s, %s, %s)", (second, rev, _ADD % "rust"))
+
+
+def test_edits_in_two_conversations_at_once_cannot_both_take_the_last_slot(ai):
+    uid = ai.member("limeditrace")
+    convs = []
+    for _ in range(2):
+        turn, conv, _ = _submit(ai, uid, "python")
+        ai.execute("update ai_private.turns set status = 'completed', lease_token = null where id = %s", (turn,))
+        convs.append(conv)
+    _set_edits_today(ai, uid, 199)
+    revs = [ai.execute("select spec_revision from ai_private.conversations where id = %s", (c,)).fetchone()[0] for c in convs]
+
+    results: list = []
+
+    def edit(conv, rev, concept):
+        try:
+            with psycopg.connect(os.environ["AI_INTEGRATION_DSN"]) as c, c.cursor() as cur:
+                _as(cur, uid)
+                cur.execute("select * from public.ai_edit_spec(%s, %s, %s)", (conv, rev, _ADD % concept))
+            results.append("ok")
+        except psycopg.Error as exc:
+            results.append(exc)
+
+    import threading
+    threads = [threading.Thread(target=edit, args=(convs[0], revs[0], "go")),
+               threading.Thread(target=edit, args=(convs[1], revs[1], "rust"))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(15)
+    admitted = [r for r in results if r == "ok"]
+    assert len(admitted) == 1, f"both edits took the 200th slot: {results}"
+    assert ai.execute("select n from ai_private.edit_counter where owner_id = %s and day = current_date", (uid,)).fetchone()[0] == 200
 
 
 def test_provider_request_ceiling_boundary(ai):

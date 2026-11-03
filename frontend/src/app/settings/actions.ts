@@ -5,6 +5,7 @@ import { getActionAuth } from "@/lib/auth/actionAuth";
 import { check } from "@/lib/ratelimit";
 import { UNREACHABLE_MESSAGE } from "@/lib/supabase/unavailable";
 import { revalidatePath } from "next/cache";
+import { invalidate } from "@/lib/cache";
 import { err, ok, type Result } from "@/lib/result";
 import { AI_CONSENT_VERSION } from "@/lib/ai/consent";
 
@@ -37,6 +38,22 @@ export async function exportMyData(): Promise<ExportResult> {
 
   const day = new Date().toISOString().slice(0, 10);
   return { ok: true, json: JSON.stringify(data, null, 2), filename: `foundry-my-data-${day}.json` };
+}
+
+/**
+ * Settings → "Delete account". A server action rather than a browser RPC so the
+ * cached directory is dropped in the same breath: otherwise the deleted member's
+ * card lingers until its TTL. The database refuses the last administrator.
+ */
+export async function deleteMyAccount(): Promise<Result> {
+  const { supabase, user, unreachable } = await getActionAuth();
+  if (unreachable) return err(UNREACHABLE_MESSAGE);
+  if (!user) return err("You must be signed in.");
+  const { error } = await supabase.rpc("delete_my_account");
+  if (error) return err(error.message);
+  await invalidate("directoryFacets");
+  revalidatePath("/members");
+  return ok();
 }
 
 const CONCEPT = /^[a-z0-9][a-z0-9_.+#-]{0,47}$/;

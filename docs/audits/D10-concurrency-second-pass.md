@@ -112,19 +112,29 @@ edit-version trigger takes the parent opportunity's lock before the statement-le
 | R3 | An email row that always answered 429 was retried every 30 minutes forever | New `defer_outbound_email`: no attempt is charged for the first day, then each deferral counts and the row is buried at `max_attempts`. Service role only | `test_concurrency.py` (failed first), `drain-email/route.test.ts` |
 | R4 | A failed enqueue left the showcase nudge claimed, silencing that member for 30 days | The route releases every claimed member it did not email (new `release_github_showcase_nudges`), and answers 500 on an enqueue failure so the cron run is visible | `test_concurrency.py` (failed first), `github-showcase-nudge/route.test.ts` |
 
+**Fourth sweep: the rest of the accepted list (migrations `…021`, `…022`, a server action).**
+
+| # | Was | Now | Test |
+|---|---|---|---|
+| B1 | A block vanished when the blocked person deleted their account and signed up again | Owner decision: blocks only. Deleting the blocked person's account leaves the blocker's id and a one-way hash of the email (12 months); the same address signing up again gets the block put back, and the tombstone is consumed. Privacy page updated | `test_concurrency.py` (restore, a lifted block is not revived, the blocker's own deletion, a different email) |
+| Q1 | The 200-a-day AI edit cap lived in each conversation, so deleting conversations reset it, and two conversations at 199 could both pass | One counter row per member and day, locked while the edit validates | `test_ai_limits.py` (deleting resets nothing; two conversations race for the last slot) |
+| L1 | A direct write to `profile_skills` and the like took the child row then the parent; an RPC takes the parent first. Same row from both deadlocked | A `BEFORE` trigger takes the parent lock first on seven child tables, at the strength the existing trigger already used | `test_concurrency.py` (reproduces `DeadlockDetected` without the trigger) |
+| C1 | Self-deletion called the RPC from the browser, so the deleted member's directory card lingered for its TTL | A server action runs the RPC and drops the cache. Every other removal path already did | `settings/actions.test.ts` |
+
 **Still accepted, with the reason.**
-- Approve and reject queue their email in a separate step after the decision commits (F11). The realistic failure,
-  the queue insert erroring, already reaches Sentry and the admin; only the process dying in that window is uncovered.
-- Blocks and request cooldowns between two members reset when either deletes their account, and a banned person
-  using a *different* email is a different person to the system. Both are product and privacy decisions (keeping more
-  data about deleted people), not defects.
-- The AI edit quota is counted over live conversations, so deleting one resets it. A soft guard; draft edits cost nothing.
-- A deleted or banned member can linger in the 60 to 300 second directory caches (the TTL is the design).
-- `tg_related_edit_version` can deadlock a direct child write against an RPC on the parent; Postgres aborts one side
-  with a retryable error and nothing is corrupted.
+- Approve and reject queue their email in a separate step after the decision commits (F11). The realistic failure, the
+  queue insert erroring, already reaches Sentry and the admin; only the function dying in that millisecond window is
+  uncovered. A reconcile cannot fix it (a rejection deletes the account, so the address is gone); it needs a transactional
+  outbox, which is a change to the approval flow, not a hardening.
+- A banned person using a *different* email is a different person to the system. Owner decision (2026-11-03): accept. Students need an
+  Imperial address and alumni go through manual review.
+- Request cooldowns reset when either account is deleted. Owner decision: blocks only.
+- Other instances can hold a cached directory page until its TTL after a removal; the removal paths invalidate the shared cache, so
+  this is only a render already in flight.
 
 **Frontend order:** the new drain-email and showcase-nudge routes call `defer_outbound_email` and
-`release_github_showcase_nudges`, so deploy the web app only after `…020` is applied.
+`release_github_showcase_nudges`, so deploy the web app only after `…020` is applied. `…022` replaces `ai_edit_spec`; an
+old frontend keeps working (the function signature is unchanged).
 
 ## Not provable here
 
@@ -133,6 +143,6 @@ deploy). **No longer in this list:** the reaper against a genuinely crashed work
 process, SIGKILLs it mid-job, runs the real `reap_stalled_jobs` (it leaves the job alone until it is 15 minutes stale) and
 checks the retry publishes once, with one extraction paid.
 
-**Deploy order:** apply the migrations (`…018`, `…019`, `…020`) **before** the new worker image. The new worker calls
+**Deploy order:** apply the migrations (`…018` to `…022`) **before** the new worker image. The new worker calls
 `worker_cv_wanted`; the new image on the old database would fail every CV ingest. The migrations alone
 are safe with the old worker (the old code never calls the guard, and the new locks only add waiting).

@@ -169,6 +169,24 @@ export type Database = {
         }
         Relationships: []
       }
+      block_tombstones: {
+        Row: {
+          blocked_email_hash: string
+          blocker_id: string
+          created_at: string
+        }
+        Insert: {
+          blocked_email_hash: string
+          blocker_id: string
+          created_at?: string
+        }
+        Update: {
+          blocked_email_hash?: string
+          blocker_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       connection_events: {
         Row: {
           actor_id: string | null
@@ -3252,6 +3270,7 @@ export type Database = {
       }
       posting_enabled: { Args: never; Returns: boolean }
       purge_banned_email_hashes: { Args: never; Returns: number }
+      purge_block_tombstones: { Args: never; Returns: number }
       purge_connection_records: { Args: never; Returns: number }
       purge_deleted_account_tombstones: { Args: never; Returns: number }
       purge_expired_posts: { Args: never; Returns: number }
