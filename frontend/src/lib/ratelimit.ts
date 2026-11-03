@@ -163,7 +163,7 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // who posts a lot of images burn through their own avatar quota. 10/day
   // covers re-cropping and changing your mind several times over; the
   // abuse case either bucket guards against is a script, which 10/day
-  // stops just as dead as 40/day does. No new database backstop is
+  // (5/day for CVs, below) stops just as dead as 40/day does. No new database backstop is
   // needed alongside these — issue_upload_ticket's existing cap is 60
   // *outstanding* (unconsumed) tickets, global per member, and a normal
   // member never holds more than one unconsumed avatar ticket and one CV
@@ -172,7 +172,12 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   avatarUpload: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("ava"), analytics: false }),
   cvUpload: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("cv"), analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: p("cv"), analytics: false }),
+  // CVs are 5/day, half the avatar allowance: every upload whose text changed
+  // costs an extraction against the shared ingestion budget (about a cent,
+  // up to ~5c for a maximum-size CV), which an avatar never does. The ticket
+  // is counted when it is requested, so a rejected file uses one too. The
+  // in-process fallback table (LIMIT, below) must carry the same number.
   // The two GitHub buckets exist because both actions behind them spend
   // money and worker time on someone else's behalf, which none of the
   // buckets above do. 20260908000002 stops the *duplicate* job — a second
@@ -246,6 +251,11 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // typo-prone human: 10 tries in 10 minutes.
   otpVerify: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: p("otp"), analytics: false }),
+  //
+  // Keyed on the email AND the caller's IP (verifyOtpGate.ts). Keyed on the email alone,
+  // anyone could lock a known address out of signing in by sending wrong codes for it, from
+  // anywhere, indefinitely. With the IP in the key an attacker only spends their own allowance;
+  // the victim's attempts come from a different IP and are untouched.
   // B23: a member editing a published listing. Every staged edit emails the
   // admins immediately, and before this bucket the only ceiling was the
   // fail-open 60/min backstop, so a loop could spend the shared Resend
@@ -425,7 +435,7 @@ const LIMIT: Record<RateBucket, number> = {
   communityUpload: 40,
   postReport: 5,
   avatarUpload: 10,
-  cvUpload: 10,
+  cvUpload: 5,
   githubConnect: 3,
   githubShowcase: 10,
   connectionRequest: 15,

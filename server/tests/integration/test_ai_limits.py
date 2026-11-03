@@ -59,6 +59,7 @@ LIMITS = {
                                    "covered_by": "test_ai_races.py::test_r11_twenty_concurrent_reservations_never_overspend"},
     "member_daily_cap_micro": {"column": "member_daily_cap_micro", "note": "covered concurrently (R11)",
                                 "covered_by": "test_ai_races.py::test_r11_twenty_concurrent_reservations_never_overspend"},
+    "ingestion_member_daily_cap_micro": {"column": "ingestion_member_daily_cap_micro", "note": "boundary tested here"},
 }
 
 # Settings columns that are timing/deadline knobs, not admission counts —
@@ -306,6 +307,7 @@ _CEILING = {
     "matching_monthly_cap_micro": 150_000_000,
     "controller_daily_cap_micro": 10**12,
     "ingestion_daily_cap_micro": 10**12,
+    "ingestion_member_daily_cap_micro": 1_000_000,  # the CHECK ceiling from 20261026000017
 }
 
 _OTHER_DAILY_CAPS = {
@@ -341,6 +343,45 @@ def test_daily_money_cap_boundary(ai, column, expect, all_purposes, scoped_to_me
     finally:
         ai.execute(f"update ai_private.settings set {column} = %s, " + ", ".join(f"{c} = %s" for c in others) +
                   " where id = 1", (saved[0], *saved[1:]))
+        ai.execute("update ai_private.spend set status = 'released' where stage = 'limtest'")
+
+
+def test_ingestion_member_daily_cap_boundary(ai):
+    """20261026000017: one member's ingestion spend is capped per day, on its own. N-1 refuses,
+    N admits; another member is unaffected; the same member's MATCHING spend is a different
+    budget and is not counted against it."""
+    a = ai.member("limingA")
+    b = ai.member("limingB")
+    one = _money_bound(ai)
+    baseline = _spent_today(ai, "ingestion", member=a)
+    saved = ai.execute("select ingestion_member_daily_cap_micro, ingestion_daily_cap_micro, "
+                       "controller_daily_cap_micro from ai_private.settings where id = 1").fetchone()
+    ingest = "select ai_private.spend_reserve('ingestion', null, %s, null, null, 'limtest', 'fake-mini', 1000, 0)"
+    try:
+        ai.execute("update ai_private.settings set ingestion_daily_cap_micro = %s, controller_daily_cap_micro = %s "
+                   "where id = 1", (_CEILING["ingestion_daily_cap_micro"], _CEILING["controller_daily_cap_micro"]))
+        # A spends one reservation; the cap leaves room for exactly one more.
+        ai.execute("update ai_private.settings set ingestion_member_daily_cap_micro = %s where id = 1", (baseline + 2 * one,))
+        assert ai.execute(ingest, (a,)).fetchone()[0] is not None
+        # N-1: A (already at one) is refused. B has spent nothing, and A's MATCHING spend is a
+        # different budget, so both are admitted under the same cap.
+        ai.execute("update ai_private.settings set ingestion_member_daily_cap_micro = %s where id = 1", (baseline + 2 * one - 1,))
+        with pytest.raises(psycopg.errors.RaiseException, match="budget_exhausted: ingestion_member_daily"):
+            ai.execute(ingest, (a,))
+        assert ai.execute(ingest, (b,)).fetchone()[0] is not None
+        assert ai.execute("select ai_private.spend_reserve('matching', 'network', %s, null, null, 'limtest', "
+                          "'fake-mini', 1000, 0)", (a,)).fetchone()[0] is not None
+        # N: exactly at the cap is admitted, and the reservation just made counts, so the next is over.
+        ai.execute("update ai_private.settings set ingestion_member_daily_cap_micro = %s where id = 1", (baseline + 2 * one,))
+        assert ai.execute(ingest, (a,)).fetchone()[0] is not None
+        with pytest.raises(psycopg.errors.RaiseException, match="budget_exhausted: ingestion_member_daily"):
+            ai.execute(ingest, (a,))
+        # A reservation with no member (refresh_job_ai) has no member to cap.
+        assert ai.execute("select ai_private.spend_reserve('ingestion', null, null, null, null, 'limtest', "
+                          "'fake-mini', 1000, 0)").fetchone()[0] is not None
+    finally:
+        ai.execute("update ai_private.settings set ingestion_member_daily_cap_micro = %s, ingestion_daily_cap_micro = %s, "
+                   "controller_daily_cap_micro = %s where id = 1", saved)
         ai.execute("update ai_private.spend set status = 'released' where stage = 'limtest'")
 
 

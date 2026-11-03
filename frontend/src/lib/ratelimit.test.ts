@@ -297,6 +297,14 @@ describe("in-process limiter fallback", () => {
     for (let i = 0; i < 20; i += 1) {
       expect(checkLocal("otpVerify", "x")).not.toBe("unavailable");
     }
+  it("holds CV uploads to 5 a day, the same number as the Upstash limiter", () => {
+    // The fallback table and the Upstash limiter in ratelimit.ts each carry this
+    // number; an outage must not quietly restore the old, looser ceiling.
+    for (let i = 0; i < 5; i += 1) expect(checkLocal("cvUpload", "u3")).toBe("allowed");
+    expect(checkLocal("cvUpload", "u3")).toBe("limited");
+    expect(checkLocal("avatarUpload", "u3")).toBe("allowed");
+  });
+
   });
 
   // Audit follow-up (run-2): the map used to be wiped entirely once it grew

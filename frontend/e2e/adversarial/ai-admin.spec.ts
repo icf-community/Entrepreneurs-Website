@@ -202,7 +202,7 @@ test("L-2: the money caps have a hard ceiling, a 25% step rule, and can always b
     expect(jump.error!.message).toContain("25%");
     expect(read().matching_daily_cap_micro).toBe(6_250_000);
     // 6. The table CHECKs are the backstop for any other writer.
-    for (const [col, v] of [["matching_monthly_cap_micro", 150_000_001], ["matching_daily_cap_micro", 10_000_001], ["member_daily_cap_micro", 1_000_001]] as const) {
+    for (const [col, v] of [["matching_monthly_cap_micro", 150_000_001], ["matching_daily_cap_micro", 10_000_001], ["member_daily_cap_micro", 1_000_001], ["ingestion_member_daily_cap_micro", 1_000_001]] as const) {
       expect(() => psql(`update ai_private.settings set ${col} = ${v} where id = 1`), `${col} = ${v} was written directly`).toThrow();
     }
     // The monthly cap is still not editable through the RPC and still equals the budget.

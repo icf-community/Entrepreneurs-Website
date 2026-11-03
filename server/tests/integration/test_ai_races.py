@@ -318,9 +318,11 @@ def test_r11_twenty_concurrent_reservations_never_overspend(ai):
     spent = ai.execute("select coalesce(sum(case when status = 'settled' then settled_micro else reserved_micro end), 0) "
                        "from ai_private.spend where purpose = 'ingestion' and status <> 'released' "
                        "and day = (now() at time zone 'utc')::date").fetchone()[0]
-    saved = ai.execute("select ingestion_daily_cap_micro, member_daily_cap_micro from ai_private.settings where id = 1").fetchone()
-    ai.execute("update ai_private.settings set ingestion_daily_cap_micro = %s, member_daily_cap_micro = %s where id = 1",
-               (spent + 10 * one, 1_000_000))  # the member cap's ceiling (20261026000010), out of play here
+    saved = ai.execute("select ingestion_daily_cap_micro, member_daily_cap_micro, ingestion_member_daily_cap_micro "
+                       "from ai_private.settings where id = 1").fetchone()
+    # The member caps' ceilings (20261026000010, 20261026000017), out of play here: this test is about the shared cap.
+    ai.execute("update ai_private.settings set ingestion_daily_cap_micro = %s, member_daily_cap_micro = %s, "
+               "ingestion_member_daily_cap_micro = %s where id = 1", (spent + 10 * one, 1_000_000, 1_000_000))
     ok: list[uuid.UUID] = []
     refused: list[str] = []
     barrier = threading.Barrier(20)
@@ -343,7 +345,8 @@ def test_r11_twenty_concurrent_reservations_never_overspend(ai):
         assert len(ok) == 10, (len(ok), refused[:3])
         assert all(r.startswith("budget_exhausted") for r in refused)
     finally:
-        ai.execute("update ai_private.settings set ingestion_daily_cap_micro = %s, member_daily_cap_micro = %s where id = 1", saved)
+        ai.execute("update ai_private.settings set ingestion_daily_cap_micro = %s, member_daily_cap_micro = %s, "
+                   "ingestion_member_daily_cap_micro = %s where id = 1", saved)
         ai.execute("update ai_private.spend set status = 'released' where member_id = %s and stage = 'race'", (member,))
 
 

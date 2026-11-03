@@ -541,6 +541,33 @@ begin
   end if;
 end $$;
 
+-- Per-member ingestion cap (20261026000017): a validated ceiling on the column, the $0.25
+-- default, and the function still carrying the exact signature (no dead overload).
+do $$
+begin
+  if not exists (select 1 from pg_constraint k
+                  where k.conrelid = 'ai_private.settings'::regclass
+                    and k.conname = 'settings_ingestion_member_cap_max' and k.convalidated) then
+    raise exception 'FAIL: the ingestion per-member cap ceiling is missing or not validated';
+  end if;
+  begin
+    update ai_private.settings set ingestion_member_daily_cap_micro = 1000001 where id = 1;
+    raise exception 'FAIL: an ingestion per-member cap above $1 was written';
+  exception when check_violation then null;
+  end;
+  if (select pg_get_expr(d.adbin, d.adrelid) from pg_attrdef d
+       where d.adrelid = 'ai_private.settings'::regclass
+         and d.adnum = (select attnum from pg_attribute
+                         where attrelid = 'ai_private.settings'::regclass and attname = 'ingestion_member_daily_cap_micro'))
+     is distinct from '250000' then
+    raise exception 'FAIL: the ingestion per-member cap default is not 250000';
+  end if;
+  if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'ai_private' and p.proname = 'spend_reserve') <> 1 then
+    raise exception 'FAIL: ai_private.spend_reserve has more than one overload';
+  end if;
+end $$;
+
 -- Retention (20261026000014): the ledger rolls old rows into exact daily totals, finished
 -- jobs are purged, and neither function is reachable from an API role.
 do $$
