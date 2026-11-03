@@ -35,6 +35,10 @@ let stop: (() => void) | null = null;
 const turns = () => Number(psql(`select count(*) from ai_private.turns where owner_id = '${m.id}'`));
 const resetMinute = () => psql(`delete from ai_private.usage_events where owner_id = '${m.id}'`);
 
+// The turn row is the stable signal that a send happened. The screen's "Waiting to start…" and
+// "Working…" last only until the fake provider finishes, so a test that waits for that text races it.
+const turnRecorded = (before: number) => waitFor(() => turns() > before, "the turn to be recorded", 15_000);
+
 test.beforeAll(async () => {
   test.setTimeout(120_000);
   assertLocal();
@@ -116,8 +120,8 @@ test("pressing Enter twice quickly makes exactly one turn", async ({ page }) => 
   await box.fill("python and pytorch");
   await box.press("Enter");
   await box.press("Enter").catch(() => {}); // the field may already be disabled/cleared
-  await expect(page.getByText(/Waiting to start|Working…|Search criteria/).first()).toBeVisible({ timeout: 15_000 });
-  await page.waitForTimeout(800);
+  await turnRecorded(before);
+  await page.waitForTimeout(800); // room for a second, wrongly created turn to show up
   expect(turns() - before, "double Enter created more than one turn").toBe(1);
 });
 
@@ -137,7 +141,6 @@ test("a temporary search is recorded as temporary", async ({ page }) => {
   await toggle.check();
   await box.fill("pytorch experience");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText(/Waiting to start|Working…|Search criteria/).first()).toBeVisible({ timeout: 15_000 });
   await waitFor(() => Number(psql(`select count(*) from ai_private.conversations where owner_id = '${m.id}' and temporary`)) >= 1, "a temporary conversation", 15_000);
 });
 
@@ -152,12 +155,13 @@ for (const [label, text] of [
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("dialog", async (d) => { errors.push(`dialog: ${d.message()}`); await d.dismiss(); });
     const box = await open(page);
+    const before = turns();
     await box.fill(text);
     await page.getByRole("button", { name: "Search", exact: true }).click();
-    // Either the turn runs or the screen refuses it plainly; the page stays up.
-    await expect(
-      page.getByText(/Waiting to start|Working…|Search criteria|couldn't turn that|can't search|Try naming/).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    // Either a turn is recorded or the screen refuses it plainly; the page stays up.
+    await expect
+      .poll(async () => turns() > before || (await page.getByText(/couldn't turn that|can't search|Try naming/).count()) > 0, { timeout: 20_000 })
+      .toBe(true);
     await expect(page.getByRole("heading", { name: "Search the network" })).toBeVisible();
     expect(errors, errors.join("\n")).toEqual([]);
     expect(await page.locator("img[src='x']").count(), "markup in the draft rendered as an element").toBe(0);
@@ -188,6 +192,6 @@ test("keyboard only: Tab reaches the composer and Enter sends", async ({ page })
   expect(reached, "the composer is not reachable by Tab").toBe(true);
   await page.keyboard.type("pytorch");
   await page.keyboard.press("Enter");
-  await expect(page.getByText(/Waiting to start|Working…|Search criteria/).first()).toBeVisible({ timeout: 15_000 });
+  await turnRecorded(before);
   expect(turns() - before).toBe(1);
 });
