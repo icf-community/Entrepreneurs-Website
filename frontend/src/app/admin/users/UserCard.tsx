@@ -24,6 +24,7 @@ type Member = {
   createdAt: string;
   skills: string[];
   sectors: string[];
+  previouslyBanned: boolean;
 };
 
 export default function UserCard({ member }: { member: Member }) {
@@ -60,8 +61,18 @@ export default function UserCard({ member }: { member: Member }) {
   return (
     <article className="rounded-2xl bg-bg-card border border-border p-6">
       <header className="mb-4">
-        <div className="text-[1.05rem] font-medium text-text-primary">
-          {member.firstName} {member.surname}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="text-[1.05rem] font-medium text-text-primary">
+            {member.firstName} {member.surname}
+          </div>
+          {member.previouslyBanned && (
+            <span
+              className="px-2 py-0.5 rounded-lg text-[0.7rem] font-medium bg-red-500/10 text-red-400 border border-red-500/30"
+              title="A past account using this email address was rejected and the account later deleted."
+            >
+              Previously banned
+            </span>
+          )}
         </div>
         <div className="text-[0.75rem] text-text-muted mt-1">
           {member.role === "alum" ? `Alum · grad ${member.gradYear ?? "—"}` : `Student · class of ${member.gradYear ?? "—"}`}

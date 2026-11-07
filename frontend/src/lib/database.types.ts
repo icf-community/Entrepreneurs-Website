@@ -2036,6 +2036,7 @@ export type Database = {
           id: string
           linkedin_url: string
           portfolio_url: string
+          previously_banned: boolean
           role: Database["public"]["Enums"]["user_role"]
           sector_names: string[]
           skill_names: string[]

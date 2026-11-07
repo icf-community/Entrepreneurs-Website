@@ -106,7 +106,13 @@ begin
     -- pair row; label other-party blocks 'closed' like declines.
     'connections', coalesce((
       select jsonb_agg(jsonb_build_object(
-               'member', public.notification_name(case when c.requester_id = v_me then c.addressee_id else c.requester_id end),
+               -- An other-party block is labelled 'closed' like a decline, but unlike a
+               -- decline the other member's name must not come along with it either —
+               -- naming them here would undo the whole point of hiding the block from
+               -- the person it is against.
+               'member', case when c.status = 'blocked' and c.blocked_by <> v_me then null
+                         else public.notification_name(case when c.requester_id = v_me then c.addressee_id else c.requester_id end)
+                         end,
                'status', case
                            when c.status = 'accepted' then 'connected'
                            when c.status = 'pending' and c.requester_id = v_me then 'request sent'
@@ -169,6 +175,7 @@ begin
   return new;
 end;
 $$;
+revoke all on function public.tg_listings_protect_created_at() from public, anon, authenticated;
 
 drop trigger if exists trg_opportunities_protect_created_at on public.opportunities;
 create trigger trg_opportunities_protect_created_at

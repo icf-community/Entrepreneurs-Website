@@ -354,6 +354,7 @@ type PendingProfileRow = {
   created_at: string;
   skill_names: string[] | null;
   sector_names: string[] | null;
+  previously_banned: boolean;
   total_count: number;
 };
 
@@ -377,6 +378,7 @@ export function toPendingMember(r: PendingProfileRow) {
     createdAt: r.created_at,
     skills:  r.skill_names  ?? [],
     sectors: r.sector_names ?? [],
+    previouslyBanned: r.previously_banned,
   };
 }
 

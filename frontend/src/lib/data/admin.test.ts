@@ -16,6 +16,7 @@ const pendingRow = {
   created_at: "2026-01-01T00:00:00Z",
   skill_names: ["Rust"],
   sector_names: null,
+  previously_banned: false,
   total_count: 3,
 };
 
@@ -40,6 +41,11 @@ describe("toPendingMember", () => {
 
   it("does not put total_count on the member", () => {
     expect(toPendingMember(pendingRow)).not.toHaveProperty("total_count");
+  });
+
+  it("carries the previously_banned flag through as previouslyBanned", () => {
+    expect(toPendingMember({ ...pendingRow, previously_banned: true }).previouslyBanned).toBe(true);
+    expect(toPendingMember(pendingRow).previouslyBanned).toBe(false);
   });
 });
 

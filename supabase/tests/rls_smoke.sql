@@ -1357,6 +1357,29 @@ begin
     raise exception 'FAIL: pending queue is not oldest-first (first row was %)', v_first;
   end if;
 
+  -- (g2) A1's badge: a signup whose email hash is in banned_email_hashes is flagged,
+  --      everyone else in the same queue is not. The table is revoked from
+  --      authenticated (members never see it), so the setup insert/delete has
+  --      to run as the login superuser, not as the faked admin caller.
+  set local role none;
+  insert into public.banned_email_hashes (email_hash)
+  values (public.email_ban_hash('page3@imperial.ac.uk'));
+  perform _set_caller(v_adm);
+
+  if (select previously_banned from public.admin_list_pending_profiles(p_limit => 10)
+       where email = 'page3@imperial.ac.uk') is not true then
+    raise exception 'FAIL: previously_banned was not set for a banned-hash match';
+  end if;
+  select count(*) into v_rows from public.admin_list_pending_profiles(p_limit => 10)
+   where previously_banned;
+  if v_rows <> 1 then
+    raise exception 'FAIL: previously_banned flagged % rows, expected exactly 1', v_rows;
+  end if;
+
+  set local role none;
+  delete from public.banned_email_hashes where email_hash = public.email_ban_hash('page3@imperial.ac.uk');
+  perform _set_caller(v_adm);
+
   -- (h) facets span every status, not just approved members — filtering
   --     this page by "rejected" is the point of it
   if not exists (
