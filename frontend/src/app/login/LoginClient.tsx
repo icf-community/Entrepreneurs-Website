@@ -657,7 +657,7 @@ function BackLink({ onClick }: { onClick: () => void }) {
 // user types the 6-digit code; onVerify runs the flow-specific verifyOtp.
 function CodeEntryPanel({
   mode, email, code, setCode, verifying, verifyError,
-  resendCooldown, isLoading, onVerify, onResend, onBack,
+  resendCooldown, isLoading, onVerify, onResend, onBack, showGoogleHint,
 }: {
   mode: Mode;
   email: string;
@@ -667,6 +667,10 @@ function CodeEntryPanel({
   onVerify: (e: React.FormEvent) => void;
   onResend: () => void;
   onBack: () => void;
+  /** Alum signup only: GoTrue's anti-enumeration design shows this same panel,
+   *  with no code ever sent, for an address that already has a Google-only
+   *  account — nothing else on this screen says so. */
+  showGoogleHint?: boolean;
 }) {
   const canResend = resendCooldown <= 0 && !isLoading && !verifying;
   return (
@@ -717,6 +721,11 @@ function CodeEntryPanel({
         <p className="text-[0.7rem] text-text-muted leading-relaxed">
           The code expires in 30 minutes. Check your spam folder if it doesn&apos;t arrive within a minute.
         </p>
+        {showGoogleHint && (
+          <p className="text-[0.72rem] text-text-muted leading-relaxed">
+            No code arriving? Signed up with Google before? Use <span className="text-text-secondary">Continue with Google</span> instead.
+          </p>
+        )}
         <div className="pt-1">
           <button
             type="button"
@@ -881,6 +890,7 @@ function AlumForm({
         verifying={verifying} verifyError={verifyError}
         resendCooldown={resendCooldown} isLoading={isLoading}
         onVerify={onVerify} onResend={onResend} onBack={onBack}
+        showGoogleHint={mode === "signup"}
       />
     );
   }
