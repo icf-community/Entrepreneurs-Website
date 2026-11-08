@@ -13,11 +13,25 @@ grammar and before the interpreter is paid for:
 Deliberately narrow: "health tech founders" or "mentors" must still pass.
 The interpreter's own refusal is the second line, not the only one, and
 the database's is_sensitive() screens every free-text criterion again.
+
+A sector is not a trait of a person. "Founders building products for
+women's health" names a product domain, so the few sector phrases below
+are removed from the message before the protected-term test. Only the
+phrase goes: "women's health women founders" still leaves "women" behind
+and is refused. The same list lives in ai_private.is_sensitive (migration
+20261108000001); change them together.
 """
 
 from __future__ import annotations
 
 import re
+
+# Sector phrases that contain a screened word. Bare "health", "mental
+# health" and "women" stay screened: those can describe a person.
+DOMAIN_TERMS = re.compile(
+    r"\b(?:(?:wo)?men['’]?s\s+health(?:care|\s?tech)?|digital\s+health|health\s?tech|femtech)\b",
+    re.I,
+)
 
 _SENSITIVE = re.compile(
     r"\b(citizens?|citizenship|nationality|nationals?|british|english|indian|chinese|african|european|american|"
@@ -39,6 +53,6 @@ _INJECTION = re.compile(
 def screen(message: str) -> str | None:
     if _INJECTION.search(message):
         return "injection"
-    if _SENSITIVE.search(message):
+    if _SENSITIVE.search(DOMAIN_TERMS.sub(" ", message)):
         return "sensitive"
     return None

@@ -69,7 +69,11 @@ begin
   -- Must reject: protected-characteristic terms as whole words.
   foreach v in array array[
     'muslim', 'Muslim founders', 'women only', 'under 30 and young', 'must be male', 'christian', 'gay',
-    'visa required', 'disabled', 'pregnant', 'autistic', 'dyslexia', 'has children', 'single', 'asian', 'aged 25'
+    'visa required', 'disabled', 'pregnant', 'autistic', 'dyslexia', 'has children', 'single', 'asian', 'aged 25',
+    -- A sector phrase is allowed (below); anything of a person left beside it, or a bare
+    -- health term, is not.
+    'women', 'women who code', 'women''s health women', 'women health professionals',
+    'health', 'mental health', 'people with a health condition', 'womens health and disabled'
   ] loop
     if not ai_private.is_sensitive(v) then
       raise exception 'FAIL(sensitive): "%" was not screened', v;
@@ -79,7 +83,10 @@ begin
   foreach v in array array[
     'python', 'machine learning', 'data analysis', 'mentor', 'robotics', 'management', 'manchester',
     'cleaner', 'blacksmith', 'whitepaper', 'transport', 'translation', 'syntax', 'racecar',
-    'kidney research', 'maternal', 'agent based modelling', 'imagery'
+    'kidney research', 'maternal', 'agent based modelling', 'imagery',
+    -- Sector phrases: a product domain, not a trait of a person.
+    'women''s health', 'Women’s Health', 'womens health', 'men''s health', 'women''s healthcare',
+    'digital health', 'health tech', 'healthtech', 'femtech', 'women''s health, femtech'
   ] loop
     if ai_private.is_sensitive(v) then
       raise exception 'FAIL(sensitive): "%" was screened but is an ordinary term', v;
@@ -92,7 +99,8 @@ begin
   --   * English only, ASCII boundaries: 'musulmán', 'мусульманин' are not matched.
   --   * Evadable by punctuation inside the word ('m.u.s.l.i.m', zero-width characters).
   --   * Over-blocks whole-word tech terms in free text that is NOT a taxonomy concept:
-  --     'react native', 'race condition', 'health tech', 'single page app', 'black box testing'.
+  --     'react native', 'race condition', 'single page app', 'black box testing'.
+  --     (Sector phrases such as 'health tech' and 'women''s health' are exempt: 20261108000001.)
   -- This function is the SECOND line: server/app/ai/policy.py screens the message first
   -- and the interpreter's refusal is third. The live multilingual pass (Part 3) measures
   -- the gap; see tasks/e2e-adversarial-sweep.md (L-2).

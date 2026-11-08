@@ -20,6 +20,7 @@ import uuid
 from dataclasses import dataclass
 
 from .. import fake_provider
+from .policy import DOMAIN_TERMS
 from ..schema_validate import SchemaError, validate
 
 
@@ -184,7 +185,7 @@ def _fake_interpret(payload: dict) -> dict:
     message: str = payload.get("message") or ""
     if _INJECTION.search(message):
         return {"decision": "injection", "ops": []}
-    if _SENSITIVE.search(message):
+    if _SENSITIVE.search(DOMAIN_TERMS.sub(" ", message)):
         return {"decision": "sensitive", "ops": []}
     ops = []
     lower = message.lower()
