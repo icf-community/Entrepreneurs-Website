@@ -26,6 +26,13 @@ COPY pyproject.toml ./
 COPY app ./app
 RUN pip install --no-cache-dir --no-deps .
 
+# Nothing in this image runs pip after the build, so take it out. The base
+# image's pip (25.0.1, and every later one, which vendors setuptools 70.3.0)
+# is what trivy flags in the Python layer: 5 MEDIUM + 1 LOW fixed upstream,
+# plus a HIGH in the vendored setuptools. Removing it clears them and leaves
+# one less tool in a container that holds service credentials.
+RUN pip uninstall -y pip
+
 # No shell, no home directory — matches the `foundry` system user this
 # replaced on the VM.
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin gateway

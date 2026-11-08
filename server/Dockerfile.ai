@@ -17,6 +17,13 @@ RUN pip install --no-cache-dir -r requirements-ai.txt
 
 COPY app ./app
 
+# Nothing in this image runs pip after the build, so take it out. The base
+# image's pip (25.0.1, and every later one, which vendors setuptools 70.3.0)
+# is what trivy flags in the Python layer: 5 MEDIUM + 1 LOW fixed upstream,
+# plus a HIGH in the vendored setuptools. Removing it clears them and leaves
+# one less tool in a container that holds service credentials.
+RUN pip uninstall -y pip
+
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin executor
 USER executor
 
