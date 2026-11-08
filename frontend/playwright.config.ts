@@ -179,6 +179,12 @@ export default defineConfig({
     // and nothing sits in between to change how it is launched.
     command: `node scripts/assert-local-env.mjs --mode production && exec ./node_modules/.bin/next start -p ${PORT}`,
     url: BASE_URL,
+    // `next start` is NODE_ENV=production, and since edf02c6 a production
+    // process with no VERCEL_ENV counts as the real deployment
+    // (productionEnv.ts): Turnstile refuses every form that has no secret
+    // configured, which is every form here. A Vercel preview is the same
+    // shape (production build, no abuse-control secrets), so say so.
+    env: { VERCEL_ENV: "preview" },
     // Never reuse. `reuseExistingServer: !CI` looks like a local convenience
     // and is a trap: a server already on this port was built against whatever
     // env it was built with, and Playwright cannot tell. That happened —
