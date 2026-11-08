@@ -18,7 +18,7 @@ from app import privacy
 from app.ai.schemas import ASSESS_PROMPT_VERSION, INTERPRET_PROMPT_VERSION, RUBRIC_VERSION, prompt_hash
 
 from .dictionary import load as load_dictionary
-from .harness import SUITES, Result, run_suite, wilson
+from .harness import LIVE_ELIGIBLE, SUITES, Result, run_suite, wilson
 
 MANDATORY = set(SUITES)
 
@@ -35,8 +35,7 @@ def run(suites: list[str], *, provider: str = "fake", model=None, live_cost=None
     started = time.time()
     results: list[Result] = []
     for suite in suites:
-        results.extend(run_suite(suite, model if suite in ("interpret", "adversarial", "benign") else None,
-                                  split=split))
+        results.extend(run_suite(suite, model if suite in LIVE_ELIGIBLE else None, split=split))
 
     by_objective: dict[str, list[Result]] = defaultdict(list)
     by_slice: dict[str, list[Result]] = defaultdict(list)

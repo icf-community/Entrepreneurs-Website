@@ -23,7 +23,7 @@ from app import privacy
 from app.ai.grammar import parse as grammar_parse
 from app.ai.policy import screen
 from app.ai.pipeline import Turn, ground_ops
-from app.ai.provider import _fake_interpret
+from app.ai.provider import _fake_assess, _fake_interpret
 from app.ai.schemas import ASSESS_SCHEMA
 from app.ai.score import Atom, concept_state, criteria_from_atoms, order_key, score_candidate
 from app.concepts import Dictionary
@@ -32,8 +32,12 @@ from app.schema_validate import SchemaError, validate as schema_validate
 from .dictionary import load as load_dictionary
 
 DATASETS = Path(__file__).resolve().parent / "datasets"
-SUITES = ("interpret", "adversarial", "adversarial_assess", "benign", "benign_domain", "transformations",
-         "scoring", "privacy", "concepts", "ranking")
+SUITES = ("interpret", "adversarial", "adversarial_assess", "assess_quality", "benign", "benign_domain",
+         "transformations", "scoring", "privacy", "concepts", "ranking")
+
+# Suites a live model can actually be wired into (vs. the fake). Shared by
+# harness.run_suite and runner.run so the two call sites can't drift apart.
+LIVE_ELIGIBLE = {"interpret", "adversarial", "benign", "assess_quality"}
 
 
 @dataclass
@@ -168,6 +172,98 @@ def score_assess(case: dict) -> list[str]:
         if got["evidence"] != want["evidence_ids"]:
             problems.append(f"{atom_id}: evidence {got['evidence']}, expected {want['evidence_ids']} "
                             f"(an id outside this candidate's own ref_map must never survive)")
+    return problems
+
+
+# ─── Assessor-stage model quality (O01, O07) ────────────────────────
+def _assess_payload(case: dict) -> tuple[dict, dict[str, dict]]:
+    """The exact `_assess_batch` payload shape (pipeline.py), built from
+    an assess_quality case. Returns (payload, ref_maps) where ref_maps
+    maps each member name to its own {model_ref: real_evidence_id} —
+    the same mapping `Turn._bind` needs to ground the model's answer."""
+    candidates = []
+    ref_maps: dict[str, dict] = {}
+    for name, member in case["members"].items():
+        ref_map = {f"e{i + 1}": ev["id"] for i, ev in enumerate(member["evidence"])}
+        ref_maps[name] = ref_map
+        candidates.append({"ref": name, "evidence": [
+            {"ref": f"e{i + 1}", "kind": ev.get("kind"), "text": ev["text"]}
+            for i, ev in enumerate(member["evidence"])
+        ]})
+    payload = {
+        "mode": case["mode"], "role_level": case.get("role_level"),
+        "criteria": [{"ref": c["ref"], "kind": c["kind"], "label": c.get("label"), "required": bool(c.get("required"))}
+                    for c in case["criteria"]],
+        "candidates": candidates,
+    }
+    return payload, ref_maps
+
+
+def assess(case: dict, model: Callable[[dict], dict] | None = None) -> dict[str, dict]:
+    """Drives the real stage-3 payload shape and `Turn._bind` grounding —
+    offline against the fake assessor, or live against a real model.
+    Returns {member_name: {"verdict": bound_atoms, "raw": the model's own
+    per-candidate answer (for task/depth/highlight)}}."""
+    payload, ref_maps = _assess_payload(case)
+    raw = (model or (lambda p: _fake_assess(p, jobs=False)))(payload)
+    by_ref = {c["ref"]: c for c in raw.get("candidates") or []}
+    free_ids = {c["ref"] for c in case["criteria"] if c.get("kind") == "free"}
+    out: dict[str, dict] = {}
+    for name in case["members"]:
+        cand = by_ref.get(name) or {"atoms": [], "task": None, "depth": None, "highlight": []}
+        out[name] = {"verdict": Turn._bind(cand, ref_maps[name], free_ids), "raw": cand}
+    return out
+
+
+def _assess_quality_value(bound: dict, name: str, key: str):
+    if key in ("task", "depth"):
+        return bound[name]["raw"].get(key)
+    got = (bound[name]["verdict"].get("atoms") or {}).get(key)
+    return got["state"] if got else None
+
+
+def score_assess_quality(case: dict, bound: dict[str, dict], d: Dictionary) -> list[str]:
+    """Per member: a free-text criterion's grounded state/evidence comes
+    from the model via `Turn._bind` (above); a concept criterion's state
+    is computed deterministically via `concept_state` — production
+    throws the model's own claims about concept criteria away entirely
+    (`Turn._bind`'s docstring), so this scorer must not read them either.
+    `equal_across` then asserts two members landed on the same value for
+    a shared atom/task/depth (the fairness family)."""
+    problems: list[str] = []
+    criteria_by_ref = {c["ref"]: c for c in case["criteria"]}
+    for name, member in case["members"].items():
+        verdict, raw = bound[name]["verdict"], bound[name]["raw"]
+        atoms = verdict.get("atoms") or {}
+        for atom_id, want in (member.get("expected") or {}).items():
+            crit = criteria_by_ref[atom_id]
+            if crit.get("kind") == "free":
+                got = atoms.get(atom_id)
+                if got is None:
+                    problems.append(f"{name}.{atom_id}: dropped/unknown entirely, expected {want}")
+                    continue
+                if got["state"] != want["state"]:
+                    problems.append(f"{name}.{atom_id}: state {got['state']!r}, expected {want['state']!r}")
+                if "evidence_ids" in want and got["evidence"] != want["evidence_ids"]:
+                    problems.append(f"{name}.{atom_id}: evidence {got['evidence']}, expected {want['evidence_ids']}")
+            else:
+                atom = Atom(id=atom_id, kind=crit["kind"], concept=crit.get("concept"), free_text=None,
+                            required=bool(crit.get("required")))
+                state = concept_state(atom, member["evidence"], d, substantial=len(member["evidence"]) >= 3)
+                if state.state != want["state"]:
+                    problems.append(f"{name}.{atom_id}: concept state {state.state!r}, expected {want['state']!r}")
+        if member.get("expected_task") and raw.get("task") != member["expected_task"]:
+            problems.append(f"{name}: task {raw.get('task')!r}, expected {member['expected_task']!r}")
+        if member.get("expected_depth") and raw.get("depth") != member["expected_depth"]:
+            problems.append(f"{name}: depth {raw.get('depth')!r}, expected {member['expected_depth']!r}")
+        valid_refs = {f"e{i + 1}" for i in range(len(member["evidence"]))}
+        bad_hl = [h for h in (raw.get("highlight") or []) if h not in valid_refs]
+        if bad_hl:
+            problems.append(f"{name}: highlight cites a ref never offered to this candidate: {bad_hl}")
+    for a, b, key in case.get("equal_across") or []:
+        val_a, val_b = _assess_quality_value(bound, a, key), _assess_quality_value(bound, b, key)
+        if val_a != val_b:
+            problems.append(f"equal_across {a}/{b}/{key}: {val_a!r} != {val_b!r}")
     return problems
 
 
@@ -380,11 +476,14 @@ def run_suite(suite: str, model: Callable[[dict], dict] | None = None, *, split:
         try:
             metrics: dict = {}
             if suite in ("interpret", "adversarial", "benign", "benign_domain"):
-                decision, ops = interpret(case, d, model if suite in ("interpret", "adversarial", "benign") else None)
+                decision, ops = interpret(case, d, model if suite in LIVE_ELIGIBLE else None)
                 problems = score_interpret(case, decision, ops)
                 metrics = {"decision": decision, "ops": len(ops)}
             elif suite == "adversarial_assess":
                 problems = score_assess(case)
+            elif suite == "assess_quality":
+                bound = assess(case, model if suite in LIVE_ELIGIBLE else None)
+                problems = score_assess_quality(case, bound, d)
             elif suite == "transformations":
                 problems = score_transform(case, d)
             elif suite == "scoring":

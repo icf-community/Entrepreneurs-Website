@@ -29,6 +29,7 @@ way the `requires_live_model` cases are ever truly checked.
 | --- | --- | --- | --- |
 | `adversarial.jsonl` + `.heldout.jsonl` | 160 / 50 total → 110 / 50 | 29 (interpret) | `adversarial` |
 | `adversarial_assess.jsonl` | 5 (not split — code mechanism, no NL prompt) | 1 | `adversarial_assess` |
+| `assess_quality.jsonl` | 33 (not split — see below) | 10 | `assess_quality` |
 | `benign.jsonl` + `.heldout.jsonl` | 214 total → 157 / 57 | 12 | `benign` |
 | `benign_domain.jsonl` + `.heldout.jsonl` | 25 total → 17 / 8 | 1 (owner decision #21) | `benign_domain` |
 | `transformations.jsonl` | 14 (not split) | 8 | `transformations` |
@@ -94,6 +95,26 @@ picked to make a wanted interval appear in hindsight.
   directly — the exact functions production code uses to ground a model's
   assessment verdict in a candidate's own evidence, never a
   reimplementation.
+- **assess_quality** (`harness.assess` + `score_assess_quality`): unlike
+  `adversarial_assess` (which hand-writes a *model's output* to test the
+  grounding code alone), this suite builds the real `_assess_batch` payload
+  shape and calls a model (the fake offline, a real `--live` model
+  otherwise), then grounds the answer through the same `Turn._bind`. It is
+  the only suite that can ever test the recruiter assessor's (`gpt-6.1-sol`)
+  actual judgement quality, not just the Python defenses around it. Concept
+  (non-`free`) criteria are checked via `concept_state` directly, never via
+  the model's own claims about them — matching `Turn._bind`'s own handling.
+  Families: `assess-match`/`assess-calibration`/`assess-fairness` (dual-
+  tested: literal wording the fake also gets right); `assess-ambiguous`/
+  `assess-injection` (a genuine criterion paired with an ambiguous/attacked
+  one in the same candidate, so a model that always answers the same thing
+  fails half of every case); `assess-absent`/`assess-paraphrase` (`critical:
+  false`, `requires_live_model: true` — the fake's keyword-overlap heuristic
+  can never emit `not_evidenced` and can never match paraphrased wording, so
+  only the live run actually checks these); `assess-mixed-criteria` (a
+  concept criterion alongside a free one); `assess-batch-realism` (several
+  genuine candidates in one call, distinct from `adversarial_assess`'s
+  deliberate cross-candidate attack); `assess-no-evidence` (edge case).
 - **transformations** (`harness.score_transform`): one stated invariance
   (equal score, score-not-greater, state-not-met, same/disjoint extracted
   concepts) between a "base" and a "variant" side, using the real scoring
@@ -135,11 +156,25 @@ non-critical, not hidden) · `emoji` · `refinement` · `preferences`
 dictionary holds none of those as concepts, so only crash-safety is
 asserted) · `domain-not-people` (separate file, owner decision #21).
 
+## Pre-registered sample size: assess_quality
+
+26 of `assess_quality`'s 33 cases are `critical: true`; an offline all-pass
+run's Wilson 95% lower bound at n=26 is ~87% — a smoke-test confidence, not
+a release-grade bound, because the fake can only validate the families it's
+structurally capable of (literal wording, deterministic task/depth
+heuristics). The 7 `requires_live_model: true` cases (the `assess-absent`
+and `assess-paraphrase` families) carry no offline confidence at all until
+`--live` actually runs them — see the "Human review" section below and the
+owner handoff command in `tasks/prod-prepush-runbook.md`'s §3. `--repeats`
+is recommended for that live run: `gpt-6.1-sol` is not deterministic, so a
+single pass/fail per case would hide flakiness that a real release decision
+needs to see.
+
 ## Human review
 
 `python -m evals review-sheet` → `datasets/review_sheet.csv`: every
-critical adversarial/adversarial_assess/transformations case, plus a
-deterministic 40-case sample of benign. `python -m evals review-merge
+critical adversarial/adversarial_assess/assess_quality/transformations
+case, plus a deterministic 40-case sample of benign. `python -m evals review-merge
 --reviewer A a.csv --reviewer B b.csv` → `datasets/reviews/<suite>.json`;
 confirmed only on unanimous "confirm". `run --release` fails if any
 critical case in the suites being run is unconfirmed — once review has

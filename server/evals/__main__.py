@@ -10,6 +10,12 @@ from pathlib import Path
 from .harness import SUITES
 from . import runner
 
+# Suites that need a real gpt-6.1-sol-style assessor call rather than the
+# interpreter-stage model: a different model id and a different price pair,
+# so --live always drives exactly one model kind per invocation.
+_ASSESS_LIVE_SUITES = {"assess_quality"}
+_INTERPRET_LIVE_SUITES = {"interpret", "adversarial", "benign"}
+
 
 def _live_model(args):
     """Explicit, capped, live interpretation (§2: live mode needs provider
@@ -42,6 +48,43 @@ def _live_model(args):
         result = loop.run_until_complete(provider.json(uuid.uuid4(), model=args.model, name="interpretation",
                                                        system=prompt("interpret"), user=json.dumps(payload),
                                                        schema=INTERPRET_SCHEMA, max_output_tokens=1500, timeout=30))
+        state["spent"] += (result.input_tokens * args.input_price + result.output_tokens * args.output_price) / 1e6
+        return result.value
+
+    return model, state
+
+
+def _live_assess_model(args):
+    """Live recruiter-assessor calls (gpt-6.1-sol), parallel to _live_model
+    but hitting the assess stage's own schema/prompt/output cap
+    (app/ai/pipeline.py's ASSESS_MAX_OUTPUT) instead of the interpreter's."""
+    import asyncio
+    import os
+    import uuid
+
+    from app.ai.pipeline import ASSESS_MAX_OUTPUT
+    from app.ai.provider import OpenAIProvider, ProviderError
+    from app.ai.schemas import ASSESS_SCHEMA, prompt
+
+    key = os.environ.get("AI_OPENAI_API_KEY")
+    if not key:
+        sys.exit("live mode needs AI_OPENAI_API_KEY in the environment (it never reads env files)")
+    if args.input_price is None or args.output_price is None:
+        sys.exit("live mode needs --input-price and --output-price (USD per million tokens) for the spend ceiling")
+    provider = OpenAIProvider(key)
+    state = {"spent": 0.0, "calls": 0}
+    loop = asyncio.new_event_loop()
+
+    def model(payload: dict) -> dict:
+        if state["calls"] >= args.max_cases:
+            raise RuntimeError("case cap reached")
+        if state["spent"] >= args.max_spend_usd:
+            raise RuntimeError("spend ceiling reached")
+        state["calls"] += 1
+        result = loop.run_until_complete(provider.json(uuid.uuid4(), model=args.model, name="assessment",
+                                                       system=prompt("assess"), user=json.dumps(payload),
+                                                       schema=ASSESS_SCHEMA, max_output_tokens=ASSESS_MAX_OUTPUT,
+                                                       timeout=30))
         state["spent"] += (result.input_tokens * args.input_price + result.output_tokens * args.output_price) / 1e6
         return result.value
 
@@ -154,7 +197,12 @@ def main() -> None:
     elif args.live:
         if not (args.model and args.max_cases and args.max_spend_usd):
             sys.exit("live mode needs --model, --max-cases and --max-spend-usd")
-        model, state = _live_model(args)
+        requested = set(suites)
+        if requested & _ASSESS_LIVE_SUITES and requested & _INTERPRET_LIVE_SUITES:
+            sys.exit("--live drives one model kind per invocation: run assess_quality separately from "
+                     "interpret/adversarial/benign — they need a different --model and different "
+                     "--input-price/--output-price")
+        model, state = _live_assess_model(args) if requested & _ASSESS_LIVE_SUITES else _live_model(args)
         if args.cache:
             from .fixtures import CachedModel
             model = CachedModel(args.cache, live_model=model, strict=False)

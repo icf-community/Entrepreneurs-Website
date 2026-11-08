@@ -54,10 +54,14 @@ def _content(case: dict) -> str:
         return f"schema_attack={case['schema_attack']}"
     if "candidates" in case:
         return f"{case.get('mode')}: {case['kind']} over atoms={case.get('atoms')}"
+    if "criteria" in case:
+        return f"{case.get('mode')}: criteria={case['criteria']} members={list(case.get('members') or {})}"
     return json.dumps({k: v for k, v in case.items() if k not in FIELDS})[:200]
 
 
 def _expected_summary(case: dict) -> str:
+    if "members" in case:
+        return json.dumps({name: m.get("expected") for name, m in case["members"].items()}, ensure_ascii=False)
     for key in ("expected", "relation"):
         if key in case:
             return json.dumps(case[key], ensure_ascii=False) if key == "expected" else case[key]
@@ -75,7 +79,7 @@ def _benign_sample() -> list[dict]:
 
 def select_for_review() -> list[dict]:
     out: list[dict] = []
-    for suite in ("adversarial", "adversarial_assess", "transformations"):
+    for suite in ("adversarial", "adversarial_assess", "assess_quality", "transformations"):
         out += [{**c, "suite": suite} for c in _load(DATASETS / f"{suite}.jsonl") if c.get("critical")]
     out += [{**c, "suite": "benign"} for c in _benign_sample()]
     return out
