@@ -22,14 +22,19 @@ import type { AuthError, SupabaseClient } from "@supabase/supabase-js";
 // gate still reads profiles.status from the database, and RLS enforces it.
 // ════════════════════════════════════════════════════════════════════
 
-export type AuthUser = { id: string; email: string | undefined };
+// `providers` is the JWT's app_metadata.providers, fixed when the access token
+// was issued; only /settings reads it (is there a password to change?).
+export type AuthUser = { id: string; email: string | undefined; providers?: string[] };
 
 export async function currentUser(
   supabase: SupabaseClient,
 ): Promise<{ user: AuthUser | null; error: AuthError | null }> {
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data) return { user: null, error };
-  const { sub, email } = data.claims;
+  const { sub, email, app_metadata } = data.claims;
   if (typeof sub !== "string" || !sub) return { user: null, error: null };
-  return { user: { id: sub, email: typeof email === "string" ? email : undefined }, error: null };
+  const providers = Array.isArray(app_metadata?.providers)
+    ? app_metadata.providers.filter((p: unknown): p is string => typeof p === "string")
+    : undefined;
+  return { user: { id: sub, email: typeof email === "string" ? email : undefined, providers }, error: null };
 }

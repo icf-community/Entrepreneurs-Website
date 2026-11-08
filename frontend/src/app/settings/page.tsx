@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { computeDisplayName } from "@/lib/auth/guard";
+import { currentUser } from "@/lib/auth/currentUser";
 import AppShell from "@/components/app/AppShell";
 import EmailChangeForm from "./EmailChangeForm";
 import PasswordChangeForm from "./PasswordChangeForm";
@@ -22,7 +23,7 @@ import AiSettingsCard from "./AiSettingsCard";
 // AI settings only once we know an AI mode is on) and applies the auth and
 // onboarding gates. Pulled out so the page component's job is rendering.
 async function loadSettingsPageData(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { user, error: authError } = await currentUser(supabase);
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
@@ -56,7 +57,7 @@ async function loadSettingsPageData(supabase: Awaited<ReturnType<typeof createCl
   if (!isAdmin && profile.status === "pending_onboarding") redirect("/onboarding");
 
   // OAuth-only users have no password to change. Surfaced in the password card.
-  const hasPassword = (user.identities ?? []).some((i) => i.provider === "email");
+  const hasPassword = (user.providers ?? []).includes("email");
 
   return { user, profile, isAdmin, connectionSettings, education, aiSettings, concepts, hasPassword };
 }

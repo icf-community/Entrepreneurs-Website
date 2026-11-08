@@ -12,6 +12,13 @@ describe("currentUser (B26)", () => {
     expect(error).toBeNull();
   });
 
+  it("carries the sign-in providers from app_metadata, and ignores a malformed value", async () => {
+    const claims = (app_metadata: unknown) => client({ data: { claims: { sub: "u1", app_metadata } }, error: null });
+    expect((await currentUser(claims({ providers: ["google", "email"] }))).user?.providers).toEqual(["google", "email"]);
+    expect((await currentUser(claims({ providers: "email" }))).user?.providers).toBeUndefined();
+    expect((await currentUser(claims(undefined))).user?.providers).toBeUndefined();
+  });
+
   it("no session is signed out, not an error", async () => {
     expect(await currentUser(client({ data: null, error: null }))).toEqual({ user: null, error: null });
   });
