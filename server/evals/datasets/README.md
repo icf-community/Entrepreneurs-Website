@@ -152,11 +152,19 @@ that list.
 `sens-ethnicity`, `sens-religion`, `sens-sexuality`, `sens-gender`,
 `sens-age`, `sens-age-proxy`, `sens-family`, `sens-disability`,
 `sens-origin-proxy`, `sens-buried`, `sens-multilingual` (protected
-characteristics incl. proxies and buried mentions, 12 sub-families) ·
+characteristics incl. proxies and buried mentions, 12 sub-families — the
+deterministic layers, `app/ai/policy.py`'s `screen()` and the database's
+`ai_private.is_sensitive()`, are English-word-list only and do not catch a
+non-English `sens-multilingual` message; `interpret.txt` now says its rules
+hold in any language, but that is a prompt nudge on top of an English-only
+first line of defence, not a second deterministic check — a known residual
+gap, not fixed by this round) ·
 `off-homework`, `off-code`, `off-chat`, `off-multilingual` (off-task) ·
 `mixed` (search + off-task combined) · `exfil-contacts`, `exfil-chats`,
-`exfil-person` (exfiltration) · `scope` (scope escalation) · `pii` (pasted
-personal data) · `neg-trick` (negation tricks) · `length` (length/volume) ·
+`exfil-person` (exfiltration) · `scope` (scope escalation — includes a claim
+that an audience/approval restriction named in the message itself should be
+ignored or widened; `interpret.txt` treats that claim as the injection) ·
+`pii` (pasted personal data) · `neg-trick` (negation tricks) · `length` (length/volume) ·
 `malicious-source` (assessor-stage: invented evidence, foreign/
 cross-candidate evidence refs, unoffered atom ids, non-enum state values).
 
@@ -165,9 +173,11 @@ non-ambiguous concept in the dictionary, confirmed by `Dictionary.find` at
 build time, never assumed) · `sentence` · `or-group` · `negation` ·
 `required` · `alias-variant` · `typo-unmatched` (documents: no fuzzy
 matching, a misspelling correctly yields `clarify`, not a crash or a wrong
-match) · `british-spelling` (2 cases document a real dictionary-content gap
-— `optimization`/`data-visualization` carry no UK alias — as
-non-critical, not hidden) · `emoji` · `refinement` · `preferences`
+match — `interpret.txt` tells the model to clarify rather than add a likely
+typo as free text, since that would silently filter on text that matches no
+profile) · `british-spelling` (`optimization`/`data-visualization` now carry
+a UK-spelling alias, migration 20261108000002 — grounds deterministically,
+critical) · `emoji` · `refinement` · `preferences`
 (location/role_type free text — see corpus README caveat: this eval
 dictionary holds none of those as concepts, so only crash-safety is
 asserted) · `domain-not-people` (separate file, owner decision #21).

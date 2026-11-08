@@ -94,6 +94,6 @@ def prompt_hash(name: str) -> str:
     return hashlib.sha256(prompt(name).encode()).hexdigest()
 
 
-INTERPRET_PROMPT_VERSION = "interpret-v2"
+INTERPRET_PROMPT_VERSION = "interpret-v3"
 ASSESS_PROMPT_VERSION = "assess-v3"
 RUBRIC_VERSION = "rubric-v1"

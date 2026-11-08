@@ -132,8 +132,13 @@ def score_interpret(case: dict, decision: str, ops: list[dict]) -> list[str]:
     for slug in exp.get("must_not_add") or []:
         if slug in adds:
             problems.append(f"added forbidden criterion {slug}")
-    if exp.get("must_not_add_any") and adds:
-        problems.append(f"added criteria when none were expected: {sorted(adds)}")
+    # must_not_add_any means none at all — a free-text add (no concept slug)
+    # is still a criterion that made it through, so it must count here too,
+    # not just the concept-grounded ones `adds` tracks for only_add/add checks.
+    any_adds = [o for o in ops if o.get("op") == "add"]
+    if exp.get("must_not_add_any") and any_adds:
+        problems.append(f"added criteria when none were expected: "
+                        f"{[o.get('concept') or o.get('free_text') for o in any_adds]}")
     # only_add/grouped describe what an apply/mixed decision must add; a
     # case whose decision_in also tolerates off_task/refuse (e.g. "the
     # off-task half of a mixed request may simply be discarded") is not
