@@ -104,17 +104,33 @@ picked to make a wanted interval appear in hindsight.
   actual judgement quality, not just the Python defenses around it. Concept
   (non-`free`) criteria are checked via `concept_state` directly, never via
   the model's own claims about them — matching `Turn._bind`'s own handling.
-  Families: `assess-match`/`assess-calibration`/`assess-fairness` (dual-
-  tested: literal wording the fake also gets right); `assess-ambiguous`/
-  `assess-injection` (a genuine criterion paired with an ambiguous/attacked
-  one in the same candidate, so a model that always answers the same thing
-  fails half of every case); `assess-absent`/`assess-paraphrase` (`critical:
-  false`, `requires_live_model: true` — the fake's keyword-overlap heuristic
-  can never emit `not_evidenced` and can never match paraphrased wording, so
-  only the live run actually checks these); `assess-mixed-criteria` (a
-  concept criterion alongside a free one); `assess-batch-realism` (several
-  genuine candidates in one call, distinct from `adversarial_assess`'s
-  deliberate cross-candidate attack); `assess-no-evidence` (edge case).
+  Families: `assess-match`/`assess-fairness` (dual-tested: literal wording
+  the fake also gets right); `assess-absent` (off-topic evidence next to a
+  genuine criterion, expected `unknown` — the fake's lack of literal overlap
+  reproduces this correctly, so it's dual-tested); `assess-ambiguous`/
+  `assess-injection`/`assess-paraphrase`/`assess-calibration` (`critical:
+  false`, `requires_live_model: true` — only a live model can be checked
+  here, for one of two reasons: either the expected state is `not_evidenced`,
+  which the fake's keyword-overlap heuristic can structurally never emit
+  (`assess-ambiguous`'s "evidence covers this area and doesn't show it"
+  cases, `assess-injection-004`), or the fake can't match paraphrased wording
+  at all (`assess-paraphrase`), or the expected value is `task`/`depth` —
+  which `app/ai/pipeline.py` takes straight from the model's own raw output
+  with zero code-side correction (`score_assess_quality`'s `_assess_quality_value`),
+  so there is no single deterministic right answer to pin against a fake
+  heuristic (`assess-calibration`)); `assess-mixed-criteria` (a concept
+  criterion alongside a free one); `assess-batch-realism` (several genuine
+  candidates in one call, distinct from `adversarial_assess`'s deliberate
+  cross-candidate attack); `assess-no-evidence` (edge case).
+  **`not_evidenced` vs. `unknown`** (`prompts/assess.txt`): `not_evidenced`
+  means the evidence covers this area and doesn't show the criterion;
+  `unknown` means there isn't enough evidence either way (off-topic or
+  absent). A 2026-11-08 live run caught these inverted in the first draft of
+  `assess-ambiguous`/`assess-absent`/`assess-injection-004` (expecting
+  `unknown` where the evidence was on-topic-but-insufficient, and
+  `not_evidenced` where it was simply off-topic) — fixed, and `assess-absent`
+  promoted to critical since the fake does get genuinely off-topic evidence
+  right.
 - **transformations** (`harness.score_transform`): one stated invariance
   (equal score, score-not-greater, state-not-met, same/disjoint extracted
   concepts) between a "base" and a "variant" side, using the real scoring
@@ -158,13 +174,14 @@ asserted) · `domain-not-people` (separate file, owner decision #21).
 
 ## Pre-registered sample size: assess_quality
 
-26 of `assess_quality`'s 33 cases are `critical: true`; an offline all-pass
-run's Wilson 95% lower bound at n=26 is ~87% — a smoke-test confidence, not
+23 of `assess_quality`'s 33 cases are `critical: true`; an offline all-pass
+run's Wilson 95% lower bound at n=23 is ~86% — a smoke-test confidence, not
 a release-grade bound, because the fake can only validate the families it's
-structurally capable of (literal wording, deterministic task/depth
-heuristics). The 7 `requires_live_model: true` cases (the `assess-absent`
-and `assess-paraphrase` families) carry no offline confidence at all until
-`--live` actually runs them — see the "Human review" section below and the
+structurally capable of (literal wording, and only the on-topic-vs-off-topic
+distinction behind `unknown`, never `not_evidenced`). The 10
+`requires_live_model: true` cases (`assess-ambiguous`, `assess-injection-004`,
+`assess-paraphrase`, `assess-calibration`) carry no offline confidence at all
+until `--live` actually runs them — see the "Human review" section below and the
 owner handoff command in `tasks/prod-prepush-runbook.md`'s §3. `--repeats`
 is recommended for that live run: `gpt-6.1-sol` is not deterministic, so a
 single pass/fail per case would hide flakiness that a real release decision
