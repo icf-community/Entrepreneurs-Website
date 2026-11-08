@@ -31,6 +31,12 @@ from pathlib import Path
 from typing import Callable
 
 CURRENT_CASE_ID: ContextVar[str | None] = ContextVar("CURRENT_CASE_ID", default=None)
+# Set once per attempt by the --repeats loop in __main__.py (None outside it).
+# Folded into the cache key below so each repeat is an independent live call
+# instead of replaying attempt 1's cached answer for every later attempt —
+# without this, --repeats + --cache together only ever made ONE real call
+# per case, defeating the flakiness check --repeats exists for.
+CURRENT_REPEAT: ContextVar[int | None] = ContextVar("CURRENT_REPEAT", default=None)
 
 
 class ReplayMiss(RuntimeError):
@@ -50,14 +56,16 @@ class CachedModel:
         case_id = CURRENT_CASE_ID.get()
         if case_id is None:
             raise RuntimeError("CachedModel called with no CURRENT_CASE_ID set — run_suite must set it per case")
-        if case_id in self.cache:
+        repeat = CURRENT_REPEAT.get()
+        key = case_id if repeat is None else f"{case_id}#r{repeat}"
+        if key in self.cache:
             self.hits += 1
-            return self.cache[case_id]
+            return self.cache[key]
         if self.strict or self.live_model is None:
-            raise ReplayMiss(f"{case_id}: no recorded fixture in {self.path} and replay is strict (no live fallback)")
+            raise ReplayMiss(f"{key}: no recorded fixture in {self.path} and replay is strict (no live fallback)")
         self.misses += 1
         result = self.live_model(payload)
-        self.cache[case_id] = result
+        self.cache[key] = result
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self.cache, indent=2, sort_keys=True))
         return result

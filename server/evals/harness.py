@@ -98,7 +98,15 @@ def interpret(case: dict, d: Dictionary, model: Callable[[dict], dict] | None = 
     payload = {"mode": mode, "message": message, "current_criteria": spec["atoms"],
                "candidate_concepts": list(candidates.values()), "memory": []}
     answer = (model or _fake_interpret)(payload)
-    return answer["decision"], ground_ops(answer.get("ops") or [], message, candidates, spec, mode, d)
+    decision = answer["decision"]
+    ops = ground_ops(answer.get("ops") or [], message, candidates, spec, mode, d)
+    # Mirrors pipeline.py's Turn.interpret: an "apply" that grounds to nothing
+    # is degenerate — production downgrades it to "clarify" before it ever
+    # reaches apply()/exec_interpretation, so scoring the raw "apply" here
+    # would flag production-safe behaviour as a failure.
+    if decision == "apply" and not ops:
+        decision = "clarify"
+    return decision, ops
 
 
 def score_interpret(case: dict, decision: str, ops: list[dict]) -> list[str]:

@@ -209,9 +209,16 @@ def main() -> None:
 
     provider = "replay:" + str(args.cache) if args.replay else ("openai:" + args.model if args.live else "fake")
     if args.repeats > 1:
-        reports = [runner.run(suites, provider=provider, model=model,
-                              live_cost=(lambda: round(state["spent"], 4)) if state else None, split=args.split)
-                  for _ in range(args.repeats)]
+        from .fixtures import CURRENT_REPEAT
+        reports = []
+        for i in range(args.repeats):
+            token = CURRENT_REPEAT.set(i)
+            try:
+                reports.append(runner.run(suites, provider=provider, model=model,
+                                          live_cost=(lambda: round(state["spent"], 4)) if state else None,
+                                          split=args.split))
+            finally:
+                CURRENT_REPEAT.reset(token)
         report = runner.aggregate_repeats(reports)
     else:
         report = runner.run(suites, provider=provider, model=model,
