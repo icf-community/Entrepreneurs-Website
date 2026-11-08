@@ -104,6 +104,33 @@ test.beforeEach(() => {
   psql(`delete from ai_private.usage_events where owner_id = '${ids.student}'`);
 });
 
+// The submit action also sits behind the app's own limiter (ratelimit.ts
+// aiSubmit: 10 a minute, in-process when Upstash is unset), which the line
+// above cannot reset. This serial file submits faster than a person can, and
+// a refusal there shows the page's "a lot of searches in a minute" alert in
+// place of whatever the test is checking. Record this file's submissions, and
+// before each test wait until few enough are under a minute old that the
+// test's own (at most four) fit. Waiting before the test, not at the click,
+// keeps a test's own assertions inside their timeouts.
+const submitTimes: number[] = [];
+const WINDOW_MS = 61_000;
+const SUBMITS_LEFT_FOR_A_TEST = 4;
+test.beforeEach(async ({ page }, testInfo) => {
+  const now = Date.now();
+  while (submitTimes.length && now - submitTimes[0] >= WINDOW_MS) submitTimes.shift();
+  const excess = submitTimes.length - (10 - SUBMITS_LEFT_FOR_A_TEST);
+  if (excess >= 0) {
+    const wait = submitTimes[excess] + WINDOW_MS - now;
+    testInfo.setTimeout(testInfo.timeout + wait);
+    await new Promise((r) => setTimeout(r, wait));
+  }
+  await page.route(/foundry-ai/, async (route) => {
+    const req = route.request();
+    if (req.method() === "POST" && (req.postData() ?? "").includes("idempotencyKey")) submitTimes.push(Date.now());
+    await route.continue();
+  });
+});
+
 /** Records anything the page sends that the spec must never see. */
 function watchNetwork(page: Page) {
   const offending: string[] = [];
