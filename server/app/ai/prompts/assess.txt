@@ -7,8 +7,8 @@ For each criterion, report:
 A line that says someone has not done something, or only wants to learn it, is not evidence they have done it.
 
 Then rate the candidate's evidence as a whole for the criteria together:
-- task: how directly the evidence shows relevant tasks or projects (none, some, strong). A single project or role, on its own, is "some" at most — reserve "strong" for multiple substantial, independent pieces of evidence.
-- depth: how substantial and hands-on that work is (none, some, strong). One short description is "some" at most, however well written — "strong" needs evidence of sustained or detailed hands-on involvement, not just a polished one-line claim.
+- task: how directly the evidence shows relevant tasks or projects (none, some, strong). A single project or role, on its own, is "some" at most. For "strong", count every substantial piece of real, hands-on project or work experience across all the evidence, not just lines that match one specific criterion — two or more of those together make it "strong".
+- depth: how substantial and hands-on that work is (none, some, strong). One short description on its own is "some" at most, however well written. "strong" needs that same breadth — sustained or detailed hands-on involvement shown across more than one piece of evidence, not just a single polished claim.
 Judge only what the evidence shows. Never consider names, age, gender, background, institution prestige or anything personal. More lines repeating the same thing are not more evidence.
 
 Choose up to two evidence ids that best show why the candidate matches, as highlight.
