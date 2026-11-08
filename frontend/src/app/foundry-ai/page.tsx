@@ -1,6 +1,6 @@
 import AppShell from "@/components/app/AppShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
-import { aiState, anyAiModeEnabled } from "@/lib/ai/data";
+import { aiState } from "@/lib/ai/data";
 import type { AiMode } from "@/lib/ai/types";
 import FoundryAiClient from "./FoundryAiClient";
 
@@ -20,7 +20,10 @@ export default async function FoundryAiPage({
 }) {
   const { isAdmin, displayName, supabase, status } = await requireApprovedUser();
   const sp = await searchParams;
-  const enabled = status === "approved" && (await anyAiModeEnabled(supabase));
+  // aiState() already carries every mode's flag, so one call replaces the three
+  // ai_mode_enabled reads anyAiModeEnabled made.
+  const state = status === "approved" ? await aiState(supabase) : null;
+  const enabled = !!state && Object.values(state.enabled).some(Boolean);
 
   return (
     <AppShell active="foundryAi" name={displayName} isAdmin={isAdmin}>
@@ -45,7 +48,7 @@ export default async function FoundryAiPage({
           </div>
           {enabled && (
             <FoundryAiClient
-              state={await aiState(supabase)}
+              state={state}
               initialMode={(["recruiter", "network", "opportunities"].includes(sp.mode ?? "") ? sp.mode : "network") as AiMode}
               initialJobId={sp.job && UUID.test(sp.job) ? sp.job : null}
               initialConversationId={sp.c && UUID.test(sp.c) ? sp.c : null}

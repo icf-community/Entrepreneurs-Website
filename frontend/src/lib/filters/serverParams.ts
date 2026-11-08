@@ -17,11 +17,12 @@ type Raw = Record<string, string | string[] | undefined>;
  * The result has no prototype, so a key like `constructor` is just a key.
  */
 export function flattenSearchParams(raw: Raw, multi: readonly string[]): Record<string, string | undefined> {
+  const multiSet = new Set(multi);
   const out: Record<string, string | undefined> = Object.create(null);
   for (const [key, value] of Object.entries(raw)) {
     if (!Array.isArray(value)) {
       out[key] = value === undefined ? undefined : clean(value);
-    } else if (multi.includes(key)) {
+    } else if (multiSet.has(key)) {
       out[key] = value.length ? value.map(clean).join(",") : undefined;
     } else {
       out[key] = value[0] === undefined ? undefined : clean(value[0]);
