@@ -73,7 +73,8 @@ def _fake_report(statuses: dict[str, str], critical: dict[str, bool]) -> dict:
         "run": {}, "verdict": "pass", "skipped_suites": [],
         "critical_failures": [cid for cid, s in statuses.items() if critical.get(cid) and s != "pass"],
         "overall": {}, "objectives": {}, "slices": {}, "ranking": {},
-        "results": [{"case_id": cid, "status": s, "critical": critical.get(cid, False)} for cid, s in statuses.items()],
+        "results": [{"case_id": cid, "suite": "fake", "status": s, "critical": critical.get(cid, False)}
+                    for cid, s in statuses.items()],
     }
 
 
@@ -87,3 +88,23 @@ def test_aggregate_repeats_counts_a_flaky_case_as_a_pass_if_it_ever_passed() -> 
     assert merged["repeats"]["always-fails"]["pass_rate"] == 0.0
     assert merged["critical_failures"] == ["always-fails"]
     assert merged["verdict"] == "fail"
+
+
+def test_aggregate_repeats_does_not_blend_cases_that_share_an_id_across_suites() -> None:
+    """interpret.jsonl and adversarial.jsonl happen to both use "adv-scope-001"
+    for unrelated cases — same id, different suite. Each suite's own history
+    must stay separate, not get merged into one blended pass_rate."""
+    def report(a_status: str, b_status: str) -> dict:
+        return {
+            "run": {}, "verdict": "pass", "skipped_suites": [],
+            "critical_failures": [], "overall": {}, "objectives": {}, "slices": {}, "ranking": {},
+            "results": [
+                {"case_id": "adv-scope-001", "suite": "interpret", "status": a_status, "critical": True},
+                {"case_id": "adv-scope-001", "suite": "adversarial", "status": b_status, "critical": True},
+            ],
+        }
+    reports = [report("pass", "fail"), report("pass", "fail")]
+    merged = aggregate_repeats(reports)
+    assert merged["repeats"]["interpret/adv-scope-001"]["pass_rate"] == 1.0
+    assert merged["repeats"]["adversarial/adv-scope-001"]["pass_rate"] == 0.0
+    assert merged["critical_failures"] == ["adv-scope-001"]

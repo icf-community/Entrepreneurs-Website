@@ -147,19 +147,32 @@ def aggregate_repeats(reports: list[dict]) -> dict:
     attempt (one success in N means the behaviour is reachable, which is
     what the live check is actually trying to confirm)."""
     assert reports, "aggregate_repeats needs at least one report"
-    by_case: dict[str, list[str]] = defaultdict(list)
+    # Grouped by (suite, case_id): ids are only guaranteed unique within a
+    # suite's own dataset files, not globally (e.g. interpret.jsonl and
+    # adversarial.jsonl both happen to use "adv-scope-001"/"-002" for
+    # unrelated cases) — grouping by case_id alone silently blended two
+    # different cases' pass/fail histories into one entry.
+    by_case: dict[tuple[str, str], list[str]] = defaultdict(list)
     for report in reports:
         for r in report["results"]:
-            by_case[r["case_id"]].append(r["status"])
+            by_case[(r["suite"], r["case_id"])].append(r["status"])
     merged = reports[-1]
     merged["run"]["repeats"] = len(reports)
+    # Collisions are rare, so the display key stays the bare case_id except
+    # where more than one suite actually shares it this run.
+    multi = {cid for (_, cid) in by_case if sum(1 for (_, c) in by_case if c == cid) > 1}
     merged["repeats"] = {
-        cid: {"pass_rate": round(sum(s == "pass" for s in statuses) / len(statuses), 4), "statuses": statuses}
-        for cid, statuses in sorted(by_case.items())
+        (f"{suite}/{cid}" if cid in multi else cid):
+            {"pass_rate": round(sum(s == "pass" for s in statuses) / len(statuses), 4), "statuses": statuses}
+        for (suite, cid), statuses in sorted(by_case.items())
     }
-    critical_by_case = {r["case_id"]: r["critical"] for report in reports for r in report["results"]}
-    merged["critical_failures"] = [cid for cid, statuses in by_case.items()
-                                   if critical_by_case.get(cid) and not any(s == "pass" for s in statuses)]
+    critical_by_case = {(r["suite"], r["case_id"]): r["critical"] for report in reports for r in report["results"]}
+    # critical_failures stays bare-case_id (matching the non-repeats path and
+    # review.py's unconfirmed_critical, which both key on case_id alone) —
+    # a duplicate string here if both colliding cases fail is harmless, the
+    # same as the non-repeats path already allows.
+    merged["critical_failures"] = [cid for (suite, cid), statuses in by_case.items()
+                                   if critical_by_case.get((suite, cid)) and not any(s == "pass" for s in statuses)]
     merged["verdict"] = "pass" if not merged["critical_failures"] and not merged["skipped_suites"] else "fail"
     return merged
 
