@@ -215,7 +215,7 @@ def built(world):
     return world
 
 
-def _run_executor_once() -> None:
+def _run_executor_once(provider=None) -> None:
     os.environ["AI_DATABASE_URL"] = _dsn_for("ai_service", AI_SERVICE_PASSWORD)
     os.environ["AI_PROVIDER"] = "fake"
     from app.ai import config as ai_config
@@ -234,11 +234,31 @@ def _run_executor_once() -> None:
                 ctx = await db.one("select ai_private.exec_claim(%s)", ("test",))
                 if ctx is None:
                     return
-                await run_turn(db, FakeProvider(), settings, await _DictionaryCache().get(db), ctx)
+                await run_turn(db, provider or FakeProvider(), settings, await _DictionaryCache().get(db), ctx)
         finally:
             await db.close()
 
     asyncio.run(go())
+
+
+class _CountingProvider:
+    """Wraps FakeProvider and counts every model call, for regression
+    scenario 20 (AI-plan-review.md): reopening saved results must make
+    zero provider calls."""
+
+    def __init__(self) -> None:
+        from app.ai.provider import FakeProvider
+
+        self._inner = FakeProvider()
+        self.calls = 0
+
+    async def json(self, *args, **kwargs):
+        self.calls += 1
+        return await self._inner.json(*args, **kwargs)
+
+    async def embed(self, *args, **kwargs):
+        self.calls += 1
+        return await self._inner.embed(*args, **kwargs)
 
 
 def _submit(conn, uid, mode, message, *, conversation=None, opportunity=None, kind="message", revision=None):
@@ -304,6 +324,35 @@ def test_withdrawal_hides_existing_results_immediately(built):
     as_member(conn, a, "select public.set_my_ai_settings(false, true, true, true, '{}', '{}', '{}', '{}', 'test')")
     assert not any(row[2] == a for row in _cards(conn, rec, turn)), "withdrawal is an immediate read deny"
     as_member(conn, a, "select public.set_my_ai_settings(true, true, true, true, '{}', '{}', '{}', '{}', 'test')")
+
+
+def test_reopening_saved_results_makes_zero_provider_calls(built):
+    """Regression scenario 20 (AI-plan-review.md): reading an already
+    completed turn's status/cards — what the browser does on every poll
+    and every time a member reopens the page — never calls the model or
+    embedding provider again. Those reads are plain SELECTs against the
+    stored result; only _run_executor_once (the pipeline run itself)
+    should ever touch the provider."""
+    # A concept the earlier tests in this module never searched on this
+    # job ("pytorch"/"python" are already warm in the content-addressed
+    # assessment cache from test_recruiter_.../test_withdrawal_..., which
+    # would make this run a free cache hit rather than a real call).
+    # Asha ("a") carries the "Deep learning" skill tag, so this concept
+    # resolves to a fresh "met" state and genuinely reaches the assessor.
+    conn, rec, job = built["conn"], built["recruiter"], built["job"]
+    turn, conv, outcome, _ = _submit(conn, rec, "recruiter", "deep learning", opportunity=job)
+    assert outcome == "queued"
+
+    counting = _CountingProvider()
+    _run_executor_once(counting)
+    assert counting.calls > 0, "the pipeline run itself should have called the provider"
+    calls_after_run = counting.calls
+
+    for _ in range(3):
+        status = _status(conn, rec, turn)
+        _cards(conn, rec, turn)
+    assert status[0] == "completed", status
+    assert counting.calls == calls_after_run, "reopening saved results must make zero provider calls"
 
 
 def test_admin_created_job_never_unlocks_recruiter_mode(built):

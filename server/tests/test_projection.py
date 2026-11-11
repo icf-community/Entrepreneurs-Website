@@ -76,6 +76,13 @@ def test_projection_hash_changes_with_content_only() -> None:
     assert a[0]["projection_hash"] == b[0]["projection_hash"] != c[0]["projection_hash"]
 
 
+def test_projection_hash_changes_with_policy_version(monkeypatch) -> None:
+    a, _ = build_member_docs(_source(), D)
+    monkeypatch.setattr(privacy, "POLICY_VERSION", "outbound-v2")
+    b, _ = build_member_docs(_source(), D)
+    assert a[0]["projection_hash"] != b[0]["projection_hash"]
+
+
 def test_self_reported_experience_is_labelled_and_minimised() -> None:
     src = _source(cv=None, settings={"recruiter_discoverable": True, "network_discoverable": False, "consent_epoch": 1,
                                      "self_reported": "Led a FastAPI backend at a startup. Email jane@x.com for details."})
