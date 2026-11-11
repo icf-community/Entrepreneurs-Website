@@ -78,7 +78,11 @@ export default defineConfig({
   },
   projects: withCrossBrowser([
     // Logged-out surface + access control + auth entry flows.
-    { name: "public", testMatch: /(public|auth|health)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
+    // Anchored on the e2e/ directory: unanchored, it also caught
+    // adversarial/mobile-auth.spec.ts (which belongs to the adv-ui project and
+    // forces a Pixel 7 = Chromium), so the WebKit/Firefox job tried to launch a
+    // browser it does not install.
+    { name: "public", testMatch: /[\\/]e2e[\\/](public|auth|health)\.spec\.ts$/, use: { ...devices["Desktop Chrome"] } },
     // Approved student session (from global-setup).
     {
       name: "member",

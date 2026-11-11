@@ -640,9 +640,13 @@ jobs:
           API_URL=$(grep '^API_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           ANON=$(grep '^ANON_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           SRK=$(grep '^SERVICE_ROLE_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          # E2E_DB_URL: e2e/global-setup.ts seeds users through e2e/ai-services.ts,
+          # which needs it for every project, this one included.
+          DBU=$(grep '^DB_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SRK" >> "$GITHUB_ENV"
+          echo "E2E_DB_URL=$DBU" >> "$GITHUB_ENV"
 
       - name: Wait for SRH
         # SRH implements only the Upstash REST "body" method (POST / with a

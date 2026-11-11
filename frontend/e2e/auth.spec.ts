@@ -142,7 +142,11 @@ test.describe("auth entry flows", () => {
     await expect(page.locator("#otp-code")).toBeVisible();
   });
 
-  test("student: entering the emailed code POSTs it to verifyOtp", async ({ page }) => {
+  test("student: entering the emailed code POSTs it to verifyOtp", async ({ page, browserName }) => {
+    // gap 27: the send step is a real browser -> GoTrue call (http://127.0.0.1),
+    // which the WebKit https proxy cannot carry; on Linux CI WebKit it fails
+    // with "Load failed" before any mail is sent. Chromium and Firefox cover it.
+    test.skip(browserName === "webkit", "known gap: see hstsStripProxy.ts");
     // Assert the wiring end to end: code field → verifyOtpServerSide → a real
     // session. This used to mock **/auth/v1/verify** at the page.route level
     // and poll its captured body, but verifyOtp runs server-side now
