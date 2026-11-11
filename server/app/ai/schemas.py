@@ -95,5 +95,5 @@ def prompt_hash(name: str) -> str:
 
 
 INTERPRET_PROMPT_VERSION = "interpret-v3"
-ASSESS_PROMPT_VERSION = "assess-v4"
+ASSESS_PROMPT_VERSION = "assess-v5"
 RUBRIC_VERSION = "rubric-v1"
