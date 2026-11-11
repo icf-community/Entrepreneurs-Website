@@ -585,7 +585,11 @@ begin
     (v_old, now() - interval '60 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 50, null, null, null, 'unknown'),
     -- Not eligible: an open reservation (the reaper's), and a row inside the window.
     (v_old, now() - interval '60 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 9, null, null, null, 'reserved'),
-    ((now() at time zone 'utc')::date - 10, now() - interval '10 days', 'matching', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 11, 11, 1, 1, 'settled');
+    -- purpose 'ingestion', deliberately not 'matching': on the 11th of any month,
+    -- today - 10 lands exactly on the current month's first day, which the monthly-cap
+    -- test further down keys off of (date_trunc('month', today)). A 'matching' row here
+    -- would silently inflate that test's expected closed-day total on that one date.
+    ((now() at time zone 'utc')::date - 10, now() - interval '10 days', 'ingestion', 'network', 'rolltest', 'fake-mini', 1, 10, 10, 11, 11, 1, 1, 'settled');
 
   v_moved := ai_private.cron_rollup_spend();
   if v_moved < 4 then raise exception 'FAIL: rollup moved % rows, expected at least the 4 eligible ones', v_moved; end if;
