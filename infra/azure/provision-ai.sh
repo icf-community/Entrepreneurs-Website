@@ -60,7 +60,7 @@ Next steps (owner):
      The ai_service password is set in the SQL editor: alter role ai_service password '<generated>';
   2. Confirm model prices against OpenAI's pricing page, then in the SQL editor:
        update ai_private.model_prices set input_micro_per_mtok = ..., output_micro_per_mtok = ...,
-              price_version = price_version + 1, confirmed = true where model in ('gpt-5.4', 'gpt-5.4-mini', 'text-embedding-3-small');
+              price_version = price_version + 1, confirmed = true where model in ('gpt-6.1-sol', 'gpt-5.4-mini', 'text-embedding-3-small');
      The executor refuses to start until every model it uses is confirmed.
   3. Set the GitHub environment variable AZURE_AI_APP_NAME=$APP, then run the "Deploy AI executor" workflow.
   4. Watch the Sentry cron monitor 'ai-executor' check in, then switch modes on in /admin/ai, one at a time.

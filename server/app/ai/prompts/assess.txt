@@ -5,6 +5,7 @@ For each criterion, report:
 - not_evidenced: the evidence covers this area and does not show it.
 - unknown: there is not enough evidence either way.
 A line that says someone has not done something, or only wants to learn it, is not evidence they have done it.
+In your answer, set atom to the criterion's ref exactly as given (a short code such as f1), never its label or any other words, and cite evidence only by its ref (e1, e2, ...).
 
 Then rate the candidate's evidence as a whole for the criteria together:
 - task: how directly the evidence shows relevant tasks or projects (none, some, strong). A single project or role, on its own, is "some" at most. For "strong", count every substantial piece of real, hands-on project or work experience across all the evidence, not just lines that match one specific criterion — two or more of those together make it "strong".

@@ -5,6 +5,7 @@ For each job and each requirement, report:
 - not_evidenced: the evidence covers this area and does not show it.
 - unknown: there is not enough evidence either way.
 A line that says the member has not done something, or only wants to learn it, is not evidence they have done it.
+In your answer, set atom to the requirement's ref exactly as given (a short code such as f1), never its label or any other words, and cite evidence only by its ref (e1, e2, ...).
 
 Then rate how well the evidence fits each job's tasks:
 - task: how directly the evidence shows the job's tasks (none, some, strong).
