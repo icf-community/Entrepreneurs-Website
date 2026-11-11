@@ -205,7 +205,7 @@ class Turn:
             await self.apply("clarify", [])
             return None
         # Deterministic refusals cost no model call (§9.1 admission order).
-        refused = policy.screen(message)
+        refused = policy.screen(message, self.mode)
         if refused:
             await self.apply(refused, [])
             return None
@@ -363,12 +363,13 @@ class Turn:
         return literal
 
     # ─── Stage 3: assess ───────────────────────────────────────────────
-    def _cache_key(self, target: str, projection_hash: str, criteria_atoms: list[Atom], model: str) -> str:
+    def _cache_key(self, target: str, projection_hash: str, criteria_atoms: list[Atom], model: str,
+                   prompt_name: str = "assess") -> str:
         role_level = (self.ctx.get("job") or {}).get("role_level")
         material = json.dumps({
             "mode": self.mode, "target": target, "projection": projection_hash, "role_level": role_level,
             "atoms": sorted([a.kind, a.concept, a.free_text, a.required] for a in criteria_atoms),
-            "rubric": RUBRIC_VERSION, "prompt": ASSESS_PROMPT_VERSION, "phash": prompt_hash("assess"),
+            "rubric": RUBRIC_VERSION, "prompt": ASSESS_PROMPT_VERSION, "phash": prompt_hash(prompt_name),
             "model": model,
         }, sort_keys=True, default=str)
         return hashlib.sha256(material.encode()).hexdigest()
@@ -587,7 +588,7 @@ class Turn:
                              "body": body.get("text") or "", "exact_search": exact_search,
                              "preference": _preference(prefs, member.get("preferences") or {}, body.get("text") or ""),
                              "key": self._cache_key(str(cand["target"]), f"{job['projection_hash']}|{member['projection_hash']}",
-                                                    requirements, model)})
+                                                    requirements, model, prompt_name="assess_jobs")})
 
         if prepared:
             # Same cost cut as assess_members: skip the model for a job

@@ -66,7 +66,8 @@ begin
   end loop;
 
   -- ── is_sensitive ─────────────────────────────────────────────────
-  -- Must reject: protected-characteristic terms as whole words.
+  -- recruiter/opportunities (the default, no network carve-out): must
+  -- reject protected-characteristic terms as whole words.
   foreach v in array array[
     'muslim', 'Muslim founders', 'women only', 'under 30 and young', 'must be male', 'christian', 'gay',
     'visa required', 'disabled', 'pregnant', 'autistic', 'dyslexia', 'has children', 'single', 'asian', 'aged 25',
@@ -75,8 +76,8 @@ begin
     'women', 'women who code', 'women''s health women', 'women health professionals',
     'health', 'mental health', 'people with a health condition', 'womens health and disabled'
   ] loop
-    if not ai_private.is_sensitive(v) then
-      raise exception 'FAIL(sensitive): "%" was not screened', v;
+    if not ai_private.is_sensitive(v, 'recruiter') then
+      raise exception 'FAIL(sensitive): "%" was not screened in recruiter mode', v;
     end if;
   end loop;
   -- Must pass: ordinary skills and words that merely contain a listed term.
@@ -88,13 +89,48 @@ begin
     'women''s health', 'Women’s Health', 'womens health', 'men''s health', 'women''s healthcare',
     'digital health', 'health tech', 'healthtech', 'femtech', 'women''s health, femtech'
   ] loop
-    if ai_private.is_sensitive(v) then
+    if ai_private.is_sensitive(v, 'recruiter') then
       raise exception 'FAIL(sensitive): "%" was screened but is an ordinary term', v;
     end if;
   end loop;
-  if ai_private.is_sensitive(null) or ai_private.is_sensitive('') then
+  if ai_private.is_sensitive(null, 'recruiter') or ai_private.is_sensitive('', 'recruiter') then
     raise exception 'FAIL(sensitive): null/empty must not be sensitive';
   end if;
+
+  -- ── is_sensitive: network-mode affinity carve-out (20261110000001) ──
+  -- Owner decision 2026-11-10: nobody is screened out of a job in
+  -- network mode, two members only connect on mutual accept, and the
+  -- schema stores no gender/ethnicity/sexuality field at all — so
+  -- identity/affinity terms are allowed through there.
+  foreach v in array array[
+    'women who code', 'muslim founders', 'gay founders building apps', 'christian co-founder',
+    'indian founders working on fintech', 'black founders in climate tech', 'male engineers', 'transgender people in data science'
+  ] loop
+    if ai_private.is_sensitive(v, 'network') then
+      raise exception 'FAIL(sensitive): "%" should be allowed in network mode', v;
+    end if;
+    -- Same term is unaffected everywhere else — the carve-out is network-only.
+    if not ai_private.is_sensitive(v, 'recruiter') then
+      raise exception 'FAIL(sensitive): "%" must still be screened in recruiter mode', v;
+    end if;
+    if not ai_private.is_sensitive(v, 'opportunities') then
+      raise exception 'FAIL(sensitive): "%" must still be screened in opportunities mode', v;
+    end if;
+  end loop;
+  -- Categories with no affinity-search reading stay screened in every
+  -- mode, including network: they only ever read as an eligibility filter.
+  foreach v in array array[
+    'under 25', 'developers aged 30', 'disabled founders', 'pregnant members', 'visa required', 'no accent'
+  ] loop
+    if not ai_private.is_sensitive(v, 'network') then
+      raise exception 'FAIL(sensitive): "%" must still be screened in network mode', v;
+    end if;
+  end loop;
+  -- The one-arg caller was dropped (20261110000001 made the mode param
+  -- mandatory in all of this file's call sites) to avoid a dead-overload
+  -- ambiguity; omitting the mode argument entirely is no longer valid SQL
+  -- here, by construction, not something to assert at runtime.
+
   -- KNOWN LIMITS, deliberately not asserted so a fix does not break this file:
   --   * English only, ASCII boundaries: 'musulmán', 'мусульманин' are not matched.
   --   * Evadable by punctuation inside the word ('m.u.s.l.i.m', zero-width characters).

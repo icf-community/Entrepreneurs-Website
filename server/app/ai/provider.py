@@ -20,7 +20,7 @@ import uuid
 from dataclasses import dataclass
 
 from .. import fake_provider
-from .policy import DOMAIN_TERMS
+from .policy import _AFFINITY, _ALWAYS_SENSITIVE, DOMAIN_TERMS
 from ..schema_validate import SchemaError, validate
 
 
@@ -113,8 +113,18 @@ _SEARCH = re.compile(r"\b(find|people|someone|somebody|anyone|members?|candidate
                      r"looking for|collaborators?|co-?founders?|mentors?|experts?|with)\b", re.I)
 _INJECTION = re.compile(r"\b(ignore (?:all |any |the )?(?:previous |prior |above )?instructions|system prompt|"
                         r"you are now|disregard|jailbreak|developer mode)\b", re.I)
-_SENSITIVE = re.compile(r"\b(age|aged|young|old|gender|male|female|women|men|ethnic\w*|race|nationality|religio\w*|"
-                        r"muslim|christian|jewish|hindu|gay|straight|disab\w*|pregnan\w*|married)\b", re.I)
+# _AFFINITY/_ALWAYS_SENSITIVE are imported directly from policy.py
+# (20261110000001), not hand-copied: this stood in for the real model
+# offline with its own separately-maintained term lists until a gap was
+# found between them (several terms in policy.py's lists — sikh,
+# buddhist, atheist, bisexual, transgender and more — were simply
+# missing here). Importing the actual patterns removes that drift risk
+# instead of re-fixing it by hand again next time either list changes.
+# Identity/affinity terms are exempt in network mode only (a real
+# community/support framing — "find other LGBTQ+ founders" — that
+# recruiter/opportunities never has, since those filter candidates for a
+# job or benefit); age/disability/pregnancy/marital status stay refused
+# in every mode.
 _REQUIRED = re.compile(r"\b(must|need|needs|required|essential|only)\b[^.;,]{0,40}$", re.I)
 _NEGATED = re.compile(r"\b(not|no|without|excluding|except)\b[^.;,]{0,25}$", re.I)
 
@@ -183,9 +193,11 @@ class FakeProvider:
 
 def _fake_interpret(payload: dict) -> dict:
     message: str = payload.get("message") or ""
+    mode = payload.get("mode")
     if _INJECTION.search(message):
         return {"decision": "injection", "ops": []}
-    if _SENSITIVE.search(DOMAIN_TERMS.sub(" ", message)):
+    stripped = DOMAIN_TERMS.sub(" ", message)
+    if _ALWAYS_SENSITIVE.search(stripped) or (mode != "network" and _AFFINITY.search(stripped)):
         return {"decision": "sensitive", "ops": []}
     ops = []
     lower = message.lower()

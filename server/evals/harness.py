@@ -82,7 +82,7 @@ def interpret(case: dict, d: Dictionary, model: Callable[[dict], dict] | None = 
     same grounding rules the pipeline applies."""
     message = privacy.minimise(case["message"]).text.strip()
     mode = case["mode"]
-    refused = screen(message)
+    refused = screen(message, mode)
     if refused:
         return refused, []
     ops = grammar_parse(message, mode, d)
