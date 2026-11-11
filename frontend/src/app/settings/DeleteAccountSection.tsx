@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { deleteMyAccount } from "@/app/settings/actions";
 import { ErrorBanner } from "@/components/forms/Banners";
 
 export default function DeleteAccountSection({ email }: { email: string }) {
-  const router = useRouter();
   const supabase = createClient();
 
   const [open, setOpen] = useState(false);
@@ -30,8 +28,16 @@ export default function DeleteAccountSection({ email }: { email: string }) {
         return;
       }
 
-      await supabase.auth.signOut();
-      router.replace("/");
+      // The account is already gone, so a failed sign-out changes nothing the
+      // member can act on: clear the local session if we can, then leave.
+      await supabase.auth.signOut().catch(() => undefined);
+      // A full navigation, not router.replace. The action above revalidates
+      // paths, so Next re-renders this page in the same response; with the
+      // account gone that render redirects to /login, and the soft
+      // router.replace("/") then lost that race often enough that members (and
+      // the adversarial E2E) ended up on /login instead of home.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate hard navigation, see above
+      window.location.assign("/");
     } catch {
       setError("Something went wrong. Please try again.");
       setIsLoading(false);

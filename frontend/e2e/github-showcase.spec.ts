@@ -166,7 +166,15 @@ test.describe("GitHub showcase · picker", () => {
     await seedConnection({ available_repos: REPOS });
 
     await page.goto("/profile");
-    await page.getByRole("button", { name: "Choose projects" }).click();
+    // A click before React owns the button opens nothing (Firefox, once in
+    // CI). Replay it until the picker shows, but only while it is closed:
+    // a second click on an open picker must not shut it.
+    await expect(async () => {
+      if (!(await page.getByText("repo-alpha").isVisible())) {
+        await page.getByRole("button", { name: "Choose projects" }).click({ timeout: 3_000 });
+      }
+      await expect(page.getByText("repo-alpha")).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await expect(page.getByText("repo-alpha")).toBeVisible();
     await expect(page.getByText("repo-delta")).toBeVisible();
