@@ -5,7 +5,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { closeDialog } from "@/components/ui/dialogCloser";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
-import { startPoll } from "@/lib/poll";
+import { watchProgress } from "@/lib/realtime/progress";
 import { getMyCvProfile, getMyCvStatus, type CvIngestStatus } from "./mediaActions";
 
 // ════════════════════════════════════════════════════════════════════
@@ -29,6 +29,7 @@ import { getMyCvProfile, getMyCvStatus, type CvIngestStatus } from "./mediaActio
 // this pipeline" from reading this file in isolation; it doesn't.
 // ════════════════════════════════════════════════════════════════════
 
+// Pace of the fallback poll, used only if the Realtime channel can't join.
 const POLL_INTERVAL_MS = 2000;
 
 const PROCESSING_STATUSES: CvIngestStatus[] = ["pending", "extracting", "embedding"];
@@ -44,10 +45,11 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
-    // B8: the shared poller — one request at a time, backoff with jitter,
-    // paused while the tab is hidden, and a thrown request ends in the
-    // failure state (with Try again) instead of a spinner that never stops.
-    const stop = startPoll({
+    // Re-reads when the CV row changes (lib/realtime/progress), with the old
+    // backoff poll only as a fallback. A thrown request ends in the failure
+    // state (with Try again) instead of a spinner that never stops.
+    const stop = watchProgress({
+      kind: "cv",
       fetch: async () => {
         const result = await getMyCvStatus();
         if (!result.ok || !result.data) throw new Error("status unavailable");

@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import type { createClient } from "@/lib/supabase/client";
 import { requestCvTicket, confirmCvUpload, removeCv } from "@/app/profile/mediaActions";
 import { track } from "@/lib/analytics/track";
+import { watchProgress } from "@/lib/realtime/progress";
 import type { StepId } from "@/lib/intake/steps";
 import type { IntakeState } from "@/lib/intake/state";
 
 type Patch = (p: Partial<IntakeState>) => void;
 
 /**
- * CV upload, background-suggestion polling, and the "that wasn't a CV
+ * CV upload, the wait for background suggestions, and the "that wasn't a CV
  * we could read" reject flow — extracted out of IntakeFlow (structural
  * only, no behavior change) to keep that component's size and
  * complexity down.
@@ -22,7 +23,7 @@ export function useCvUpload(
   setError: (message: string) => void,
 ) {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  // Set only when the bounded poll below exhausts its attempts with
+  // Set only when the bounded wait below runs out with
   // nothing found. We can't distinguish "slow extraction" from "this
   // wasn't a CV we could read" from here, and the product call is to
   // treat it as the latter: ask for the right document back rather than
@@ -33,56 +34,58 @@ export function useCvUpload(
   const [rejectingCv, setRejectingCv] = useState(false);
 
   /**
-   * confirmCvUpload's background extraction (see mediaActions.ts) usually
-   * finishes well before the member reaches this screen, but not always
-   * — there's no completion signal to wait on, only a column to poll.
-   * Bounded so a slow or failed extraction doesn't spin forever: up to
-   * 6 tries, 1.5s apart (~9s), with a loading state so the screen shows
-   * "reading your CV" instead of looking blank while it waits.
+   * confirmCvUpload's background extraction usually finishes well before
+   * the member reaches this screen, but not always. The suggestions column
+   * announces its own change (lib/realtime/progress), so this re-reads
+   * only when it moves rather than on a timer. Bounded at ~9 s, the same
+   * as the old 6 × 1.5 s poll, so a slow or failed extraction ends in the
+   * "that wasn't a CV we could read" flow instead of spinning forever,
+   * with a loading state so the screen shows "reading your CV" meanwhile.
    *
    * suggestionsLoading is set to true in next()'s cv-branch, right after
    * a successful upload/save — not synchronously in this effect, which
    * is the react-hooks/set-state-in-effect trap this codebase already
-   * hit once (see AvatarCropper's history). This effect only polls and
-   * turns it back off; the guard below just means "a poll is needed and
+   * hit once (see AvatarCropper's history). This effect only waits and
+   * turns it back off; the guard below just means "a wait is needed and
    * hasn't finished yet" — it also naturally resumes if the member
-   * leaves "skills" mid-poll and comes back (the effect re-runs on the
+   * leaves "skills" mid-wait and comes back (the effect re-runs on the
    * step change, and suggestionsLoading is still true from before).
    */
-  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- cleanup exists (cancelled flag + clearTimeout) and correctly interrupts the recursive setTimeout(poll) self-reschedule via closure; analyzer can't trace recursion
   useEffect(() => {
     if (step !== "skills" || !suggestionsLoading) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const MAX_ATTEMPTS = 6;
-    const INTERVAL_MS = 1500;
-    let attempts = 0;
-
-    const poll = async () => {
-      attempts += 1;
-      const { data } = await supabase.rpc("get_my_cv_info").maybeSingle();
-      if (cancelled) return;
-      const ids = data?.cv_suggested_skill_ids;
-      if (ids && ids.length > 0) {
+    const MAX_WAIT_MS = 9_000;
+    const stop = watchProgress({
+      kind: "cv_suggestions",
+      fetch: async () => {
+        const { data } = await supabase.rpc("get_my_cv_info").maybeSingle();
+        return data?.cv_suggested_skill_ids ?? null;
+      },
+      onResult: (ids) => {
+        if (!ids || ids.length === 0) return "continue";
+        clearTimeout(deadline);
         patch({ suggestedSkillIds: ids });
         setSuggestionsLoading(false);
         setSuggestionsGaveUp(false);
-        return;
-      }
-      if (attempts >= MAX_ATTEMPTS) {
-        setSuggestionsLoading(false);
-        setSuggestionsGaveUp(true);
-        return;
-      }
-      timer = setTimeout(poll, INTERVAL_MS);
-    };
-    poll();
+        return "stop";
+      },
+      // A thrown read ends the wait; the deadline below still reports it.
+      onError: () => {},
+      baseMs: 1500,
+      maxMs: 1500,
+    });
+    // Declared after the wait starts; onResult only runs after an await, so
+    // it is always initialised by the time anything reads it.
+    const deadline = setTimeout(() => {
+      stop();
+      setSuggestionsLoading(false);
+      setSuggestionsGaveUp(true);
+    }, MAX_WAIT_MS);
 
     return () => {
-      cancelled = true;
-      clearTimeout(timer);
+      clearTimeout(deadline);
+      stop();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- poll while go() has flagged loading for this arrival at "skills"
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- wait while go() has flagged loading for this arrival at "skills"
   }, [step, suggestionsLoading]);
 
   /**

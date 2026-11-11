@@ -2,23 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { TurnStatusResponse } from "@/lib/ai/types";
+import { watchProgress } from "@/lib/realtime/progress";
 
 // ════════════════════════════════════════════════════════════════════
-// Polls one turn's status (AI-plan §9, §10.1, F2): never more than one
-// request in flight, conditional on the last revision (an unchanged poll
-// is a bodyless 304), backing off about 1 s → 2 s → 4 s with jitter, and
-// paused while the tab is hidden — a fresh check runs when it comes back.
-// No event stream: an SSE stream would hold a billed function open for
-// the whole turn and still have to poll Postgres.
+// Follows one turn's status (AI-plan §9, §10.1, F2). Every revision bump
+// on the turn sends a signal on the member's private Realtime topic
+// (20261111000001), and this re-reads the status route only then, so a
+// turn costs one read per stage instead of one every 1–4 s. Reads stay
+// conditional on the last revision (an unchanged read is a bodyless 304).
+// Paused while the tab is hidden, with a fresh read when it comes back.
+//
+// Still no SSE: an event stream would hold a billed Vercel function open
+// for the whole turn. The Realtime socket goes to Supabase, not to us, and
+// lib/realtime/progress closes it once the turn finishes. If the channel
+// can't join, the old 1 s → 4 s backoff poll takes over.
 // ════════════════════════════════════════════════════════════════════
 
-const STEPS_MS = [1000, 2000, 4000];
-
-export function nextDelay(attempt: number, random: () => number = Math.random): number {
-  const base = STEPS_MS[Math.min(attempt, STEPS_MS.length - 1)];
-  // ±20% jitter so many tabs started together don't poll in lockstep.
-  return Math.round(base * (0.8 + 0.4 * random()));
-}
+const RETRY_MS = [1000, 2000];
 
 export function useTurnPolling(turnId: string | null, onFinished: (status: TurnStatusResponse) => void) {
   // Keyed by turn, so a new turn never shows the last one's stage.
@@ -26,74 +26,56 @@ export function useTurnPolling(turnId: string | null, onFinished: (status: TurnS
   const finishedRef = useRef(onFinished);
   useEffect(() => { finishedRef.current = onFinished; });
 
-  // react-doctor-disable-next-line effect-needs-cleanup -- cleanup exists (cancelled flag, clearTimeout, controller.abort, removeEventListener) and is correct; analyzer can't trace it through the poll/schedule closures
   useEffect(() => {
     if (!turnId) return;
     const id: string = turnId;
-    let cancelled = false;
-    let inFlight = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let attempt = 0;
     let etag: string | null = null;
-    let last: TurnStatusResponse | null = null;
+    const controller = new AbortController();
 
-    const schedule = (ms: number) => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(poll, ms);
-    };
-
-    let controller: AbortController | null = null;
-
-    async function poll() {
-      if (cancelled || inFlight) return;
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return; // resumed on visibilitychange
-      inFlight = true;
-      controller = new AbortController();
-      try {
-        const res = await fetch(`/api/ai/turns/${id}`, {
-          headers: etag ? { "If-None-Match": etag } : {},
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (cancelled) return;
-        if (res.status === 304) {
-          attempt += 1;
-        } else if (res.ok) {
-          etag = res.headers.get("ETag");
-          const body = (await res.json()) as TurnStatusResponse;
-          if (cancelled) return;
-          // Progress resets the backoff; silence lengthens it.
-          attempt = last && last.revision === body.revision ? attempt + 1 : 0;
-          last = body;
-          setState({ turnId: id, status: body });
-          if (body.finished) {
-            finishedRef.current(body);
-            return;
+    // Never throws. A 304 is "no news"; a failed read (429, 5xx, network)
+    // is retried twice, because the read after a signal may be the one
+    // that sees the turn finish, and the next safety check is 30 s away.
+    async function read(): Promise<TurnStatusResponse | null> {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          const res = await fetch(`/api/ai/turns/${id}`, {
+            headers: etag ? { "If-None-Match": etag } : {},
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (res.status === 304) return null;
+          if (res.ok) {
+            etag = res.headers.get("ETag");
+            return (await res.json()) as TurnStatusResponse;
           }
-        } else {
-          attempt += 1;
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") return null;
         }
-      } catch (err) {
-        if (!(err instanceof DOMException && err.name === "AbortError")) attempt += 1;
-      } finally {
-        inFlight = false;
+        if (attempt >= RETRY_MS.length || controller.signal.aborted) return null;
+        await new Promise((r) => setTimeout(r, RETRY_MS[attempt]));
       }
-      if (!cancelled) schedule(nextDelay(attempt));
     }
 
-    const onVisible = () => {
-      if (document.visibilityState === "visible" && !cancelled) {
-        attempt = 0;
-        schedule(0);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    schedule(0);
+    const stop = watchProgress<TurnStatusResponse | null>({
+      kind: "ai_turn",
+      turnId: id,
+      fetch: read,
+      onResult: (body) => {
+        if (!body) return "continue";
+        setState({ turnId: id, status: body });
+        if (body.finished) {
+          finishedRef.current(body);
+          return "stop";
+        }
+        return "continue";
+      },
+      onError: () => {},
+      baseMs: 1000,
+      maxMs: 4000,
+    });
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      controller?.abort();
-      document.removeEventListener("visibilitychange", onVisible);
+      stop();
+      controller.abort();
     };
   }, [turnId]);
 

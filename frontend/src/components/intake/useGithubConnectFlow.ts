@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { useRouter } from "next/navigation";
 import { getMyGithubStatus, getMyGithubShowcase, setMyGithubShowcase } from "@/app/profile/mediaActions";
+import { watchProgress } from "@/lib/realtime/progress";
 import type { GithubScreenState } from "./screens";
 
 /**
@@ -26,31 +27,55 @@ export function useGithubConnectFlow(
   const [ghSaved, setGhSaved] = useState(false);
 
   /**
-   * Polls the scan the way the profile dialog does, then loads the
-   * picker. Bounded: a scan that hasn't finished within ~40s leaves the
-   * screen saying so and lets the member move on — an optional screen
-   * must never be able to trap someone mid-signup.
+   * Waits for the scan the way the profile dialog does — re-reading when
+   * scan_status changes (lib/realtime/progress), not on a timer — then
+   * loads the picker. Bounded: a scan that hasn't finished within ~40s
+   * leaves the screen saying so and lets the member move on — an optional
+   * screen must never be able to trap someone mid-signup.
    */
-  const loadGithub = useCallback(async () => {
+  const loadGithub = useCallback(() => {
     setGhScanning(true);
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      const status = await getMyGithubStatus();
-      if (!status.ok || !status.data) break;
-      setGhConnected(true);
-      if (status.data.scanStatus === "failed") {
-        setGhError(status.data.scanFailureReason ?? "We couldn't read your repositories.");
-        setGhScanning(false);
-        return;
-      }
-      if (status.data.scanStatus === "ready") {
-        const showcase = await getMyGithubShowcase();
-        if (showcase.ok && showcase.data) setGhShowcase(showcase.data);
-        setGhScanning(false);
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-    setGhScanning(false);
+    const finish = () => {
+      clearTimeout(deadline);
+      setGhScanning(false);
+    };
+    const stop = watchProgress({
+      kind: "github",
+      fetch: getMyGithubStatus,
+      onResult: (status) => {
+        if (!status.ok || !status.data) {
+          finish();
+          return "stop";
+        }
+        setGhConnected(true);
+        if (status.data.scanStatus === "failed") {
+          setGhError(status.data.scanFailureReason ?? "We couldn't read your repositories.");
+          finish();
+          return "stop";
+        }
+        if (status.data.scanStatus === "ready") {
+          clearTimeout(deadline);
+          void getMyGithubShowcase().then(
+            (showcase) => {
+              if (showcase.ok && showcase.data) setGhShowcase(showcase.data);
+              setGhScanning(false);
+            },
+            () => setGhScanning(false),
+          );
+          return "stop";
+        }
+        return "continue";
+      },
+      onError: finish,
+      baseMs: 2000,
+      maxMs: 2000,
+    });
+    // Declared after the wait starts; onResult only runs after an await, so
+    // it is always initialised by the time anything reads it.
+    const deadline = setTimeout(() => {
+      stop();
+      setGhScanning(false);
+    }, 40_000);
   }, []);
 
   /**
@@ -67,7 +92,7 @@ export function useGithubConnectFlow(
     // react-doctor-disable-next-line react-doctor/nextjs-no-client-side-redirect -- cleans up a transient OAuth-return query param after a client-only round trip; must preserve in-memory flow state a server redirect can't carry
     router.replace("/intake");
     // Genuinely does set state synchronously: loadGithub's first line is
-    // setGhScanning(true), before it polls. That is the point — the
+    // setGhScanning(true), before it waits. That is the point — the
     // screen must already read as scanning when the member lands back
     // from github.com, not one poll later. The cost is one extra render
     // on a mount that is navigating anyway.

@@ -34,7 +34,7 @@ import {
   INTENTS, INTENT_URGENCIES, AVAILABILITY_HOURS,
 } from "@/lib/intake/state";
 import { settle } from "@/lib/settle";
-import { startPoll } from "@/lib/poll";
+import { watchProgress } from "@/lib/realtime/progress";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · My Profile
@@ -741,21 +741,36 @@ function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
 // ─── CV ────────────────────────────────────────────────────────────
 
 /**
- * A few short retries for confirmCvUpload's background extraction to
- * finish, rather than the multi-screen gap the intake flow gets for
- * free — this page has no equivalent "a few steps later" moment.
- * Gives up silently after ~3.6s; the suggestions just won't show for
- * this visit, same as any other best-effort background result.
+ * Waits for confirmCvUpload's background extraction to land the
+ * suggestion chips, rather than the multi-screen gap the intake flow gets
+ * for free — this page has no equivalent "a few steps later" moment.
+ * Re-reads only when the suggestions column changes (lib/realtime/progress),
+ * so waiting longer costs nothing. Gives up silently after 30 s; the
+ * suggestions just won't show for this visit, same as any other
+ * best-effort background result. confirm_cv_upload clears the previous
+ * CV's suggestions, so the first read can't show stale chips.
  */
-async function pollForSuggestions(onSuggested: (ids: number[]) => void): Promise<void> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    const result = await getMySuggestedCvSkillIds();
-    if (result.ok && result.data.length > 0) {
-      onSuggested(result.data);
-      return;
-    }
-  }
+const SUGGESTION_WAIT_MS = 30_000;
+function watchForSuggestions(onSuggested: (ids: number[]) => void): () => void {
+  const stop = watchProgress({
+    kind: "cv_suggestions",
+    fetch: async () => {
+      const result = await getMySuggestedCvSkillIds();
+      return result.ok ? result.data : [];
+    },
+    onResult: (ids) => {
+      if (ids.length === 0) return "continue";
+      onSuggested(ids);
+      return "stop";
+    },
+    onError: () => {},
+    baseMs: 1200,
+  });
+  const deadline = setTimeout(stop, SUGGESTION_WAIT_MS);
+  return () => {
+    clearTimeout(deadline);
+    stop();
+  };
 }
 
 const CV_INGEST_PROCESSING: CvIngestStatus[] = ["pending", "extracting", "embedding"];
@@ -768,13 +783,15 @@ const CV_INGEST_PROCESSING: CvIngestStatus[] = ["pending", "extracting", "embedd
  * in flight. Stops on unmount via the cancelled flag, same guard the
  * dialog's own poll effect uses.
  */
-// B20: the shared poller (lib/poll.ts). The old loop had no try/catch, so a
-// thrown status request left the badge on "Processing your CV…" for good.
+// B20: re-reads on the CV row's change signal (lib/realtime/progress), falling
+// back to lib/poll.ts. The old loop had no try/catch, so a thrown status
+// request left the badge on "Processing your CV…" for good.
 function pollIngestStatus(
   setStatus: (status: CvIngestStatus | null) => void,
   onFailed: () => void,
 ): () => void {
-  return startPoll({
+  return watchProgress({
+    kind: "cv",
     fetch: async () => {
       const result = await getMyCvStatus();
       if (!result.ok || !result.data) throw new Error("status unavailable");
@@ -816,7 +833,11 @@ function CvSection({
   const [ingestStatus, setIngestStatus] = useState<CvIngestStatus | null>(null);
   const [ingestCheckFailed, setIngestCheckFailed] = useState(false);
   const stopIngestPollRef = useRef<(() => void) | null>(null);
-  useEffect(() => () => stopIngestPollRef.current?.(), []);
+  const stopSuggestionsRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => {
+    stopIngestPollRef.current?.();
+    stopSuggestionsRef.current?.();
+  }, []);
   const trackIngest = () => {
     stopIngestPollRef.current?.();
     setIngestCheckFailed(false);
@@ -863,10 +884,12 @@ function CvSection({
       router.refresh();
 
       // Extraction runs in the background (mediaActions.confirmCvUpload's
-      // after() callback) rather than blocking this upload — poll a few
-      // times for it to land instead of making the member wait on it.
-      // Not awaited: the upload itself is already done.
-      if (consent) void pollForSuggestions(onSuggested);
+      // after() callback) rather than blocking this upload — wait for it to
+      // land instead of making the member wait on it.
+      if (consent) {
+        stopSuggestionsRef.current?.();
+        stopSuggestionsRef.current = watchForSuggestions(onSuggested);
+      }
 
       // confirm_cv_upload only enqueues the CV matchmaker's ingest
       // pipeline (moderation, extraction, skill normalisation,

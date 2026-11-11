@@ -5,7 +5,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { closeDialog } from "@/components/ui/dialogCloser";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
-import { startPoll } from "@/lib/poll";
+import { watchProgress } from "@/lib/realtime/progress";
 import { settle } from "@/lib/settle";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { RepoPicker } from "@/components/github/RepoPicker";
@@ -37,6 +37,7 @@ import {
 // terminal state.
 // ════════════════════════════════════════════════════════════════════
 
+// Pace of the fallback poll, used only if the Realtime channel can't join.
 const POLL_INTERVAL_MS = 2000;
 
 type Phase = "scanning" | "picking" | "saved" | "failed" | "loadFailed";
@@ -92,9 +93,10 @@ export function GithubDialog({
     }
 
     let cancelled = false;
-    // B8: the shared poller — one request at a time, backoff with jitter,
-    // paused while hidden, and a thrown request ends the poll visibly.
-    const stop = startPoll({
+    // Re-reads when the scan status changes (lib/realtime/progress), with the
+    // old backoff poll only as a fallback. A thrown request ends it visibly.
+    const stop = watchProgress({
+      kind: "github",
       fetch: async () => {
         const result = await getMyGithubStatus();
         if (!result.ok || !result.data) throw new Error("status unavailable");
