@@ -477,7 +477,15 @@ jobs:
           PW_LIMIT_SECONDS: "1200"
         run: scripts/ci-playwright.sh --project=public-webkit --project=public-iphone
 
+      # NON-BLOCKING (owner decision 2026-11-11). This leg first ran in CI on the
+      # feat/connections PR and showed Firefox-only navigation races
+      # (NS_BINDING_ABORTED on page.goto, pipelines/dialog specs) that could not
+      # be reproduced without a local Firefox. It still runs and reports (see the
+      # step's warning and the uploaded report) but cannot block a release.
+      # Follow-up: debug with a real Firefox, then remove continue-on-error.
       - name: Run E2E (Firefox — all projects)
+        id: firefox
+        continue-on-error: true
         working-directory: frontend
         env:
           PW_LIMIT_SECONDS: "1200"
@@ -486,7 +494,9 @@ jobs:
       - if: always()
         run: supabase stop || true
 
-      - if: failure()
+      # failure() is false when the Firefox step is allowed to fail, so name that
+      # outcome explicitly or its report would never be uploaded.
+      - if: failure() || steps.firefox.outcome == 'failure'
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report-cross-browser
@@ -665,6 +675,18 @@ jobs:
             sleep 2
           done
           echo "SRH did not become ready"; exit 1
+
+      # e2e/global-setup.ts seeds users through e2e/ai-services.ts, which runs
+      # its SQL with this Python (E2E_PYTHON) for every project, this one included.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - name: Install server deps
+        run: |
+          python -m pip install -r server/requirements.txt
+          echo "E2E_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
 
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:

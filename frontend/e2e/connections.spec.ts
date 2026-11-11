@@ -432,7 +432,12 @@ test("the network view can be driven from the keyboard, and renders a settled la
   expect(second).toEqual(first);
 });
 
-test("copying an address works, and degrades to selectable text when the browser blocks it", async ({ browser }) => {
+test("copying an address works, and degrades to selectable text when the browser blocks it", async ({ browser, browserName }) => {
+  // Playwright's Firefox has no "clipboard-read"/"clipboard-write" permission
+  // (browser.newContext throws "Unknown permission"), so the success path cannot
+  // be driven there. Chromium covers it.
+  test.skip(browserName === "firefox", "Playwright Firefox does not support the clipboard permissions");
+
   // THE interaction the feature exists for, and the one most able to fail
   // silently: navigator.clipboard needs a secure context and can be
   // refused by permissions policy, and it fails by REJECTING A PROMISE —
