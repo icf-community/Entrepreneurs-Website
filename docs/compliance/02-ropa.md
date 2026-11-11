@@ -13,12 +13,14 @@ Prepared under **Article 30, UK GDPR**. DRAFT for the controller's review.
 - **Categories of data subject:** Imperial students and verified Imperial alumni who register;
   individuals who contact the platform via the contact/appeals forms.
 - **Special-category data:** None collected by design (Art. 9 not engaged).
-- **Automated decision-making / profiling (Art. 22):** No decision producing legal or similarly
-  significant effects. One automated measure exists and is disclosed rather than omitted: the
-  connections sending throttle in item R, which reduces one rate limit for 30 days after five
-  distinct members have blocked or successfully reported the sender. It is temporary, decays
-  automatically, affects no account status or access, and is admin-reversible. Reasoned through
-  against Art. 22 in item R and in `07-dpia-screening.md`.
+- **Automated decision-making / profiling (Art. 22):** No *solely automated* decision producing
+  legal or similarly significant effects. Two automated measures exist and are disclosed rather
+  than omitted: the connections sending throttle in item R (a rate limit, reasoned through against
+  Art. 22 in item R and in `07-dpia-screening.md`), and the **Foundry AI candidate scoring/ranking**
+  in item S, which engages Art. 35(3)(a)'s profiling limb and has its own full DPIA
+  (`11-dpia-ai-matching.md`) rather than a screening — a human always acts on its output, so Art. 22
+  itself is not engaged, but the evaluation is substantial enough that a screening alone was judged
+  insufficient.
 
 > **Lawful basis** below is a *suggested* mapping for the DPO to confirm. For a voluntary
 > membership community the realistic candidates are **performance of a contract / service**
@@ -275,6 +277,25 @@ no stored flag to go stale; and an admin can lift it, which is the human interve
 asks for. It is a rate limit with a trigger, not a decision about a person, and the header of
 `admin_list_flagged_senders` records why decline rate is excluded from it.
 
+### S. Foundry AI — search, matching and assessment
+| Field | Detail |
+|-------|--------|
+| **Data** | *Per-purpose projections* of an opted-in member's profile (skills, sectors, course, "working on", "can help with"/"wants help with"; interests/hobbies for network mode only), CV-derived skills/projects/roles (only with `evidence_sharing` consent), chosen GitHub languages/repos. *Search sessions:* the searcher's messages, the criteria derived from them, the ranked results (member id, 0–100 score, tier, per-criterion states, evidence references). *Cached evidence checks:* per-candidate, per-criterion assessments. Never: name, email, photo, contact links, or protected characteristics |
+| **Purpose** | Helping job posters find relevant candidates, members build their network, and members find open opportunities, each opt-in from the evaluated person's side |
+| **Suggested basis** | **Consent** (Art. 6(1)(a)) for being found as a candidate/in network search and for CV evidence sharing — three separate toggles, all off by default (`ai_private.member_settings`); **contract / performance of a service** (Art. 6(1)(b)) for a member's own job matches. ⚠ **CONFIRM with the DPO** — consent is the cleanest basis for the opt-in surfaces, but whether the member's-own-matches purpose is contract or legitimate interests is the controller's call |
+| **Recipients (processors)** | OpenAI (short extracts to read a query and check evidence, with names, contact details and links removed first, and storage turned off per request); Microsoft Azure UK South (the executor's compute); Supabase (all stored data) |
+| **Retention** | Chats, criteria and results: 7 days from each message. Saved candidate matches: 7 days from the search. Cached evidence checks: capped at 30 days, and deleted as soon as the profile changes or the member withdraws the relevant toggle. Enforced by the hourly `ai-purge` cron (`ai_private.cron_purge()`) |
+| **Location** | Supabase; Azure UK South (executor); OpenAI (⚠ CONFIRM processing region and zero-retention terms on the matching project) |
+
+**Automated evaluation.** This is substantive profiling: candidates are evaluated against a
+searcher's criteria and ranked by a deterministic 0–100 score (the model judges free-text criteria
+only; it never supplies the score). Nothing is hidden, rejected or contacted automatically — a human
+reads the list and acts through the separate Connections feature. Assessed in full, including why
+Art. 22 itself is judged not engaged, in `11-dpia-ai-matching.md`.
+
+**Withdrawal.** Turning off a toggle deletes that purpose's projection and cached assessments in the
+same transaction, not just from future searches.
+
 ---
 
 ## Retention summary (as actually implemented in code)
@@ -302,6 +323,9 @@ asks for. It is a rate limit with a trigger, not a decision about a person, and 
 | Connections (expired) | Deleted on sight — expiry carries no cooldown, so the row has nothing left to enforce | `purge_removed_connections()` daily (02:45) |
 | Connection request notes | No separate clock; deleted with the row that carries it | `purge_removed_connections()` daily (02:45) |
 | Connection reports + event log | 12 months; a report still `open` is kept until a human closes it | `purge_connection_records()` daily (02:45) |
+| AI chats, criteria and results | 7 days from each message | `ai_private.cron_purge()` hourly (:17) |
+| AI saved candidate matches | 7 days from the search | `ai_private.cron_purge()` hourly (:17) |
+| AI cached evidence checks | Up to 30 days; gone on profile change or toggle withdrawal | `ai_private.cron_purge()` hourly (:17); withdrawal deletes in the same transaction |
 | Account & all user-owned data | Immediate on request | `delete_my_account()` (user-initiated) |
 | Contact/appeals messages | ⚠ Policy to be set (proposed: end of following academic year) | Manual / not yet automated |
 | Inactive accounts | ⚠ **Proposed, not implemented** (DART draft's "24 months" is aspirational) | Would require a new cron |

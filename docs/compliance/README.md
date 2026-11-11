@@ -29,6 +29,7 @@ portfolio.
 | 08 | [Retention Decision — Moderation Log](./08-retention-decision-moderation-log.md) | Why a takedown record survives account deletion, and the sign-off that decision needs |
 | 09 | [OSA Illegal Content Risk Assessment](./09-osa-illegal-content-risk-assessment.md) | Online Safety Act duty — separate from, and additional to, the Art. 35 screening in 07 |
 | 10 | [Moderation Response Standard](./10-moderation-response-standard.md) | Who reads reports, how fast, and what happens automatically |
+| 11 | [DPIA — Foundry AI](./11-dpia-ai-matching.md) | Full Art. 35 DPIA for AI search, matching and assessment (profiling); gates every AI flag |
 
 ## Blocking sign-offs before Community goes live
 
