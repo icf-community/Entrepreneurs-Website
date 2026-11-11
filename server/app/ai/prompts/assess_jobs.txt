@@ -9,4 +9,4 @@ A line that says the member has not done something, or only wants to learn it, i
 Then rate how well the evidence fits each job's tasks:
 - task: how directly the evidence shows the job's tasks (none, some, strong).
 - depth: how substantial and hands-on that work is (none, some, strong).
-Judge only the evidence. Choose up to two evidence ids per job as highlight.
+Judge only what the evidence shows. Never consider or guess the member's name, age, gender, ethnicity, sexuality, religion, disability, background or anything personal — if a name or wording hints at one of these, do not infer it and do not let it influence any rating, even unstated. Choose up to two evidence ids per job as highlight.
