@@ -122,7 +122,7 @@ Owner decisions made during planning:
 | F26 | **It's unclear which process runs background projection/JD work.** §6 extends the ingestion worker's `_claim_job` for projection/JD jobs. §10 isolates AI from that worker. The owner decides grants and keys. | AI-plan §6 line 517, §10 line 965 | **Owner: the existing CV worker** builds `member_search_docs`, JD requirements and their embeddings (under the scoped `cv_worker` role and the metered ledger). The ACA executor only runs turns plus query embeddings, and never reads raw CV/GitHub sources. State this in §6, §10 and A0.4. |
 | F27 | **A "controlled rollout" is named but no mechanism is specified.** | AI-plan §14 A1.5 | **Owner: no pilot list.** Reword A1.5: rollout means per-mode flags on for everyone, after the gates pass in staging. Flags remain the rollback. |
 | F28 | **Discovery defaults to opt-in, so early recruiter searches hit a tiny pool.** | AI-plan §1 | **Owner: launch together.** The empty/low-result state says plainly that few members have opted in so far, without naming anyone. Track the opted-in ready-projection count on the admin dashboard. |
-| F29 | **Enforcing audiences makes jobs vanish for unconfirmed members.** Unknown education status satisfies no audience (§7.2), and every job will have one. This contradicts "no current member loses access" (§1 line 105). | AI-plan §§1, 7.2 | **Owner: enforce immediately.** Record it in §1 and correct line 105's claim. To keep the impact small, add the education question to intake, so new members are never unknown. Unconfirmed members see a single "Confirm your status to see jobs" prompt, not an empty board. Pre-launch prod is admin-only, so few existing members are affected. |
+| F29 | **Enforcing audiences makes jobs vanish for unconfirmed members.** Unknown education status satisfies no audience (§7.2), and every job will have one. This contradicts "no current member loses access" (§1 line 105). | AI-plan §§1, 7.2 | **Owner: enforce immediately.** Record it in §1 and correct line 105's claim. To keep the impact small, add the education question to intake, so new members are never unknown. Unconfirmed members see a single "Confirm your status to see jobs" prompt, not an empty board. Prod is no longer admin-only: it has 54 members (2026-11-11), and the release preflight counted 52 approved non-admin members who will see this prompt on release day. Existing jobs are backfilled to 'both' (20261111000002), so only the member side of the cutover is felt. |
 | F30 | **Account deletion may break.** `delete_my_account` and the admin delete RPCs delete rows in a fixed order, and some FKs are `ON DELETE RESTRICT`. New AI tables referencing profiles/opportunities could block deletion. | `20260529000004_delete_my_account_full_cleanup.sql`, `20260529000007_admin_delete_user_rpcs.sql`, `20260917000009_…` | §11: AI tables use `ON DELETE CASCADE` from member/opportunity FKs, or are added to every delete RPC. Test that self-delete, admin delete, job delete and graduate delete all succeed with AI rows present. |
 | F31 | **No runner is named for the hourly purge, expiry, reaper or reconciliation.** | AI-plan §§5.1, 9 | Follow the project pattern: pg_cron (used by 10 migrations) runs DB-only purge/expiry and reconciliation, so they work when ACA is down. The executor reaps its own expired leases. |
 | F32 | **E2E needs the Python executor running.** | §14.4 | Playwright `webServer` also starts the executor with the fake provider. The CI E2E job sets up Python. |
@@ -302,7 +302,7 @@ Each audit produces `docs/audits/D<n>-<name>.md`: scope, method, raw evidence, f
 
 **E1 Environments.**
 - There is no staging environment. The owner chose prod-before-launch for load testing.
-- Prod is admin-only and unlaunched, so it doubles as the final test environment until launch day.
+- Prod is unlaunched and doubles as the final test environment until launch day. It is no longer admin-only: it has 54 real members (2026-11-11), so any test there touches real members' data and must follow the E3 safeguards.
 - Local ephemeral Supabase stays the place for all correctness and E2E work.
 - Never source `.env.local`, which is PROD.
 
@@ -445,6 +445,19 @@ A Vitest test asserts that the flag defaults off and that a production build wit
 8. Turn on flags, one feature at a time, each followed by smoke.
 
 For each step, the rollback is: Vercel instant rollback, the previous GHCR digest, flag off; migrations are never rolled back destructively.
+
+**This release (the feat/connections batch) breaks step 2's promise, so it runs in this order instead** (compat sweep, 2026-11-11):
+
+- Its migrations are *not* backward-compatible with the old frontend. `submit_opportunity`, `admin_create_opportunity` and `update_opportunity` now require `p_eligible_audience`, and `confirm_github_connected` takes `p_member_id` (F5, security). With the old frontend live on the new schema, posting, creating and editing jobs fails, and so does connecting GitHub. With the new frontend live on the old schema, nearly every new feature fails. A merge normally deploys the frontend at once, *before* the owner's `db push`, which opens exactly that second window.
+- **Before merging:**
+  1. Check Vercel Skew Protection is on: Project → Settings → Advanced, with "Enable access to System Environment Variables" ticked, or Skew Protection is disabled too. It is on by default for projects created after 2024-11-19, which includes this one, but confirm. It only covers deployments built while it is on, so it must be on before the release build. CLI alternative: `vercel project protection enable <project> --skew`.
+  2. Turn off auto-assign: Project → Settings → Environments → Production → Branch Tracking. The merge then builds a production deployment that shows as *Staged*: no traffic reaches it, and its generated URL works for a look.
+  3. Run `supabase/snippets/preflight_release_constraints.sql` (read-only) on prod. Every part-1 row must be 0, or `db push` stops partway through.
+- **Merge**, then wait for the production build to be *Ready*. It is not live yet.
+- **Run `supabase db push`, then immediately Promote that deployment** (Deployments → ⋯ → Promote, or `vercel promote <url>`). Promoting doesn't rebuild, so the mismatch window is seconds, not a build's length.
+- Turn auto-assign back on.
+- **Rollback for this release is roll-forward only.** A Vercel instant rollback to the pre-release deployment brings back the old frontend on the new schema: job posting, job editing and GitHub connect break until you roll forward again.
+- Existing jobs keep their visibility: `20261111000002` backfills `eligible_audience = 'both'` on every job that predates the audience field.
 
 **E3 Pre-launch prod test window.** Safeguards for testing on prod:
 - **Upgrade first.** Finish E1a steps 1–3 before testing. The window then runs the E1a step-4 compute ladder, so the launch tier is the one that passed.
