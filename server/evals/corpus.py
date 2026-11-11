@@ -1,5 +1,19 @@
 """Retrieval corpus generator and benchmark (S5 gap 5).
 
+Prerequisite: the model prices this needs must already be confirmed, or
+every query fails admission with price_unconfirmed and no corpus or
+query data is ever touched (found the hard way on a freshly reset local
+DB, 2026-11-10 — model_prices.confirmed starts false by migration
+default, and this script does not confirm it itself, unlike
+tests/integration/test_ai_integration.py's `world` fixture):
+
+    python3 -c "
+    import psycopg
+    conn = psycopg.connect('postgresql://postgres:postgres@127.0.0.1:54322/postgres', autocommit=True)
+    conn.execute(\"update ai_private.model_prices set confirmed = true \"
+                 \"where model in ('gpt-5.4-mini', 'gpt-6.1-sol', 'text-embedding-3-small')\")
+    "
+
 python -m evals retrieval --dsn postgresql://postgres:postgres@127.0.0.1:54322/postgres --size 2k
 
 Builds a synthetic corpus of N members (plus jobs for opportunities
@@ -259,6 +273,14 @@ def seed(conn, specs: list[PlantedMember], tag: str) -> dict[str, uuid.UUID]:
 
     with conn.transaction():
         _sql(conn, "select set_config('foundry.onboarding_submission', 'true', true)")
+        # tg_profiles_protect_lifecycle (20261025000001, added after this
+        # generator) refuses a direct is_committee write unless
+        # auth.role() = 'service_role' or is_admin(); this raw psycopg
+        # connection carries no JWT claims at all, so without this it
+        # trips on every committee-member spec, the same marker
+        # test_ai_integration.py's _build_world already sets for exactly
+        # this write.
+        _sql(conn, "select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', true)")
         for batch in _batch(specs):
             values_sql = ", ".join(["(%s, %s, %s, %s, %s)"] * len(batch))
             params = [p for s in batch for p in (ids[s.key], s.grade != "background", "Computing",
