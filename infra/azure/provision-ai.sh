@@ -62,10 +62,9 @@ Next steps (owner):
        update ai_private.model_prices set input_micro_per_mtok = ..., output_micro_per_mtok = ...,
               price_version = price_version + 1, confirmed = true where model in ('gpt-5.4', 'gpt-5.4-mini', 'text-embedding-3-small');
      The executor refuses to start until every model it uses is confirmed.
-  3. Make yourself an AI operator (after you are an admin):
-       insert into ai_private.operators (member_id) select id from auth.users where email = '<you>';
-  4. Set the GitHub environment variable AZURE_AI_APP_NAME=$APP, then run the "Deploy AI executor" workflow.
-  5. Watch the Sentry cron monitor 'ai-executor' check in, then switch modes on in /admin/ai, one at a time.
+  3. Set the GitHub environment variable AZURE_AI_APP_NAME=$APP, then run the "Deploy AI executor" workflow.
+  4. Watch the Sentry cron monitor 'ai-executor' check in, then switch modes on in /admin/ai, one at a time.
+     (Every admin is automatically an AI operator since 2026-11-10 — no separate grant step.)
 EOF
 }
 

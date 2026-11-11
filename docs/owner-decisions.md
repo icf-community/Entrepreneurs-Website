@@ -57,8 +57,8 @@ Detail: [ai-build.md](ai-build.md). In this order:
 16. **A separate OpenAI project and key for matching**, with its own spend alert (not the ingestion key).
 17. **Azure:** run `infra/azure/provision-ai.sh`, set the three Key Vault secrets and the
     `ai_service` password, set `AZURE_AI_APP_NAME`, then run the "Deploy AI executor" workflow.
-18. **Make yourself an AI operator** (SQL insert, printed by the script). Only operators can switch AI
-    on or change limits; any admin can see `/admin/ai`.
+18. ~~Make yourself an AI operator~~ — removed 2026-11-10: every admin is automatically an AI
+    operator now (`is_ai_operator()` is just `is_admin()`), so no SQL step is needed before handoff.
 19. **Legal (A0.2):** wording for `/ai-notice` (factual draft in place), the DPIA, the processor
     register/ROPA lines for OpenAI matching, and the lawful basis per purpose. No flag before sign-off.
 20. **Limits:** confirm the starting caps ($5/day matching, $0.50/day per member, 20 active turns) or
@@ -75,7 +75,8 @@ Detail: [ai-build.md](ai-build.md). In this order:
 - Live grant dump in prod after db push, diffed against local (`supabase/checks/grant_dump.sql`).
 - `health_url` row in `app_config` after db push (G4).
 - E3 load-test think time (2 s is a coin toss on Medium; 5 s passes comfortably).
-- Resend Pro, then `digest_daily_cap` → 800 and Auth emails/hour ≥ 1000.
+- Resend Pro is live. `digest_daily_cap` → 800 is written (migration `20261110000002`,
+  joins the batched push); still owner's: Auth emails/hour ≥ 1000 in the Supabase dashboard.
 - Vercel plan (Pro before the E3 window).
 - Supabase Auth: CAPTCHA toggle, per-IP limits 500 per 5 min, OTP length 6 + templates.
 - Separate Upstash database for Vercel Preview (B15).

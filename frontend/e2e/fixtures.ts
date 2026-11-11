@@ -34,7 +34,7 @@ export type SeedUser = {
   status?: "pending_review" | "rejected";
   /** Seed as graduated (routeMatrix.ts's "alum" row): same approved gate as a student, distinct education state. */
   graduated?: boolean;
-  /** Also insert an `ai_private.operators` row — distinct from `isAdmin` to not collide with admin.spec.ts's own operator-promotion test on `e2e-admin`. */
+  /** Also insert an `ai_private.operators` row. Harmless no-op since 2026-11-10 (`is_ai_operator()` is now just `is_admin()`); kept so `matrixOperator` still reads as the operator row in routeMatrix.ts. */
   isOperator?: boolean;
 };
 

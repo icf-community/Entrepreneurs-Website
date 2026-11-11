@@ -6,14 +6,20 @@ import { assertLocal, deleteMember, newMember, psql, rpc, service, validOpportun
 // (app/admin/ai/actions.ts), but straight at the database, which is the real
 // gate: every admin_* AI function checks the caller in its own body.
 //
-//   - a student, and an admin who is not an AI operator, are refused
-//   - an operator can change a switch / limit, with a recorded reason
+// Owner decision 2026-11-10: is_ai_operator() is just is_admin() now — no
+// separate ai_private.operators row needed, so every admin is an AI
+// operator. The `operator` fixture below (admin + an operators row anyway)
+// is kept only so these tests don't all collapse onto one member and race
+// each other; it is not behaviorally different from `plainAdmin` any more.
+//
+//   - a student is refused every RPC
+//   - any admin can change a switch / limit, with a recorded reason
 //   - bad input (unknown flag, short or long reason, out-of-range limits) is
 //     refused and changes nothing
 //   - the 25% step rule on the active-turn ceiling holds
 //
 // The settings row and flags are global state, so they are snapshotted and
-// restored. The money caps are the AI-bill backstop: what an operator can and
+// restored. The money caps are the AI-bill backstop: what an admin can and
 // cannot do to them is pinned here (finding L-2, fixed in 20261026000010).
 // ════════════════════════════════════════════════════════════════════
 
@@ -59,7 +65,7 @@ const flagNow = () => psql(`select value from public.app_config where key = '${F
 const audits = (admin: string, action: string) =>
   Number(psql(`select count(*) from public.admin_actions where admin_id = '${admin}' and action = '${action}'`));
 
-test("control: an operator really is one, and a plain admin is not", async () => {
+test("control: a plain admin, with no ai_private.operators row, is an AI operator anyway", async () => {
   const op = await rpc(operator.client, "admin_ai_overview");
   const plain = await rpc(plainAdmin.client, "admin_ai_overview");
   expect(op.error, op.error?.message).toBeNull();
@@ -82,18 +88,17 @@ test("a student cannot read the overview or call any operator RPC", async () => 
   expect(flagNow()).toBe(flagBefore);
 });
 
-test("an admin who is not an AI operator can read but not change anything", async () => {
-  const before = settingsNow();
-  const flag = await rpc(plainAdmin.client, "admin_set_ai_flag", { p_key: FLAG, p_enabled: flagBefore !== "true", p_reason: "plain admin attempt" });
-  const lim = await rpc(plainAdmin.client, "admin_set_ai_limits", { p_active_turn_ceiling: 21, p_matching_daily_cap_micro: 1, p_member_daily_cap_micro: 1, p_reason: "plain admin attempt" });
-  const reb = await rpc(plainAdmin.client, "admin_ai_rebuild_index");
-  for (const [name, r] of [["flag", flag], ["limits", lim], ["rebuild", reb]] as const) {
-    expect(r.error?.code, `${name}: ${r.error?.message}`).toBe("42501");
-    expect(r.error?.message, `${name} message is what the action maps to "Only AI operators"`).toContain("operators");
-  }
-  expect(settingsNow()).toBe(before);
+test("an admin with no ai_private.operators row can change a switch, audited, and restores", async () => {
+  const to = flagBefore === "true" ? "false" : "true";
+  const reason = "adv: plain admin flag test";
+  const r = await rpc(plainAdmin.client, "admin_set_ai_flag", { p_key: FLAG, p_enabled: to === "true", p_reason: reason });
+  expect(r.error, r.error?.message).toBeNull();
+  expect(flagNow()).toBe(to);
+  const note = psql(`select notes from public.admin_actions where admin_id = '${plainAdmin.id}' and action in ('ai_flag_on','ai_flag_off') order by created_at desc limit 1`);
+  expect(note).toBe(`${FLAG}: ${reason}`);
+  const back = await rpc(plainAdmin.client, "admin_set_ai_flag", { p_key: FLAG, p_enabled: flagBefore === "true", p_reason: "adv: restore" });
+  expect(back.error, back.error?.message).toBeNull();
   expect(flagNow()).toBe(flagBefore);
-  expect(audits(plainAdmin.id, "ai_limits_changed")).toBe(0);
 });
 
 test("operator: a switch changes, is audited with its reason, and restores", async () => {
