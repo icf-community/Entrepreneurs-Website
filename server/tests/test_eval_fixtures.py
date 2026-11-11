@@ -108,3 +108,22 @@ def test_aggregate_repeats_does_not_blend_cases_that_share_an_id_across_suites()
     assert merged["repeats"]["interpret/adv-scope-001"]["pass_rate"] == 1.0
     assert merged["repeats"]["adversarial/adv-scope-001"]["pass_rate"] == 0.0
     assert merged["critical_failures"] == ["adv-scope-001"]
+
+
+def test_case_ids_are_unique_across_datasets():
+    """The live/replay cache is keyed by bare case id, so two cases sharing an
+    id silently share one recorded model answer (adv-scope-001/002 did)."""
+    import collections
+    import json
+    from pathlib import Path
+
+    seen: dict[str, str] = collections.defaultdict(str)
+    dupes = []
+    for f in sorted((Path(__file__).resolve().parents[1] / "evals" / "datasets").glob("*.jsonl")):
+        for line in f.read_text().splitlines():
+            if line.strip():
+                cid = json.loads(line)["id"]
+                if cid in seen:
+                    dupes.append(f"{cid}: {seen[cid]} and {f.name}")
+                seen[cid] = f.name
+    assert not dupes, dupes
