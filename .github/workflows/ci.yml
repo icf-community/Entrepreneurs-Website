@@ -477,15 +477,12 @@ jobs:
           PW_LIMIT_SECONDS: "1200"
         run: scripts/ci-playwright.sh --project=public-webkit --project=public-iphone
 
-      # NON-BLOCKING (owner decision 2026-11-11). This leg first ran in CI on the
-      # feat/connections PR and showed Firefox-only navigation races
-      # (NS_BINDING_ABORTED on page.goto, pipelines/dialog specs) that could not
-      # be reproduced without a local Firefox. It still runs and reports (see the
-      # step's warning and the uploaded report) but cannot block a release.
-      # Follow-up: debug with a real Firefox, then remove continue-on-error.
+      # Blocking again. It was non-blocking on 2026-11-11 while the leg's first
+      # runs showed Firefox-only races; the traces showed they were test races
+      # (a fixture that left a /home -> /intake redirect in flight when the next
+      # page.goto fired; actions that refresh the router; clicks before
+      # hydration), fixed in the specs, after which the leg ran clean.
       - name: Run E2E (Firefox — all projects)
-        id: firefox
-        continue-on-error: true
         working-directory: frontend
         env:
           PW_LIMIT_SECONDS: "1200"
@@ -494,9 +491,7 @@ jobs:
       - if: always()
         run: supabase stop || true
 
-      # failure() is false when the Firefox step is allowed to fail, so name that
-      # outcome explicitly or its report would never be uploaded.
-      - if: failure() || steps.firefox.outcome == 'failure'
+      - if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report-cross-browser
