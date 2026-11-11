@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { gotoAfterAction } from "./nav";
 
 // Regression cover for components/ui/Dialog, which replaced two hand-rolled
 // <div role="dialog" aria-modal> overlays with the native <dialog> element.
@@ -143,7 +144,9 @@ test("the dialog loads the full profile the list deliberately doesn't carry", as
   // this member may not be on page one, and another member's bio can
   // contain "Bio " too. The search matches bio_focus, and the stamp is
   // unique to this run.
-  await page.goto(`/members?q=${encodeURIComponent(stamp)}`);
+  // The save above ends in router.refresh(); Firefox aborts a goto that lands
+  // inside it (NS_BINDING_ABORTED), hence gotoAfterAction.
+  await gotoAfterAction(page, `/members?q=${encodeURIComponent(stamp)}`);
   // The button is a thin overlay (S8 gap 21): the bio text is a DOM sibling,
   // not a descendant of the button, so filtering the button itself on
   // hasText never matches. Filter the card's article, then take its button.

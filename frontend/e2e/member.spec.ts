@@ -51,8 +51,14 @@ test("non-admin student can't fetch an admin page segment by soft navigation", a
     }
   });
   await adminPage.goto("/admin");
-  await adminPage.locator('a[href="/admin/reports"]').first().click();
-  await adminPage.waitForURL(/\/admin\/reports/);
+  // A Next <Link> clicked before React owns it can sit unresponsive, and
+  // Firefox hung here for the full 30s on one run in CI (passed on retry).
+  // Clicking a link again is harmless, so replay click + URL check together
+  // until the soft navigation takes — the same idiom as dialog.spec.ts.
+  await expect(async () => {
+    await adminPage.locator('a[href="/admin/reports"]').first().click({ timeout: 3_000 });
+    await adminPage.waitForURL(/\/admin\/reports/, { timeout: 3_000 });
+  }).toPass({ timeout: 20_000 });
   await expect(adminPage.getByText("Reported posts").first()).toBeVisible();
   await adminCtx.close();
   expect(nav, "captured the admin's soft-navigation request").not.toBeNull();

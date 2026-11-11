@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { storageStatePath } from "./fixtures";
+import { gotoAfterAction } from "./nav";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Community feed
@@ -77,7 +78,7 @@ test("a member can post, see it in the feed and in My posts, then delete it", as
   await page.getByRole("button", { name: "Delete post" }).click();
   await expect(page.getByRole("heading", { name: title })).toBeHidden();
 
-  await page.goto("/community");
+  await gotoAfterAction(page, "/community");
   await expect(page.getByRole("heading", { name: title })).toBeHidden();
 });
 
