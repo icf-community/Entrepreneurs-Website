@@ -737,6 +737,13 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'e2e')
     env:
       CRON_SECRET: e2e-cron-secret
+      # adversarial/email.spec.ts drains the real route against a fake Resend
+      # that the spec itself starts on :4010. Without these three the route
+      # answers 500 "not configured" and all nine email tests skip themselves,
+      # which is how they went unrun in CI. Fake values, never a real key.
+      RESEND_API_KEY: re_fake_key
+      RESEND_BASE_URL: http://127.0.0.1:4010
+      RESEND_FROM: "Foundry <noreply@example.test>"
     steps:
       - uses: actions/checkout@v5
 
