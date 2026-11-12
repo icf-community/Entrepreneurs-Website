@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 
-// T&C + Privacy agreement checkbox plus an expandable email-usage notice.
+// 18+ confirmation and T&C agreement checkbox, plus an expandable email-usage
+// notice. The useStudentAuth / useAlumAuth hooks record the acceptance
+// (lib/legal.ts) in the new account's metadata.
 // Used by both the alumni signup form and the student verification-link
 // signup flow. Parent owns the `agreed` state so it can gate the submit
 // button.
@@ -26,11 +28,11 @@ export function SignupDisclosures({
           aria-describedby="tc-disclosure"
         />
         <span id="tc-disclosure" className="text-[0.78rem] text-text-secondary leading-relaxed">
-          By signing up to <span className="text-text-primary">Imperial Entrepreneurs</span>, you agree to our{" "}
+          I&apos;m 18 or over, and I agree to the{" "}
           <Link href="/terms" target="_blank" className="text-accent hover:text-accent-light no-underline">
             Terms &amp; Conditions
-          </Link>{" "}
-          and{" "}
+          </Link>
+          . I&apos;ve read the{" "}
           <Link href="/privacy" target="_blank" className="text-accent hover:text-accent-light no-underline">
             Privacy Policy
           </Link>
@@ -49,15 +51,17 @@ export function SignupDisclosures({
 
       {emailNoticeOpen && (
         <div className="pl-7 text-[0.72rem] text-text-muted leading-relaxed space-y-1.5">
-          <p>We send a few transactional emails tied to your account:</p>
+          <p>We only send emails about your account and what you do on Foundry:</p>
           <ul className="list-disc pl-4 space-y-0.5">
-            <li>Sign-in verification (student magic-link) and password reset (alumni).</li>
-            <li>Admin decisions on your application and any opportunities, events, or VC/grants you post.</li>
-            <li>Account or content removal notices, including the graduate-cleanup at the end of your final year.</li>
-            <li>Replies from the team if you contact us via the in-app form.</li>
+            <li>Sign-in codes and password resets.</li>
+            <li>Decisions on your application and on anything you post or report.</li>
+            <li>Connection requests and acceptances (you can turn the summary off).</li>
+            <li>Account notices, including the graduate cleanup, and replies when you contact us.</li>
           </ul>
           <p className="pt-1">
-            We don&apos;t send marketing emails or share your address with third parties. Your email is removed from our systems when you delete your account.
+            We don&apos;t send marketing emails. Other members only see your address if you connect with them.
+            When you delete your account we delete it, except for a few records we keep for a set time, listed in
+            the <Link href="/privacy" target="_blank" className="text-accent hover:text-accent-light no-underline">Privacy Policy</Link>.
           </p>
         </div>
       )}

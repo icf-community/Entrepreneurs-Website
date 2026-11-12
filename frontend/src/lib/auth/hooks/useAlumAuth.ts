@@ -4,6 +4,7 @@ import { verifyOtpServerSide } from "@/lib/auth/verifyOtpGate";
 import type { createClient } from "@/lib/supabase/client";
 import { friendlyVerifyError } from "./authErrorText";
 import type { Mode, Role } from "./loginTypes";
+import { signupConsentRecord } from "@/lib/legal";
 
 type Supabase = ReturnType<typeof createClient>;
 
@@ -120,7 +121,7 @@ export function useAlumAuth(p: Params) {
         return;
       }
       if (!p.tcAgreed) {
-        p.setError("Please agree to the Terms & Conditions and Privacy Policy to continue.");
+        p.setError("Please confirm you're 18 or over and agree to the Terms & Conditions to continue.");
         return;
       }
     }
@@ -163,6 +164,7 @@ export function useAlumAuth(p: Params) {
             role: p.role ?? "alum",
             first_name: cleanName(p.firstName),
             surname: cleanName(p.surname),
+            ...signupConsentRecord(),
           },
         },
       });

@@ -1140,11 +1140,11 @@ function GoogleSignupSection({
       )}
 
       <p className="text-[0.72rem] text-text-muted leading-relaxed text-center px-2">
-        By continuing with Google, you agree to our{" "}
+        By continuing with Google, you confirm you&apos;re 18 or over and agree to our{" "}
         <Link href="/terms" target="_blank" className="text-accent hover:text-accent-light no-underline">
           Terms &amp; Conditions
-        </Link>{" "}
-        and{" "}
+        </Link>
+        , and that you&apos;ve read our{" "}
         <Link href="/privacy" target="_blank" className="text-accent hover:text-accent-light no-underline">
           Privacy Policy
         </Link>

@@ -5,6 +5,7 @@ import { verifyOtpServerSide } from "@/lib/auth/verifyOtpGate";
 import type { createClient } from "@/lib/supabase/client";
 import { friendlyVerifyError } from "./authErrorText";
 import type { Mode } from "./loginTypes";
+import { signupConsentRecord } from "@/lib/legal";
 
 type Supabase = ReturnType<typeof createClient>;
 
@@ -43,7 +44,7 @@ export function useStudentAuth(p: Params) {
       return "Please use your Imperial email address (@imperial.ac.uk or @ic.ac.uk).";
     }
 
-    let signupData: Record<string, string> | undefined;
+    let signupData: Record<string, string | boolean> | undefined;
     if (p.mode === "signup") {
       const trimmedFirst = cleanName(p.firstName);
       const trimmedSurname = cleanName(p.surname);
@@ -57,12 +58,13 @@ export function useStudentAuth(p: Params) {
         return "Names can only contain letters, spaces, hyphens, apostrophes and periods.";
       }
       if (!p.tcAgreed) {
-        return "Please agree to the Terms & Conditions and Privacy Policy to continue.";
+        return "Please confirm you're 18 or over and agree to the Terms & Conditions to continue.";
       }
       signupData = {
         role: "student",
         first_name: trimmedFirst,
         surname: trimmedSurname,
+        ...signupConsentRecord(),
       };
     }
 
