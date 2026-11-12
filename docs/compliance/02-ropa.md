@@ -195,7 +195,9 @@ is the CV's own owner or an admin who chose to open it. Stripping it would requi
 document, which would break the "re-runnable from the original bytes" property the skill-suggestion
 matcher in item O depends on.
 
-### O. CV text extraction for skill suggestion
+### O. CV text extraction for skill suggestion (in-request matcher)
+
+> **Scope, updated 12 Nov 2026:** this item describes only the in-request matcher (Next.js server action, `lib/cv/matchSkills.ts`). It is **not** the whole of what happens to a CV a member lets us read: the worker pipeline in item T also extracts, **stores** and **sends to OpenAI** the CV text. The "never sent to a third party / not retained" statements below are true of this matcher only.
 | Field | Detail |
 |-------|--------|
 | **Data** | Plain text extracted from the CV in item N, held only in memory for the duration of one request |
@@ -210,6 +212,33 @@ against a controlled vocabulary, and every suggestion requires the member's own 
 part of their profile. This is a materially weaker processing claim than an LLM-based version would
 be — see `07-dpia-screening.md` for the corresponding re-screen.
 
+### T. CV reading and profile summary (worker pipeline) — added 12 Nov 2026
+| Field | Detail |
+|-------|--------|
+| **Data** | Text extracted from the member's CV (`cvs.raw_text`); a structured profile (skills, projects, roles) and a short summary (`cv_profiles`); text chunks and their embeddings (`cv_chunks`). Names, email addresses, phone numbers, links, street addresses, postcodes and dates of birth are removed from the text **before** it leaves our systems (`server/app/privacy.py` `minimise`) |
+| **Purpose** | Suggest skills for the member to confirm; generate the profile summary and search data used to match the member to opportunities and, if they opt in, to be found by recruiters (item S) |
+| **Suggested basis** | **Consent** — the separate, unticked-by-default "read my CV" checkbox at upload, whose wording (updated 12 Nov 2026) states that the text is stored and analysed by OpenAI after identifiers are removed. ⚠ **CONFIRM with the DPO** whether existing members who ticked the older wording need a re-prompt |
+| **Recipients (processors)** | **OpenAI** (moderation check, structured extraction and embeddings, via the Chat Completions, Moderations and Embeddings endpoints; the minimised text only). These calls do **not** use the executor's `store=False` Responses setting: OpenAI's standard API retention for abuse monitoring applies (⚠ CONFIRM the current period; historically up to 30 days) and no zero-retention agreement is in place; data sharing for training is disabled org-wide Microsoft Azure UK South (the VM that runs the worker; the CV file). Supabase (all stored data) |
+| **Retention** | Until the CV is replaced or removed, or the account is deleted: the text, profile, summary and embeddings are deleted with it (`remove_my_cv`, `worker_purge_superseded_cvs`, `delete_my_account`). Identical re-uploads reuse the stored data. The extracted text is included in the member's data export (`export_my_data`) |
+| **Location** | Supabase (UK, London); Azure UK South (worker); OpenAI (project data residency Global; no zero-retention agreement — see `03-third-party-dpa-register.md`) |
+
+This is the processing the public privacy page previously described as "never stored, never sent to
+a third party" (audit D6-1, F15); the page was corrected in the same release as this entry. It is
+**profiling-adjacent** (it builds a searchable summary of a person) but makes no decision about them;
+see the re-screen in `07-dpia-screening.md`.
+
+---
+### U. GitHub connection and signal — added 12 Nov 2026
+| Field | Detail |
+|-------|--------|
+| **Data** | The member's GitHub user id and username; an access token (**stored encrypted**); the member's **public, non-fork** repositories (name, description, language, stars, dates), a README excerpt per repository and the profile README if present; the member's chosen showcase (up to three projects, with an optional one-line note each); a summary combining CV and GitHub evidence |
+| **Purpose** | Let the member show real work to recruiters alongside their CV; add skills to their profile |
+| **Suggested basis** | **Consent** — connecting GitHub is optional and member-initiated; disconnecting withdraws it |
+| **Recipients (processors)** | GitHub (the member's own account, read through its API); **OpenAI** (selects the projects and themes that stand out and writes the project part of the summary); Microsoft Azure UK South (worker VM); Supabase |
+| **Retention** | Until the member disconnects (`disconnect_github` deletes the connection and the skills taken from it) or deletes the account. The account is re-checked periodically; an unchanged account is not re-analysed |
+| **Location** | Supabase (UK, London); Azure UK South (worker); OpenAI (Global; see the register) |
+
+---
 ### P. Connections — the mutual connection graph
 | Field | Detail |
 |-------|--------|
@@ -312,7 +341,12 @@ same transaction, not just from future searches.
 | Image bytes in Azure Blob | Follows the post; queued on delete | `blob_deletion_queue` → drained every 5 min; 30-day account lifecycle rule as backstop |
 | Profile photograph | Follows the profile; queued on replace/remove/delete | `blob_deletion_queue` → drained every 5 min; 30-day account lifecycle rule as backstop |
 | CV / résumé | One per member, no versions; queued on replace/remove/delete | `blob_deletion_queue` → drained every 5 min; 30-day account lifecycle rule as backstop |
-| CV extracted text (skill suggestion) | Not retained — discarded within the same request | Held in memory only, never written to a table or a log |
+| CV extracted text (in-request skill suggestion, item O) | Not retained — discarded within the same request | Held in memory only, never written to a table or a log |
+| CV extracted text, profile, summary and embeddings (worker, item T) | Until the CV is replaced or removed, or the account is deleted | `remove_my_cv()`, `worker_purge_superseded_cvs()`, `delete_my_account()` |
+| GitHub connection and signal (item U) | Until the member disconnects or deletes the account | `disconnect_github()`, `delete_my_account()` |
+| In-app notifications | 90 days | `purge_old_notifications()` |
+| Email-change log | For the life of the account (in the data export) | `delete_my_account()` (cascade) |
+| Listing views and clicks (`listing_events`) | For the life of the account; **no purge job** (audit D6-9) | `delete_my_account()` (cascade) |
 | Post reports | 12 months | `purge_moderation_records()` daily (02:35) |
 | Post moderation log (takedowns) | 12 months, unless `legal_hold` | `purge_moderation_records()` daily (02:35) |
 | Connections (accepted) | For the life of the relationship | Removed on either party's action, or on account deletion (FK cascade) |
