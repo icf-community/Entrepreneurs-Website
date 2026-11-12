@@ -533,6 +533,7 @@ fixed in code, copy or documents. "Owner" means it can only be done by a person 
 | 2.1 | No children's access assessment | **Closed (draft):** [13](./13-osa-childrens-access-assessment.md). **Owner/solicitor:** confirm §4, adopt |
 | 2.2 | 18+ not enforced | **Closed:** required 18+ confirmation at signup, recorded with Terms version and time; Google notice updated; Terms §2, Privacy §12. **Gap:** the 52 existing members never confirmed their age; the member notice (16) restates the rule |
 | 2.3 | AI network Art 9 | **Closed:** ethnicity, religion and sexuality refused in every mode (policy.py, `is_sensitive` 20261112000001, interpret prompt, fake provider, 9 eval cases, new Python and SQL tests); `/ai-notice`, DPIA 11 and ROPA S corrected |
+| 0 | **Who is the controller?** | **Open, top priority (raised 12 Nov 2026).** Owner says Foundry is "only a uni society", but every public legal page and compliance document names IC Founders Ltd (Companies House 17171277). One of them is wrong; decide, then every document is updated to match |
 | 2.4 | Imperial name | **Partly closed:** "Imperial College London" removed from the logo lockup; non-endorsement line in footer, Terms §1 and Privacy §1; Terms §7 no longer claims to own the name; metadata says "for … students and alumni". **Owner:** written licence from the society to IC Founders Ltd, and the Union's agreement |
 | 2.5 | Accountability | **Partly closed:** DPO renamed to data protection lead; LIAs written ([14](./14-legitimate-interests-assessments.md)). **Owner:** name the IAO/IAA and data protection lead; sign 08, 09, 10, 11, 13, 14 |
 | 2.6 | ICO fee | **Owner** |
@@ -543,7 +544,7 @@ fixed in code, copy or documents. "Owner" means it can only be done by a person 
 | 3.4 | CV re-consent | **Owner:** confirm ingestion never ran in prod under the old wording, and record it in ROPA item T |
 | 3.5 | Retention | **Closed:** admin log 6 years with a purge job and smoke test (20261112000002); contact-message policy; Sentry/PostHog by provider period. Listing views stay life-of-account (LIA L3 recommends 12 months later) |
 | 3.6 | Unfair terms / OSA ToS | **Closed:** indemnity limited to businesses; statutory rights carved out of the cap; Scotland/NI courts; 30-day notice; reasonable notice of discontinuance; new §6a online safety, reporting and complaints |
-| 4.1 | Consumer Gmail | **Owner:** move the mailbox; the register row now states the gap honestly |
+| 4.1 | Consumer Gmail | **Owner position:** keep it (it is a society activity). **Open:** being a society does not change the Art 28 / security gap; either accept it formally with safeguards, or move to a Union society mailbox |
 | 4.2 | Admin confidentiality | **Closed (template):** [15](./15-admin-confidentiality-undertaking.md). **Owner:** collect signatures |
 | 4.3 | Company disclosures | **Closed:** company line on every email (added at send, so SQL-queued mail too), site footer, © IC Founders Ltd. **Owner:** add the same line to the Supabase Auth email templates (dashboard) |
 | 4.4 | Notice-and-takedown | **Closed:** contact form "Report content" and "Data protection request or complaint" topics, tagged in the ticket subject; Terms §6a sets out what a notice should contain |

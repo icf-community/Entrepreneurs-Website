@@ -83,7 +83,7 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-1 mt-2">
               <li>We extract the plain text from your CV and <strong>store it</strong>, together with the structured summary (skills, projects, roles) and search data derived from it, for as long as that CV is your current one. Replacing or removing the CV, or deleting your account, deletes the text and the data derived from it.</li>
               <li>Before anything leaves our systems, we remove your name, email addresses, phone numbers, links, street addresses, postcodes and dates of birth from the text. The remaining text is sent to <strong>OpenAI</strong>, our AI provider, to check it for unsafe content, to turn it into the structured summary, and to create the search data. OpenAI processes it for us under a data processing agreement. See sections 5 and 6.</li>
-              <li>The extracted text is never shown to other members; it is included in the copy of your data you can download. Your CV file itself is kept as you uploaded it (see sections 5 and 8) and is visible only to you and our admins.</li>
+              <li>The extracted text is not shown to other members, with one exception you control: if you turn on &ldquo;Show recruiters lines from my CV&rdquo; in Settings, a recruiter whose search found you can see up to two short lines from it. It is included in the copy of your data you can download. Your CV file itself is kept as you uploaded it (see sections 5 and 8) and is visible only to you and our admins.</li>
               <li>Skill suggestions are checked against a fixed list of around 180 skills, so only skills from that list are ever offered to you to add.</li>
             </ul>
           </Section>
@@ -193,7 +193,9 @@ export default function PrivacyPage() {
               skills, and links) is visible to other approved Foundry members in the directory. Your email address
               is <strong>not</strong> displayed in the directory. There are exactly two ways another member sees
               it: if you choose to attach a contact email to a listing, and if you connect with them — see
-              section 7a. Your CV is visible only to you and to our admins — it is never shown to other members. Our
+              section 7a. Your CV file is visible only to you and to our admins; other members never see it. The only
+              part of it another member can see is up to two short lines shown to a recruiter whose search found
+              you, and only if you turn that on in Settings. Our
               admins can see all profile data, including email addresses and CVs, for review and operational
               purposes; every admin view of a member&rsquo;s CV is individually logged. If you join the committee, your
               profile card also appears on the committee page, which is likewise visible only to signed-in members.

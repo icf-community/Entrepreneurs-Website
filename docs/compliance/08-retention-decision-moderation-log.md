@@ -111,15 +111,21 @@ routine expiry.
 
 ## 7. Sign-off
 
+> **Corrected 12 Nov 2026.** An earlier version of this block recorded the decision as approved on
+> 30 August 2026 by a named individual described as a director of IC Founders Ltd. That person
+> did not sign it, and is not a director: the Companies House register (checked 12 Nov 2026) lists
+> one officer for IC Founders Ltd. The decision is therefore **not yet made**. It needs someone with
+> authority for whichever body is confirmed as the controller (legal pack, Part B, decision D1).
+
 | | |
 |---|---|
-| **Decision** | ☑ **Approved as written** ☐ Approved with amendments ☐ Rejected |
-| **Approved by** | Varun Nayak, director, IC Founders Ltd ⚠ *confirm exact name and title as registered at Companies House* |
-| **Date** | 30 August 2026 |
+| **Decision** | ☐ Approved as written ☐ Approved with amendments ☐ Rejected |
+| **Approved by** | ______________________ (name and role, for the controller confirmed in D1) |
+| **Date** | ______________________ |
 | **Imperial DPO reviewed** | ☐ Not yet — to be submitted with the portfolio |
-| **Amendments** | None |
+| **Amendments** | ______________________ |
 
-**Reasoning recorded at the time of the decision.** The record exists for the
+**Draft reasoning for the decision-maker** (written for approval; not yet adopted). The record exists for the
 case where its subject has a motive to erase it; making it destroyable by that
 person means it is not a record. Proportionality rests on three facts: only
 admin takedowns write here, so the volume is a handful of rows a year rather

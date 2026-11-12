@@ -91,7 +91,8 @@ export default function TermsPage() {
               You retain ownership of the content you submit — including a profile photo or CV you upload. By
               posting it, you grant us a non-exclusive, royalty-free licence to host, store, and display that
               content for the purpose of operating Foundry: your profile photo and profile details to other
-              approved members in the directory, and your CV to yourself and to our admins only. You confirm that
+              approved members in the directory, your CV to yourself and to our admins only, and, if you turn it on in
+              Settings, up to two short lines from your CV to recruiters whose search found you. You confirm that
               you have the right to post it, that a profile photo is of you, and that it does not breach these
               terms or anyone&rsquo;s rights. When you delete a listing, your CV, your photo, or your account, we
               remove that content from our live systems as described in the{" "}
