@@ -48,6 +48,8 @@ genuinely decided.
 | 7 | Sign off the Foundry AI DPIA and its open points (1 to 4), including consulting members | 11 §2, §6 | **Any AI flag** | |
 | 8 | Lawful basis for a member's own job matches (contract or legitimate interests) | 02 item S | **Any AI flag** | |
 | 9 | Approve the `/ai-notice` wording | `ai-notice/page.tsx` | **Any AI flag** | |
+| 9a | **Public wording that must change before any AI flag** (found in the 12 Nov 2026 review): (a) the privacy page has **no section on Foundry AI** (lawful basis per toggle, OpenAI as recipient for matching, 7-day and 30-day retention, the profiling statement, a link to `/ai-notice`); (b) privacy page section 7 and the Terms say a CV is visible "only to you and our admins", but with `evidence_sharing` consent a recruiter can see up to two short CV lines; (c) `/ai-notice` is dated 6 Oct 2026 and says matching never uses gender, ethnicity, nationality, religion or sexuality, but on 10 Nov it was decided that **Build your network** may take those as search terms (`policy.py` `_AFFINITY`). Re-check the sentence against that behaviour and add a line saying so | `privacy/page.tsx`, `terms/page.tsx`, `ai-notice/page.tsx` | **Any AI flag** | |
+| 9b | Cookie Policy (dated 29 Aug 2026) and Terms (dated 20 Sep 2026) were **not** re-verified against the current code in the 12 Nov 2026 review | `cookies/page.tsx`, `terms/page.tsx` | Soon | |
 | 10 | Items 20 and 21 of `owner-decisions.md` (spend caps; strictness of the protected-characteristic screen) | owner-decisions | **Any AI flag** | |
 | 11 | Signed copy of the OpenAI DPA | 03 | 19 Nov 2026 | |
 | 12 | Confirm the Imperial relationship (independent controller vs joint) is acceptable for DART 2.0 | 02 §1 | Before DART submission | |
