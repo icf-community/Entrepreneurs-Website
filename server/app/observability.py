@@ -147,9 +147,17 @@ def scrub(event: dict[str, Any], _hint: dict[str, Any] | None = None) -> dict[st
     event.pop("extra", None)
     # We never call set_user; make sure nothing identifying rides along.
     event.pop("user", None)
+    # The trace and span ids are 32 and 16 hex characters: the shape _HEX_SECRET
+    # redacts. Sentry rejects a check-in whose trace_id is "[hex]" (the executor's
+    # heartbeat was refused for exactly this) and cannot link an error to its trace,
+    # so they are set aside while the rest of the context is scrubbed.
+    trace = (event.get("contexts") or {}).get("trace") if isinstance(event.get("contexts"), dict) else None
+    ids = {k: trace[k] for k in ("trace_id", "span_id", "parent_span_id") if isinstance(trace, dict) and k in trace}
     for field in ("contexts", "tags"):
         if isinstance(event.get(field), dict):
             event[field] = _scrub_value(event[field])
+    if ids and isinstance(event["contexts"].get("trace"), dict):
+        event["contexts"]["trace"].update(ids)
     return event
 
 
