@@ -1,4 +1,6 @@
 import "server-only";
+import { cached } from "../cache";
+import { escapeLike } from "../likeEscape";
 import { rows, maybeRow, type Db } from "./query";
 
 export type Vc = {
@@ -27,7 +29,7 @@ export type VcFilters = {
 
 function vcFilterArgs(f: VcFilters) {
   return {
-    p_query: f.q || undefined,
+    p_query: f.q ? escapeLike(f.q) : undefined,
     p_kind:  f.kind === "all" ? undefined : f.kind,
     p_from:  f.from || undefined,
     p_to:    f.to || undefined,
@@ -66,14 +68,30 @@ export type VcsPage = {
  * browser — silently truncated past 1,000 rows exactly like the member
  * directory did before migration 20260826000003, just never actually hit
  * at this list's current scale. See 20260904000002 for the RPC.
+ *
+ * No contact_email or other caller-dependent column on this row shape
+ * (see lib/cache.ts's header), so unlike the opportunities/events lists
+ * this one needs no masking to be cacheable — only the directory's own
+ * "unfiltered first page only" restriction, for the same reason:
+ * anything with a search or a filter has too large a key space to cache.
  */
-export async function listApprovedVcs(db: Db, filters: VcFilters): Promise<VcsPage> {
-  const data = await rows("list_approved_vcs_grants", () =>
-    db.rpc("list_approved_vcs_grants", {
-      ...vcFilterArgs(filters),
-      p_limit:  VC_PAGE_SIZE,
-      p_offset: (filters.page - 1) * VC_PAGE_SIZE,
-    }));
+export async function listApprovedVcs(
+  db: Db,
+  filters: VcFilters,
+  { isAdmin = false }: { isAdmin?: boolean } = {},
+): Promise<VcsPage> {
+  const unfiltered =
+    filters.page === 1 && !filters.q && filters.kind === "all" && !filters.from && !filters.to;
+  const data = await cached(
+    "vcs",
+    () => rows("list_approved_vcs_grants", () =>
+      db.rpc("list_approved_vcs_grants", {
+        ...vcFilterArgs(filters),
+        p_limit:  VC_PAGE_SIZE,
+        p_offset: (filters.page - 1) * VC_PAGE_SIZE,
+      })),
+    { skip: isAdmin || !unfiltered, isCacheable: (r) => r.length > 0 },
+  );
 
   return {
     items: data.map(toVc),
@@ -86,6 +104,12 @@ export async function listApprovedVcs(db: Db, filters: VcFilters): Promise<VcsPa
 /**
  * The most recently approved VCs/grants, ignoring every filter — /home's
  * strip. Same RPC as the paged list, unfiltered and capped small.
+ *
+ * Deliberately NOT cached: it's a different p_limit (3, not VC_PAGE_SIZE)
+ * from the "vcs" key above, so sharing that key would serve this call the
+ * paged list's cached rows (or vice versa) — same bug the directory avoids
+ * by giving directoryFirstPage and directoryNewest separate keys. This
+ * query is already cheap (limit 3), so it isn't worth a second key.
  */
 export async function newestVcs(db: Db, limit = 3): Promise<Vc[]> {
   const data = await rows("list_approved_vcs_grants (newest)", () =>

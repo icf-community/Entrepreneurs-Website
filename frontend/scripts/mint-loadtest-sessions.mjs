@@ -209,6 +209,9 @@ async function mint(email) {
     userId: data.session.user.id,
     // Pre-joined so the load test does no string work in the hot path.
     cookie: cookies.map((c) => `${c.name}=${c.value}`).join("; "),
+    // The k6 write mix calls two RPCs the way the browser does, straight
+    // to PostgREST with the member's own token (E1b).
+    accessToken: data.session.access_token,
     expiresAt: data.session.expires_at,
   };
 }

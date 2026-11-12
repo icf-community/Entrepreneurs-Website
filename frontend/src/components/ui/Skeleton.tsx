@@ -112,3 +112,28 @@ export function TableSkeleton({ rows = 8, className = "" }: { rows?: number; cla
     </SkeletonRegion>
   );
 }
+
+/** Eyebrow + title + subtitle, the header every page opens with. */
+export function PageHeaderSkeleton({ className = "" }: { className?: string }) {
+  return (
+    <div className={`mb-8 ${className}`}>
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-9 w-[22rem] max-w-full mt-3" />
+      <Skeleton className="h-3 w-40 mt-4" />
+    </div>
+  );
+}
+
+/** Label + field pairs, for form pages. */
+export function FormSkeleton({ fields = 4, className = "" }: { fields?: number; className?: string }) {
+  return (
+    <SkeletonRegion className={`space-y-6 ${className}`}>
+      {Array.from({ length: fields }, (_, i) => (
+        <div key={i}>
+          <Skeleton className="h-3 w-1/4 mb-2" />
+          <Skeleton className="h-11 w-full rounded-lg" />
+        </div>
+      ))}
+    </SkeletonRegion>
+  );
+}

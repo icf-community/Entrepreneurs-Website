@@ -6,7 +6,9 @@ import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import { toggleOpportunityBookmark } from "../actions";
 import type { Opportunity } from "@/lib/data/opportunities";
-import { externalHref } from "@/lib/safeUrl";
+import { externalHref, mailtoHref } from "@/lib/safeUrl";
+import { settle } from "@/lib/settle";
+import { useToast } from "@/components/ui/Toast";
 
 // Everything on the detail page that needs the browser: the apply
 // click-through (recorded), the applied pill, and the bookmark star.
@@ -31,21 +33,27 @@ export default function OpportunityActions({
     recordListingEvent("opportunity", o.id, "expand");
   }, [o.id]);
 
+  const toast = useToast();
+  // A write-in-flight guard only, never read during render — a ref avoids
+  // a re-render on every flip, same as OpportunitiesClient's `inFlight`.
+  const saving = useRef(false);
   const toggleBookmark = () => {
+    // B7: one write at a time; a failure says so instead of silently flipping back.
+    if (saving.current) return;
+    saving.current = true;
     // Optimistic, reverted if the write fails — same contract as the card.
     // The .catch() covers an actual thrown rejection (network blip
     // invoking the action), which would otherwise skip the rollback and
     // leave the star stuck showing the wrong state.
     const was = bookmarked;
     setBookmarked(!was);
-    void toggleOpportunityBookmark(o.id)
-      .then((res) => {
-        if (!res.ok) setBookmarked(was);
-      })
-      .catch((e) => {
-        console.error("Failed to toggle bookmark:", e);
+    void settle(toggleOpportunityBookmark(o.id)).then((res) => {
+      saving.current = false;
+      if (!res.ok) {
         setBookmarked(was);
-      });
+        toast("Couldn't update your bookmark. Please try again.", "error");
+      }
+    });
   };
 
   return (
@@ -62,7 +70,7 @@ export default function OpportunityActions({
         </a>
       ) : o.contactEmail ? (
         <a
-          href={`mailto:${o.contactEmail}?subject=${encodeURIComponent(o.positionName)}`}
+          href={mailtoHref(o.contactEmail, o.positionName)}
           onClick={() => recordListingEvent("opportunity", o.id, "contact_click")}
           className="inline-block rounded-lg bg-accent px-4 py-2 text-[0.825rem] font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
         >

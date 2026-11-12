@@ -41,7 +41,8 @@ describe("GET /api/health", () => {
     const { GET } = await load();
     const res = await GET();
     expect(res.status).toBe(503);
-    expect((await res.json()).ok).toBe(false);
+    // B3: anonymous callers get no DB error text (schema names, hosts).
+    expect(await res.json()).toEqual({ ok: false });
   });
 
   it("503s rather than 500ing when the client throws (e.g. a paused project)", async () => {
@@ -51,6 +52,6 @@ describe("GET /api/health", () => {
     const { GET } = await load();
     const res = await GET();
     expect(res.status).toBe(503);
-    expect((await res.json()).error).toMatch(/fetch failed/);
+    expect(await res.json()).toEqual({ ok: false });
   });
 });

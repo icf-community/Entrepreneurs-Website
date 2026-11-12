@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { BrandLogo } from "@/components/BrandLogo";
 import { scrollBehavior } from "@/lib/motion";
 
@@ -14,14 +15,14 @@ const NAV_LINKS = [
 
 function Logo() {
   return (
-    <a
-      href="#"
-      onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: scrollBehavior() }); }}
-      className="no-underline inline-block"
+    <button
+      type="button"
+      onClick={() => window.scrollTo({ top: 0, behavior: scrollBehavior() })}
+      className="inline-block cursor-pointer border-0 bg-transparent p-0"
       aria-label="Foundry — Imperial Entrepreneurs"
     >
       <BrandLogo size="md" priority />
-    </a>
+    </button>
   );
 }
 
@@ -47,12 +48,12 @@ function NavLink({ label, href, isActive, onClick }: {
 
 function JoinButton() {
   return (
-    <a
+    <Link
       href="/login"
       className="hidden md:inline-flex items-center whitespace-nowrap rounded-lg px-5 py-2 text-sm font-semibold no-underline bg-accent text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
     >
       Join Foundry
-    </a>
+    </Link>
   );
 }
 
@@ -143,12 +144,12 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
-          <a
+          <Link
             href="/login"
             className="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-base font-semibold no-underline bg-accent text-bg-primary"
           >
             Join Foundry
-          </a>
+          </Link>
         </div>
       )}
 
@@ -160,12 +161,12 @@ export default function Navbar() {
           padding on mobile so this never covers its content. */}
       {!menuOpen && (
         <div className="md:hidden fixed inset-x-0 bottom-0 z-50 border-t border-border bg-bg-primary/95 px-4 py-3 backdrop-blur-md [padding-bottom:max(0.75rem,env(safe-area-inset-bottom))]">
-          <a
+          <Link
             href="/login"
             className="flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold no-underline bg-accent text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
           >
             Join Foundry
-          </a>
+          </Link>
         </div>
       )}
     </header>

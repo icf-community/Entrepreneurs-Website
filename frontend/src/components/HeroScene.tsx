@@ -60,7 +60,12 @@ const FRAG = /* glsl */ `
     vec2 c = gl_PointCoord - 0.5;
     float d = dot(c, c);
     if (d > 0.25) discard;
-    gl_FragColor = vec4(1.0, 1.0, 1.0, vAlpha * smoothstep(0.25, 0.10, d));
+    // smoothstep(edge0, edge1, x) is undefined per spec when edge0 >= edge1,
+    // so the soft inward fade is written as 1 - smoothstep(0.10, 0.25, d)
+    // (ascending edges) rather than smoothstep(0.25, 0.10, d) — mathematically
+    // identical (smoothstep's cubic is point-symmetric about t=0.5) but
+    // spec-compliant.
+    gl_FragColor = vec4(1.0, 1.0, 1.0, vAlpha * (1.0 - smoothstep(0.10, 0.25, d)));
   }
 `;
 

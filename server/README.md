@@ -66,7 +66,7 @@ so this is an identifier, not a secret) plus its own vars, all fail-loud via `co
 |---|---|
 | `AZURE_STORAGE_ACCOUNT` | Same value as the gateway's — not a secret, Storage access is via managed identity |
 | `AZURE_CV_CONTAINER` | The one blob container this process ever reads (member-uploaded CVs) — not a secret, just an identifier |
-| `DATABASE_URL` | Direct Postgres connection. Local Supabase: `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+| `DATABASE_URL` | Postgres as the scoped `cv_worker` role (F25, migration 20260928000013), never `postgres`. TLS is required unless the DSN sets `sslmode` (B13), so the local stack, which has no TLS, opts out. Local: run `alter role cv_worker password 'cv_worker-local';` once in the local SQL editor, then `postgresql://cv_worker:cv_worker-local@127.0.0.1:54322/postgres?sslmode=disable`. Production: the session pooler, user `cv_worker.<project-ref>` (see `infra/vm/bootstrap-worker.sh`). A query that needs a new grant goes in the migration and in `supabase/tests/cv_worker_role.sql`. |
 | `OPENAI_API_KEY` | Used for moderation, extraction, and embedding calls. Not `server/.env`'s key — see below |
 | `GITHUB_TOKEN_ENCRYPTION_KEY` | Decrypts `github_connections.access_token_encrypted` (pgcrypto `pgp_sym_decrypt`). Must be the exact same value as the Next.js app's `GITHUB_TOKEN_ENCRYPTION_KEY` (it's what encrypted the token in the first place) — never persisted in the database itself |
 
@@ -110,6 +110,25 @@ one means installing it directly into the throwaway venv (`pip install . new-pac
 before freezing. Then re-derive `requirements-dev.txt`'s dev-only lines (`pytest`, `httpx2`, and
 whatever they pull in) the same way, on top of that same venv. Review the resulting diff — a
 version bump you didn't ask for anywhere in the closure is worth understanding before committing.
+
+The 2026-10-31 refresh was done this way: a clean Python 3.12 venv, the direct dependencies
+installed unpinned (`azure-identity azure-storage-blob fastapi gunicorn "uvicorn[standard]" openai
+pikepdf "psycopg[binary]" "pymupdf<2" python-docx python-multipart sentry-sdk pillow`), `pip freeze`
+into `requirements.txt`, the AI executor's slim closure from `openai "psycopg[binary]" sentry-sdk`
+alone into `requirements-ai.txt` (a test pins that it is a strict subset with identical pins), and
+`pytest` on top of the full closure for `requirements-dev.txt`. Then `pip-audit -r <file> --no-deps`
+on all three (clean), a check that every pin has wheels for CPython 3.12 on both architectures
+(`pip download --only-binary=:all: --platform manylinux_2_28_x86_64 ...`, also `aarch64`, with
+`--python-version 3.12 --implementation cp --abi cp312`), the full test suite, and the offline evals.
+
+Two things to know when you refresh next time:
+
+- **`pymupdf` stays on 1.x.** The 2.0 release pulls `onnxruntime`, `numpy`, `networkx`, `protobuf`
+  and more into the image (via `pymupdf-layout` and `pymupdf4llm`): an ML runtime inside the PDF
+  parser's trust boundary, for features this service doesn't use. Install it as `"pymupdf<2"`.
+- **Both images are built on `python:3.12-slim-trixie`** (Debian 13), still Python 3.12 so the
+  interpreter matches CI's `setup-python` and the wheels. Moving to a newer Python minor means
+  changing the Dockerfiles, `ci.yml`'s `python-version` lines and re-checking every wheel together.
 
 **Running the built image locally**, to check the actual artifact `infra/deploy.sh` ships (not just
 the source): `docker compose up gateway` runs it as production does; `docker compose --profile dev

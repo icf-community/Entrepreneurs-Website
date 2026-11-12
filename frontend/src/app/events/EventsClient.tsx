@@ -11,7 +11,12 @@ import { AddToCalendarMenu } from "@/components/AddToCalendarMenu";
 import { recordListingEvent } from "@/lib/analytics";
 import { formatDateWeekday, formatTime } from "@/lib/dates";
 import type { FoundryEvent } from "@/lib/data/events";
-import { externalHref } from "@/lib/safeUrl";
+import { externalHref, mailtoHref } from "@/lib/safeUrl";
+import { Button } from "@/components/ui/Button";
+
+// D1: same cap as OpportunitiesClient — only the first PAGE matches render
+// and hydrate; search and filters still cover every event.
+const PAGE = 30;
 
 const MODES = [
   { value: "all",       label: "All" },
@@ -26,6 +31,7 @@ const MODE_VALUES = MODES.map((m) => m.value);
 const ONLINE_RE = /online|zoom|google meet|teams|lu\.ma|webinar|virtual/i;
 
 export default function EventsClient({
+  // react-doctor-disable-next-line react-doctor/rerender-memo-with-default-value -- component is not wrapped in React.memo; rule's premise doesn't apply here
   items, goingIds = [],
 }: {
   items: FoundryEvent[];
@@ -68,6 +74,12 @@ export default function EventsClient({
       return true;
     });
   }, [items, query, mode, from, to, dismissed]);
+
+  // The count belongs to the filters it was raised under; changing any of
+  // them starts from one page again.
+  const view = `${query}|${mode}|${from}|${to}`;
+  const [paging, setPaging] = useState({ view, n: PAGE });
+  const shown = paging.view === view ? paging.n : PAGE;
 
   const activeFilterCount = (mode !== "all" ? 1 : 0) + (from ? 1 : 0) + (to ? 1 : 0);
 
@@ -117,7 +129,14 @@ export default function EventsClient({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filtered.map((e) => <EventCard key={e.id} ev={e} going={goingSet.has(e.id)} onDismiss={() => dismiss(e.id)} />)}
+          {filtered.slice(0, shown).map((e) => <EventCard key={e.id} ev={e} going={goingSet.has(e.id)} onDismiss={() => dismiss(e.id)} />)}
+        </div>
+      )}
+      {filtered.length > shown && (
+        <div className="mt-6 flex justify-center">
+          <Button variant="ghost" size="sm" onClick={() => setPaging({ view, n: shown + PAGE })}>
+            Show more ({filtered.length - shown} more)
+          </Button>
         </div>
       )}
     </>
@@ -217,7 +236,7 @@ function EventCard({ ev, going, onDismiss }: {
               <div>
                 <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Contact organiser</div>
                 <a
-                  href={`mailto:${ev.contactEmail}?subject=${encodeURIComponent(ev.title)}`}
+                  href={mailtoHref(ev.contactEmail, ev.title)}
                   onClick={() => recordListingEvent("event", ev.id, "contact_click")}
                   className="text-[0.8rem] text-text-secondary no-underline hover:text-text-primary break-all"
                 >

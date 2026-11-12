@@ -34,10 +34,14 @@ export default function ResetPasswordForm() {
     }
 
     setIsLoading(true);
-    const { error: updateError } = await supabase.auth.updateUser({ password });
+    let updateError: Awaited<ReturnType<typeof supabase.auth.updateUser>>["error"];
+    try {
+      ({ error: updateError } = await supabase.auth.updateUser({ password }));
+    } finally {
+      setIsLoading(false);
+    }
     if (updateError) {
       setError(updateError.message);
-      setIsLoading(false);
       return;
     }
 
@@ -47,7 +51,6 @@ export default function ResetPasswordForm() {
     await clearRecoveryMarker();
     await supabase.auth.signOut();
     setDone(true);
-    setIsLoading(false);
   };
 
   if (done) {

@@ -1,6 +1,8 @@
 import "server-only";
-import { rows, type Db } from "./query";
+import { rows, rowsOrThrow, type Db } from "./query";
+import { isServiceUnavailable } from "@/lib/supabase/unavailable";
 import { cached } from "@/lib/cache";
+import { escapeLike } from "@/lib/likeEscape";
 import { signedImageUrls } from "@/lib/storage/blobRead";
 import type { Affiliation } from "@/lib/intake/steps";
 
@@ -39,6 +41,14 @@ export type Facets = {
   grad_min: number | null;
   grad_max: number | null;
   total: number;
+  /** C4: set when the facets couldn't be read, so the page can say so
+   *  instead of silently showing no filters. Never cached. */
+  unavailable?: boolean;
+};
+
+/** What a facets loader returns when its read failed (not "no facets"). */
+export const UNAVAILABLE_FACETS: Facets = {
+  courses: [], sectors: [], skills: [], grad_min: null, grad_max: null, total: 0, unavailable: true,
 };
 
 export const EMPTY_FACETS: Facets = {
@@ -65,7 +75,7 @@ export type MemberFilters = {
  */
 export function filterArgs(f: MemberFilters) {
   return {
-    p_query:    f.q || undefined,
+    p_query:    f.q ? escapeLike(f.q) : undefined,
     p_roles:    f.roles.length ? f.roles : undefined,
     p_courses:  f.courses.length ? f.courses : undefined,
     p_sectors:  f.sectors.length ? f.sectors : undefined,
@@ -92,8 +102,11 @@ export async function directoryFacets(db: Db, { skip }: { skip: boolean }): Prom
   return cached(
     "directoryFacets",
     async () => {
-      const data = await rows("list_directory_facets", () => db.rpc("list_directory_facets"));
-      return data[0] ?? EMPTY_FACETS;
+      // rowsOrThrow, not rows(): an empty result from a failed read must be
+      // told apart from a genuinely empty directory (C4).
+      const data = await rowsOrThrow("list_directory_facets", () => db.rpc("list_directory_facets"))
+        .catch((e) => { if (isServiceUnavailable(e)) throw e; return null; });
+      return data ? data[0] ?? EMPTY_FACETS : UNAVAILABLE_FACETS;
     },
     { skip, isCacheable: (f) => f.total > 0 },
   );
@@ -277,4 +290,20 @@ export async function directoryPage(
     // absent exactly when the page is empty.
     matching: cards[0]?.total_count ?? 0,
   };
+}
+
+/**
+ * One approved member's card, for View profile from a job's "Posted by"
+ * row or an AI result (AI-plan §2, §12). Null when the member isn't
+ * approved or the viewer may not see them.
+ */
+export async function memberCard(db: Db, id: string): Promise<DirectoryMember | null> {
+  const data = await rows("get_member_card", () => db.rpc("get_member_card", { p_id: id }));
+  const r = data[0];
+  if (!r) return null;
+  const lookingFor = await openRolesByPoster(db, [r.id]);
+  const [member] = await withAvatarUrls([
+    toDirectoryMember({ ...(r as Omit<CardRow, "total_count">), total_count: 1 }, lookingFor.get(r.id) ?? []),
+  ]);
+  return member;
 }

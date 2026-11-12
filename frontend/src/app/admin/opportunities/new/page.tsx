@@ -1,15 +1,10 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { throwIfAuthUnreachable } from "@/lib/supabase/unavailable";
 import { listTaxonomy } from "@/lib/data/taxonomy";
 import OpportunityForm from "@/app/opportunities/new/OpportunityForm";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 export default async function AdminNewOpportunityPage() {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  throwIfAuthUnreachable("session", authError);
-  if (!user) redirect("/login");
+  const { supabase, user } = await requireAdminPage();
 
   const { skills, sectors } = await listTaxonomy(supabase);
 

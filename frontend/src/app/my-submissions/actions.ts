@@ -43,6 +43,7 @@ const REVALIDATE: Record<ListingType, string[]> = {
 // in depth — so an ownership regression in a policy can't widen this into
 // a delete-anyone's-row primitive. A request for somebody else's row (or a
 // missing one) affects 0 rows and we report that as not found.
+// react-doctor-disable-next-line server-auth-actions -- identity derived server-side via getActionAuth() (session-bound), never from a client-supplied user id; query is scoped to the authenticated caller's own posted_by
 export async function deleteOwnListing(type: ListingType, id: string): Promise<Result> {
   if (!TABLE[type]) return { ok: false, error: "Unknown listing type." };
 

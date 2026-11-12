@@ -54,9 +54,18 @@ type Parts = {
   weekday: number;
 };
 
-/** The London wall-clock fields of an instant. */
-function londonParts(input: string | Date): Parts {
+// What every formatter shows for a value that is not a real instant. A
+// timestamptz can hold 'infinity' (PostgREST serialises it as the string
+// "infinity") and Intl throws a RangeError on the Invalid Date that gives, so
+// without this one bad row takes down every page that renders it.
+const UNAVAILABLE = "Date unavailable";
+/** Day key for a non-instant; formatDayKeyLong renders it as the placeholder. */
+const INVALID_DAY_KEY = "unknown";
+
+/** The London wall-clock fields of an instant, or null if it is not a real one. */
+function londonParts(input: string | Date): Parts | null {
   const d = typeof input === "string" ? new Date(input) : input;
+  if (Number.isNaN(d.getTime())) return null;
   const parts = FORMATTER.formatToParts(d);
   const field = (type: Intl.DateTimeFormatPartTypes): number => {
     const part = parts.find((p) => p.type === type);
@@ -87,40 +96,47 @@ export function dayKey(year: number, month: number, day: number): string {
 /** The London calendar day an instant falls on, as "2026-09-15". */
 export function londonDayKey(input: string | Date): string {
   const p = londonParts(input);
+  if (!p) return INVALID_DAY_KEY;
   return dayKey(p.year, p.month, p.day);
 }
 
 /** "15 Sep 2026" */
 export function formatDate(input: string | Date): string {
   const p = londonParts(input);
+  if (!p) return UNAVAILABLE;
   return `${p.day} ${MONTHS[p.month - 1]} ${p.year}`;
 }
 
 /** "Mon, 24 Sep 2026" */
 export function formatDateWeekday(input: string | Date): string {
   const p = londonParts(input);
+  if (!p) return UNAVAILABLE;
   return `${WEEKDAYS[p.weekday]}, ${p.day} ${MONTHS[p.month - 1]} ${p.year}`;
 }
 
 /** "18:30" */
 export function formatTime(input: string | Date): string {
   const p = londonParts(input);
+  if (!p) return UNAVAILABLE;
   return `${pad2(p.hour)}:${pad2(p.minute)}`;
 }
 
 /** "Mon, 24 Sep 2026, 18:30" */
 export function formatDateTime(input: string | Date): string {
+  if (!londonParts(input)) return UNAVAILABLE;
   return `${formatDateWeekday(input)}, ${formatTime(input)}`;
 }
 
 /** "Monday, 24 September 2026" */
 export function formatDateLong(input: string | Date): string {
   const p = londonParts(input);
+  if (!p) return UNAVAILABLE;
   return `${WEEKDAYS_LONG[p.weekday]}, ${p.day} ${MONTHS_LONG[p.month - 1]} ${p.year}`;
 }
 
 /** "Monday, 24 September 2026, 18:30" */
 export function formatDateTimeLong(input: string | Date): string {
+  if (!londonParts(input)) return UNAVAILABLE;
   return `${formatDateLong(input)}, ${formatTime(input)}`;
 }
 
@@ -133,6 +149,7 @@ export function formatDateTimeLong(input: string | Date): string {
  * runtime's zone — the exact round trip this file exists to stop.
  */
 export function formatDayKeyLong(key: string): string {
+  if (key === INVALID_DAY_KEY) return UNAVAILABLE;
   const [year, month, day] = key.split("-").map(Number);
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   return `${WEEKDAYS_LONG[weekday]}, ${day} ${MONTHS_LONG[month - 1]} ${year}`;

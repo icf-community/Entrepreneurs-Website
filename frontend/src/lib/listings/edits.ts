@@ -1,4 +1,6 @@
 import "server-only";
+import * as Sentry from "@sentry/nextjs";
+import { throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/actionAuth";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
@@ -125,12 +127,15 @@ function toEdit(r: EditRow): ListingEdit {
 export async function listPendingListingEdits(): Promise<ListingEdit[]> {
   const auth = await requireAdmin();
   if (!auth.ok) return [];
-  const { data, error } = await auth.supabase.rpc("admin_list_listing_edits");
-  if (error) {
-    console.error("admin_list_listing_edits failed:", error.message);
-    return [];
+  const res = await auth.supabase.rpc("admin_list_listing_edits");
+  throwIfUnreachable("admin_list_listing_edits", res);
+  if (res.error) {
+    // B4: an empty queue here reads as "0 waiting", so a failed read throws
+    // to the admin error boundary instead of posing as an empty queue.
+    Sentry.captureException(res.error, { tags: { surface: "data-read", source: "admin_list_listing_edits" } });
+    throw new Error("Failed to load admin_list_listing_edits");
   }
-  return ((data ?? []) as EditRow[]).map(toEdit);
+  return ((res.data ?? []) as EditRow[]).map(toEdit);
 }
 
 /**
@@ -171,7 +176,10 @@ async function reviewEdit(
   // could not forge a decision — but it *could* steer which paths get
   // revalidated and whether the Luma reminder goes out, and neither of
   // those should be a client's to choose.
-  const edit = (await listPendingListingEdits()).find((e) => e.id === editId) ?? null;
+  // Only steers notifications and revalidation; the decision below does not
+  // depend on it, so a failed lookup degrades to "no follow-ups".
+  const edit = (await listPendingListingEdits().catch(() => [] as ListingEdit[]))
+    .find((e) => e.id === editId) ?? null;
 
   const { data, error } =
     decision === "applied"

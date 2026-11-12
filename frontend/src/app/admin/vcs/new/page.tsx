@@ -1,7 +1,9 @@
 import Link from "next/link";
 import VcForm from "@/app/vcs/new/VcForm";
+import { requireAdminPage } from "@/lib/auth/guard";
 
-export default function AdminNewVcPage() {
+export default async function AdminNewVcPage() {
+  await requireAdminPage();
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
       <div className="max-w-[720px] mx-auto">

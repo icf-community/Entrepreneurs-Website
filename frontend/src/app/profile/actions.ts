@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getActionAuth } from "@/lib/auth/actionAuth";
 import { invalidate } from "@/lib/cache";
+import { check } from "@/lib/ratelimit";
 
 // ProfileForm and OnboardingForm call update_profile / submit_onboarding
 // straight from the browser, so no server action runs on that write and
@@ -15,11 +16,18 @@ import { invalidate } from "@/lib/cache";
 // part of the backend migration; until then the form calls this on
 // success.
 //
-// Safe to expose: it takes no input, requires a session, and its only
-// effect is to make the next directory read go to Postgres.
+// It takes no input and its only effect is to make the next directory read go to
+// Postgres, which is why it is for approved members only and rate limited.
 export async function invalidateDirectoryCache(): Promise<void> {
-  const { user } = await getActionAuth();
+  const { user, isAdmin, status } = await getActionAuth();
   if (!user) return;
+  // Every directory read after this goes to Postgres, so it is not for pending or rejected
+  // accounts, and one account cannot loop it to keep the cache permanently cold.
+  if (!isAdmin && status !== "approved") return;
+  // Fail-closed: limited OR unavailable both refuse (unavailable uses the
+  // in-process limiter via FAIL_CLOSED, so a true Redis throw still has a
+  // ceiling; "unavailable" here means that fallback also refused).
+  if ((await check("directoryRefresh", user.id)) !== "allowed") return;
 
   await invalidate("directoryFacets");
   revalidatePath("/members");

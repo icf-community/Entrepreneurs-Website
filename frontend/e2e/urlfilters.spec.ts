@@ -159,6 +159,7 @@ test.describe("an opportunity's own page", () => {
     const { data, error } = await admin
       .from("opportunities")
       .insert({
+        eligible_audience: "both",
         posted_by: poster,
         status: "approved",
         approved_at: new Date().toISOString(),
@@ -209,7 +210,14 @@ test.describe("an opportunity's own page", () => {
   });
 
   test("the card on the list starts collapsed and links through", async ({ page }) => {
-    await page.goto("/opportunities");
+    // Searched rather than loaded unfiltered: the fixture's deadline is a
+    // full year out so it sorts last by application_deadline, and the
+    // unfiltered board only renders one page at a time (member.spec.ts
+    // covers that pagination directly) — on any board with more approved
+    // rows than fit on page one, the plain list would never reach this
+    // card at all. The search box filters the same rows the card markup
+    // comes from, so this still exercises the real card, just reliably.
+    await page.goto(`/opportunities?q=${encodeURIComponent("Deep Link Engineer")}`);
     // An id must be unique. Asserting the count first turns a duplicate into
     // "expected 1, received 2" rather than a strict-mode violation on the
     // assertion below, which says nothing about what actually went wrong.

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth/currentUser";
 import AppShell from "@/components/app/AppShell";
 import { BrandLogo } from "@/components/BrandLogo";
 import ContactForm from "./ContactForm";
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 // the member nav + their verified email prefilled.
 export default async function ContactPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await currentUser(supabase);
 
   let member: { isApproved: boolean; isAdmin: boolean; name: string | null } | null = null;
   if (user) {

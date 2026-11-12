@@ -49,6 +49,9 @@ export type IntakeState = {
   ventureUrl: string;
   ventureOneLiner: string;
   recruitingStatus: string;
+  // Education (AI-plan §7.2, F29): decides which jobs a member sees.
+  currentlyEnrolled: "" | "yes" | "no";
+  completedDegree: "" | "yes" | "no";
 
   // What you want
   intents: string[]; // ranked, coded values, max 3
@@ -99,6 +102,8 @@ export function initialState(seed: {
     ventureUrl: "",
     ventureOneLiner: "",
     recruitingStatus: "",
+    currentlyEnrolled: "",
+    completedDegree: "",
 
     intents: [],
     intentUrgency: "",

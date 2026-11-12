@@ -51,7 +51,11 @@ export default function GlobalError({
           </p>
           {/* Plain anchor on purpose: global-error renders when the Next.js
               client may be broken, so we can't rely on next/link routing. */}
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          {/* eslint-disable @next/next/no-html-link-for-pages -- block form, not
+              -next-line, because the react-doctor suppression comment below must
+              itself sit immediately above the <a> for react-doctor to recognize it,
+              leaving no line free for an eslint-disable-next-line here too */}
+          {/* react-doctor-disable-next-line react-doctor/nextjs-no-a-element -- global-error renders outside the root layout/Router context (replaces <html>/<body>); next/link is not guaranteed to work here, plain <a> is correct */}
           <a
             href="/"
             style={{
@@ -67,6 +71,7 @@ export default function GlobalError({
           >
             Reload home
           </a>
+          {/* eslint-enable @next/next/no-html-link-for-pages */}
           {error.digest && (
             <p style={{ marginTop: "2rem", fontSize: "0.7rem", color: "#808088" }}>
               Error ID: <span style={{ fontFamily: "ui-monospace, monospace" }}>{error.digest}</span>

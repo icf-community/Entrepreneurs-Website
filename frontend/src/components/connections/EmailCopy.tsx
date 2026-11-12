@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { mailtoHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · The copy-an-address control
@@ -57,7 +58,7 @@ export function EmailCopy({ email, name }: { email: string; name: string }) {
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
         <a
-          href={`mailto:${email}`}
+          href={mailtoHref(email)}
           className="min-w-0 flex-1 truncate rounded-lg border border-border-strong bg-white/[0.05] px-2.5 py-1.5 text-[0.75rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.10]"
           title={`Email ${name} at ${email}`}
         >

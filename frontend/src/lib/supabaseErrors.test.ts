@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { describeSupabaseError } from "./supabaseErrors";
+import { describeSupabaseError, isAlreadyHandledError, ALREADY_HANDLED_MESSAGE } from "./supabaseErrors";
 
 describe("describeSupabaseError", () => {
   it("handles null/undefined", () => {
@@ -169,3 +169,78 @@ describe("describeSupabaseError", () => {
     spy.mockRestore();
   });
 });
+
+// Adversarial sweep F5. Two admins act on the same listing; the loser's RPC
+// raises a plain `raise exception` (SQLSTATE P0001) such as "Event is not
+// pending review (status=approved)". That text carries an internal status and
+// sometimes an id, so it must never be shown, but flattening it to "Something
+// went wrong" told the admin nothing about what to do.
+describe("already-handled admin actions (P0001)", () => {
+  const RAISED = [
+    "Event is not pending review (status=approved)",
+    "Opportunity is not pending review (status=rejected)",
+    "VC/grant is not pending review (status=approved)",
+    "User is not pending review (status=approved)",
+    "Event not found: 7d9b2c1e-4f3a-4b8d-9a6e-1c2d3e4f5a6b",
+    "Opportunity not found: 7d9b2c1e-4f3a-4b8d-9a6e-1c2d3e4f5a6b",
+    "VC/grant not found: 7d9b2c1e-4f3a-4b8d-9a6e-1c2d3e4f5a6b",
+    "Profile not found: 7d9b2c1e-4f3a-4b8d-9a6e-1c2d3e4f5a6b",
+    "User not found: 7d9b2c1e-4f3a-4b8d-9a6e-1c2d3e4f5a6b",
+  ];
+
+  it.each(RAISED)("maps %j to one fixed sentence that leaks nothing", (message) => {
+    const out = describeSupabaseError({ code: "P0001", message });
+    expect(out).toBe(ALREADY_HANDLED_MESSAGE);
+    expect(out).not.toMatch(/status=|[0-9a-f]{8}-[0-9a-f]{4}|approved|rejected/i);
+    expect(isAlreadyHandledError({ code: "P0001", message })).toBe(true);
+  });
+
+  it("recognises it only for P0001, so another code with the same words is not swallowed", () => {
+    expect(isAlreadyHandledError({ code: "42501", message: "Event is not pending review (status=approved)" })).toBe(false);
+    expect(isAlreadyHandledError({ message: "Event is not pending review (status=approved)" })).toBe(false);
+  });
+
+  it("does not claim 'already handled' for unrelated P0001 errors, which stay generic", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const message of ["boom: relation \"x\" does not exist", "Something internal 7d9b2c1e-4f3a-4b8d-9a6e-1c2d3e4f5a6b"]) {
+      expect(isAlreadyHandledError({ code: "P0001", message })).toBe(false);
+      expect(describeSupabaseError({ code: "P0001", message })).toBe("Something went wrong. Please try again.");
+    }
+    spy.mockRestore();
+  });
+
+  it("handles null and strings", () => {
+    expect(isAlreadyHandledError(null)).toBe(false);
+    expect(isAlreadyHandledError("Event is not pending review (status=approved)")).toBe(false);
+  });
+});
+
+// Adversarial sweep F8: Postgres's own wording for out-of-range numbers and
+// dates carries the offending value and type names; none of it may be shown,
+// but "a number/date is out of range" is something the member can act on.
+describe("out-of-range values and the new listing constraints", () => {
+  it("maps numeric and datetime range errors to a readable sentence, never the engine text", () => {
+    const cases = [
+      { code: "22003", message: 'value "999999" is out of range for type smallint' },
+      { code: "22008", message: 'date/time field value out of range: "2027-02-30"' },
+      { code: "22007", message: 'invalid input syntax for type date: "soon"' },
+    ];
+    for (const c of cases) {
+      const out = describeSupabaseError(c);
+      expect(out).toMatch(/number|date/i);
+      expect(out).not.toMatch(/smallint|999999|2027-02-30|syntax|type /i);
+    }
+  });
+
+  it.each([
+    "opportunities_contact_email_max", "events_contact_email_max",
+    "opportunities_position_name_nonblank", "opportunities_company_nonblank",
+    "events_title_nonblank", "events_organiser_name_nonblank", "vcs_grants_name_nonblank",
+    "opportunities_deadline_sane", "vcs_grants_deadline_sane", "events_event_at_sane",
+  ])("gives %s its own message instead of the generic validation line", (name) => {
+    const out = describeSupabaseError({ code: "23514", message: `new row for relation "x" violates check constraint "${name}"` });
+    expect(out).not.toBe("One of the values you entered was rejected by a validation rule.");
+    expect(out).not.toContain(name);
+  });
+});
+

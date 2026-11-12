@@ -1,16 +1,19 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { isCloudflareIp } from "@/lib/cloudflareIps";
+import { isProductionDeploy } from "@/lib/productionEnv";
 import * as Sentry from "@sentry/nextjs";
 
 // ════════════════════════════════════════════════════════════════════
 // Upstash rate limiting — app layer (precision). Cloudflare's edge is
 // the flood/DDoS shield; this is per-identity abuse control.
 //
-// ENV-GATED: with no UPSTASH_REDIS_REST_* env, every check returns
-// success=true, so local dev, CI, `next build`, and unconfigured
-// deploys behave exactly as before. It only "turns on" once the two
-// env vars are set.
+// ENV-GATED: with no UPSTASH_REDIS_REST_* env, local / CI / preview
+// still allow every check (so those environments run without Redis).
+// A real production deploy without the env vars used to fail OPEN for
+// every bucket, including FAIL_CLOSED ones like `submit` — that is now
+// routed through the in-process limiter for fail-closed buckets so a
+// dropped Vercel env var cannot silently disable abuse caps.
 //
 // NAT: Imperial students on campus share one public IP, so an IP bucket
 // is a campus bucket. Mutations are therefore keyed on the signed-in user
@@ -39,7 +42,17 @@ export type RateBucket =
   | "githubShowcase"
   | "connectionRequest"
   | "connectionRespond"
-  | "otpVerify";
+  | "listingEdit"
+  | "listingEditNotify"
+  | "dataExport"
+  | "otpVerify"
+  | "otpVerifyEmail"
+  | "directoryRefresh"
+  | "aiSubmit"
+  | "aiEdit"
+  | "aiRead"
+  | "aiReportMatch"
+  | "aiDraftHandoff";
 
 // ─── Key namespace ──────────────────────────────────────────────────
 //
@@ -155,7 +168,7 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // who posts a lot of images burn through their own avatar quota. 10/day
   // covers re-cropping and changing your mind several times over; the
   // abuse case either bucket guards against is a script, which 10/day
-  // stops just as dead as 40/day does. No new database backstop is
+  // (5/day for CVs, below) stops just as dead as 40/day does. No new database backstop is
   // needed alongside these — issue_upload_ticket's existing cap is 60
   // *outstanding* (unconsumed) tickets, global per member, and a normal
   // member never holds more than one unconsumed avatar ticket and one CV
@@ -163,8 +176,13 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // these two buckets alone.
   avatarUpload: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("ava"), analytics: false }),
+  // CVs are 5/day, half the avatar allowance: every upload whose text changed
+  // costs an extraction against the shared ingestion budget (about a cent,
+  // up to ~5c for a maximum-size CV), which an avatar never does. The ticket
+  // is counted when it is requested, so a rejected file uses one too. The
+  // in-process fallback table (LIMIT, below) must carry the same number.
   cvUpload: () =>
-    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "24 h"), prefix: p("cv"), analytics: false }),
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: p("cv"), analytics: false }),
   // The two GitHub buckets exist because both actions behind them spend
   // money and worker time on someone else's behalf, which none of the
   // buckets above do. 20260908000002 stops the *duplicate* job — a second
@@ -236,8 +254,79 @@ const BUCKETS: Record<RateBucket, () => Ratelimit> = {
   // and unlimited 6-digit-code guesses. Keyed on the email being verified
   // (see verifyOtpGate.ts), not the caller, and generous enough for a
   // typo-prone human: 10 tries in 10 minutes.
+  //
+  // Keyed on the email AND the caller's IP (verifyOtpGate.ts). Keyed on the email alone,
+  // anyone could lock a known address out of signing in by sending wrong codes for it, from
+  // anywhere, indefinitely. With the IP in the key an attacker only spends their own allowance;
+  // the victim's attempts come from a different IP and are untouched.
   otpVerify: () =>
     new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "10 m"), prefix: p("otp"), analytics: false }),
+  // The ceiling that is still per email alone, so guessing spread over many IPs is bounded
+  // too. 100/hour is about 1.7x what one IP could try before, and far above a human typing a
+  // code, so locking someone out now takes sustained, distributed effort rather than ten requests.
+  otpVerifyEmail: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(100, "1 h"), prefix: p("otp:em"), analytics: false }),
+  // Dropping the cached directory is cheap to ask for and expensive to serve: every read after
+  // it goes to Postgres. The profile form calls it once per save, so 10 a minute is far above
+  // real use and stops one account looping it to keep the cache permanently cold.
+  directoryRefresh: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 m"), prefix: p("dir"), analytics: false }),
+  // B23: a member editing a published listing. Every staged edit emails the
+  // admins immediately, and before this bucket the only ceiling was the
+  // fail-open 60/min backstop, so a loop could spend the shared Resend
+  // quota that sign-in codes depend on. 20/hour is several edits per
+  // listing with room for typo fixes. Its own bucket, not `submit`, so
+  // fixing a listing never uses up the allowance for posting a new one.
+  listingEdit: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(20, "1 h"), prefix: p("edit"), analytics: false }),
+  // Security audit (2026-10-26): `listingEdit` above caps how often one
+  // member can trigger a stage — it doesn't stop each one from emailing
+  // admins separately. stage_listing_edit upserts into the same pending
+  // row (on conflict ... do update) and bumps created_at on every call,
+  // so repeated saves of the same still-unreviewed edit (a second typo
+  // fix, autosave, double-click) each look like a fresh proposal to the
+  // caller and each sent a fresh email — unbounded by this listing's own
+  // activity, only by the per-member cap above. Keyed by listing id, not
+  // member id: one notification per listing per window, no matter who
+  // or how many times it's resaved while still pending.
+  listingEditNotify: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(1, "15 m"), prefix: p("editnotify"), analytics: false }),
+  // F-x2: "Download my data" reads every table a member has rows in, in
+  // one call. Nobody needs it more than a few times a day; the ceiling is
+  // there so a script can't turn it into a DB load generator.
+  dataExport: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "1 d"), prefix: p("export"), analytics: false }),
+  // Foundry AI (AI-plan §9.1). The authority is Postgres: ai_submit_turn
+  // enforces 5 a minute and 40 a rolling day per member, the queue bound
+  // and the money caps, atomically. This is the coarse outer guard, set
+  // above the database's own minute limit so a member meets the specific
+  // message, and FAIL-CLOSED (F6): an Upstash outage must not become an
+  // unmetered path to paid work, even though the database would still stop it.
+  aiSubmit: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(10, "1 m"), prefix: p("ai:sub"), analytics: false }),
+  // Chip edits: no model call, capped at 200 a day in the database; 30 a
+  // minute here (§9.1). Fail-open: a Redis blip must not lock a member out
+  // of tidying their own criteria.
+  aiEdit: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(30, "1 m"), prefix: p("ai:edit"), analytics: false }),
+  // Status polls and result reads, 60 a minute (§9.1). The poller already
+  // backs off and keeps one request in flight; this stops a runaway tab.
+  aiRead: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(60, "1 m"), prefix: p("ai:read"), analytics: false }),
+  // S8 gap 18: "Report this match". Same report-bombing reasoning as
+  // postReport (a member with more than a handful of genuine reports in a
+  // day is an outlier worth an admin seeing), and no free text to abuse.
+  aiReportMatch: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(5, "24 h"), prefix: p("ai:rep"), analytics: false }),
+  // S8 gap 20. createAiDraftHandoff writes a short-lived (purged hourly),
+  // owner-scoped row holding up to 2KB of filter data — no real abuse path
+  // (it's a convenience hop to the Composer, not spend or a fan-out), but
+  // "no bucket beyond the generic 60/min mutations backstop" was still
+  // looser than it needed to be for a write with no legitimate reason to
+  // happen more than a few times per session. Fail-open: an Upstash blip
+  // must not block a member from using the entry point at all.
+  aiDraftHandoff: () =>
+    new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(20, "1 h"), prefix: p("ai:draft"), analytics: false }),
 };
 
 const instances = new Map<RateBucket, Ratelimit>();
@@ -287,7 +376,12 @@ function instance(bucket: RateBucket): Ratelimit | null {
 // instance, both far above real use.
 const FAIL_CLOSED: readonly RateBucket[] = [
   "submit", "communityPost", "communityUpload", "postReport", "avatarUpload", "cvUpload",
-  "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "otpVerify",
+  "githubConnect", "githubShowcase", "connectionRequest", "connectionRespond", "listingEdit",
+  "dataExport", "otpVerify", "otpVerifyEmail", "aiSubmit", "aiReportMatch",
+  // Cache-busting is cheap per call but unbounded during an Upstash outage
+  // (check falls through to "allowed" for fail-open buckets). Keep a
+  // per-instance ceiling so one account cannot keep directoryFacets cold.
+  "directoryRefresh",
 ];
 
 export function failOpen(bucket: RateBucket): boolean {
@@ -341,7 +435,17 @@ const WINDOW_MS: Record<RateBucket, number> = {
   githubShowcase: 3_600_000,
   connectionRequest: 86_400_000,
   connectionRespond: 86_400_000,
+  listingEdit: 3_600_000,
+  listingEditNotify: 900_000,
+  dataExport: 86_400_000,
   otpVerify: 600_000,
+  otpVerifyEmail: 3_600_000,
+  directoryRefresh: 60_000,
+  aiSubmit: 60_000,
+  aiEdit: 60_000,
+  aiRead: 60_000,
+  aiReportMatch: 86_400_000,
+  aiDraftHandoff: 3_600_000,
 };
 
 const LIMIT: Record<RateBucket, number> = {
@@ -352,26 +456,53 @@ const LIMIT: Record<RateBucket, number> = {
   communityUpload: 40,
   postReport: 5,
   avatarUpload: 10,
-  cvUpload: 10,
+  cvUpload: 5,
   githubConnect: 3,
   githubShowcase: 10,
   connectionRequest: 15,
   connectionRespond: 100,
+  listingEdit: 20,
+  listingEditNotify: 1,
+  dataExport: 5,
   otpVerify: 10,
+  otpVerifyEmail: 100,
+  directoryRefresh: 10,
+  aiSubmit: 10,
+  aiEdit: 30,
+  aiRead: 60,
+  aiReportMatch: 5,
+  aiDraftHandoff: 20,
 };
 
 type LocalEntry = { count: number; resetAt: number };
 const localBuckets = new Map<string, LocalEntry>();
 // Hard ceiling on the map so a flood of distinct identifiers during an
-// outage cannot grow it without bound. Evicting the whole map is crude
-// and correct here: it resets every window early, which errs toward
-// allowing traffic, and this path only runs while Upstash is down.
+// outage cannot grow it without bound.
 const LOCAL_MAX_KEYS = 10_000;
+
+// Evicting the whole map (the previous behaviour) resets every key's
+// count, not just the one that pushed the map over the ceiling — during a
+// real Upstash outage, an attacker who can cheaply mint 10,000+ distinct
+// identifiers (e.g. spamming otpVerify with different emails) could reset
+// a fail-closed bucket's count for a specific victim on demand (audit
+// follow-up, run-2). Only an expired entry (resetAt already passed, so its
+// count is stale and about to be replaced on next access anyway) is ever
+// evicted here — an unexpired entry, which is the data an attacker would
+// actually be trying to reset, is never touched by this function, even if
+// the map stays over LOCAL_MAX_KEYS until those entries expire on their
+// own. That is a bounded, temporary memory overshoot during an outage, not
+// a security hole.
+function evictOverCeiling(now: number): void {
+  if (localBuckets.size <= LOCAL_MAX_KEYS) return;
+  for (const [k, v] of localBuckets) {
+    if (v.resetAt <= now) localBuckets.delete(k);
+  }
+}
 
 export function checkLocal(bucket: RateBucket, identifier: string): RateDecision {
   const key = `${bucket}:${identifier}`;
   const now = Date.now();
-  if (localBuckets.size > LOCAL_MAX_KEYS) localBuckets.clear();
+  evictOverCeiling(now);
 
   const entry = localBuckets.get(key);
   if (!entry || entry.resetAt <= now) {
@@ -388,11 +519,14 @@ export function __resetLocalBuckets(): void {
   localBuckets.clear();
 }
 
-// Allows everything when rate limiting is disabled (no Upstash env) — the
-// documented local/CI behaviour.
+// Local/CI/preview with no Upstash env: allow (documented). Production
+// without Upstash: fail-closed buckets still get the in-process ceiling.
 export async function check(bucket: RateBucket, identifier: string): Promise<RateDecision> {
   const inst = instance(bucket);
-  if (!inst) return "allowed";
+  if (!inst) {
+    if (isProductionDeploy() && !failOpen(bucket)) return checkLocal(bucket, identifier);
+    return "allowed";
+  }
   try {
     const { success } = await inst.limit(identifier);
     return success ? "allowed" : "limited";

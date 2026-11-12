@@ -10,7 +10,7 @@ import {
   acceptanceReplyTo, rejectionReplyTo,
 } from "@/lib/email";
 import { emailBaseUrl } from "@/lib/siteUrl";
-import { describeSupabaseError } from "@/lib/supabaseErrors";
+import { describeSupabaseError, isAlreadyHandledError } from "@/lib/supabaseErrors";
 import type { BulkResult } from "@/app/admin/bulkTypes";
 import { runBulk } from "@/lib/admin/bulk";
 
@@ -29,10 +29,15 @@ export async function approveUser(userId: string): Promise<Result> {
     p_user_id: userId,
     p_notes:   null,
   });
-  if (error) return { ok: false, error: describeSupabaseError(error) };
+  if (error) {
+    // Another admin already decided this member: refresh so the stale row goes.
+    if (isAlreadyHandledError(error)) revalidatePath("/admin/users");
+    return { ok: false, error: describeSupabaseError(error) };
+  }
 
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.email) {
+    // react-doctor-disable-next-line server-after-nonblocking -- synchronous logging call in an edge-case branch, not fire-and-forget async work; all real async side effects in this function are already awaited before returning
     console.warn("approve_user returned no email for user:", userId);
     // Membership changed, so the cached directory is stale.
     await invalidate("directoryFacets");
@@ -81,12 +86,17 @@ export async function rejectUser(userId: string, reason: string): Promise<Result
   // first_name so we can email them without a second round-trip.
   const { data, error } = await supabase
     .rpc("reject_user", { p_user_id: userId, p_reason: trimmed });
-  if (error) return { ok: false, error: describeSupabaseError(error) };
+  if (error) {
+    // Another admin already decided this member: refresh so the stale row goes.
+    if (isAlreadyHandledError(error)) revalidatePath("/admin/users");
+    return { ok: false, error: describeSupabaseError(error) };
+  }
 
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.email) {
     // Status flip succeeded but we couldn't find the email. Don't fail the
     // whole action — the admin's intent is recorded; just log.
+    // react-doctor-disable-next-line server-after-nonblocking -- synchronous logging call in an edge-case branch, not fire-and-forget async work; all real async side effects in this function are already awaited before returning
     console.warn("reject_user returned no email for user:", userId);
     // Membership changed, so the cached directory is stale.
     await invalidate("directoryFacets");
@@ -129,6 +139,7 @@ export async function bulkApproveUsers(ids: string[]): Promise<BulkResult> {
       });
       if (error) return { recipient: null, error: describeSupabaseError(error) };
       const row = Array.isArray(data) ? data[0] : data;
+      // react-doctor-disable-next-line server-after-nonblocking -- synchronous logging call in an edge-case branch, not fire-and-forget async work; all real async side effects in this function are already awaited before returning
       if (!row?.email) console.warn("approve_user returned no email for user:", id);
       return { recipient: row?.email ? { email: row.email, first_name: row.first_name ?? null } : null };
     },
@@ -154,6 +165,7 @@ export async function bulkRejectUsers(ids: string[], reason: string): Promise<Bu
         .rpc("reject_user", { p_user_id: id, p_reason: trimmed });
       if (error) return { recipient: null, error: describeSupabaseError(error) };
       const row = Array.isArray(data) ? data[0] : data;
+      // react-doctor-disable-next-line server-after-nonblocking -- synchronous logging call in an edge-case branch, not fire-and-forget async work; all real async side effects in this function are already awaited before returning
       if (!row?.email) console.warn("reject_user returned no email for user:", id);
       return { recipient: row?.email ? { email: row.email, first_name: row.first_name ?? null } : null };
     },

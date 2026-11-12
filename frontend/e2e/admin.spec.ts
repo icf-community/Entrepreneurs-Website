@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { psql } from "./ai-services";
 
 // Runs with the seeded admin storageState.
 
@@ -18,6 +19,26 @@ test("admin can open each review queue", async ({ page }) => {
     // above and all we are asking is whether we stayed on it.
     await expect(page, `stayed on ${path}`).toHaveURL(new RegExp(path.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")));
   }
+});
+
+// Owner decision 2026-11-10: is_ai_operator() is just is_admin() now — no
+// separate ai_private.operators row needed, so every admin can change AI
+// switches and limits on /admin/ai directly.
+test("an admin can change AI switches and limits on /admin/ai", async ({ page }) => {
+  const adminId = psql(`select id from auth.users where email = '${USERS.admin.email}'`).trim();
+  await page.goto("/admin/ai");
+  await expect(page.getByText("Only AI operators can change these.")).toHaveCount(0);
+  await page.getByLabel("Reason (recorded with every change)").fill("e2e operator-controls test");
+  const networkRow = page.getByText("Build your network:", { exact: false }).locator("..");
+  const toggle = networkRow.getByRole("button", { name: /^Turn (on|off)$/ });
+  const wasOn = (await toggle.textContent())?.includes("off"); // "Turn off" shown when currently on
+  await toggle.click();
+  await expect(page.getByText(wasOn ? "Build your network off." : "Build your network on.")).toBeVisible({ timeout: 10_000 });
+  // Restore, and confirm it's the admin action that moved it (admin_actions audit).
+  await toggle.click();
+  await expect(page.getByText(wasOn ? "Build your network on." : "Build your network off.")).toBeVisible({ timeout: 10_000 });
+  const audits = psql(`select count(*) from public.admin_actions where admin_id = '${adminId}' and action ilike '%ai_flag%' and created_at > now() - interval '1 minute'`).trim();
+  expect(Number(audits)).toBeGreaterThanOrEqual(2);
 });
 
 // ════════════════════════════════════════════════════════════════════

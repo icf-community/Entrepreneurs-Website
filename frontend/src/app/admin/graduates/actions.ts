@@ -2,9 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { invalidate } from "@/lib/cache";
 import { requireAdmin } from "@/lib/auth/actionAuth";
-import { enqueueEmailsBulk, renderGraduationEmail } from "@/lib/email";
+import { enqueueEmailsBulk, renderGraduationPromptEmail } from "@/lib/email";
 import { emailBaseUrl } from "@/lib/siteUrl";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
 
@@ -29,6 +28,9 @@ export async function previewGraduates(cutoffYear: number): Promise<PreviewResul
     .eq("status", "approved")
     .not("grad_year", "is", null)
     .lte("grad_year", cutoffYear)
+    // Only students not yet asked: the prompt goes once (20261011000005).
+    .is("graduation_prompted_at", null)
+    .is("graduation_confirmed_at", null)
     .order("grad_year", { ascending: true })
     .limit(20);
 
@@ -44,11 +46,17 @@ export async function previewGraduates(cutoffYear: number): Promise<PreviewResul
   return { ok: true, count: count ?? 0, sample };
 }
 
-type DeleteResult =
-  | { ok: true; deleted: number; emailsQueued: number }
+type PromptResult =
+  | { ok: true; prompted: number; emailsQueued: number }
   | { ok: false; error: string };
 
-export async function deleteGraduates(cutoffYear: number): Promise<DeleteResult> {
+/**
+ * Ask students due to graduate to confirm it (20261011000005). Nobody is
+ * deleted: graduates keep their account, move to recent graduate when they
+ * answer, and become eligible for Graduates jobs. Each student is asked
+ * once; running this again only reaches students not yet asked.
+ */
+export async function promptGraduates(cutoffYear: number): Promise<PromptResult> {
   if (!Number.isFinite(cutoffYear) || cutoffYear < 1950 || cutoffYear > 2099) {
     return { ok: false, error: "Cutoff year must be between 1950 and 2099." };
   }
@@ -56,57 +64,30 @@ export async function deleteGraduates(cutoffYear: number): Promise<DeleteResult>
   const auth = await requireAdmin();
   if (!auth.ok) return auth;
   const { supabase } = auth;
-  const { data, error } = await supabase.rpc("admin_delete_graduates", {
-    p_cutoff_year: cutoffYear,
-  });
+  const { data, error } = await supabase.rpc("admin_prompt_graduates", { p_cutoff_year: cutoffYear });
   if (error) return { ok: false, error: describeSupabaseError(error) };
 
   const rows = (data ?? []) as { user_id: string; email: string | null; first_name: string | null }[];
-
-  // Build the alum signup link from trusted config, NOT request headers
-  // (x-forwarded-host is attacker-controllable → email-link poisoning).
-  const alumSignupUrl = `${emailBaseUrl()}/login?role=alum`;
-
-  // Render and bulk-enqueue rather than looping inline sends. A 200-grad
-  // cohort would otherwise both blow past Vercel's function timeout
-  // and burn through Resend's per-second rate. The cron drainer
-  // dispatches them at a controlled pace.
+  // From trusted config, never request headers (link poisoning).
+  const homeUrl = `${emailBaseUrl()}/home`;
   const enqueueRows = rows
     .filter((r): r is { user_id: string; email: string; first_name: string | null } => Boolean(r.email))
-    .map((r) => {
-      const { subject, text, html } = renderGraduationEmail({
-        firstName:     r.first_name,
-        alumSignupUrl,
-      });
-      return { to: r.email, subject, text, html };
-    });
+    .map((r) => ({ to: r.email, ...renderGraduationPromptEmail({ firstName: r.first_name, homeUrl }) }));
 
   let emailsQueued = 0;
   if (enqueueRows.length > 0) {
     try {
+      // Bulk-enqueued; the drain sends them at a controlled pace.
       emailsQueued = await enqueueEmailsBulk(enqueueRows);
     } catch (e) {
-      // Accounts are already deleted; queue failure is a partial-state
-      // event. Surface the error to the admin so they can investigate,
-      // but report the deletion count accurately.
-      Sentry.captureException(e, { level: "error", tags: { surface: "admin", path: "delete-graduates-email" } });
-      const msg = e instanceof Error ? e.message : String(e);
-      // Membership changed, so the cached directory is stale.
-      await invalidate("directoryFacets");
-      revalidatePath("/admin");
-      revalidatePath("/admin/members");
-      revalidatePath("/members");
+      Sentry.captureException(e, { level: "error", tags: { surface: "admin", path: "prompt-graduates-email" } });
+      revalidatePath("/admin/graduates");
       return {
         ok: false,
-        error: `Deleted ${rows.length} accounts, but queueing congratulations emails failed: ${msg}. Run the queue diagnostics from /admin and contact affected graduates manually if needed.`,
+        error: `Asked ${rows.length} students in the app, but queueing their emails failed. They will still see the prompt when they sign in.`,
       };
     }
   }
-  // Membership changed, so the cached directory is stale.
-  await invalidate("directoryFacets");
-  revalidatePath("/admin");
-  revalidatePath("/admin/members");
-  revalidatePath("/members");
-
-  return { ok: true, deleted: rows.length, emailsQueued };
+  revalidatePath("/admin/graduates");
+  return { ok: true, prompted: rows.length, emailsQueued };
 }

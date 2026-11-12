@@ -212,11 +212,11 @@ export async function toggleLike(postId: string): Promise<Result<{ liked: boolea
   return ok({ liked: row.liked, likeCount: row.like_count });
 }
 
-// ─── Like counts (batched, for polling) ─────────────────────────────
-// No push channel for likes (see the RPC's own header for why), so
-// CommunityClient polls this on an interval while the tab is visible and
-// merges the result into whatever's already rendered. One call per poll
-// covers every post on screen — not one call per card.
+// ─── Like counts (batched) ──────────────────────────────────────────
+// No push channel for likes (see CommunityClient's effect for why), so
+// CommunityClient calls this when the reader returns to the tab and
+// merges the result into whatever's already rendered. One call covers
+// every post on screen — not one call per card.
 export async function refreshLikeCounts(
   postIds: string[],
 ): Promise<Result<Record<string, { likeCount: number; likedByMe: boolean }>>> {
@@ -261,6 +261,7 @@ export async function adminDeletePost(postId: string, reason: string): Promise<R
   if (!row?.email) {
     // The post is gone and the moderation record is written; only the
     // notice is missing. Worth a log, not worth failing the action.
+    // react-doctor-disable-next-line server-after-nonblocking -- synchronous logging call in an edge-case branch, not fire-and-forget async work; all real async side effects in this function are already awaited before returning
     console.warn("admin_delete_post returned no author email for post:", postId);
     revalidatePath("/community");
     revalidatePath("/admin/reports");

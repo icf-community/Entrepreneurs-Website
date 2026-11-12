@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { submitContactTicket } from "./actions";
-import { TurnstileWidget, turnstileConfigured } from "@/components/forms/TurnstileWidget";
+import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
+import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
 import { FieldError } from "@/components/forms/Field";
 import { contactSchema } from "@/lib/validation/contact";
@@ -80,7 +81,7 @@ export default function ContactForm({
         <>
           <div data-invalid={fieldErrors.name ? "" : undefined}>
             <label htmlFor="name" className="block text-[0.75rem] text-text-muted mb-1.5">
-              Name <span className="text-text-muted/70 ml-2">optional</span>
+              Name <span className="text-text-muted ml-2">optional</span>
             </label>
             <input
               id="name"
@@ -128,7 +129,7 @@ export default function ContactForm({
 
       <div data-invalid={fieldErrors.message ? "" : undefined}>
         <label htmlFor="message" className="block text-[0.75rem] text-text-muted mb-1.5">
-          Message <span className="text-text-muted/70 ml-2">{message.length}/4000</span>
+          Message <span className="text-text-muted ml-2">{message.length}/4000</span>
         </label>
         <textarea
           id="message"

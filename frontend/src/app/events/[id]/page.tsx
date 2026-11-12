@@ -1,3 +1,5 @@
+import { isUuid } from "@/lib/uuid";
+import { notFound } from "next/navigation";
 import ListingDetailShell, {
   ListingGone, Fact, Description,
 } from "@/components/ListingDetailShell";
@@ -6,7 +8,8 @@ import { markedIds } from "@/lib/data/activity";
 import { approvedEvent } from "@/lib/data/events";
 import { formatDateTime, formatDateTimeLong } from "@/lib/dates";
 import EventActions, { ContactOrganiserLink } from "./EventActions";
-import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 import { externalHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
@@ -26,10 +29,15 @@ const BACK = { href: "/events", label: "All events" };
 type Params = { id: string };
 
 export default async function EventPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, isAdmin } = await requireApprovedUser();
+  const [{ id }, { supabase, user, isAdmin }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
 
-  const ev = await approvedEvent(supabase, id);
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
+
+  const ev = await approvedEvent(supabase, id, { userId: user.id, isAdmin });
 
   if (!ev) {
     return (

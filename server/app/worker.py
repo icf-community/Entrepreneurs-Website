@@ -29,7 +29,7 @@ import uuid
 import psycopg
 from psycopg.types.json import Jsonb
 
-from . import cv_pipeline, github_pipeline
+from . import cv_pipeline, github_pipeline, ledger, observability, privacy, projection
 from .config import worker_settings
 from .cv_pipeline import SkillMatch
 from .cv_sanitise import ExtractionFailed, SanitisedCv, UnsupportedContentType, sanitise_cv
@@ -43,6 +43,9 @@ log = logging.getLogger("foundry.ingest_worker")
 logging.basicConfig(level=logging.INFO)
 
 POLL_INTERVAL_SECONDS = 2.0
+# The most CV text the privacy boundary passes on to moderation and
+# extraction (AI-plan §3: strict byte bounds on every outbound payload).
+MAX_OUTBOUND_CV_CHARS = 60_000
 # Attempt 1 waits 2s, attempt 2 waits 4s, attempt 3 waits 8s, ... —
 # cv-matchmaker-spec.md's "retry with exponential backoff" requirement.
 BACKOFF_BASE_SECONDS = 2.0
@@ -77,47 +80,48 @@ LOOP_FAILURE_REPORT_EVERY = 60
 
 # ─── Error reporting ────────────────────────────────────────────────
 # Until now main()'s catch-all only logged, so a crash-looping worker was
-# invisible unless someone happened to read journalctl — and with the
-# worker started by hand there was not even a journal to read. Sentry is
-# an OPTIONAL import on purpose: the package is pinned in
-# requirements.txt so the container has it, but a local dev run or a test
-# environment without SENTRY_DSN set degrades to logging alone rather
-# than failing to start. No secret fallback (see config.py's header) —
-# absent DSN means disabled, not a placeholder.
-try:  # pragma: no cover — import-availability branch
-    import sentry_sdk
-except ImportError:  # pragma: no cover
-    sentry_sdk = None  # type: ignore[assignment]
-
-_sentry_ready = False
+# invisible unless someone happened to read journalctl. Sentry setup, and
+# the scrubbing that keeps CV text out of it, lives in observability.py so
+# the gateway and the worker share one set of privacy settings. Absent
+# SENTRY_DSN means logging only, never a placeholder.
+#
+# The heartbeat (G3) is what catches a worker that is simply not running:
+# nothing errors then. It checks in after a healthy loop iteration, at
+# most every HEARTBEAT_MINUTES, so a DB outage also misses check-ins.
+HEARTBEAT_MINUTES = 5
 
 
 def _init_error_reporting() -> None:
-    global _sentry_ready
-    dsn = os.environ.get("SENTRY_DSN")
-    if not dsn or sentry_sdk is None:
-        log.info("Sentry not configured; worker errors will be logged only")
-        return
-    sentry_sdk.init(dsn=dsn, traces_sample_rate=0.0)
-    _sentry_ready = True
+    observability.init_sentry("worker")
 
 
 def _capture(exc: BaseException) -> None:
-    if _sentry_ready and sentry_sdk is not None:
-        sentry_sdk.capture_exception(exc)
+    observability.capture(exc)
+
+
+# WORKER_JOB_KINDS (optional, comma-separated) limits which job kinds this
+# process claims, so projection work can run on its own instance and the
+# E2E run can process AI projections without touching CV ingest. Unset
+# means every kind, as before.
+def _job_kinds() -> list[str] | None:
+    raw = os.environ.get("WORKER_JOB_KINDS", "").strip()
+    return [k.strip() for k in raw.split(",") if k.strip()] or None
 
 
 def _claim_job(conn: psycopg.Connection) -> tuple[uuid.UUID, str, dict, int, int] | None:
+    kinds = _job_kinds()
     with conn.cursor() as cur:
         cur.execute(
             """
             select id, kind, payload, attempts, max_attempts
               from public.jobs
              where status = 'pending' and next_attempt_at <= now()
+               and (%s::text[] is null or kind = any(%s::text[]))
              order by created_at
              limit 1
              for update skip locked
-            """
+            """,
+            (kinds, kinds),
         )
         row = cur.fetchone()
         if row is None:
@@ -249,7 +253,7 @@ def _replace_member_skills(
             )
 
 
-def _reactivate_hash_match(conn: psycopg.Connection, new_cv_id: uuid.UUID, member_id: uuid.UUID, existing_cv_id: uuid.UUID) -> None:
+def _reactivate_hash_match(new_cv_id: uuid.UUID, member_id: uuid.UUID, existing_cv_id: uuid.UUID) -> None:
     """Hash-match short circuit: this exact text was already processed
     for this member. Flip currency back to the existing ready row instead
     of re-running extraction and chunk embedding — the spec's "no
@@ -257,18 +261,26 @@ def _reactivate_hash_match(conn: psycopg.Connection, new_cv_id: uuid.UUID, membe
     different CV may have become current (and so replaced member_skills)
     in between. That costs one small embeddings call per skill string,
     not the expensive extraction/chunk-embedding steps this whole path
-    exists to skip."""
-    with conn.cursor() as cur:
+    exists to skip.
+
+    Like the full path, the embeddings calls happen before the publishing
+    transaction, and that transaction opens by asking whether the member
+    still wants this upload (see _cv_wanted)."""
+    with connection() as conn, conn.cursor() as cur:
         cur.execute("select profile from public.cv_profiles where cv_id = %s", (existing_cv_id,))
         row = cur.fetchone()
         skills_raw = row[0].get("skills_raw", []) if row else []
+        matches = cv_pipeline.normalise_skills(skills_raw, conn)
 
-    matches = cv_pipeline.normalise_skills(skills_raw, conn)
-    _replace_member_skills(conn, member_id, matches, source="cv")
-
-    with conn.cursor() as cur:
-        cur.execute("select public.update_cv_currency(%s)", (existing_cv_id,))
-        cur.execute("update public.cvs set status = 'ready' where id = %s", (new_cv_id,))
+    with connection() as conn, conn.cursor() as cur:
+        wanted = _cv_wanted(cur, new_cv_id)
+        if wanted:
+            _replace_member_skills(conn, member_id, matches, source="cv")
+            cur.execute("select public.update_cv_currency(%s)", (existing_cv_id,))
+            cur.execute("update public.cvs set status = 'ready' where id = %s", (new_cv_id,))
+            cur.execute("select public.worker_purge_superseded_cvs(%s)", (new_cv_id,))
+    if not wanted:
+        _drop_unwanted_cv(new_cv_id)
 
 
 def _sanitise_cv(cv_id: uuid.UUID, cv_container: str, blob_key: str) -> SanitisedCv | None:
@@ -294,13 +306,51 @@ def _sanitise_cv(cv_id: uuid.UUID, cv_container: str, blob_key: str) -> Sanitise
         return None
 
 
+SUPERSEDED_CV_REASON = "Replaced or removed before processing finished."
+
+
+def _cv_wanted(cur: psycopg.Cursor, cv_id: uuid.UUID) -> bool:
+    """Whether the member's profile still points at this CV (public.worker_cv_wanted).
+
+    Takes the member's CV lock, which is held to the end of the transaction it
+    is called in, and remove_my_cv / confirm_cv_upload take the same lock. So
+    the first statement of every transaction that publishes CV data asks this:
+    a removal or a newer upload either happened already (False, publish
+    nothing) or waits until this transaction has committed."""
+    cur.execute("select public.worker_cv_wanted(%s)", (cv_id,))
+    return bool(cur.fetchone()[0])
+
+
+def _drop_unwanted_cv(cv_id: uuid.UUID) -> None:
+    """The member removed this CV or uploaded a newer one while it was queued or being read.
+    Nothing is published and nothing more is spent; the status is terminal so no dialog waits on it."""
+    log.info("cv %s was replaced or removed before it was processed; skipping", cv_id)
+    _set_cv_status(cv_id, "failed", failure_reason=SUPERSEDED_CV_REASON)
+
+
 def process_ingest_cv(cv_id: uuid.UUID) -> None:
     with connection() as conn, conn.cursor() as cur:
-        cur.execute("select member_id, blob_key from public.cvs where id = %s", (cv_id,))
+        cur.execute("select member_id, blob_key, status from public.cvs where id = %s", (cv_id,))
         row = cur.fetchone()
-    if row is None:
-        raise RuntimeError(f"cvs row {cv_id} not found")
-    member_id, blob_key = row
+        if row is None:
+            # Removed or replaced while the job sat in the queue (their rows are deleted with the
+            # CV): not a failure to retry five times and dead-letter.
+            log.info("cv %s no longer exists; nothing to do", cv_id)
+            return
+        member_id, blob_key, status = row
+        # A finished CV run again must change nothing. The stalled-job reaper
+        # requeues a job left "running", and a worker can die after the
+        # publish below has committed but before the job is marked done.
+        if status in ("ready", "flagged"):
+            log.info("cv %s is already %s; nothing to do", cv_id, status)
+            return
+        # Checked before the first blob read or provider call so a CV the member
+        # has already replaced or removed costs nothing (its blob is already
+        # queued for deletion, too).
+        wanted = _cv_wanted(cur, cv_id)
+    if not wanted:
+        _drop_unwanted_cv(cv_id)
+        return
 
     cv_container = worker_settings().cv_container
 
@@ -314,32 +364,46 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
             "update public.cvs set raw_text = %s, raw_text_hash = %s where id = %s",
             (sanitised.raw_text, sanitised.raw_text_hash, cv_id),
         )
+    with connection() as conn, conn.cursor() as cur:
         # The exists() matters: a ready cv row can itself be a prior
         # hash-match target with no cv_profiles of its own (currency was
         # pointed at it, not created for it). Reactivating onto such a
         # row leaves nothing for update_cv_currency to mark current,
         # silently orphaning is_current on every cv_profiles row.
+        #
+        # Version-aware (AI-plan §3): the earlier profile is reused only if
+        # it was built by the current extractor under the current privacy
+        # policy. Anything older is processed again, never reactivated.
         cur.execute(
             """
             select c.id from public.cvs c
              where c.member_id = %s and c.raw_text_hash = %s and c.status = 'ready' and c.id != %s
-               and exists (select 1 from public.cv_profiles cp where cp.cv_id = c.id)
+               and exists (select 1 from public.cv_profiles cp
+                            where cp.cv_id = c.id and cp.prompt_version = %s and cp.policy_version = %s)
              order by c.created_at desc
              limit 1
             """,
-            (member_id, sanitised.raw_text_hash, cv_id),
+            (member_id, sanitised.raw_text_hash, cv_id, cv_pipeline.EXTRACTION_PROMPT_VERSION, privacy.POLICY_VERSION),
         )
         existing = cur.fetchone()
-        if existing is not None:
-            _reactivate_hash_match(conn, cv_id, member_id, existing[0])
-            return
+    if existing is not None:
+        _reactivate_hash_match(cv_id, member_id, existing[0])
+        return
 
     if sanitised.flagged:
         log.warning("cv %s flagged by sanitisation: %s", cv_id, sanitised.flag_reasons)
         _set_cv_status(cv_id, "flagged", failure_reason="; ".join(sanitised.flag_reasons))
         return
 
-    moderation = moderate_cv(sanitised.raw_text)
+    # The privacy boundary (AI-plan §3), before the first provider call:
+    # the member's own names, contact details, links and anything shaped
+    # like a secret come out here. Links the profile needs are parsed
+    # locally below instead of asking the model to recreate them.
+    outbound = privacy.minimise(
+        sanitised.raw_text, ledger.current_identifiers(), max_chars=MAX_OUTBOUND_CV_CHARS
+    ).text
+
+    moderation = moderate_cv(outbound)
     if moderation.flagged:
         log.warning("cv %s flagged by moderation: %s", cv_id, moderation.categories)
         _set_cv_status(cv_id, "flagged", failure_reason="; ".join(moderation.categories))
@@ -358,58 +422,80 @@ def process_ingest_cv(cv_id: uuid.UUID) -> None:
     # moderation/sanitisation failure: a clear, immediate, member-visible
     # 'failed' status they can see and act on (re-upload) right away.
     try:
-        extraction = cv_pipeline.extract_profile(sanitised.raw_text)
+        extraction = cv_pipeline.extract_profile(outbound)
     except cv_pipeline.ExtractionError as exc:
         log.warning("cv %s extraction failed: %s", cv_id, exc)
         _set_cv_status(cv_id, "failed", failure_reason=str(exc))
         return
 
+    profile = {**extraction.profile, "links": privacy.extract_links(sanitised.raw_text)}
+
+    # Everything slow (the embeddings calls) happens BEFORE the transaction that
+    # publishes, so the member's CV lock below is held only for the writes.
+    with connection() as conn:
+        matches = cv_pipeline.normalise_skills(profile.get("skills_raw", []), conn)
+    chunks = cv_pipeline.chunk_and_embed(profile)
+
+    github_row = None
     with connection() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            insert into public.cv_profiles (cv_id, profile, summary, model_name, prompt_version)
-            values (%s, %s, %s, %s, %s)
-            """,
-            (
-                cv_id,
-                Jsonb(extraction.profile),
-                extraction.summary,
-                extraction.model_name,
-                extraction.prompt_version,
-            ),
-        )
-
-        matches = cv_pipeline.normalise_skills(extraction.profile.get("skills_raw", []), conn)
-        _replace_member_skills(conn, member_id, matches, source="cv")
-
-        for chunk in cv_pipeline.chunk_and_embed(extraction.profile):
+        # First statement of the publish: has the member removed this CV or
+        # uploaded a newer one while the model was reading it? If so nothing
+        # below runs, so nothing the member deleted comes back and an older
+        # upload cannot displace a newer one. Taking the lock before any row
+        # lock also fixes the lock order against remove_my_cv.
+        wanted = _cv_wanted(cur, cv_id)
+        if wanted:
             cur.execute(
                 """
-                insert into public.cv_chunks (cv_id, member_id, chunk_type, content, embedding, embedding_model)
-                values (%s, %s, %s, %s, %s::vector, %s)
+                insert into public.cv_profiles (cv_id, profile, summary, model_name, prompt_version, policy_version)
+                values (%s, %s, %s, %s, %s, %s)
                 """,
                 (
                     cv_id,
-                    member_id,
-                    chunk.chunk_type,
-                    chunk.content,
-                    cv_pipeline.vector_literal(chunk.embedding),
-                    chunk.embedding_model,
+                    Jsonb(profile),
+                    extraction.summary,
+                    extraction.model_name,
+                    extraction.prompt_version,
+                    privacy.POLICY_VERSION,
                 ),
             )
 
-        cur.execute("update public.cvs set status = 'ready' where id = %s", (cv_id,))
-        cur.execute("select public.update_cv_currency(%s)", (cv_id,))
+            _replace_member_skills(conn, member_id, matches, source="cv")
 
-        # GitHub-connects-first ordering: a scan already finished for
-        # this member before this CV did, so fold it in now. (The
-        # symmetric CV-first ordering is handled at the end of
-        # process_scan_github.)
-        cur.execute(
-            "select github_signal from public.github_connections where member_id = %s and scan_status = 'ready'",
-            (member_id,),
-        )
-        github_row = cur.fetchone()
+            for chunk in chunks:
+                cur.execute(
+                    """
+                    insert into public.cv_chunks (cv_id, member_id, chunk_type, content, embedding, embedding_model)
+                    values (%s, %s, %s, %s, %s::vector, %s)
+                    """,
+                    (
+                        cv_id,
+                        member_id,
+                        chunk.chunk_type,
+                        chunk.content,
+                        cv_pipeline.vector_literal(chunk.embedding),
+                        chunk.embedding_model,
+                    ),
+                )
+
+            cur.execute("update public.cvs set status = 'ready' where id = %s", (cv_id,))
+            cur.execute("select public.update_cv_currency(%s)", (cv_id,))
+            # The CV this one replaces keeps its text and embeddings in the database until now.
+            cur.execute("select public.worker_purge_superseded_cvs(%s)", (cv_id,))
+
+            # GitHub-connects-first ordering: a scan already finished for
+            # this member before this CV did, so fold it in now. (The
+            # symmetric CV-first ordering is handled at the end of
+            # process_scan_github.)
+            cur.execute(
+                "select github_signal from public.github_connections where member_id = %s and scan_status = 'ready'",
+                (member_id,),
+            )
+            github_row = cur.fetchone()
+
+    if not wanted:
+        _drop_unwanted_cv(cv_id)
+        return
 
     if github_row is not None and github_row[0] is not None:
         try:
@@ -538,6 +624,17 @@ def _refresh_combined_summary(member_id: uuid.UUID, cv_id: uuid.UUID, github_sig
     summary_chunk = cv_pipeline.re_embed_summary(new_summary)
 
     with connection() as conn, conn.cursor() as cur:
+        # The GitHub evidence in this summary is only publishable while the
+        # connection still exists and is ready: a disconnect during the model
+        # call has already queued the revert to the CV-only text, and writing
+        # this afterwards would put the GitHub text back.
+        cur.execute(
+            "select 1 from public.github_connections where member_id = %s and scan_status = 'ready' for update",
+            (member_id,),
+        )
+        if cur.fetchone() is None:
+            log.info("combined summary for member %s dropped: GitHub is no longer connected", member_id)
+            return
         cur.execute(
             """
             update public.cv_profiles
@@ -677,8 +774,20 @@ def process_scan_github(member_id: uuid.UUID) -> None:
 
     pruned_picks = _prune_dead_picks(existing_picks, signal.available_repos)
 
-    with connection() as conn, conn.cursor() as cur:
+    # The embeddings calls come first, outside the publishing transaction.
+    with connection() as conn:
         matches = cv_pipeline.normalise_skills(signal.languages, conn)
+
+    with connection() as conn, conn.cursor() as cur:
+        # First statement of the publish: hold the connection row. The member
+        # may have disconnected while GitHub and the model were being read; if
+        # the row is gone, publish nothing (their skills were deleted on
+        # disconnect and must not come back). disconnect_github deletes this
+        # row first, so it waits for a publish in progress.
+        cur.execute("select 1 from public.github_connections where member_id = %s for update", (member_id,))
+        if cur.fetchone() is None:
+            log.info("github scan for member %s: disconnected during the scan, nothing published", member_id)
+            return
         _replace_member_skills(conn, member_id, matches, source="github")
 
         # showcase_repos is written ONLY to remove picks that no longer
@@ -816,8 +925,57 @@ def _process_job(kind: str, payload: dict) -> None:
         process_refresh_github_summary(uuid.UUID(payload["member_id"]))
     elif kind == "revoke_github_token":
         process_revoke_github_token(payload)
+    elif kind == "refresh_member_ai":
+        projection.process_refresh_member_ai(uuid.UUID(payload["member_id"]))
+    elif kind == "refresh_job_ai":
+        projection.process_refresh_job_ai(uuid.UUID(payload["opportunity_id"]))
     else:
         raise ValueError(f"Unknown job kind: {kind}")
+
+
+def _job_member(kind: str, payload: dict) -> uuid.UUID | None:
+    """Whose data the job processes, for the ledger and the privacy
+    boundary. A projection job reads identifiers from its own snapshot."""
+    if kind in ("scan_github", "refresh_github_summary", "refresh_member_ai") and payload.get("member_id"):
+        return uuid.UUID(payload["member_id"])
+    if kind == "ingest_cv" and payload.get("cv_id"):
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("select member_id from public.cvs where id = %s", (payload["cv_id"],))
+            row = cur.fetchone()
+        return row[0] if row else None
+    return None
+
+
+def _member_identifiers(member_id: uuid.UUID | None) -> privacy.Identifiers:
+    if member_id is None:
+        return privacy.Identifiers()
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("select * from ai_private.worker_member_identifiers(%s)", (member_id,))
+        row = cur.fetchone()
+        names = [c.name for c in cur.description] if cur.description else []
+    return privacy.Identifiers.from_row(dict(zip(names, row)) if row else None)
+
+
+def _defer_job_until_tomorrow(job_id: uuid.UUID, kind: str, payload: dict) -> None:
+    """Today's ingestion budget is spent (the ledger refused before any
+    call). Not a failure of the job: it waits for the next UTC day without
+    using up a retry."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            update public.jobs
+               set status = 'pending', last_error = 'budget_exhausted',
+                   next_attempt_at = date_trunc('day', now() at time zone 'utc') at time zone 'utc'
+                                     + interval '1 day 5 minutes'
+             where id = %s
+            """,
+            (job_id,),
+        )
+        if kind == "ingest_cv" and payload.get("cv_id"):
+            cur.execute(
+                "update public.cvs set status = 'failed', failure_reason = %s where id = %s and status <> 'ready'",
+                ("Processing is paused for today. We'll try again automatically tomorrow.", payload["cv_id"]),
+            )
 
 
 def run_once() -> bool:
@@ -830,7 +988,22 @@ def run_once() -> bool:
 
     job_id, kind, payload, attempts, max_attempts = claimed
     try:
-        _process_job(kind, payload)
+        member_id = _job_member(kind, payload)
+        with ledger.job_context(job_id, member_id, _member_identifiers(member_id)):
+            _process_job(kind, payload)
+    except ledger.BudgetExhausted:
+        log.warning("job %s (%s) deferred: ingestion budget exhausted", job_id, kind)
+        _defer_job_until_tomorrow(job_id, kind, payload)
+        return True
+    except privacy.OutboundPolicyError as exc:
+        # The assembled payload still held something that must not leave.
+        # Retrying sends nothing new, so it is dead-lettered at once; a CV
+        # goes to admin review rather than silently failing.
+        log.warning("job %s (%s) refused by the outbound policy: %s", job_id, kind, exc.kinds)
+        if kind == "ingest_cv" and payload.get("cv_id"):
+            _set_cv_status(uuid.UUID(payload["cv_id"]), "flagged", failure_reason="outbound policy: " + ", ".join(exc.kinds))
+        _fail_job(job_id, kind, payload, max_attempts, max_attempts, str(exc))
+        return True
     except Exception as exc:  # noqa: BLE001 — any failure here is a retryable job failure
         log.exception("job %s (%s) failed", job_id, kind)
         _capture(exc)
@@ -879,6 +1052,7 @@ def main() -> None:
 
     log.info("CV ingest worker starting, polling every %ss", POLL_INTERVAL_SECONDS)
     consecutive_failures = 0
+    last_heartbeat = float("-inf")
     while not _stopping:
         try:
             worked = run_once()
@@ -894,6 +1068,9 @@ def main() -> None:
             continue
 
         consecutive_failures = 0
+        if time.monotonic() - last_heartbeat >= HEARTBEAT_MINUTES * 60:
+            observability.heartbeat("cv-worker", HEARTBEAT_MINUTES)
+            last_heartbeat = time.monotonic()
         if not worked and not _stopping:
             time.sleep(POLL_INTERVAL_SECONDS)
 

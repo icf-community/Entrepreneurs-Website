@@ -1,3 +1,7 @@
+import { isUuid } from "@/lib/uuid";
+import { notFound } from "next/navigation";
+import { ViewProfileButton } from "@/components/members/ViewProfileButton";
+import { audienceLabel } from "@/lib/listings/audience";
 import ListingDetailShell, {
   ListingGone, Fact, Description,
 } from "@/components/ListingDetailShell";
@@ -7,7 +11,8 @@ import { approvedOpportunity, bookmarkedOpportunityIds } from "@/lib/data/opport
 import { formatDate } from "@/lib/dates";
 import { startLabel, locationLabel } from "@/lib/listings/format";
 import OpportunityActions from "./OpportunityActions";
-import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 import { externalHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
@@ -28,8 +33,13 @@ const BACK = { href: "/opportunities", label: "All opportunities" };
 type Params = { id: string };
 
 export default async function OpportunityPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, user, isAdmin } = await requireApprovedUser();
+  const [{ id }, { supabase, user, isAdmin }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
+
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
 
   const o = await approvedOpportunity(supabase, id);
 
@@ -86,6 +96,7 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
         <Fact label="Apply by">{formatDate(o.applicationDeadline)}</Fact>
         <Fact label="Starts">{startLabel(o)}</Fact>
         <Fact label="Location">{locationLabel(o)}</Fact>
+        {audienceLabel(o.audience) && <Fact label="Who can apply">{audienceLabel(o.audience)}</Fact>}
         <Fact label="Posted by">
           {posterName}
           {o.postedBy.linkedinUrl && (
@@ -101,6 +112,9 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
               </a>
             </>
           )}
+          <div className="mt-2">
+            <ViewProfileButton memberId={o.postedBy.id} />
+          </div>
         </Fact>
       </div>
 

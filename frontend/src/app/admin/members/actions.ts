@@ -24,6 +24,7 @@ export async function adminDeleteUser(userId: string, reason: string): Promise<R
 
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.email) {
+    // react-doctor-disable-next-line server-after-nonblocking -- synchronous logging call in an edge-case branch, not fire-and-forget async work; all real async side effects in this function are already awaited before returning
     console.warn("admin_delete_user returned no email for user:", userId);
     // Membership changed, so the cached directory is stale.
     await invalidate("directoryFacets");

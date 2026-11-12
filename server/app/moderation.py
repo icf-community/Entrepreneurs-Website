@@ -15,9 +15,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from types import SimpleNamespace
+
+from . import ledger
 from .openai_client import client
 
 MODERATION_MODEL = "omni-moderation-latest"
+_NO_USAGE = SimpleNamespace(prompt_tokens=0, completion_tokens=0)
 
 
 @dataclass(frozen=True)
@@ -27,7 +31,12 @@ class ModerationResult:
 
 
 def moderate_cv(text: str) -> ModerationResult:
-    response = client().moderations.create(model=MODERATION_MODEL, input=text)
+    # Free, but still reserved and settled: every provider call goes
+    # through the ledger, so an unmetered path can't hide among them.
+    with ledger.metered("cv_moderation", MODERATION_MODEL, payload=text, max_output_tokens=0) as meter:
+        meter.dispatched()
+        response = client().moderations.create(model=MODERATION_MODEL, input=text)
+        meter.record(getattr(response, "usage", None) or _NO_USAGE)
     result = response.results[0]
     categories = [name for name, flagged in result.categories.model_dump().items() if flagged]
     return ModerationResult(flagged=result.flagged, categories=categories)

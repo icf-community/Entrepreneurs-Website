@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
+import { ToastProvider } from "@/components/ui/Toast";
 import { SITE_URL, SITE_NAME } from "@/lib/structuredData";
 
 // Canonical host: the apex 307-redirects to www, so www is the indexable origin.
@@ -145,7 +146,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             "/", not repeated on every URL — so this is where it should have
             been. It needs no nonce there because "/" is served the nonce-free
             static policy (STATIC_CSP_ROUTES). */}
-        <PostHogProvider>{children}</PostHogProvider>
+        <PostHogProvider><ToastProvider>{children}</ToastProvider></PostHogProvider>
       </body>
     </html>
   );

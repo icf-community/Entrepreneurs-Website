@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth/currentUser";
 import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { listSkillsDetailed, listSectors } from "@/lib/data/taxonomy";
 import { newestMembers } from "@/lib/data/directory";
@@ -21,10 +23,7 @@ export const metadata = { robots: { index: false, follow: false } };
 export default async function IntakePage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const { user, error: authError } = await currentUser(supabase);
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
@@ -92,24 +91,31 @@ export default async function IntakePage() {
   const matches = newest.filter((m) => m.id !== user.id).slice(0, 3);
 
   return (
-    <IntakeFlow
-      memberId={user.id}
-      firstName={profile.first_name}
-      skillTaxonomy={skillTaxonomy.map((t) => ({ id: t.id, name: t.name, category: t.category }))}
-      sectors={sectors}
-      matches={matches}
-      existingAvatarUrl={existingAvatarUrl}
-      role={profile.role}
-      gradYear={profile.grad_year}
-      existingLinkedin={profile.linkedin_url}
-      existingCv={
-        cvInfo?.cv_path
-          ? { blobKey: cvInfo.cv_path, filename: cvInfo.cv_original_filename ?? "Your CV", downloadUrl: existingCvUrl }
-          : null
-      }
-      existingGithubUrl={profile.github_url}
-      githubConnected={!!githubRes.data}
-      ingestionEnabled={ingestionEnabled}
-    />
+    // IntakeFlow calls useSearchParams(), which needs a Suspense boundary
+    // around it (Next.js opts the whole route out of static rendering
+    // otherwise). Fallback is null: everything IntakeFlow needs is already
+    // awaited above, and intake/loading.tsx is the route-level skeleton
+    // shown while that happens — this boundary never has anything to show.
+    <Suspense fallback={null}>
+      <IntakeFlow
+        memberId={user.id}
+        firstName={profile.first_name}
+        skillTaxonomy={skillTaxonomy.map((t) => ({ id: t.id, name: t.name, category: t.category }))}
+        sectors={sectors}
+        matches={matches}
+        existingAvatarUrl={existingAvatarUrl}
+        role={profile.role}
+        gradYear={profile.grad_year}
+        existingLinkedin={profile.linkedin_url}
+        existingCv={
+          cvInfo?.cv_path
+            ? { blobKey: cvInfo.cv_path, filename: cvInfo.cv_original_filename ?? "Your CV", downloadUrl: existingCvUrl }
+            : null
+        }
+        existingGithubUrl={profile.github_url}
+        githubConnected={!!githubRes.data}
+        ingestionEnabled={ingestionEnabled}
+      />
+    </Suspense>
   );
 }

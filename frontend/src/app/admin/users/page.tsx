@@ -1,10 +1,11 @@
+import { pageParam } from "@/lib/filters/serverParams";
 import { Suspense } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { Skeleton, RowListSkeleton } from "@/components/ui/Skeleton";
 import { listPendingProfiles, type PendingProfilesPage } from "@/lib/data/admin";
 import type { Db } from "@/lib/data/query";
 import UsersReview from "./UsersReview";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 // Smaller than /admin/members's 50: each row here is a full review card
 // with bio, what they're working on, and their links — the heaviest
@@ -27,9 +28,8 @@ export default async function AdminUsersPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  const supabase = await createClient();
-  const parsed = Number.parseInt((await searchParams).page ?? "1", 10);
-  const page = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  const { supabase } = await requireAdminPage();
+  const page = pageParam((await searchParams).page);
 
   // Started, not awaited: the header renders while the query is in flight.
   const data = loadPending(supabase, page);
@@ -43,11 +43,13 @@ export default async function AdminUsersPage({
             <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">
               Pending alumni profiles
             </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2">
+            {/* div, not p: the skeleton is a div, and a div inside a p
+                breaks hydration (see ListingPageShell). */}
+            <div className="text-[0.85rem] text-text-muted mt-2">
               <Suspense fallback={<Skeleton className="h-3 w-32 inline-block align-middle" />}>
                 <PendingCount data={data} />
               </Suspense>
-            </p>
+            </div>
           </div>
           <Link
             href="/admin"

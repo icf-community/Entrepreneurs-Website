@@ -59,8 +59,10 @@ export default function IngestionToggle({ initial }: { initial: IngestionStatus 
           {status.enabled ? "Running" : "Paused"}
         </span>
         {status.lastChangedAt && (
-          <span className="text-[0.75rem] text-text-muted">
-            Last changed {new Date(status.lastChangedAt).toLocaleString()}
+          // suppressHydrationWarning: this formats in the viewer's local time,
+          // which legitimately differs from whatever the server rendered.
+          <span className="text-[0.75rem] text-text-muted" suppressHydrationWarning>
+            Last changed {new Date(status.lastChangedAt).toLocaleString("en-GB")}
             {status.lastChangedBy ? ` by ${status.lastChangedBy}` : ""}
           </span>
         )}

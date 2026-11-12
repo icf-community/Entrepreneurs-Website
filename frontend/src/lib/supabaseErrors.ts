@@ -45,6 +45,30 @@ export function isSessionExpiredError(err: AnyError): boolean {
   return code === "PGRST301" || /jwt|jwk|invalid claim|invalid signature/i.test(message);
 }
 
+// Adversarial sweep F5. When two admins (or two tabs) act on the same
+// listing or member, the loser's RPC raises a plain `raise exception`
+// (P0001) such as "Event is not pending review (status=approved)" or
+// "Event not found: <uuid>". Those messages carry an internal status and an
+// id, so they are never shown as they are, but flattening them to
+// "Something went wrong" left the admin retrying something that can never
+// succeed. They mean one thing: someone else already dealt with this.
+//
+// Matched by message because these RPCs predate the errcode convention and
+// there are a dozen of them (approve_/reject_ for events, opportunities,
+// VCs, users, plus report/post resolution). supabase/tests/
+// listing_hardening.sql pins the wording so a reword cannot silently drop
+// this back to the generic error.
+export const ALREADY_HANDLED_MESSAGE = "That has already been handled (another admin or tab got there first).";
+
+const ALREADY_HANDLED = /\bis not pending review \(status=|^[A-Za-z/ ]+ not found: /;
+
+export function isAlreadyHandledError(err: AnyError): boolean {
+  if (err == null || typeof err === "string") return false;
+  const message = ("message" in err && err.message) ? String(err.message) : "";
+  const code = ("code" in err && err.code) ? String(err.code) : "";
+  return code === "P0001" && ALREADY_HANDLED.test(message);
+}
+
 export function describeSupabaseError(err: AnyError): string {
   if (err == null) return "Something went wrong.";
   if (typeof err === "string") return err;
@@ -57,6 +81,10 @@ export function describeSupabaseError(err: AnyError): string {
   if (isSessionExpiredError(err)) {
     return "Your session has expired. Please sign in again.";
   }
+
+  if (isAlreadyHandledError(err)) return ALREADY_HANDLED_MESSAGE;
+
+  if (code === "PT409") return "This changed in another tab — reload before saving.";
 
   // Row-level security blocked the call (insufficient_privilege).
   //
@@ -104,6 +132,13 @@ export function describeSupabaseError(err: AnyError): string {
     console.error("Unmapped database error surfaced to a user:", { code, message });
     return "Something went wrong. Please try again.";
   }
+
+  // Postgres's own range / format errors for numbers and dates. Their text
+  // carries the value and the type name ("value \"999999\" is out of range
+  // for type smallint"), so it is never shown; what the member can act on
+  // is that a number or a date was not acceptable.
+  if (code === "22003") return "One of the numbers you entered is too large or too small.";
+  if (code === "22008" || code === "22007") return "One of the dates you entered isn't valid.";
 
   // Unique constraint violations — show a humanised version when we can
   // identify the column.
@@ -184,6 +219,16 @@ const CHECK_CONSTRAINT_MESSAGES: Record<string, string> = {
   opportunities_position_name_len:            "Role title must be between 2 and 200 characters.",
   opportunities_company_len:                  "Company must be between 1 and 200 characters.",
   opportunities_contact_email_format:         "Contact email is not in a recognised format.",
+  opportunities_contact_email_max:            "Contact email must be 254 characters or fewer.",
+  events_contact_email_max:                   "Contact email must be 254 characters or fewer.",
+  opportunities_position_name_nonblank:       "Role title can't be blank.",
+  opportunities_company_nonblank:             "Company can't be blank.",
+  events_title_nonblank:                      "Title can't be blank.",
+  events_organiser_name_nonblank:             "Organiser name can't be blank.",
+  vcs_grants_name_nonblank:                   "Name can't be blank.",
+  opportunities_deadline_sane:                "That application deadline is too far in the future.",
+  vcs_grants_deadline_sane:                   "That deadline is too far in the future.",
+  events_event_at_sane:                       "That event date isn't valid.",
   opportunities_apply_consistency:            "Pick one of \"contact me\" or \"application portal link\" and fill in the matching field.",
   opportunities_apply_url_len:                "Application portal URL must be 512 characters or fewer.",
   events_title_len:                           "Title must be between 2 and 200 characters.",

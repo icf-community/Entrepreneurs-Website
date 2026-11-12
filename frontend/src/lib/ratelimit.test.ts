@@ -26,7 +26,27 @@ const CLASSIFICATION: Record<RateBucket, "open" | "closed"> = {
   githubShowcase: "closed",
   connectionRequest: "closed",
   connectionRespond: "closed",
+  // Fail-closed: each staged edit emails the admins (B23).
+  listingEdit: "closed",
+  // Fail-open: a pure notification dedupe, not an abuse control — on
+  // Upstash unavailable the old behaviour (email every resave) is the
+  // worst case, not a security regression.
+  listingEditNotify: "open",
+  // Fail-closed: a whole-account read, capped so it is not a load generator (F-x2).
+  dataExport: "closed",
   otpVerify: "closed",
+  otpVerifyEmail: "closed",
+  // Fail-closed: without a ceiling during an Upstash outage one account can
+  // keep directoryFacets cold and revalidate /members unboundedly.
+  directoryRefresh: "closed",
+  aiSubmit: "closed",
+  aiEdit: "open",
+  aiRead: "open",
+  // Fail-closed: report-bombing, same reasoning as postReport.
+  aiReportMatch: "closed",
+  // Fail-open: no real abuse path, just a tighter ceiling than the generic
+  // mutations backstop; an outage must not block the entry point.
+  aiDraftHandoff: "open",
 };
 
 const EVERY_BUCKET = Object.keys(CLASSIFICATION) as RateBucket[];
@@ -73,6 +93,57 @@ describe("clientIp", () => {
 
   it("returns 'unknown' when no proxy headers are present", () => {
     expect(clientIp(new Headers())).toBe("unknown");
+  });
+
+  // Spoofing. Behind Vercel's edge the LAST hop is the real peer, appended by
+  // the edge itself; everything to its left is client-controlled. These are the
+  // shapes a client can send, and none may change the key the edge decided on.
+  describe("spoofing, as seen behind an edge that appends the real peer", () => {
+    const PEER = "203.0.113.9";
+    const forged = [
+      "1.1.1.1",
+      "1.1.1.1, 2.2.2.2, 3.3.3.3",
+      "  8.8.8.8  ,  9.9.9.9 ",
+      "::1",
+      "not-an-ip",
+      "10.0.0.1,, ,",
+      "0.0.0.0",
+      "127.0.0.1",
+      "unknown",
+      "a".repeat(2000),
+    ];
+    for (const lead of forged) {
+      it(`a forged leftmost chain (${JSON.stringify(lead.slice(0, 24))}) does not move the key`, () => {
+        expect(clientIp(new Headers({ "x-forwarded-for": `${lead}, ${PEER}` }))).toBe(PEER);
+      });
+    }
+
+    it("a forged cf-connecting-ip from a non-Cloudflare peer does not move the key", () => {
+      for (const cf of ["4.4.4.4", "1.2.3.4, 5.6.7.8", "", "unknown", "x".repeat(500)]) {
+        expect(clientIp(new Headers({ "cf-connecting-ip": cf, "x-forwarded-for": `9.9.9.9, ${PEER}` }))).toBe(PEER);
+      }
+    });
+
+    it("a forged cf-connecting-ip with only a forged XFF claiming to be Cloudflare is still the last hop", () => {
+      // The client can write 173.245.48.1 into the chain, but it is not the LAST hop:
+      // the edge appended the real peer after it.
+      const h = new Headers({ "cf-connecting-ip": "4.4.4.4", "x-forwarded-for": `173.245.48.1, ${PEER}` });
+      expect(clientIp(h)).toBe(PEER);
+    });
+
+    it("an IPv4-mapped IPv6 Cloudflare address is not trusted (fails closed to the peer)", () => {
+      const h = new Headers({ "cf-connecting-ip": "4.4.4.4", "x-forwarded-for": "1.2.3.4, ::ffff:173.245.48.1" });
+      expect(clientIp(h)).toBe("::ffff:173.245.48.1");
+    });
+
+    it("x-real-ip is only a fallback: it never overrides x-forwarded-for", () => {
+      expect(clientIp(new Headers({ "x-real-ip": "6.6.6.6", "x-forwarded-for": `1.1.1.1, ${PEER}` }))).toBe(PEER);
+    });
+
+    it("an empty x-forwarded-for falls through to x-real-ip, then to unknown", () => {
+      expect(clientIp(new Headers({ "x-forwarded-for": " , ,", "x-real-ip": "7.7.7.7" }))).toBe("7.7.7.7");
+      expect(clientIp(new Headers({ "x-forwarded-for": " , ," }))).toBe("unknown");
+    });
   });
 });
 
@@ -226,10 +297,37 @@ describe("in-process limiter fallback", () => {
     expect(checkLocal("postReport", "u2")).toBe("limited");
   });
 
+  it("holds CV uploads to 5 a day, the same number as the Upstash limiter", () => {
+    // The fallback table and the Upstash limiter in ratelimit.ts each carry this
+    // number; an outage must not quietly restore the old, looser ceiling.
+    for (let i = 0; i < 5; i += 1) expect(checkLocal("cvUpload", "u3")).toBe("allowed");
+    expect(checkLocal("cvUpload", "u3")).toBe("limited");
+    expect(checkLocal("avatarUpload", "u3")).toBe("allowed");
+  });
+
   it("never returns 'unavailable' — that is the value that locked members out", () => {
     for (let i = 0; i < 20; i += 1) {
       expect(checkLocal("otpVerify", "x")).not.toBe("unavailable");
     }
+  });
+
+  // Audit follow-up (run-2): the map used to be wiped entirely once it grew
+  // past LOCAL_MAX_KEYS, resetting every OTHER key's count too — an
+  // attacker who can cheaply mint 10,000+ distinct identifiers during a
+  // real outage could reset a specific victim's otpVerify count on demand.
+  // Eviction should only ever remove keys that are not the victim's.
+  it("an attacker flooding distinct identifiers cannot reset a victim's count", () => {
+    for (let i = 0; i < 10; i += 1) {
+      expect(checkLocal("otpVerify", "victim@ic.ac.uk")).toBe("allowed");
+    }
+    expect(checkLocal("otpVerify", "victim@ic.ac.uk")).toBe("limited");
+
+    // Push the shared map well past LOCAL_MAX_KEYS (10,000) with distinct
+    // identifiers in an unrelated bucket.
+    for (let i = 0; i < 10_050; i += 1) checkLocal("postReport", `flood-${i}`);
+
+    // The victim's own bucket must still be limited, not reset back to 0.
+    expect(checkLocal("otpVerify", "victim@ic.ac.uk")).toBe("limited");
   });
 });
 

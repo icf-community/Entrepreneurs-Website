@@ -1,7 +1,7 @@
 import { cleanName, isValidName, MAX_NAME_LENGTH } from "@/lib/text";
-import { turnstileConfigured } from "@/components/forms/TurnstileWidget";
+import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { isImperialEmail } from "@/lib/auth/imperialEmail";
-import { checkOtpVerifyRateLimit } from "@/lib/auth/verifyOtpGate";
+import { verifyOtpServerSide } from "@/lib/auth/verifyOtpGate";
 import type { createClient } from "@/lib/supabase/client";
 import { friendlyVerifyError } from "./authErrorText";
 import type { Mode } from "./loginTypes";
@@ -113,28 +113,31 @@ export function useStudentAuth(p: Params) {
 
   // Verify the 6-digit code the student typed. signInWithOtp issues an email
   // OTP (type "email"); verifyOtp needs no PKCE verifier, so it works on any
-  // device/browser. On success the session is set in the browser client and we
-  // route by status exactly like every other path.
+  // device/browser. The rate-limit check and the actual verifyOtp call both
+  // run server-side now (verifyOtpServerSide) — see that file for why a
+  // client-side verifyOtp call can't be gated. On success we sync the
+  // returned session into this browser client before routing, since the
+  // server set the cookie but this already-initialized client doesn't know
+  // that on its own.
   const handleStudentVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     p.setVerifyError("");
     p.setVerifying(true);
-    const gate = await checkOtpVerifyRateLimit(p.email);
-    if (!gate.ok) {
+    const result = await verifyOtpServerSide(p.email, p.code, "email");
+    if (!result.ok) {
       p.setVerifying(false);
-      p.setVerifyError(gate.error);
+      p.setVerifyError(friendlyVerifyError(result.error));
       return;
     }
-    const { error: vErr } = await p.supabase.auth.verifyOtp({
-      email: p.email.trim().toLowerCase(),
-      token: p.code.trim(),
-      type: "email",
+    if (!result.data.session) {
+      p.setVerifying(false);
+      p.setVerifyError("We couldn't verify that code. Please try again.");
+      return;
+    }
+    await p.supabase.auth.setSession({
+      access_token: result.data.session.accessToken,
+      refresh_token: result.data.session.refreshToken,
     });
-    if (vErr) {
-      p.setVerifying(false);
-      p.setVerifyError(friendlyVerifyError(vErr.message));
-      return;
-    }
     await p.routeAfterSignIn();
   };
 

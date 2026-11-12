@@ -13,16 +13,16 @@ import {
 //
 // What differs between the types is in lib/listings/registry.ts.
 
-export async function approveOpportunity(id: string): Promise<Result> {
-  return approveListing("opportunity", id);
+export async function approveOpportunity(id: string, editVersion: number): Promise<Result> {
+  return approveListing("opportunity", id, editVersion);
 }
 
 export async function rejectOpportunity(id: string, reason: string): Promise<Result> {
   return rejectListing("opportunity", id, reason);
 }
 
-export async function bulkApproveOpportunities(ids: string[]): Promise<BulkResult> {
-  return bulkApproveListings("opportunity", ids);
+export async function bulkApproveOpportunities(items: { id: string; editVersion: number }[]): Promise<BulkResult> {
+  return bulkApproveListings("opportunity", items);
 }
 
 export async function bulkRejectOpportunities(ids: string[], reason: string): Promise<BulkResult> {

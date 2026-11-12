@@ -46,8 +46,10 @@ or redeploy.**
 |---|---|---|---|---|
 | `connections_digest_url` (app_config) | **Seed once, right after `db push`** | — | — | The domain changes: re-run the full snippet |
 | `digest_daily_cap` (connection_limits) | 40 (fits Resend Free's 100/day) | **800** | — | Digests hit 800 on real mornings (§4) |
-| Supabase Auth → *emails sent per hour* | ⚠ **Check it today** (§5) | Raise to what Resend Pro carries | — | Launch day sign-in codes queue up |
-| Supabase Auth per-IP limits | default | — | Raise for campus NAT | Campus sign-ins get refused |
+| Supabase Auth → *emails sent per hour* | 300 (checked 2026-09-24) | **≥ 1000** (programme E1d, 2026-09-28: 500 new sign-ups in an hour need 500 codes) | — | Launch day sign-in codes queue up |
+| Supabase Auth per-IP: sign-ins | 60 / 5 min | — | **500 / 5 min before any announcement**, CAPTCHA on first (E1d) | Campus sign-ins get refused |
+| Supabase Auth per-IP: code verifications | 30 / 5 min | — | **500 / 5 min before any announcement**, CAPTCHA on first (E1d) | Campus sign-ins get refused |
+| Supabase Auth per-IP: token refreshes | 150 / 5 min | — | Keep | Signed-in members get logged out |
 | Compute size | Free | — | **Medium** | §3 triggers |
 | Connection caps (10/day, 25/week, 30 outstanding) | defaults | — | — | Product decision, not scale |
 

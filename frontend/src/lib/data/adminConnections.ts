@@ -1,4 +1,5 @@
-import { rows, type Db } from "@/lib/data/query";
+import { rows, rowsOrThrow, type Db } from "@/lib/data/query";
+import { cached } from "@/lib/cache";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Admin reads for Connections
@@ -45,7 +46,9 @@ export async function adminConnectionReportsPage(
   db: Db,
   filters: { status: string; page: number },
 ): Promise<{ reports: ConnectionReport[]; matching: number }> {
-  const data = await rows("admin_list_connection_reports", () =>
+  // B4/D3: a moderation queue that failed to load must not read as
+  // "nothing to review"; it throws to admin/error.tsx with Try again.
+  const data = await rowsOrThrow("admin_list_connection_reports", () =>
     db.rpc("admin_list_connection_reports", {
       p_status: filters.status,
       p_limit: CONNECTION_REPORTS_PAGE_SIZE,
@@ -86,7 +89,9 @@ export type FlaggedSender = {
 };
 
 export async function adminFlaggedSenders(db: Db): Promise<FlaggedSender[]> {
-  const data = await rows("admin_list_flagged_senders", () =>
+  // B4/D3: a moderation queue that failed to load must not read as
+  // "nothing to review"; it throws to admin/error.tsx with Try again.
+  const data = await rowsOrThrow("admin_list_flagged_senders", () =>
     db.rpc("admin_list_flagged_senders", { p_limit: 50 }),
   );
 
@@ -114,12 +119,16 @@ export type ConnectionStats = {
  * show who knows whom.
  */
 export async function adminConnectionStats(db: Db): Promise<ConnectionStats | null> {
-  const data = await rows("admin_connection_stats", () => db.rpc("admin_connection_stats"));
-  const r = data[0];
-  if (!r) return null;
-  return {
-    totalConnections: Number(r.total_connections ?? 0),
-    medianPerMember: Number(r.median_per_member ?? 0),
-    crossCohortPct: Number(r.cross_cohort_pct ?? 0),
-  };
+  // Cached for every admin (lib/cache.ts TTL_SECONDS says why that is safe
+  // for this key). A failed read (null) is never stored.
+  return cached("adminConnectionStats", async () => {
+    const data = await rows("admin_connection_stats", () => db.rpc("admin_connection_stats"));
+    const r = data[0];
+    if (!r) return null;
+    return {
+      totalConnections: Number(r.total_connections ?? 0),
+      medianPerMember: Number(r.median_per_member ?? 0),
+      crossCohortPct: Number(r.cross_cohort_pct ?? 0),
+    };
+  }, { isCacheable: (v) => v !== null });
 }

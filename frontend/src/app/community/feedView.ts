@@ -16,6 +16,7 @@ import type { FeedPost, MyPost, PostImage } from "@/lib/data/posts";
 // ════════════════════════════════════════════════════════════════════
 
 export type ImageView = {
+  blobKey: string;
   url: string | null;
   altText: string;
   width: number;
@@ -42,6 +43,7 @@ async function attach<T extends WithImages>(posts: T[]): Promise<(Omit<T, "image
   let cursor = 0;
   return posts.map((post) => {
     const images = post.images.map((image) => ({
+      blobKey: image.blobKey,
       url: urls[cursor++] ?? null,
       altText: image.altText,
       width: image.width,

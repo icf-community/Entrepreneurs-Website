@@ -1,5 +1,5 @@
+import { pageParam } from "@/lib/filters/serverParams";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import {
   adminConnectionReportsPage,
   adminFlaggedSenders,
@@ -8,6 +8,7 @@ import {
 } from "@/lib/data/adminConnections";
 import { getConnectionsStatus } from "../actions";
 import ConnectionsAdminClient from "./ConnectionsAdminClient";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/connections
@@ -40,14 +41,13 @@ export default async function AdminConnectionsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const { supabase } = await requireAdminPage();
   const sp = await searchParams;
-  const supabase = await createClient();
 
   // An unrecognised ?status= narrows to the default rather than being
   // handed to the RPC as if it were a status.
   const status = STATUSES.includes(sp.status ?? "") ? sp.status! : "open";
-  const parsedPage = Number.parseInt(sp.page ?? "1", 10);
-  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const page = pageParam(sp.page);
 
   const [{ reports, matching }, senders, stats, connectionsStatus] = await Promise.all([
     adminConnectionReportsPage(supabase, { status, page }),

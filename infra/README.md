@@ -130,3 +130,66 @@ it did.
 is implemented — both this workflow and a manual `deploy.sh` call it, so the
 two paths can't drift apart. `infra/azure/provision.sh` is never run
 automatically; new Azure resources stay a deliberate, human-run action.
+
+## Rollback
+
+The gateway and worker units run `:latest` and re-pull it on every start
+(including a crash or reboot), so **asking a VM to run an older tag is not a
+rollback**: the restart pulls `:latest` again. Point `:latest` at the build
+you want first, then release it:
+
+1. Find the last good commit SHA (GHCR keeps every SHA-tagged image).
+2. Retag it as `:latest` in the registry. With a token that can write
+   packages:
+   `docker buildx imagetools create -t ghcr.io/icf-community/foundry-gateway:latest ghcr.io/icf-community/foundry-gateway:<sha>`
+   (or run the deploy workflow via `workflow_dispatch` from a branch at that
+   commit, which rebuilds and pushes it as `:latest`).
+3. Release it: `foundry-release ghcr.io/icf-community/foundry-gateway:<sha>`
+   on the gateway VM, `foundry-worker-release …:<sha>` on the worker VM
+   (`az vm run-command`, as the workflow does).
+
+Both release scripts compare the image the running container(s) actually use
+with the requested ref and **fail** if they differ, so a step 3 without step
+2 reports an error instead of a false `FOUNDRY_DEPLOY_OK` (D5, 2026-10-05).
+After changing either script, copy it to `/usr/local/sbin/` on its VM.
+
+
+## AI executor (Azure Container Apps)
+
+The AI executor (`server/Dockerfile.ai`, `python -m app.ai`) is a third
+service with its own slim image, its own login (`ai_service`) and its own
+OpenAI key. It has no ingress: it claims queued turns from Postgres, calls
+OpenAI, and writes results back through lease-checked functions in the
+`ai_private` schema. It holds no storage, GitHub or worker credentials.
+
+**First run (owner):** `infra/azure/provision-ai.sh`, then the steps it
+prints: the three Key Vault secrets, the `ai_service` password, confirmed
+model prices (the executor refuses to start without them), yourself as an
+AI operator, `AZURE_AI_APP_NAME` as a GitHub environment variable.
+
+**Deploy:** run the **Deploy AI executor** workflow by hand. It runs the
+server tests and the offline evals, scans the image, updates the
+container app to the commit's image (never `:latest`) and waits until the
+running revision is that image.
+
+**Switching it on:** `/admin/ai`, as an operator, with a reason: the master
+switch first, then one mode at a time. Turning the master switch on also
+queues the search-index backfill.
+
+**Rollback, fastest first:**
+1. Turn the mode (or the master switch) off in `/admin/ai`. Takes effect on
+   the next request; nothing is lost.
+2. Reactivate the previous revision:
+   `az containerapp revision list -g foundry-rg -n foundry-ai -o table`, then
+   `az containerapp revision activate -g foundry-rg -n foundry-ai --revision <previous>`
+   and deactivate the bad one.
+3. Migrations are additive; never roll one back.
+
+**Limits:** the active-turn ceiling, daily caps and per-member cap live in
+`ai_private.settings` and change only from `/admin/ai` (operators, 25% steps,
+reason recorded). Never raise the ceiling because of a queue alarm alone:
+check provider throttling, DB pressure and spend headroom first (AI-plan
+§10.1).
+
+**Watching:** Sentry cron monitor `ai-executor`, the four `ai_*` health
+checks (`docs/observability.md`), and the `/admin/ai` dashboard.

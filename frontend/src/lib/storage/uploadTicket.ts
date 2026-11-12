@@ -57,7 +57,15 @@ export type TicketClaims = {
   max_bytes: number;
   exp: number;
   iat: number;
+  /** B21: binds the token to uploads; must match server/app/auth.py. */
+  aud: typeof TICKET_AUDIENCE;
+  iss: typeof TICKET_ISSUER;
 };
+
+// Deploy the gateway that accepts these BEFORE a Next.js build that mints
+// them: an older gateway rejects any ticket carrying `aud`.
+export const TICKET_AUDIENCE = "foundry-gateway-upload";
+export const TICKET_ISSUER = "foundry-web";
 
 function secret(): string {
   const value = process.env.UPLOAD_TICKET_SECRET;
@@ -93,6 +101,8 @@ export function issueTicket(args: {
     max_bytes: MAX_UPLOAD_BYTES,
     iat: now,
     exp: now + TTL_SECONDS,
+    aud: TICKET_AUDIENCE,
+    iss: TICKET_ISSUER,
   };
 
   const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));

@@ -18,8 +18,21 @@ from contextlib import contextmanager
 from typing import Iterator
 
 import psycopg
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from .config import worker_settings
+
+
+def conninfo(dsn: str) -> str:
+    """The DSN with TLS required unless it says otherwise (B13).
+
+    The production DSN goes over the internet to Supabase's pooler, and
+    libpq's default (`prefer`) silently falls back to plaintext if TLS is
+    refused. An explicit `sslmode` in the DSN wins, which is how the local
+    stack (no TLS) opts out: `?sslmode=disable` (server/README.md)."""
+    params = conninfo_to_dict(dsn)
+    params.setdefault("sslmode", "require")
+    return make_conninfo(**params)
 
 
 @contextmanager
@@ -27,7 +40,7 @@ def connection() -> Iterator[psycopg.Connection]:
     """One connection, one transaction. Commits on a clean exit, rolls
     back on any exception — the caller never has to remember to do
     either."""
-    conn = psycopg.connect(worker_settings().database_url)
+    conn = psycopg.connect(conninfo(worker_settings().database_url))
     try:
         yield conn
         conn.commit()

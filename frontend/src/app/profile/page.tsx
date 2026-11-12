@@ -1,37 +1,30 @@
+import type { Database } from "@/lib/database.overrides";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/auth/currentUser";
 import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { computeDisplayName } from "@/lib/auth/guard";
 import { destinationForStatus } from "@/lib/auth/status";
 import AppShell from "@/components/app/AppShell";
-import { listSkillsDetailed, listSectors, profileIntakeData } from "@/lib/data/taxonomy";
+import { listSkillsDetailed, listSectors, type ProfileIntakeData } from "@/lib/data/taxonomy";
 import { signedImageUrls } from "@/lib/storage/blobRead";
 import AffiliationSection from "./AffiliationSection";
 import ProfileForm from "./ProfileForm";
 
-export default async function ProfilePage() {
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+// Fetches every profile-edit dependency in parallel, validates reachability,
+// and applies the login/status gates. Pulled out of the page component so
+// that function's job is rendering, not orchestrating seven awaits and five
+// gate checks.
+async function loadProfilePageData(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { user, error: authError } = await currentUser(supabase);
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
-  const [profileRes, skillTaxonomy, sectors, selected, isAdminRes, cvInfoRes, githubStatusRes, ingestionEnabledRes] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select(`
-        role, status, first_name, surname, course, grad_year,
-        linkedin_url, github_url, portfolio_url,
-        preferred_name, bio_focus, bio_hobbies, avatar_path,
-        current_focus, venture_stage, venture_name, venture_url, venture_one_liner,
-        recruiting_status, intent_urgency, availability_hours
-      `)
-      .eq("id", user.id)
-      .single(),
+  const [profileRes, skillTaxonomy, sectors, isAdminRes, cvInfoRes, githubStatusRes, ingestionEnabledRes] = await Promise.all([
+    supabase.rpc("get_my_profile_edit"),
     listSkillsDetailed(supabase),
     listSectors(supabase),
-    profileIntakeData(supabase, user.id),
     supabase.rpc("is_admin"),
     supabase.rpc("get_my_cv_info").maybeSingle(),
     supabase.rpc("get_my_github_status").maybeSingle(),
@@ -46,9 +39,12 @@ export default async function ProfilePage() {
   throwIfUnreachable("get_my_cv_info", cvInfoRes);
   throwIfUnreachable("get_my_github_status", githubStatusRes);
   throwIfUnreachable("github_cv_ingestion_enabled", ingestionEnabledRes);
-  const profile = profileRes.data;
+  if (profileRes.error) throw new Error("Failed to load profile edit snapshot");
+  const snapshot = profileRes.data as { profile: Database["public"]["Tables"]["profiles"]["Row"]; selected: ProfileIntakeData } | null;
+  const profile = snapshot?.profile;
+  const selected = snapshot?.selected;
   const isAdmin = !!isAdminRes.data;
-  if (!profile) redirect("/login");
+  if (!profile || !selected) redirect("/login");
   // Admins bypass the status gate so they can browse the user-facing UI for
   // diagnostics. Every non-approved status redirects (not just
   // pending_onboarding) — a member who is rejected or still in the review
@@ -67,6 +63,60 @@ export default async function ProfilePage() {
 
   const githubStatus = githubStatusRes.data;
   const ingestionEnabled = !!ingestionEnabledRes.data;
+
+  return { profile, selected, isAdmin, avatarUrl, cvInfo, githubStatus, ingestionEnabled, skillTaxonomy, sectors };
+}
+
+// All of the snapshot's nullable fields, resolved to the plain values
+// ProfileForm wants, in one place rather than as twenty-odd `?? ""`
+// fallbacks inline in the page's JSX.
+function toProfileFormProps(data: Awaited<ReturnType<typeof loadProfilePageData>>) {
+  const { profile, selected, avatarUrl, cvInfo, githubStatus, ingestionEnabled, skillTaxonomy, sectors } = data;
+  return {
+    editVersion: profile.edit_version,
+    role: profile.role,
+    firstName: profile.first_name,
+    surname: profile.surname,
+    course: profile.course ?? "",
+    gradYear: profile.grad_year,
+    linkedinUrl: profile.linkedin_url ?? "",
+    githubUrl: profile.github_url ?? "",
+    portfolioUrl: profile.portfolio_url ?? "",
+    preferredName: profile.preferred_name ?? "",
+    bioFocus: profile.bio_focus ?? "",
+    bioHobbies: profile.bio_hobbies ?? "",
+    avatarUrl,
+    cvOriginalFilename: cvInfo?.cv_original_filename ?? null,
+    cvUploadedAt: cvInfo?.cv_uploaded_at ?? null,
+    hasCv: !!cvInfo?.cv_path,
+    githubUsername: githubStatus?.github_username ?? null,
+    githubScanStatus: githubStatus?.scan_status ?? null,
+    githubScanFailureReason: githubStatus?.scan_failure_reason ?? null,
+    ingestionEnabled,
+    currentFocus: profile.current_focus ?? "",
+    ventureStage: profile.venture_stage ?? "",
+    ventureName: profile.venture_name ?? "",
+    ventureUrl: profile.venture_url ?? "",
+    ventureOneLiner: profile.venture_one_liner ?? "",
+    recruitingStatus: profile.recruiting_status ?? "",
+    intentUrgency: profile.intent_urgency ?? "",
+    availabilityHours: profile.availability_hours ?? "",
+    intents: selected.intents,
+    academicInterests: selected.academicInterests,
+    hobbies: selected.hobbies,
+    skillTaxonomy: skillTaxonomy.map((t) => ({ id: t.id, name: t.name, category: t.category })),
+    sectors,
+    selectedSkillIds: selected.skillIds,
+    selectedCoreSkillIds: selected.coreSkillIds,
+    selectedSectors: selected.sectorIds,
+  };
+}
+
+export default async function ProfilePage() {
+  const supabase = await createClient();
+  const data = await loadProfilePageData(supabase);
+  const { profile, isAdmin } = data;
+  const profileFormProps = toProfileFormProps(data);
 
   return (
     <AppShell
@@ -93,43 +143,7 @@ export default async function ProfilePage() {
             </p>
           </div>
 
-          <ProfileForm
-            role={profile.role}
-            firstName={profile.first_name}
-            surname={profile.surname}
-            course={profile.course ?? ""}
-            gradYear={profile.grad_year}
-            linkedinUrl={profile.linkedin_url ?? ""}
-            githubUrl={profile.github_url ?? ""}
-            portfolioUrl={profile.portfolio_url ?? ""}
-            preferredName={profile.preferred_name ?? ""}
-            bioFocus={profile.bio_focus ?? ""}
-            bioHobbies={profile.bio_hobbies ?? ""}
-            avatarUrl={avatarUrl}
-            cvOriginalFilename={cvInfo?.cv_original_filename ?? null}
-            cvUploadedAt={cvInfo?.cv_uploaded_at ?? null}
-            hasCv={!!cvInfo?.cv_path}
-            githubUsername={githubStatus?.github_username ?? null}
-            githubScanStatus={githubStatus?.scan_status ?? null}
-            githubScanFailureReason={githubStatus?.scan_failure_reason ?? null}
-            ingestionEnabled={ingestionEnabled}
-            currentFocus={profile.current_focus ?? ""}
-            ventureStage={profile.venture_stage ?? ""}
-            ventureName={profile.venture_name ?? ""}
-            ventureUrl={profile.venture_url ?? ""}
-            ventureOneLiner={profile.venture_one_liner ?? ""}
-            recruitingStatus={profile.recruiting_status ?? ""}
-            intentUrgency={profile.intent_urgency ?? ""}
-            availabilityHours={profile.availability_hours ?? ""}
-            intents={selected.intents}
-            academicInterests={selected.academicInterests}
-            hobbies={selected.hobbies}
-            skillTaxonomy={skillTaxonomy.map((t) => ({ id: t.id, name: t.name, category: t.category }))}
-            sectors={sectors}
-            selectedSkillIds={selected.skillIds}
-            selectedCoreSkillIds={selected.coreSkillIds}
-            selectedSectors={selected.sectorIds}
-          />
+          <ProfileForm {...profileFormProps} />
 
           <div className="mt-8">
             <AffiliationSection role={profile.role} />

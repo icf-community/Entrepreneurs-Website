@@ -58,7 +58,7 @@ export type ListingDef = {
    * so a fourth listing type has one place to get this right.
    */
   cacheKeys: readonly CacheKey[];
-  approve: (db: Db, id: string) => Promise<{ error: { message?: string; code?: string } | null }>;
+  approve: (db: Db, id: string, editVersion: number) => Promise<{ error: { message?: string; code?: string } | null }>;
   reject: (db: Db, id: string, reason: string) => Promise<{
     data: RejectedPoster[] | RejectedPoster | null;
     error: { message?: string; code?: string } | null;
@@ -72,7 +72,7 @@ export type ListingDef = {
    * so `p` is precisely typed at the point the RPC arguments are built.
    */
   create: (db: Db, mode: SubmissionMode, payload: unknown) => Promise<Result>;
-  update: (db: Db, id: string, payload: unknown) => Promise<Result>;
+  update: (db: Db, id: string, payload: unknown, editVersion?: number) => Promise<Result>;
 };
 
 export const LISTINGS = {
@@ -83,8 +83,11 @@ export const LISTINGS = {
     revalidate: { admin: "/admin/opportunities", public: "/opportunities" },
     // The directory shows each member's open roles, sourced from approved
     // opportunities — so approving or editing one changes /community too.
-    cacheKeys: ["directoryFacets"],
-    approve: async (db, id) => await db.rpc("approve_opportunity", { p_opportunity_id: id, p_notes: null }),
+    // "opportunities" is the listing's own cache-safe cached result
+    // (lib/data/opportunities.ts, 20261026000004).
+    cacheKeys: ["directoryFacets", "opportunities"],
+    approve: async (db, id, editVersion) =>
+      await db.rpc("approve_opportunity", { p_opportunity_id: id, p_notes: null, p_expected_version: editVersion }),
     reject: async (db, id, reason) =>
       await db.rpc("reject_opportunity", { p_opportunity_id: id, p_reason: reason }),
     create: async (db, mode, payload) => {
@@ -94,11 +97,11 @@ export const LISTINGS = {
       const { error } = await db.rpc(rpc, opportunityRpcArgs(parsed.data));
       return error ? err(describeSupabaseError(error)) : ok();
     },
-    update: async (db, id, payload) => {
+    update: async (db, id, payload, editVersion) => {
       const parsed = validate(opportunitySchema, payload);
       if (!parsed.ok) return parsed;
       const { error } = await db.rpc("update_opportunity", {
-        p_id: id, ...opportunityRpcArgs(parsed.data),
+        p_id: id, p_expected_version: editVersion, ...opportunityRpcArgs(parsed.data),
       });
       return error ? err(describeSupabaseError(error)) : ok();
     },
@@ -108,10 +111,11 @@ export const LISTINGS = {
     submitNoun: "an event",
     emailKind: "event",
     revalidate: { admin: "/admin/events", public: "/events" },
-    // Events aren't cached (contact_email is masked per caller), and
-    // nothing else derives from them.
-    cacheKeys: [],
-    approve: async (db, id) => await db.rpc("approve_event", { p_event_id: id, p_notes: null }),
+    // "events" is the listing's own cache-safe cached result
+    // (lib/data/events.ts, 20261026000004); nothing else derives from it.
+    cacheKeys: ["events"],
+    approve: async (db, id, editVersion) =>
+      await db.rpc("approve_event", { p_event_id: id, p_notes: null, p_expected_version: editVersion }),
     reject: async (db, id, reason) => await db.rpc("reject_event", { p_event_id: id, p_reason: reason }),
     create: async (db, mode, payload) => {
       const parsed = validate(eventSchema, payload);
@@ -126,10 +130,10 @@ export const LISTINGS = {
         : await db.rpc("submit_event", args);
       return error ? err(describeSupabaseError(error)) : ok();
     },
-    update: async (db, id, payload) => {
+    update: async (db, id, payload, editVersion) => {
       const parsed = validate(eventSchema, payload);
       if (!parsed.ok) return parsed;
-      const { error } = await db.rpc("update_event", { p_id: id, ...eventRpcArgs(parsed.data) });
+      const { error } = await db.rpc("update_event", { p_id: id, p_expected_version: editVersion, ...eventRpcArgs(parsed.data) });
       return error ? err(describeSupabaseError(error)) : ok();
     },
   },
@@ -139,7 +143,8 @@ export const LISTINGS = {
     emailKind: "VC/grant submission",
     revalidate: { admin: "/admin/vcs", public: "/vcs" },
     cacheKeys: ["vcs"],
-    approve: async (db, id) => await db.rpc("approve_vc_grant", { p_id: id, p_notes: null }),
+    approve: async (db, id, editVersion) =>
+      await db.rpc("approve_vc_grant", { p_id: id, p_notes: null, p_expected_version: editVersion }),
     reject: async (db, id, reason) => await db.rpc("reject_vc_grant", { p_id: id, p_reason: reason }),
     create: async (db, mode, payload) => {
       const parsed = validate(vcGrantSchema, payload);
@@ -148,10 +153,10 @@ export const LISTINGS = {
       const { error } = await db.rpc(rpc, vcGrantRpcArgs(parsed.data));
       return error ? err(describeSupabaseError(error)) : ok();
     },
-    update: async (db, id, payload) => {
+    update: async (db, id, payload, editVersion) => {
       const parsed = validate(vcGrantSchema, payload);
       if (!parsed.ok) return parsed;
-      const { error } = await db.rpc("update_vc_grant", { p_id: id, ...vcGrantRpcArgs(parsed.data) });
+      const { error } = await db.rpc("update_vc_grant", { p_id: id, p_expected_version: editVersion, ...vcGrantRpcArgs(parsed.data) });
       return error ? err(describeSupabaseError(error)) : ok();
     },
   },
@@ -177,6 +182,7 @@ function opportunityRpcArgs(p: OpportunityPayload) {
     p_apply_url:             p.applyUrl,
     p_skill_ids:             p.skillIds,
     p_sector_ids:            p.sectorIds,
+    p_eligible_audience:     p.eligibleAudience,
   };
 }
 

@@ -12,10 +12,13 @@ specific way a PDF can carry a live payload past the upload boundary.
 from __future__ import annotations
 
 import io
+import os
+import zipfile
 
 import pikepdf
 import pytest
 
+import app.documents as documents
 from app.documents import MIN_BYTES, RejectedDocument, sanitise
 
 
@@ -175,3 +178,44 @@ def test_accepts_a_benign_goto_action() -> None:
     # Must not raise.
     result = sanitise(_pdf(build))
     assert result.content_type == "application/pdf"
+
+
+# ─── DOCX zip-bomb guard (audit follow-up, run-2) ─────────────────────
+
+
+def _docx(body_size: int) -> bytes:
+    """A minimal, honestly-declared .docx: one `word/document.xml` entry
+    of `body_size` bytes that don't compress well (real document XML
+    doesn't either), so the expansion-ratio check stays out of the way
+    and only the absolute-size check under test can fire."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("word/document.xml", os.urandom(body_size))
+    data = buf.getvalue()
+    if len(data) < MIN_BYTES:
+        data += b"\x00" * (MIN_BYTES - len(data))
+    return data
+
+
+def test_accepts_a_small_well_formed_docx() -> None:
+    result = sanitise(_docx(10_000))
+    assert result.content_type.endswith("wordprocessingml.document")
+
+
+def test_rejects_a_docx_past_the_absolute_uncompressed_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An honestly-declared archive, well inside MAX_ZIP_EXPANSION_RATIO,
+    can still decompress to more memory than the worker should ever hold —
+    CPython's zipfile truncates decompression at the declared size, so no
+    forged metadata is needed to blow past a ratio-only cap. The real
+    default cap is 50 MB; shrunk here so the fixture stays small and fast."""
+    monkeypatch.setattr(documents, "MAX_DOCX_UNCOMPRESSED_BYTES", 1_000)
+    with pytest.raises(RejectedDocument, match="could not be read"):
+        sanitise(_docx(5_000))
+
+
+def test_rejects_a_docx_with_an_extreme_per_entry_expansion_ratio() -> None:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("word/document.xml", b"a" * (200 * 1024))
+    with pytest.raises(RejectedDocument, match="could not be read"):
+        sanitise(buf.getvalue())

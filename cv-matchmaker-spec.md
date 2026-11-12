@@ -1,5 +1,19 @@
 # CV matchmaker — implementation spec
 
+> **Matching revision — 2026-09-25:** [AI-plan.md](AI-plan.md) is now the authoritative
+> implementation plan for recruiter matching, network discovery and opportunity matching.
+> Read [AI-plan-review.md](AI-plan-review.md) for the code-backed findings. Matching is still
+> unimplemented. The old matching data model, query/scoring/cache contracts, cost estimates and
+> Phase 2 tool-calling design below are historical and must not be built as written. Ingestion
+> already exists in `server/app/worker.py`; this document's descriptions of an earlier string-only
+> upload path are also historical, not the current privacy/processing contract.
+>
+> In particular: use existing `profiles`/`opportunities`, purpose-scoped consent and projections,
+> fixed bounded pipelines, versioned assessments and application-enforced spend accounting.
+> No agent tools, automatic filter relaxation, outreach generation, shortlist fatigue score,
+> model-visible member IDs, or raw-CV egress. AI-plan §3 specifies the ingestion privacy/version
+> migration; do not re-run the old Phase 1 schema or backfill steps on the existing database.
+
 Internal role matching for Imperial Entrepreneurs. Members upload a CV; people posting roles describe their ideal candidate in free text; the system returns a ranked shortlist with cited evidence.
 
 **Scale:** ~2,000 members, ~10,000 vectors, low search volume (tens of postings, a few searches each).
@@ -767,6 +781,10 @@ Retrieval quality tuning comes last. By then you'll know from real searches wher
 ---
 
 # Phase 2 — conversational agent
+
+> **Historical design, superseded:** implement [AI-plan.md](AI-plan.md) §§4–12 instead.
+> Its fixed pipeline supports conversational refinement without model tools, automatic
+> relaxation or outreach generation. The following section is retained as design history.
 
 Do not start this until Phase 1 is complete and evaluated.
 

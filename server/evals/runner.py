@@ -1,0 +1,183 @@
+"""Run suites, write JSON + Markdown reports, compare runs (§2, §7).
+
+Exit status is non-zero when any critical case fails or errors, or when a
+mandatory suite did not run: a run with skipped suites is never "passed".
+"""
+
+from __future__ import annotations
+
+import json
+import platform
+import subprocess
+import time
+from collections import defaultdict
+from dataclasses import asdict
+from pathlib import Path
+
+from app import privacy
+from app.ai.schemas import ASSESS_PROMPT_VERSION, INTERPRET_PROMPT_VERSION, RUBRIC_VERSION, prompt_hash
+
+from .dictionary import load as load_dictionary
+from .harness import LIVE_ELIGIBLE, SUITES, Result, run_suite, wilson
+
+MANDATORY = set(SUITES)
+
+
+def _git_sha() -> str:
+    try:
+        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
+                              check=True).stdout.strip()
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def run(suites: list[str], *, provider: str = "fake", model=None, live_cost=None, split: str | None = None) -> dict:
+    started = time.time()
+    results: list[Result] = []
+    for suite in suites:
+        results.extend(run_suite(suite, model if suite in LIVE_ELIGIBLE else None, split=split))
+
+    by_objective: dict[str, list[Result]] = defaultdict(list)
+    by_slice: dict[str, list[Result]] = defaultdict(list)
+    for r in results:
+        for o in r.objectives:
+            by_objective[o].append(r)
+        by_slice[f"{r.suite}/{r.family}"].append(r)
+
+    def summary(items: list[Result]) -> dict:
+        passed = sum(r.status == "pass" for r in items)
+        return {"total": len(items), "passed": passed, "failed": sum(r.status == "fail" for r in items),
+                "errors": sum(r.status == "error" for r in items), "pass_rate": round(passed / len(items), 4) if items else None,
+                "wilson_95": wilson(passed, len(items))}
+
+    critical_failures = [r.case_id for r in results if r.critical and r.status != "pass"]
+    skipped = sorted(MANDATORY - set(suites))
+    ranking = [r for r in results if r.suite == "ranking" and r.metrics]
+    return {
+        "run": {
+            "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
+            "duration_s": round(time.time() - started, 2),
+            "git": _git_sha(), "python": platform.python_version(), "provider": provider, "split": split or "development+validation",
+            "versions": {"dictionary": load_dictionary().version, "privacy": privacy.POLICY_VERSION,
+                         "rubric": RUBRIC_VERSION, "interpret_prompt": INTERPRET_PROMPT_VERSION,
+                         "interpret_prompt_hash": prompt_hash("interpret"), "assess_prompt": ASSESS_PROMPT_VERSION,
+                         "assess_prompt_hash": prompt_hash("assess")},
+            # A callable is read NOW, after the cases have run: the CLI passes one because
+            # the spend only exists once the model has been called, and a plain value
+            # computed as an argument was always read before the first call (0.0).
+            "live_cost_usd": live_cost() if callable(live_cost) else live_cost,
+        },
+        "verdict": "pass" if not critical_failures and not skipped else "fail",
+        "skipped_suites": skipped,
+        "critical_failures": critical_failures,
+        "overall": summary(results),
+        "objectives": {o: summary(items) for o, items in sorted(by_objective.items())},
+        "slices": {s: summary(items) for s, items in sorted(by_slice.items())},
+        "ranking": {r.case_id: r.metrics for r in ranking},
+        "results": [asdict(r) for r in results],
+    }
+
+
+def markdown(report: dict) -> str:
+    lines = [
+        "# Foundry AI evaluation report",
+        "",
+        f"Run {report['run']['started_at']} · git {report['run']['git']} · provider {report['run']['provider']} · "
+        f"verdict **{report['verdict']}**",
+        "",
+        "This is a development smoke set with hand-labelled expectations, not a locked held-out evaluation. "
+        "Offline runs use the fake provider: they test the deterministic pipeline, not model quality.",
+        "",
+        "## Objectives",
+        "",
+        "| Objective | Passed | Total | 95% interval |",
+        "| --- | --- | --- | --- |",
+    ]
+    for o, s in report["objectives"].items():
+        lines.append(f"| {o} | {s['passed']} | {s['total']} | {s['wilson_95'][0]:.2f}–{s['wilson_95'][1]:.2f} |")
+    lines += ["", "## Slices", "", "| Slice | Passed | Total |", "| --- | --- | --- |"]
+    for name, s in report["slices"].items():
+        lines.append(f"| {name} | {s['passed']} | {s['total']} |")
+    if report["ranking"]:
+        lines += ["", "## Ranking", "", "| Scenario | recall@10 | nDCG@10 |", "| --- | --- | --- |"]
+        for case_id, m in report["ranking"].items():
+            lines.append(f"| {case_id} | {m['recall_at_10']:.2f} | {m['ndcg_at_10']:.2f} |")
+    if report.get("repeats"):
+        flaky = {cid: r for cid, r in report["repeats"].items() if 0 < r["pass_rate"] < 1}
+        lines += ["", f"## Repeats ({report['run']['repeats']}x) — {len(flaky)} flaky case(s)", ""]
+        if flaky:
+            lines += ["| Case | Pass rate | Statuses |", "| --- | --- | --- |"]
+            for cid, r in flaky.items():
+                lines.append(f"| `{cid}` | {r['pass_rate']:.0%} | {', '.join(r['statuses'])} |")
+    failures = [r for r in report["results"] if r["status"] != "pass"]
+    lines += ["", f"## Failures and errors ({len(failures)})", ""]
+    for r in failures:
+        flag = " (critical)" if r["critical"] else ""
+        lines.append(f"- `{r['case_id']}`{flag}: {'; '.join(r['details'])}")
+    if report["skipped_suites"]:
+        lines += ["", f"Skipped mandatory suites: {', '.join(report['skipped_suites'])} — this run cannot pass."]
+    return "\n".join(lines) + "\n"
+
+
+def compare(a: dict, b: dict) -> str:
+    """Per-objective and per-slice deltas between two runs (programme G9)."""
+    out = [f"A: {a['run']['started_at']} ({a['run']['git']})   B: {b['run']['started_at']} ({b['run']['git']})", ""]
+    for section in ("objectives", "slices"):
+        out.append(section.upper())
+        for key in sorted(set(a[section]) | set(b[section])):
+            ra, rb = a[section].get(key, {}).get("pass_rate"), b[section].get(key, {}).get("pass_rate")
+            delta = "" if ra is None or rb is None else f"{rb - ra:+.2%}"
+            out.append(f"  {key:<45} {ra if ra is not None else '—':>8}  →  {rb if rb is not None else '—':>8}  {delta}")
+        out.append("")
+    changed = {r["case_id"]: r["status"] for r in a["results"]}
+    flips = [(r["case_id"], changed.get(r["case_id"]), r["status"]) for r in b["results"]
+             if changed.get(r["case_id"]) != r["status"]]
+    out.append(f"CASES THAT CHANGED ({len(flips)})")
+    out += [f"  {cid}: {old} → {new}" for cid, old, new in flips]
+    return "\n".join(out) + "\n"
+
+
+def aggregate_repeats(reports: list[dict]) -> dict:
+    """--repeats N for a live run: one case can pass on attempt 1 and fail
+    on attempt 2 (a real model is not deterministic), so there is no
+    single pass/fail — report the frequency instead. The merged report
+    keeps the LAST attempt's result for display but adds a top-level
+    "repeats" section with each case's pass rate across all N, and a
+    case only counts as a critical failure here if it failed on every
+    attempt (one success in N means the behaviour is reachable, which is
+    what the live check is actually trying to confirm)."""
+    assert reports, "aggregate_repeats needs at least one report"
+    # Grouped by (suite, case_id): ids are only guaranteed unique within a
+    # suite's own dataset files, not globally (e.g. interpret.jsonl and
+    # adversarial.jsonl both happen to use "adv-scope-001"/"-002" for
+    # unrelated cases) — grouping by case_id alone silently blended two
+    # different cases' pass/fail histories into one entry.
+    by_case: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for report in reports:
+        for r in report["results"]:
+            by_case[(r["suite"], r["case_id"])].append(r["status"])
+    merged = reports[-1]
+    merged["run"]["repeats"] = len(reports)
+    # Collisions are rare, so the display key stays the bare case_id except
+    # where more than one suite actually shares it this run.
+    multi = {cid for (_, cid) in by_case if sum(1 for (_, c) in by_case if c == cid) > 1}
+    merged["repeats"] = {
+        (f"{suite}/{cid}" if cid in multi else cid):
+            {"pass_rate": round(sum(s == "pass" for s in statuses) / len(statuses), 4), "statuses": statuses}
+        for (suite, cid), statuses in sorted(by_case.items())
+    }
+    critical_by_case = {(r["suite"], r["case_id"]): r["critical"] for report in reports for r in report["results"]}
+    # critical_failures stays bare-case_id (matching the non-repeats path and
+    # review.py's unconfirmed_critical, which both key on case_id alone) —
+    # a duplicate string here if both colliding cases fail is harmless, the
+    # same as the non-repeats path already allows.
+    merged["critical_failures"] = [cid for (suite, cid), statuses in by_case.items()
+                                   if critical_by_case.get((suite, cid)) and not any(s == "pass" for s in statuses)]
+    merged["verdict"] = "pass" if not merged["critical_failures"] and not merged["skipped_suites"] else "fail"
+    return merged
+
+
+def write(report: dict, out: Path) -> None:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2))
+    out.with_suffix(".md").write_text(markdown(report))

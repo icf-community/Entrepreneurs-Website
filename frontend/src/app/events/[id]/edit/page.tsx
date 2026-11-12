@@ -1,12 +1,12 @@
+import { isUuid } from "@/lib/uuid";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/app/AppShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { posterName } from "@/lib/data/profiles";
-import { eventForEdit } from "@/lib/data/events";
+import { listingEditSnapshot } from "@/lib/listings/editSnapshot";
 import EventForm, { type EventInitialValues } from "../../new/EventForm";
 import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditStatusNote";
-import { pendingRevision } from "@/lib/listings/pendingRevision";
 
 type Params = { id: string };
 
@@ -21,17 +21,27 @@ function toDatetimeLocal(iso: string): string {
 }
 
 export default async function EditEventPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
+  const [{ id }, { supabase, user, isAdmin, displayName }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
+
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
 
   // Need first/last for the organiser default. Guard only returned status,
-  // so re-query the two extra columns.
-  const poster = await posterName(supabase, user.id);
-  if (!poster) notFound();
-
+  // so re-query the two extra columns. Independent of the snapshot lookup
+  // below, so both run concurrently.
+  //
   // The RPC checks caller = poster, so a listing someone else posted
   // comes back empty and 404s here. Status still gates editability.
-  const row = await eventForEdit(supabase, id);
+  const [poster, snapshot] = await Promise.all([
+    posterName(supabase, user.id),
+    listingEditSnapshot(supabase, "event", id),
+  ]);
+  if (!poster) notFound();
+
+  const row = snapshot?.row;
   if (!row) notFound();
   // Rejected and expired listings stay closed — there is nothing
   // published to revise. Approved ones are editable now, through the
@@ -41,9 +51,7 @@ export default async function EditEventPage({ params }: { params: Promise<Params
   // When a revision is already queued, the form starts from *that*, not
   // from the live row — otherwise opening the page and saving would
   // silently throw away the change still waiting for review.
-  const revision = row.status === "approved"
-    ? await pendingRevision(supabase, "event", id)
-    : null;
+  const revision = snapshot?.revision;
   const src = { ...row, ...(revision?.proposed ?? {}) };
 
   const initialValues: EventInitialValues = {
@@ -79,6 +87,7 @@ export default async function EditEventPage({ params }: { params: Promise<Params
             defaultOrganiser={defaultOrganiser}
             mode="user"
             editingId={id}
+            editVersion={row.edit_version}
             initialValues={initialValues}
             reviewOnSave={row.status === "approved"}
           />

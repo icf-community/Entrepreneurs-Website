@@ -33,6 +33,7 @@ export default function SearchableMultiSelect({
   const [query, setQuery]   = useState("");
   const wrapRef             = useRef<HTMLDivElement | null>(null);
   const inputRef            = useRef<HTMLInputElement | null>(null);
+  const triggerRef          = useRef<HTMLButtonElement | null>(null);
 
   // Click outside / Escape close.
   useEffect(() => {
@@ -41,8 +42,10 @@ export default function SearchableMultiSelect({
       if (!wrapRef.current) return;
       if (!wrapRef.current.contains(e.target as Node)) setOpen(false);
     };
+    // Escape hands focus back to the button: the search box it was in is
+    // unmounted by closing, which would otherwise drop focus to <body>.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") { setOpen(false); triggerRef.current?.focus(); }
     };
     document.addEventListener("mousedown", onClickAway);
     document.addEventListener("keydown",  onKey);
@@ -80,12 +83,13 @@ export default function SearchableMultiSelect({
       <div className="text-[0.75rem] text-text-muted mb-2">
         {label}
         {selected.size > 0 && (
-          <span className="ml-2 text-text-muted/70">— {selected.size} selected</span>
+          <span className="ml-2 text-text-muted">— {selected.size} selected</span>
         )}
       </div>
 
       <div ref={wrapRef} className="relative">
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen((v) => !v)}
           className="w-full text-left px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.8rem] text-text-secondary transition-colors duration-150 hover:border-accent focus:border-accent/50 cursor-pointer flex items-center justify-between gap-2"

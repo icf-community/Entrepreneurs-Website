@@ -261,6 +261,26 @@ begin
   get diagnostics v_n = row_count;
   raise notice 'shaped % profiles', v_n;
 
+  -- member_admits_audience (20261006000002) left-joins member_education
+  -- and treats a missing row as "admits nothing" — so without this,
+  -- every audience-gated read (list_approved_opportunities,
+  -- viewer_admits_audience, the bookmark policy) returns zero rows for
+  -- the whole corpus, no matter how many opportunities are approved.
+  -- This predates that migration; backfilled from the role just set
+  -- above rather than from onboarding, which the corpus never runs.
+  insert into public.member_education (member_id, currently_enrolled, has_completed_degree)
+  select p.id,
+         p.role = 'student',
+         p.role in ('alum', 'recent_grad', 'mentor', 'angel', 'staff_faculty')
+    from public.profiles p
+    join auth.users u on u.id = p.id
+   where u.email like '%scale.invalid%'
+  on conflict (member_id) do update
+    set currently_enrolled = excluded.currently_enrolled,
+        has_completed_degree = excluded.has_completed_degree;
+  get diagnostics v_n = row_count;
+  raise notice 'backfilled % member_education rows', v_n;
+
   -- ── An admin, but only if there is not one already ─────────────────
   -- scale_query_plans.sql section 5 measures admin_list_profiles, which
   -- gates on is_admin() — "who are you", not "what role do you hold", so
@@ -382,7 +402,7 @@ begin
     posted_by, position_name, company, pay, location_type, description,
     start_month, start_year, application_deadline, contact_email, apply_method,
     apply_url, contact_email_visible,
-    status, approved_at, approved_by, rejected_reason
+    status, approved_at, approved_by, rejected_reason, eligible_audience
   )
   select
     p.id,
@@ -401,7 +421,12 @@ begin
     (case when i % 13 = 0 then 'pending' when i % 29 = 0 then 'rejected' else 'approved' end)::public.listing_status,
     case when i % 13 <> 0 then now() - (i % 30) * interval '1 day' end,
     case when i % 13 <> 0 then p.id end,
-    case when i % 13 <> 0 and i % 29 = 0 then 'Role is outside what the board carries.' end
+    case when i % 13 <> 0 and i % 29 = 0 then 'Role is outside what the board carries.' end,
+    -- NULL means "needs review" (20261006000002) and hides even an approved
+    -- row from every viewer's RLS-filtered read. A handful stay NULL to
+    -- keep that admin-queue state represented in the corpus.
+    case when i % 13 = 0 then null
+         else (array['both','students','graduates'])[1 + (i % 3)] end
   from generate_series(1, n_opps) g(i)
   cross join lateral (
     select pr.id from public.profiles pr

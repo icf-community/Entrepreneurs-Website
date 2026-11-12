@@ -5,8 +5,10 @@ import {
   FIELD_LABELS,
 } from "@/lib/listings/edits";
 import EditsReview from "./EditsReview";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 export default async function AdminListingEditsPage() {
+  await requireAdminPage();
   const items = await listPendingListingEdits();
 
   // The diff is computed here, not in the client component, so the same

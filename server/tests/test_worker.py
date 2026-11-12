@@ -119,7 +119,8 @@ def test_refresh_combined_summary_updates_profile_and_summary_chunk() -> None:
     # profile read and the write-back; (None,) = this member has never
     # picked showcase repos, so the signal passes through untouched.
     showcase_cur = _cursor_mock(fetchone_return=(None,))
-    update_cur = _cursor_mock()
+    # (1,) = the connection row is still there and ready, so the write goes ahead.
+    update_cur = _cursor_mock(fetchone_return=(1,))
     connections = [
         _connection_cm(_conn_mock(select_cur)),
         _connection_cm(_conn_mock(showcase_cur)),
@@ -139,6 +140,31 @@ def test_refresh_combined_summary_updates_profile_and_summary_chunk() -> None:
     executed = [c.args[0] for c in update_cur.execute.call_args_list]
     assert any("update public.cv_profiles" in sql for sql in executed)
     assert any("update public.cv_chunks" in sql for sql in executed)
+
+
+def test_refresh_combined_summary_is_dropped_when_github_was_disconnected_meanwhile() -> None:
+    member_id = uuid.uuid4()
+    cv_id = uuid.uuid4()
+    select_cur = _cursor_mock(fetchone_return=({"summary": "cv only", "skills_raw": []},))
+    showcase_cur = _cursor_mock(fetchone_return=(None,))
+    write_cur = _cursor_mock(fetchone_return=None)  # no ready connection row any more
+    connections = [
+        _connection_cm(_conn_mock(select_cur)),
+        _connection_cm(_conn_mock(showcase_cur)),
+        _connection_cm(_conn_mock(write_cur)),
+    ]
+    fake_chunk = MagicMock(content="x", embedding=[0.1], embedding_model="m")
+
+    with (
+        patch("app.worker.connection", side_effect=connections),
+        patch("app.worker.github_pipeline.synthesize_combined_summary", return_value="x"),
+        patch("app.worker.cv_pipeline.re_embed_summary", return_value=fake_chunk),
+    ):
+        _refresh_combined_summary(member_id, cv_id, {"languages": ["Rust"]})
+
+    executed = [c.args[0] for c in write_cur.execute.call_args_list]
+    assert not any("update public.cv_profiles" in sql for sql in executed)
+    assert not any("update public.cv_chunks" in sql for sql in executed)
 
 
 def test_refresh_combined_summary_is_a_noop_when_profile_missing() -> None:
@@ -168,15 +194,18 @@ def test_process_ingest_cv_hash_match_query_excludes_orphaned_currency_targets()
     member_id = uuid.uuid4()
     existing_cv_id = uuid.uuid4()
 
-    lookup_cur = _cursor_mock(fetchone_return=(member_id, "blob-key"))
+    # member/blob/status, then worker_cv_wanted -> True
+    lookup_cur = _cursor_mock()
+    lookup_cur.fetchone.side_effect = [(member_id, "blob-key", "pending"), (True,)]
     mime_cur = _cursor_mock()
     hash_cur = _cursor_mock(fetchone_return=(existing_cv_id,))
 
     connections = [
-        _connection_cm(_conn_mock(lookup_cur)),  # select member_id, blob_key
+        _connection_cm(_conn_mock(lookup_cur)),  # select member_id, blob_key, status + worker_cv_wanted
         _connection_cm(_conn_mock(MagicMock())),  # _set_cv_status("extracting")
         _connection_cm(_conn_mock(mime_cur)),  # mime_type update inside _sanitise_cv
-        _connection_cm(_conn_mock(hash_cur)),  # raw_text update + hash-match select
+        _connection_cm(_conn_mock(MagicMock())),  # raw_text update
+        _connection_cm(_conn_mock(hash_cur)),  # hash-match select
     ]
 
     sanitised = SanitisedCv(raw_text="text", raw_text_hash="hash", flagged=False)
@@ -197,11 +226,15 @@ def test_process_ingest_cv_hash_match_query_excludes_orphaned_currency_targets()
         worker.process_ingest_cv(cv_id)
 
     fake_reactivate.assert_called_once()
-    assert fake_reactivate.call_args.args[3] == existing_cv_id
+    assert fake_reactivate.call_args.args == (cv_id, member_id, existing_cv_id)
     fake_moderate.assert_not_called()
 
-    sql = hash_cur.execute.call_args_list[-1].args[0]
-    assert "exists (select 1 from public.cv_profiles cp where cp.cv_id = c.id)" in sql
+    sql, params = hash_cur.execute.call_args_list[-1].args
+    assert "exists (select 1 from public.cv_profiles cp" in sql
+    assert "where cp.cv_id = c.id and cp.prompt_version = %s and cp.policy_version = %s" in sql
+    # Version-aware dedupe (AI-plan §3): only a profile built by the
+    # current extractor under the current privacy policy is reused.
+    assert params[-2:] == (worker.cv_pipeline.EXTRACTION_PROMPT_VERSION, worker.privacy.POLICY_VERSION)
 
 
 # ─── _revert_to_cv_only_summary ──────────────────────────────────────────
@@ -516,10 +549,19 @@ def test_process_scan_github_summary_refresh_failure_does_not_fail_the_scan_job(
     member_id = uuid.uuid4()
     cv_id = uuid.uuid4()
     row_cur = _cursor_mock(fetchone_return=("token", "octocat", None, None))
-    block_cur = _cursor_mock(fetchone_return=(cv_id,))
+    # publish transaction: the connection row is still there, then the member's current cv
+    block_cur = _cursor_mock()
+    block_cur.fetchone.side_effect = [(1,), (cv_id,)]
 
     with (
-        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(row_cur)), _connection_cm(_conn_mock(block_cur))]),
+        patch(
+            "app.worker.connection",
+            side_effect=[
+                _connection_cm(_conn_mock(row_cur)),  # token + username
+                _connection_cm(_conn_mock(MagicMock())),  # skill matching (embeddings) before the publish
+                _connection_cm(_conn_mock(block_cur)),  # publish
+            ],
+        ),
         patch("app.worker.worker_settings") as fake_settings,
         patch("app.worker._set_github_status"),
         patch("app.worker.github_pipeline.fetch_github_signal", return_value=_fake_signal()),
@@ -541,10 +583,19 @@ def test_process_scan_github_summary_refresh_failure_not_retryable_skips_enqueue
     member_id = uuid.uuid4()
     cv_id = uuid.uuid4()
     row_cur = _cursor_mock(fetchone_return=("token", "octocat", None, None))
-    block_cur = _cursor_mock(fetchone_return=(cv_id,))
+    # publish transaction: the connection row is still there, then the member's current cv
+    block_cur = _cursor_mock()
+    block_cur.fetchone.side_effect = [(1,), (cv_id,)]
 
     with (
-        patch("app.worker.connection", side_effect=[_connection_cm(_conn_mock(row_cur)), _connection_cm(_conn_mock(block_cur))]),
+        patch(
+            "app.worker.connection",
+            side_effect=[
+                _connection_cm(_conn_mock(row_cur)),  # token + username
+                _connection_cm(_conn_mock(MagicMock())),  # skill matching (embeddings) before the publish
+                _connection_cm(_conn_mock(block_cur)),  # publish
+            ],
+        ),
         patch("app.worker.worker_settings") as fake_settings,
         patch("app.worker._set_github_status"),
         patch("app.worker.github_pipeline.fetch_github_signal", return_value=_fake_signal()),
@@ -679,6 +730,7 @@ def test_main_resets_the_failure_streak_after_a_success() -> None:
         patch.object(worker, "signal"),
     ):
         fake_time.sleep.side_effect = sleeps.append
+        fake_time.monotonic.return_value = 0.0
         worker._stopping = False
         try:
             worker.main()
@@ -688,3 +740,39 @@ def test_main_resets_the_failure_streak_after_a_success() -> None:
     # 2s, 4s for the first streak; the success resets it, so the third
     # failure backs off from 2s again rather than continuing to 8s.
     assert sleeps == [2.0, 4.0, 2.0], sleeps
+
+
+def test_main_heartbeats_only_after_healthy_iterations() -> None:
+    """G3: a worker that can't reach the DB must miss check-ins, so the
+    monitor alerts; a healthy one checks in at most every HEARTBEAT_MINUTES."""
+    outcomes = [OSError("down"), OSError("down"), False, False, True]
+    # Beating reads the clock twice (check, then record).
+    clock = iter([0.0, 0.0, 100.0, 200.0, 250.0, 260.0])
+
+    def scripted() -> bool:
+        if not outcomes:
+            worker._stopping = True
+            return False
+        result = outcomes.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    with (
+        patch.object(worker, "run_once", side_effect=scripted),
+        patch.object(worker, "time") as fake_time,
+        patch.object(worker, "_capture"),
+        patch.object(worker, "_init_error_reporting"),
+        patch.object(worker, "signal"),
+        patch.object(worker.observability, "heartbeat") as beat,
+    ):
+        fake_time.monotonic.side_effect = lambda: next(clock)
+        worker._stopping = False
+        try:
+            worker.main()
+        finally:
+            worker._stopping = False
+
+    # First healthy iteration beats; the next two are inside the window.
+    assert beat.call_count == 1
+    beat.assert_called_with("cv-worker", worker.HEARTBEAT_MINUTES)

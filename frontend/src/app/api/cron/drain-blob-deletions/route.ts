@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/lib/supabase/service";
+import { errorSummary } from "@/lib/errorSummary";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Blob deletion drain
@@ -110,7 +111,7 @@ async function drain(req: NextRequest): Promise<NextResponse> {
     Sentry.captureException(claimErr, {
       level: "error", tags: { surface: "cron", path: "drain-blob-deletions-claim" },
     });
-    return NextResponse.json({ error: `Claim failed: ${claimErr.message}` }, { status: 500 });
+    return NextResponse.json({ error: "Claim failed", detail: errorSummary(claimErr) }, { status: 500 });
   }
   const rows = (claimed ?? []) as ClaimedRow[];
   if (rows.length === 0) {
@@ -160,6 +161,7 @@ async function deleteOne(
   row: ClaimedRow,
 ): Promise<DeleteOutcome> {
   try {
+    // react-doctor-disable-next-line react-doctor/no-fetch-response-used-without-status-check -- status is checked (res.ok || res.status === 404) below before any body is read
     const res = await fetch(`${gateway}/v1/blobs/delete`, {
       method: "POST",
       headers: {

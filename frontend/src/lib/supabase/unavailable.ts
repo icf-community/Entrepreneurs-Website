@@ -73,10 +73,20 @@ export function throwIfAuthUnreachable(source: string, error: unknown): void {
  * page instead of spinning until the platform kills the function.
  */
 export function fetchWithTimeout(ms: number): typeof fetch {
-  return (input, init) => {
+  return async (input, init) => {
     const timeout = AbortSignal.timeout(ms);
     const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
-    return fetch(input, { ...init, signal });
+    try {
+      return await fetch(input, { ...init, signal });
+    } catch (e) {
+      // AbortSignal.timeout() rejects with a TimeoutError, and postgrest-js
+      // retries a GET on any fetch error except an AbortError — three more
+      // attempts, 1/2/4 s apart. A stalled Supabase then held every
+      // table-select page for four timeouts plus the backoff (D3 drill:
+      // /profile past 60 s). Our own timeout is final, so say so.
+      if (timeout.aborted) throw new DOMException(`Supabase did not answer within ${ms} ms`, "AbortError");
+      throw e;
+    }
   };
 }
 

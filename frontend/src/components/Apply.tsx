@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SectionHead } from "@/components/SectionHead";
 
 /* ── Data ─────────────────────────────────────────────────────────── */
@@ -104,7 +105,7 @@ function FormPreview() {
         </div>
 
         <div className="flex justify-end border-t border-border-subtle pt-5">
-          <span className="rounded-lg bg-accent px-4 py-1.5 text-[0.775rem] font-semibold text-bg-primary opacity-40">
+          <span className="rounded-lg border border-border px-4 py-1.5 text-[0.775rem] font-semibold text-text-muted">
             Continue →
           </span>
         </div>
@@ -143,12 +144,12 @@ export default function Apply() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <a
+            <Link
               href="/login"
               className="inline-flex items-center gap-2 rounded-lg bg-accent px-7 py-3.5 text-[0.9rem] font-semibold text-bg-primary no-underline transition-colors duration-150 hover:bg-accent-dim"
             >
               Join Foundry →
-            </a>
+            </Link>
             <span className="text-[0.8rem] text-text-muted">
               Free · Imperial students &amp; verified alumni
             </span>

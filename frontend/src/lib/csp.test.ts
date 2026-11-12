@@ -140,6 +140,30 @@ describe("buildStaticCsp", () => {
     }
   });
 
+  it("excludes only the exact STATIC_CSP_ROUTES, not any path with that prefix", () => {
+    // Audit follow-up: the matcher used to exclude on a bare "privacy" /
+    // "terms" / "cookies" alternative with no boundary, so a future route
+    // like /privacy-settings would also silently skip session refresh.
+    const matcher = new RegExp(`^${proxyConfig.matcher[0]}$`);
+    for (const path of ["/privacy-settings", "/termsofservice", "/cookiesmonster"]) {
+      expect(matcher.test(path)).toBe(true); // true = middleware DOES run
+    }
+    for (const route of ["/privacy", "/terms", "/cookies"]) {
+      expect(matcher.test(route)).toBe(false); // false = correctly excluded
+    }
+  });
+
+  it("includes /ai-notice: it is prerendered, so a nonce policy would block every script on it", () => {
+    // Adversarial sweep F2: /ai-notice is a static page but was stamped with
+    // the strict nonce policy by the proxy, so its own bundle was blocked and
+    // it never hydrated. Same class as the privacy/terms/cookies fix.
+    expect(STATIC_CSP_ROUTES).toContain("/ai-notice");
+    const matcher = new RegExp(`^${proxyConfig.matcher[0]}$`);
+    expect(matcher.test("/ai-notice")).toBe(false); // excluded: next.config serves its CSP
+    expect(matcher.test("/ai-notice/")).toBe(false);
+    expect(matcher.test("/ai-notice-settings")).toBe(true); // prefix must not be swallowed
+  });
+
   it("covers only routes that render no user-supplied content", () => {
     // A guard against someone adding /login or /contact here later: both
     // are public, but both take user input, so both must keep the strict

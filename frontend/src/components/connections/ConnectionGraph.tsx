@@ -46,9 +46,9 @@ import type { GraphNode } from "@/lib/data/connections";
 // finished picture rather than a visibly running physics engine.
 // ════════════════════════════════════════════════════════════════════
 
-export type ClusterBy = "sector" | "role" | "course" | "gradYear";
+type ClusterBy = "sector" | "role" | "course" | "gradYear";
 
-export const CLUSTER_OPTIONS: { value: ClusterBy; label: string }[] = [
+const CLUSTER_OPTIONS: { value: ClusterBy; label: string }[] = [
   { value: "sector", label: "Sector" },
   { value: "role", label: "Role" },
   { value: "course", label: "Course" },
@@ -260,7 +260,7 @@ export function ConnectionGraph({
             // the reader relying on this sentence — and this label is read
             // out every time focus enters the graph, so the correction has
             // to stay short rather than explain itself.
-            aria-label={`Your network, grouped by ${CLUSTER_OPTIONS.find((o) => o.value === by)!.label.toLowerCase()}. ${peers.length} people. Use the arrow keys to move between them, and Enter to show someone's card, with their email address, in the list.`}
+            aria-label={`Your network, grouped by ${(CLUSTER_OPTIONS.find((o) => o.value === by)?.label ?? by).toLowerCase()}. ${peers.length} people. Use the arrow keys to move between them, and Enter to show someone's card, with their email address, in the list.`}
             onKeyDown={onKeyDown}
           >
             {self && peers.map((n) => (

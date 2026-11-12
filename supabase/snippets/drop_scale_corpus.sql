@@ -47,6 +47,17 @@
 --   • `cv_profiles` has no member_id either; it hangs off `cvs.cv_id`.
 --     It cascades correctly, but only if cvs is deleted — so it is
 --     removed via a subquery BEFORE cvs, not after.
+--   • `connection_events` has NO FK to profiles at all, by design
+--     (20260917000001_connections.sql: "a connection row that may no
+--     longer exist" — real members' event history is meant to outlive
+--     a withdrawn/removed connection, for the reputation count). That
+--     means it also outlives a DELETED corpus account, with nothing to
+--     cascade it: found 2026-10-20 (S7) when `invariants.sql`'s #6
+--     daily-cap check failed against 499,374 orphaned rows left by a
+--     10k-member run, because the actor/subject ids matched real
+--     corpus-generated volume, not any live account. Scoped by id here,
+--     same as everything else in this block, not by a marker — the
+--     seed script's synthetic connections are member-scoped.
 --
 -- Taxonomy and reference data (skills, sectors, app_config) are never
 -- touched — EXCEPT cv_skills. seed_scale_corpus.sql writes 5000 rows
@@ -144,6 +155,12 @@ begin
 
   delete from public.github_connections    where member_id = any(v_ids);
   get diagnostics v_n = row_count; raise notice '  github_connections    %', v_n;
+
+  -- No FK (see the header note above) — must be scoped explicitly or it
+  -- survives the account delete entirely.
+  delete from public.connection_events
+   where actor_id = any(v_ids) or subject_id = any(v_ids);
+  get diagnostics v_n = row_count; raise notice '  connection_events     %', v_n;
 
   delete from public.listing_edits         where proposed_by = any(v_ids);
   get diagnostics v_n = row_count; raise notice '  listing_edits         %', v_n;

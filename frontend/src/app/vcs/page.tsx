@@ -1,3 +1,4 @@
+import { flattenSearchParams, pageParam, isoDayParam } from "@/lib/filters/serverParams";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import ListingPageShell from "@/components/ListingPageShell";
@@ -14,13 +15,15 @@ type SearchParams = {
 };
 
 function parseFilters(sp: SearchParams): VcFilters {
-  const page = Number.parseInt(sp.page ?? "1", 10);
   return {
     q: sp.q ?? "",
     kind: sp.kind === "vc" || sp.kind === "grant" ? sp.kind : "all",
-    from: sp.from ?? "",
-    to: sp.to ?? "",
-    page: Number.isFinite(page) && page > 0 ? page : 1,
+    // Dates and the page number are checked here: a malformed one used to
+    // reach Postgres, fail there and come back as an empty list plus a
+    // logged error.
+    from: isoDayParam(sp.from),
+    to: isoDayParam(sp.to),
+    page: pageParam(sp.page),
   };
 }
 
@@ -30,7 +33,7 @@ export default async function VcsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const { supabase, isAdmin } = await requireApprovedUser();
-  const sp = await searchParams;
+  const sp = flattenSearchParams(await searchParams, []);
 
   // /vcs?v=<id> was how a listing was linked to before it had a
   // page of its own. Those links are out in the world — in members'
@@ -48,7 +51,7 @@ export default async function VcsPage({
   // running. Both consumers below await the *same* promise, so it stays one
   // query, and they resolve in the same tick — the count and the list swap
   // in together rather than flickering one after the other.
-  const data = loadVcs(supabase, filters);
+  const data = loadVcs(supabase, filters, isAdmin);
 
   return (
     <ListingPageShell
@@ -85,11 +88,11 @@ type VcsData = {
   appliedIds: string[];
 };
 
-async function loadVcs(supabase: Db, filters: VcFilters): Promise<VcsData> {
+async function loadVcs(supabase: Db, filters: VcFilters, isAdmin: boolean): Promise<VcsData> {
   // The listing rows are filtered/paged live; get_my_listing_actions is
   // per-user by definition and is always read live too. See lib/data/vcs.ts.
   const [{ items, matching }, appliedIds] = await Promise.all([
-    listApprovedVcs(supabase, filters),
+    listApprovedVcs(supabase, filters, { isAdmin }),
     markedIds(supabase, "vc_grant", "applied"),
   ]);
   return { items, matching, appliedIds };

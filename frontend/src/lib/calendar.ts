@@ -75,7 +75,7 @@ export function buildIcs(ev: CalendarEvent): string {
     foldLine(`SUMMARY:${escapeIcsText(ev.title)}`),
     foldLine(`DESCRIPTION:${escapeIcsText(description)}`),
     foldLine(`LOCATION:${escapeIcsText(ev.location)}`),
-    ev.url ? foldLine(`URL:${ev.url}`) : "",
+    ev.url ? foldLine(`URL:${sanitizeIcsUri(ev.url)}`) : "",
     "END:VEVENT",
     "END:VCALENDAR",
   ].filter(Boolean);
@@ -113,12 +113,27 @@ function toIcsStamp(iso: string): string {
 }
 
 // RFC 5545 TEXT escaping. Order matters — escape backslashes first.
+// A bare \r (no following \n) is folded into \n before escaping: an
+// un-escaped \r in a TEXT property is as much a raw-line-ending
+// injection as \n is, and a source that only strips/rejects \n (several
+// upstream checks do) can still let one through.
 function escapeIcsText(s: string): string {
   return s
     .replace(/\\/g, "\\\\")
+    .replace(/\r\n?/g, "\n")
     .replace(/\n/g, "\\n")
     .replace(/,/g,  "\\,")
     .replace(/;/g,  "\\;");
+}
+
+// URI properties (URL:) aren't TEXT, so comma/semicolon escaping doesn't
+// apply — but a raw CR/LF here still forges new iCalendar lines
+// (CRLF/header injection) exactly as it would in an HTTP header. Strip
+// control characters rather than rejecting the value outright: this is
+// the last line of defense regardless of how permissive the upstream
+// luma_link validation is.
+function sanitizeIcsUri(url: string): string {
+  return url.replace(/[\x00-\x1f\x7f]/g, "");
 }
 
 // Fold lines longer than 75 octets with CRLF + single leading space

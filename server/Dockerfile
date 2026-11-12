@@ -7,12 +7,12 @@
 # — see server/README.md for how to regenerate it. Installing from it first,
 # then the app with --no-deps, keeps that (expensive, rarely-changing) layer
 # cached across builds where only app/ changed.
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-trixie
 
 WORKDIR /app
 
 # upgrade, not just install: the base image's OS packages are whatever
-# the python:3.12-slim-bookworm snapshot shipped with, and Debian ships
+# the python:3.12-slim-trixie snapshot shipped with, and Debian ships
 # CVE fixes as point-release package updates. Trivy scans this image in
 # CI (HIGH/CRITICAL fails the build) and has caught this gap before.
 RUN apt-get update && apt-get upgrade -y \
@@ -26,12 +26,25 @@ COPY pyproject.toml ./
 COPY app ./app
 RUN pip install --no-cache-dir --no-deps .
 
+# Nothing in this image runs pip after the build, so take it out. The base
+# image's pip (25.0.1, and every later one, which vendors setuptools 70.3.0)
+# is what trivy flags in the Python layer: 5 MEDIUM + 1 LOW fixed upstream,
+# plus a HIGH in the vendored setuptools. Removing it clears them and leaves
+# one less tool in a container that holds service credentials.
+RUN pip uninstall -y pip
+
 # No shell, no home directory — matches the `foundry` system user this
 # replaced on the VM.
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin gateway
 USER gateway
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+# G2: Sentry names the image that raised an event. The deploy workflows
+# pass the commit SHA the GHCR tag is built from; a local build leaves it
+# empty, and observability.py then sends no release.
+ARG GIT_SHA=""
+ENV SENTRY_RELEASE=$GIT_SHA
 
 EXPOSE 8000
 

@@ -1,0 +1,1 @@
+Based off the image which I have provided in the folder, design the frontend. 

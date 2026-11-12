@@ -12,6 +12,7 @@ import { recordListingEvent } from "@/lib/analytics";
 import { formatDate } from "@/lib/dates";
 import type { Vc, VcFilters } from "@/lib/data/vcs";
 import { externalHref } from "@/lib/safeUrl";
+import { Updating } from "@/components/ui/Updating";
 
 const KINDS = [
   { value: "all",   label: "All" },
@@ -93,7 +94,8 @@ export default function VcsClient({
       {/* A pending navigation dims the current page rather than replacing it
           with a skeleton: the results are still valid, just about to change,
           and swapping them for placeholders on every keystroke would flash. */}
-      <div className={url.pending ? "opacity-60 transition-opacity duration-150" : undefined}>
+      <div className={`relative ${url.pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={url.pending || undefined}>
+        {url.pending && <Updating />}
         {visible.length === 0 ? (
           <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
             {matching === 0 ? "No listings yet." : "No listings match your search or filters."}

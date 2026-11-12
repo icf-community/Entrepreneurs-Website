@@ -13,14 +13,28 @@ import * as Sentry from "@sentry/nextjs";
 // WHAT MAY BE CACHED HERE — read this before adding a key.
 //
 // Only responses that are byte-identical for every member. Several of
-// this app's RPCs are deliberately caller-dependent:
-// list_approved_opportunities and list_approved_events return
-// contact_email only when the row is marked visible OR the caller is the
-// poster OR the caller is an admin (migration 20260530000002). Caching
-// one member's response and serving it to another would disclose
-// posters' private contact addresses. Those lists are therefore NOT
-// cached here, and anything per-user (bookmarks, listing actions,
-// submissions) obviously isn't either.
+// this app's RPCs are deliberately caller-dependent — list_approved_opportunities
+// and list_approved_events return contact_email only when the row is
+// marked visible OR the caller is the poster OR the caller is an admin,
+// and list_approved_opportunities additionally filters which ROWS appear
+// at all by the caller's own education status (20261026000004). Caching
+// one member's response and serving it to another would disclose posters'
+// private contact addresses, or hide/show audience-gated jobs wrongly.
+//
+// `opportunities`/`events` below ARE cached, but never with that raw,
+// caller-dependent RPC result: lib/data/opportunities.ts and events.ts
+// call the RPCs with p_cache_safe=true (20261026000004), which strips the
+// poster/admin contact_email override and, for opportunities, the
+// audience row-filter — making the cached payload identical for every
+// non-admin caller. Admins skip the cache entirely and call the RPCs
+// live with p_cache_safe left at its default (false), getting the exact
+// same per-admin result as before this existed. The app layer then
+// restores the caller's own contact_email (via
+// my_posted_opportunity_contact_emails/my_posted_event_contact_emails)
+// and, for opportunities, re-applies the audience filter in JS using the
+// viewer's own already-fetched education status — see admitsAudience() in
+// lib/data/opportunities.ts. Anything per-user beyond that (bookmarks,
+// listing actions, submissions) obviously still isn't cached.
 //
 // QUOTA COUPLING — READ THIS BEFORE ADDING CACHE TRAFFIC.
 //
@@ -167,9 +181,31 @@ const VERSION = 1;
 
 export type CacheKey =
   | "directoryFacets" | "directoryFirstPage" | "directoryNewest"
-  | "vcs" | "lookups" | "skills" | "skillsDetailed" | "sectors";
+  | "vcs" | "opportunities" | "events"
+  | "lookups" | "skills" | "skillsDetailed" | "sectors" | "siteBanner"
+  | "adminConnectionStats";
 
 const key = (k: CacheKey) => `cache:v${VERSION}:${k}`;
+
+// S0: a load that started before a write must not store what it read
+// after the write's invalidate() ran — that pinned the old value for the
+// whole TTL. invalidate() bumps a per-key generation; a load notes the
+// generation before it queries and its write-back is a compare-and-set
+// that only stores while the generation is unchanged.
+const genKey = (k: CacheKey) => `cache:v${VERSION}:gen:${k}`;
+const lockKey = (k: CacheKey) => `cache:v${VERSION}:lock:${k}`;
+const SET_IF_UNCHANGED =
+  "local g = redis.call('GET', KEYS[2]) " +
+  "if (g == false and ARGV[2] == '') or g == ARGV[2] then " +
+  "redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[3]) return 1 end return 0";
+
+// Keys whose loader is expensive enough that every instance missing at
+// once is a database spike (the facets query is the slowest directory
+// read). One instance loads; the others wait briefly for its result.
+const SLOW: ReadonlySet<CacheKey> = new Set(["directoryFacets"]);
+const PEER_WAIT_STEPS = 6;
+const PEER_WAIT_STEP_MS = 100;
+const FILL_LOCK_MS = 3_000;
 
 /**
  * TTLs are the safety net, not the mechanism. Writes invalidate
@@ -194,6 +230,13 @@ const TTL_SECONDS: Record<CacheKey, number> = {
   directoryFirstPage: 60,
   directoryNewest: 60,
   vcs: 300,
+  // The two highest-traffic listing reads in the app (D8-cost/C2 findings).
+  // Short TTL, same reasoning as directoryFirstPage/directoryNewest: a new
+  // approval should show up quickly, and the explicit invalidate() calls
+  // in lib/listings/admin.ts/user.ts/edits.ts are the real mechanism —
+  // this just bounds a missed one.
+  opportunities: 60,
+  events: 60,
   lookups: 3600,
   // Skills/sectors are a seeded taxonomy a human edits by migration — see
   // lib/data/taxonomy.ts's own header — so an hour-long TTL costs nothing
@@ -202,6 +245,17 @@ const TTL_SECONDS: Record<CacheKey, number> = {
   skills: 3600,
   skillsDetailed: 3600,
   sectors: 3600,
+  // The incident banner (F-x4). Publishing and clearing invalidate it; the
+  // TTL only bounds a missed invalidation, and /api/banner adds 15s of CDN
+  // caching on top.
+  siteBanner: 60,
+  // Three whole-network aggregates for /admin/connections (D1: ~200 ms at
+  // 5k members and 220k connections, growing with the edge count). The
+  // exception to "admins never populate a shared key": this key is read
+  // only by that admin page, the RPC refuses non-admins, and the value
+  // holds no per-member data. Nothing invalidates it; a statistic ten
+  // minutes old is fine.
+  adminConnectionStats: 600,
 };
 
 /**
@@ -230,7 +284,8 @@ export async function cached<T>(
   } = {},
 ): Promise<T> {
   const isCacheable = opts.isCacheable ?? (() => true);
-  if (!redis || opts.skip || breakerOpen()) return loader();
+  if (opts.skip) return loader();
+  if (!redis || breakerOpen()) return fill(name, loader, isCacheable);
 
   try {
     const hit = await withDeadline(redis.get<T>(key(name)), READ_TIMEOUT_MS);
@@ -244,22 +299,82 @@ export async function cached<T>(
     noteFailure(`read failed for ${name}`, e);
   }
 
-  const value = await loader();
+  return fill(name, loader, isCacheable);
+}
 
-  if (isCacheable(value)) {
-    // after() runs this once the response has been sent, so populating the
-    // cache never shows up in the user's time-to-first-byte. Awaiting it
-    // here would make the *first* visitor after an invalidation pay for
-    // everyone else's speed-up.
-    after(async () => {
-      try {
-        await redis.set(key(name), value, { ex: TTL_SECONDS[name] });
-      } catch (e) {
-        noteFailure(`write failed for ${name}`, e);
-      }
-    });
+// Loads in flight in this process, one per key (E1b). A shared key holds
+// the same value for every member, so a request that misses while another
+// is already loading it waits for that load instead of starting its own.
+// Without this a cold key, or a cache the breaker has paused, sent every
+// concurrent request to the database at once: at 250 members that was the
+// 1.4 s facets query, 526 times in four minutes. Admin reads (skip) never
+// come through here.
+const inFlight = new Map<CacheKey, Promise<unknown>>();
+
+function fill<T>(name: CacheKey, loader: () => Promise<T>, isCacheable: (value: T) => boolean): Promise<T> {
+  const running = inFlight.get(name);
+  if (running) return running as Promise<T>;
+  const load = (async () => {
+    const live = redis && !breakerOpen() ? redis : null;
+    // Read before the query, so a write that commits during it is seen as
+    // a changed generation. Unknown (Redis slow or down) means don't store.
+    const before = live ? await readGeneration(live, name) : null;
+    let holdsLock = false;
+    if (live && SLOW.has(name)) {
+      const peer = await waitForPeer<T>(live, name);
+      if (peer.value !== undefined) return peer.value;
+      holdsLock = peer.holdsLock;
+    }
+    const value = await loader();
+    // One write per load, not one per waiter. after() runs it once the
+    // response has been sent, so populating the cache never shows up in the
+    // user's time-to-first-byte: awaiting it here would make the first
+    // visitor after an invalidation pay for everyone else's speed-up.
+    if (live && before !== null && isCacheable(value)) {
+      after(async () => {
+        try {
+          await live.eval(SET_IF_UNCHANGED, [key(name), genKey(name)],
+            [JSON.stringify(value), before, String(TTL_SECONDS[name])]);
+          if (holdsLock) await live.del(lockKey(name));
+        } catch (e) {
+          noteFailure(`write failed for ${name}`, e);
+        }
+      });
+    }
+    return value;
+  })().finally(() => inFlight.delete(name));
+  inFlight.set(name, load);
+  return load;
+}
+
+async function readGeneration(r: Redis, name: CacheKey): Promise<string | null> {
+  try {
+    const g = await withDeadline(r.get<string | number>(genKey(name)), READ_TIMEOUT_MS);
+    return g === null || g === undefined ? "" : String(g);
+  } catch (e) {
+    noteFailure(`generation read failed for ${name}`, e);
+    return null;
   }
-  return value;
+}
+
+/**
+ * Take the fill lock, or wait up to ~600ms for the instance holding it to
+ * store the value. Never blocks longer than that: past it, load anyway —
+ * a duplicate query is better than a slow page.
+ */
+async function waitForPeer<T>(r: Redis, name: CacheKey): Promise<{ value?: T; holdsLock: boolean }> {
+  try {
+    const got = await withDeadline(r.set(lockKey(name), "1", { nx: true, px: FILL_LOCK_MS }), READ_TIMEOUT_MS);
+    if (got === "OK") return { holdsLock: true };
+    for (let i = 0; i < PEER_WAIT_STEPS; i++) {
+      await new Promise((resolve) => setTimeout(resolve, PEER_WAIT_STEP_MS));
+      const hit = await withDeadline(r.get<T>(key(name)), READ_TIMEOUT_MS);
+      if (hit !== null && hit !== undefined) return { value: hit, holdsLock: false };
+    }
+  } catch (e) {
+    noteFailure(`fill lock failed for ${name}`, e);
+  }
+  return { holdsLock: false };
 }
 
 /**
@@ -287,7 +402,12 @@ export async function invalidate(...requested: CacheKey[]): Promise<void> {
     // render must not be able to read the entry we are deleting.
     // Deliberately not behind the breaker either — dropping a stale key
     // matters more than conserving commands.
-    await redis.del(...names.map(key));
+    // The generation bump is what stops a load already in flight from
+    // writing the old value back (see SET_IF_UNCHANGED).
+    const p = redis.pipeline();
+    p.del(...names.map(key));
+    for (const n of names) p.incr(genKey(n));
+    await p.exec();
   } catch (e) {
     // Worst case the TTL expires it. Log rather than fail the write —
     // the user's action has already committed at this point.

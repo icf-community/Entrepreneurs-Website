@@ -37,7 +37,7 @@ export type Database = {
       admin_actions: {
         Row: {
           action: string
-          admin_id: string
+          admin_id: string | null
           created_at: string
           id: string
           notes: string | null
@@ -46,7 +46,7 @@ export type Database = {
         }
         Insert: {
           action: string
-          admin_id: string
+          admin_id?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -55,7 +55,7 @@ export type Database = {
         }
         Update: {
           action?: string
-          admin_id?: string
+          admin_id?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -67,14 +67,17 @@ export type Database = {
       admins: {
         Row: {
           created_at: string
+          granted_by_committee: boolean
           user_id: string
         }
         Insert: {
           created_at?: string
+          granted_by_committee?: boolean
           user_id: string
         }
         Update: {
           created_at?: string
+          granted_by_committee?: boolean
           user_id?: string
         }
         Relationships: []
@@ -94,6 +97,39 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: string
+        }
+        Relationships: []
+      }
+      app_health_state: {
+        Row: {
+          check_name: string
+          failing_since: string | null
+          last_reported_at: string | null
+        }
+        Insert: {
+          check_name: string
+          failing_since?: string | null
+          last_reported_at?: string | null
+        }
+        Update: {
+          check_name?: string
+          failing_since?: string | null
+          last_reported_at?: string | null
+        }
+        Relationships: []
+      }
+      banned_email_hashes: {
+        Row: {
+          banned_at: string
+          email_hash: string
+        }
+        Insert: {
+          banned_at?: string
+          email_hash: string
+        }
+        Update: {
+          banned_at?: string
+          email_hash?: string
         }
         Relationships: []
       }
@@ -130,6 +166,24 @@ export type Database = {
           last_error?: string | null
           max_attempts?: number
           next_attempt_at?: string
+        }
+        Relationships: []
+      }
+      block_tombstones: {
+        Row: {
+          blocked_email_hash: string
+          blocker_id: string
+          created_at: string
+        }
+        Insert: {
+          blocked_email_hash: string
+          blocker_id: string
+          created_at?: string
+        }
+        Update: {
+          blocked_email_hash?: string
+          blocker_id?: string
+          created_at?: string
         }
         Relationships: []
       }
@@ -338,6 +392,7 @@ export type Database = {
           id: string
           is_current: boolean
           model_name: string
+          policy_version: string | null
           profile: Json
           prompt_version: string
           summary: string
@@ -350,6 +405,7 @@ export type Database = {
           id?: string
           is_current?: boolean
           model_name: string
+          policy_version?: string | null
           profile: Json
           prompt_version: string
           summary: string
@@ -362,6 +418,7 @@ export type Database = {
           id?: string
           is_current?: boolean
           model_name?: string
+          policy_version?: string | null
           profile?: Json
           prompt_version?: string
           summary?: string
@@ -452,6 +509,21 @@ export type Database = {
           },
         ]
       }
+      deleted_accounts: {
+        Row: {
+          deleted_at: string
+          id_hash: string
+        }
+        Insert: {
+          deleted_at?: string
+          id_hash: string
+        }
+        Update: {
+          deleted_at?: string
+          id_hash?: string
+        }
+        Relationships: []
+      }
       email_change_log: {
         Row: {
           changed_at: string
@@ -484,6 +556,7 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          edit_version: number
           event_at: string
           id: string
           is_society_event: boolean
@@ -503,6 +576,7 @@ export type Database = {
           contact_email_visible?: boolean
           created_at?: string
           description: string
+          edit_version?: number
           event_at: string
           id?: string
           is_society_event?: boolean
@@ -522,6 +596,7 @@ export type Database = {
           contact_email_visible?: boolean
           created_at?: string
           description?: string
+          edit_version?: number
           event_at?: string
           id?: string
           is_society_event?: boolean
@@ -720,6 +795,41 @@ export type Database = {
         }
         Relationships: []
       }
+      member_education: {
+        Row: {
+          confirmed_at: string
+          currently_enrolled: boolean | null
+          has_completed_degree: boolean | null
+          member_id: string
+          source: string
+          version: number
+        }
+        Insert: {
+          confirmed_at?: string
+          currently_enrolled?: boolean | null
+          has_completed_degree?: boolean | null
+          member_id: string
+          source?: string
+          version?: number
+        }
+        Update: {
+          confirmed_at?: string
+          currently_enrolled?: boolean | null
+          has_completed_degree?: boolean | null
+          member_id?: string
+          source?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_education_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_skills: {
         Row: {
           confidence: number | null
@@ -765,6 +875,42 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          read_at: string | null
+          ref_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          link?: string | null
+          read_at?: string | null
+          ref_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read_at?: string | null
+          ref_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       opportunities: {
         Row: {
           application_deadline: string
@@ -772,11 +918,16 @@ export type Database = {
           apply_url: string | null
           approved_at: string | null
           approved_by: string | null
+          audience_version: number
           company: string
           contact_email: string
           contact_email_visible: boolean
+          content_version: number
           created_at: string
+          creation_source: string
           description: string
+          edit_version: number
+          eligible_audience: string | null
           id: string
           location_text: string | null
           location_type: Database["public"]["Enums"]["location_type"]
@@ -795,11 +946,16 @@ export type Database = {
           apply_url?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          audience_version?: number
           company: string
           contact_email: string
           contact_email_visible?: boolean
+          content_version?: number
           created_at?: string
+          creation_source?: string
           description: string
+          edit_version?: number
+          eligible_audience?: string | null
           id?: string
           location_text?: string | null
           location_type: Database["public"]["Enums"]["location_type"]
@@ -818,11 +974,16 @@ export type Database = {
           apply_url?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          audience_version?: number
           company?: string
           contact_email?: string
           contact_email_visible?: boolean
+          content_version?: number
           created_at?: string
+          creation_source?: string
           description?: string
+          edit_version?: number
+          eligible_audience?: string | null
           id?: string
           location_text?: string | null
           location_type?: Database["public"]["Enums"]["location_type"]
@@ -1328,9 +1489,12 @@ export type Database = {
           cv_path: string | null
           cv_suggested_skill_ids: number[] | null
           cv_uploaded_at: string | null
+          edit_version: number
           first_name: string
           github_url: string | null
           grad_year: number | null
+          graduation_confirmed_at: string | null
+          graduation_prompted_at: string | null
           id: string
           intake_completed_at: string | null
           intake_deferred_at: string | null
@@ -1369,9 +1533,12 @@ export type Database = {
           cv_path?: string | null
           cv_suggested_skill_ids?: number[] | null
           cv_uploaded_at?: string | null
+          edit_version?: number
           first_name?: string
           github_url?: string | null
           grad_year?: number | null
+          graduation_confirmed_at?: string | null
+          graduation_prompted_at?: string | null
           id: string
           intake_completed_at?: string | null
           intake_deferred_at?: string | null
@@ -1410,9 +1577,12 @@ export type Database = {
           cv_path?: string | null
           cv_suggested_skill_ids?: number[] | null
           cv_uploaded_at?: string | null
+          edit_version?: number
           first_name?: string
           github_url?: string | null
           grad_year?: number | null
+          graduation_confirmed_at?: string | null
+          graduation_prompted_at?: string | null
           id?: string
           intake_completed_at?: string | null
           intake_deferred_at?: string | null
@@ -1451,6 +1621,42 @@ export type Database = {
           created_at?: string
           id?: number
           name?: string
+        }
+        Relationships: []
+      }
+      site_banner: {
+        Row: {
+          enabled: boolean
+          hide_after: string | null
+          id: string
+          link_url: string | null
+          message: string
+          severity: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          enabled?: boolean
+          hide_after?: string | null
+          id?: string
+          link_url?: string | null
+          message?: string
+          severity?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          enabled?: boolean
+          hide_after?: string | null
+          id?: string
+          link_url?: string | null
+          message?: string
+          severity?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
         }
         Relationships: []
       }
@@ -1534,6 +1740,7 @@ export type Database = {
           created_at: string
           deadline: string | null
           description: string
+          edit_version: number
           id: string
           kind: Database["public"]["Enums"]["vc_grant_kind"]
           link: string
@@ -1551,6 +1758,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description: string
+          edit_version?: number
           id?: string
           kind: Database["public"]["Enums"]["vc_grant_kind"]
           link: string
@@ -1568,6 +1776,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description?: string
+          edit_version?: number
           id?: string
           kind?: Database["public"]["Enums"]["vc_grant_kind"]
           link?: string
@@ -1616,6 +1825,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_ai_overview: { Args: never; Returns: Json }
+      admin_ai_rebuild_index: { Args: never; Returns: number }
       admin_apply_listing_edit: {
         Args: { p_edit_id: string }
         Returns: {
@@ -1629,6 +1840,7 @@ export type Database = {
         Args: { p_member: string; p_note?: string }
         Returns: undefined
       }
+      admin_clear_site_banner: { Args: never; Returns: undefined }
       admin_connection_stats: {
         Args: never
         Returns: {
@@ -1660,6 +1872,7 @@ export type Database = {
           p_contact_email: string
           p_contact_email_visible: boolean
           p_description: string
+          p_eligible_audience: string
           p_location_text: string
           p_location_type: Database["public"]["Enums"]["location_type"]
           p_pay: string
@@ -1738,6 +1951,19 @@ export type Database = {
           user_id: string
         }[]
       }
+      admin_get_site_banner: {
+        Args: never
+        Returns: {
+          enabled: boolean
+          hide_after: string
+          link_url: string
+          message: string
+          severity: string
+          updated_at: string
+          updated_by_name: string
+          version: number
+        }[]
+      }
       admin_list_connection_reports: {
         Args: { p_limit?: number; p_offset?: number; p_status?: string }
         Returns: {
@@ -1785,6 +2011,18 @@ export type Database = {
           proposed_by_name: string
         }[]
       }
+      admin_list_opportunities_needing_audience: {
+        Args: never
+        Returns: {
+          application_deadline: string
+          company: string
+          created_at: string
+          id: string
+          position_name: string
+          poster_first_name: string
+          poster_surname: string
+        }[]
+      }
       admin_list_pending_profiles: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: {
@@ -1798,6 +2036,7 @@ export type Database = {
           id: string
           linkedin_url: string
           portfolio_url: string
+          previously_banned: boolean
           role: Database["public"]["Enums"]["user_role"]
           sector_names: string[]
           skill_names: string[]
@@ -1881,6 +2120,14 @@ export type Database = {
           total: number
         }[]
       }
+      admin_prompt_graduates: {
+        Args: { p_cutoff_year: number }
+        Returns: {
+          email: string
+          first_name: string
+          user_id: string
+        }[]
+      }
       admin_reject_listing_edit: {
         Args: { p_edit_id: string; p_reason: string }
         Returns: {
@@ -1909,6 +2156,19 @@ export type Database = {
         Args: { p_report_id: string }
         Returns: string
       }
+      admin_set_ai_flag: {
+        Args: { p_enabled: boolean; p_key: string; p_reason: string }
+        Returns: undefined
+      }
+      admin_set_ai_limits: {
+        Args: {
+          p_active_turn_ceiling: number
+          p_matching_daily_cap_micro: number
+          p_member_daily_cap_micro: number
+          p_reason: string
+        }
+        Returns: undefined
+      }
       admin_set_committee: {
         Args: {
           p_committee_role?: string
@@ -1925,6 +2185,19 @@ export type Database = {
         Args: { p_enabled: boolean }
         Returns: undefined
       }
+      admin_set_opportunity_audience: {
+        Args: { p_audience: string; p_id: string }
+        Returns: undefined
+      }
+      admin_set_site_banner: {
+        Args: {
+          p_hide_after?: string
+          p_link_url?: string
+          p_message: string
+          p_severity: string
+        }
+        Returns: number
+      }
       admin_update_listing: {
         Args: {
           p_kind: Database["public"]["Enums"]["listing_event_kind"]
@@ -1933,6 +2206,129 @@ export type Database = {
         }
         Returns: undefined
       }
+      ai_cancel_turn: { Args: { p_turn: string }; Returns: undefined }
+      ai_confirm_job_requirements: {
+        Args: {
+          p_atoms: Json
+          p_expected_version?: number
+          p_opportunity: string
+        }
+        Returns: undefined
+      }
+      ai_consume_draft_handoff: { Args: { p_id: string }; Returns: Json }
+      ai_create_draft_handoff: {
+        Args: { p_filters: Json; p_mode: string }
+        Returns: string
+      }
+      ai_delete_all_history: { Args: never; Returns: undefined }
+      ai_delete_conversation: {
+        Args: { p_conversation: string }
+        Returns: undefined
+      }
+      ai_edit_spec: {
+        Args: {
+          p_conversation: string
+          p_expected_revision: number
+          p_ops: Json
+        }
+        Returns: {
+          spec: Json
+          spec_revision: number
+        }[]
+      }
+      ai_forget_message: { Args: { p_message: string }; Returns: undefined }
+      ai_get_conversation: { Args: { p_conversation: string }; Returns: Json }
+      ai_get_job_requirements: {
+        Args: { p_opportunity: string }
+        Returns: Json
+      }
+      ai_list_concepts: {
+        Args: { p_kinds?: string[] }
+        Returns: {
+          kind: string
+          label: string
+          slug: string
+        }[]
+      }
+      ai_list_conversations: {
+        Args: { p_mode: string }
+        Returns: {
+          expires_at: string
+          id: string
+          last_activity_at: string
+          opportunity_id: string
+          temporary: boolean
+          title: string
+        }[]
+      }
+      ai_mode_enabled: { Args: { p_mode: string }; Returns: boolean }
+      ai_preview_my_projection: {
+        Args: { p_purpose: string }
+        Returns: {
+          built_at: string
+          concepts: string[]
+          from_cv: boolean
+          source_kind: string
+          text: string
+        }[]
+      }
+      ai_report_match: {
+        Args: { p_reason: string; p_target_id: string; p_turn: string }
+        Returns: undefined
+      }
+      ai_result_cards: {
+        Args: { p_turn: string }
+        Returns: {
+          avatar_path: string
+          change: string
+          components: Json
+          coverage: Json
+          evidence: Json
+          exact_tier: number
+          extra: Json
+          kind: string
+          score: number
+          slot: number
+          stale: boolean
+          subtitle: string
+          target_id: string
+          tier: string
+          title: string
+        }[]
+      }
+      ai_save_findings: { Args: { p_turn: string }; Returns: undefined }
+      ai_state: { Args: never; Returns: Json }
+      ai_submit_turn: {
+        Args: {
+          p_conversation: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_kind: string
+          p_message: string
+          p_mode: string
+          p_opportunity: string
+          p_temporary?: boolean
+        }
+        Returns: {
+          conversation_id: string
+          outcome: string
+          retry_at: string
+          turn_id: string
+        }[]
+      }
+      ai_turn_status: {
+        Args: { p_turn: string }
+        Returns: {
+          conversation_id: string
+          finished: boolean
+          outcome: string
+          result_count: number
+          revision: number
+          stage: string
+          status: string
+        }[]
+      }
+      app_health_snapshot: { Args: never; Returns: Json }
       apply_listing_edit_payload: {
         Args: {
           p_kind: Database["public"]["Enums"]["listing_event_kind"]
@@ -1942,11 +2338,19 @@ export type Database = {
         Returns: undefined
       }
       approve_event: {
-        Args: { p_event_id: string; p_notes?: string }
+        Args: {
+          p_event_id: string
+          p_expected_version?: number
+          p_notes?: string
+        }
         Returns: undefined
       }
       approve_opportunity: {
-        Args: { p_notes?: string; p_opportunity_id: string }
+        Args: {
+          p_expected_version?: number
+          p_notes?: string
+          p_opportunity_id: string
+        }
         Returns: undefined
       }
       approve_user: {
@@ -1957,9 +2361,10 @@ export type Database = {
         }[]
       }
       approve_vc_grant: {
-        Args: { p_id: string; p_notes?: string }
+        Args: { p_expected_version?: number; p_id: string; p_notes?: string }
         Returns: undefined
       }
+      assert_audience: { Args: { p_audience: string }; Returns: undefined }
       block_member: { Args: { p_member: string }; Returns: undefined }
       claim_blob_deletion_batch: {
         Args: { p_limit?: number }
@@ -2012,8 +2417,17 @@ export type Database = {
           p_encryption_key: string
           p_github_user_id: number
           p_github_username: string
+          p_member_id: string
         }
         Returns: undefined
+      }
+      confirm_my_graduation: {
+        Args: {
+          p_graduated: boolean
+          p_new_grad_year?: number
+          p_still_enrolled?: boolean
+        }
+        Returns: string
       }
       connection_assert_can_block: {
         Args: { p_caller: string }
@@ -2036,6 +2450,21 @@ export type Database = {
           p_subject: string
         }
         Returns: undefined
+      }
+      connection_panel_state: {
+        Args: { p_member: string }
+        Returns: {
+          available_at: string
+          connection_id: string
+          consent_version: string
+          daily_cap: number
+          enabled: boolean
+          limit_reason: string
+          outstanding: number
+          quota_available_at: string
+          state: string
+          weekly_cap: number
+        }[]
       }
       connection_refusal_message: { Args: never; Returns: string }
       connection_sender_throttled: {
@@ -2076,7 +2505,12 @@ export type Database = {
       cron_drain_blob_deletions: { Args: never; Returns: undefined }
       cron_drain_outbound_email: { Args: never; Returns: undefined }
       cron_github_showcase_nudge: { Args: never; Returns: undefined }
+      cron_health_check: { Args: never; Returns: undefined }
       defer_intake: { Args: never; Returns: undefined }
+      defer_outbound_email: {
+        Args: { p_error: string; p_id: string; p_minutes?: number }
+        Returns: undefined
+      }
       delete_my_account: { Args: never; Returns: undefined }
       delete_my_post: { Args: { p_post_id: string }; Returns: undefined }
       disconnect_github: { Args: never; Returns: undefined }
@@ -2090,6 +2524,7 @@ export type Database = {
           new_repos: string[]
         }[]
       }
+      email_ban_hash: { Args: { p_email: string }; Returns: string }
       enqueue_github_rescans: { Args: never; Returns: number }
       enqueue_outbound_email: {
         Args: {
@@ -2106,6 +2541,35 @@ export type Database = {
       expire_events: { Args: never; Returns: number }
       expire_opportunities: { Args: never; Returns: number }
       expire_vcs_grants: { Args: never; Returns: number }
+      export_my_data: { Args: never; Returns: Json }
+      get_approved_opportunity: {
+        Args: { p_id: string }
+        Returns: {
+          application_deadline: string
+          apply_method: Database["public"]["Enums"]["apply_method"]
+          apply_url: string
+          company: string
+          contact_email: string
+          contact_email_visible: boolean
+          created_at: string
+          description: string
+          eligible_audience: string
+          id: string
+          location_text: string
+          location_type: Database["public"]["Enums"]["location_type"]
+          pay: string
+          position_name: string
+          posted_by: string
+          poster_avatar_path: string
+          poster_first_name: string
+          poster_linkedin_url: string
+          poster_surname: string
+          sector_names: string[]
+          skill_names: string[]
+          start_month: number
+          start_year: number
+        }[]
+      }
       get_event_for_edit: {
         Args: { p_id: string }
         Returns: {
@@ -2122,6 +2586,23 @@ export type Database = {
           title: string
         }[]
       }
+      get_member_card: {
+        Args: { p_id: string }
+        Returns: {
+          avatar_path: string
+          bio_focus: string
+          bio_hobbies: string
+          course: string
+          created_at: string
+          first_name: string
+          grad_year: number
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          sector_names: string[]
+          skill_names: string[]
+          surname: string
+        }[]
+      }
       get_my_activity: {
         Args: never
         Returns: {
@@ -2134,6 +2615,22 @@ export type Database = {
           subtitle: string
           title: string
           url: string
+        }[]
+      }
+      get_my_ai_settings: {
+        Args: never
+        Returns: {
+          consent_version: string
+          evidence_sharing: boolean
+          network_discoverable: boolean
+          network_offers: string[]
+          network_seeks: string[]
+          pref_location_types: string[]
+          pref_role_types: string[]
+          recruiter_discoverable: boolean
+          self_reported: string
+          updated_at: string
+          use_chat_memory: boolean
         }[]
       }
       get_my_cv_info: {
@@ -2158,6 +2655,15 @@ export type Database = {
         Returns: {
           failure_reason: string
           status: Database["public"]["Enums"]["cv_status"]
+        }[]
+      }
+      get_my_education: {
+        Args: never
+        Returns: {
+          confirmed_at: string
+          currently_enrolled: boolean
+          has_completed_degree: boolean
+          known: boolean
         }[]
       }
       get_my_github_showcase: {
@@ -2190,6 +2696,13 @@ export type Database = {
           listing_kind: Database["public"]["Enums"]["listing_event_kind"]
         }[]
       }
+      get_my_listing_edit: {
+        Args: {
+          p_id: string
+          p_kind: Database["public"]["Enums"]["listing_event_kind"]
+        }
+        Returns: Json
+      }
       get_my_listing_stats: {
         Args: never
         Returns: {
@@ -2211,6 +2724,7 @@ export type Database = {
           proposed: Json
         }[]
       }
+      get_my_profile_edit: { Args: never; Returns: Json }
       get_opportunity_for_edit: {
         Args: { p_id: string }
         Returns: {
@@ -2221,6 +2735,7 @@ export type Database = {
           contact_email: string
           contact_email_visible: boolean
           description: string
+          eligible_audience: string
           id: string
           location_text: string
           location_type: Database["public"]["Enums"]["location_type"]
@@ -2240,13 +2755,23 @@ export type Database = {
           liked_by_me: boolean
         }[]
       }
+      get_site_banner: {
+        Args: never
+        Returns: {
+          link_url: string
+          message: string
+          severity: string
+          version: number
+        }[]
+      }
       github_cv_ingestion_enabled: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_ai_operator: { Args: never; Returns: boolean }
       is_approved: { Args: never; Returns: boolean }
       is_imperial_email: { Args: { p_email: string }; Returns: boolean }
       issue_upload_ticket: { Args: { p_purpose?: string }; Returns: string }
       list_approved_events: {
-        Args: never
+        Args: { p_cache_safe?: boolean }
         Returns: {
           contact_email: string
           contact_email_visible: boolean
@@ -2266,7 +2791,7 @@ export type Database = {
         }[]
       }
       list_approved_opportunities: {
-        Args: never
+        Args: { p_cache_safe?: boolean }
         Returns: {
           application_deadline: string
           apply_method: Database["public"]["Enums"]["apply_method"]
@@ -2276,12 +2801,14 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          eligible_audience: string
           id: string
           location_text: string
           location_type: Database["public"]["Enums"]["location_type"]
           pay: string
           position_name: string
           posted_by: string
+          poster_avatar_path: string
           poster_first_name: string
           poster_linkedin_url: string
           poster_surname: string
@@ -2422,12 +2949,14 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          eligible_audience: string
           id: string
           location_text: string
           location_type: Database["public"]["Enums"]["location_type"]
           pay: string
           position_name: string
           posted_by: string
+          poster_avatar_path: string
           poster_first_name: string
           poster_linkedin_url: string
           poster_surname: string
@@ -2501,6 +3030,18 @@ export type Database = {
           skill_names: string[]
           surname: string
           total_count: number
+        }[]
+      }
+      list_my_notifications: {
+        Args: { p_before?: string; p_limit?: number }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          link: string
+          read_at: string
+          title: string
         }[]
       }
       list_my_pending_requests: {
@@ -2592,6 +3133,7 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          edit_version: number
           event_at: string
           id: string
           location: string
@@ -2615,6 +3157,7 @@ export type Database = {
           contact_email_visible: boolean
           created_at: string
           description: string
+          edit_version: number
           id: string
           location_text: string
           location_type: Database["public"]["Enums"]["location_type"]
@@ -2661,6 +3204,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_notifications_read: { Args: { p_ids?: string[] }; Returns: number }
+      member_admits_audience: {
+        Args: { p_audience: string; p_member: string }
+        Returns: boolean
+      }
       my_connection_quota: {
         Args: never
         Returns: {
@@ -2681,11 +3229,55 @@ export type Database = {
           open_to_connections: boolean
         }[]
       }
+      my_gate_state: {
+        Args: never
+        Returns: {
+          first_name: string
+          intake_deferred_at: string
+          is_admin: boolean
+          preferred_name: string
+          profile_version: number
+          status: Database["public"]["Enums"]["user_status"]
+          surname: string
+        }[]
+      }
       my_pending_connection_count: { Args: never; Returns: number }
+      my_posted_event_contact_emails: {
+        Args: never
+        Returns: {
+          contact_email: string
+          id: string
+        }[]
+      }
+      my_posted_opportunity_contact_emails: {
+        Args: never
+        Returns: {
+          contact_email: string
+          id: string
+        }[]
+      }
+      my_unread_notification_count: { Args: never; Returns: number }
+      notification_name: { Args: { p_user: string }; Returns: string }
+      notify: {
+        Args: {
+          p_body: string
+          p_kind: string
+          p_link: string
+          p_ref: string
+          p_title: string
+          p_user: string
+        }
+        Returns: undefined
+      }
       posting_enabled: { Args: never; Returns: boolean }
+      purge_banned_email_hashes: { Args: never; Returns: number }
+      purge_block_tombstones: { Args: never; Returns: number }
       purge_connection_records: { Args: never; Returns: number }
+      purge_deleted_account_tombstones: { Args: never; Returns: number }
       purge_expired_posts: { Args: never; Returns: number }
+      purge_finished_jobs: { Args: never; Returns: number }
       purge_moderation_records: { Args: never; Returns: number }
+      purge_old_notifications: { Args: never; Returns: number }
       purge_rejected_listings: { Args: never; Returns: number }
       purge_removed_connections: { Args: never; Returns: number }
       purge_sent_outbound_email: { Args: never; Returns: number }
@@ -2730,9 +3322,14 @@ export type Database = {
           title: string
         }[]
       }
+      release_github_showcase_nudges: {
+        Args: { p_member_ids: string[] }
+        Returns: undefined
+      }
       remove_connection: { Args: { p_id: string }; Returns: undefined }
       remove_my_avatar: { Args: never; Returns: undefined }
       remove_my_cv: { Args: never; Returns: undefined }
+      replay_account_deletions: { Args: never; Returns: number }
       report_connection: {
         Args: { p_category: string; p_id: string; p_reason: string }
         Returns: {
@@ -2772,11 +3369,30 @@ export type Database = {
         Returns: undefined
       }
       set_cv_suggested_skills: {
-        Args: { p_skill_ids: number[] }
+        Args: { p_blob_key?: string; p_skill_ids: number[] }
         Returns: undefined
       }
       set_my_affiliation: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: undefined
+      }
+      set_my_ai_settings: {
+        Args: {
+          p_consent_version: string
+          p_evidence_sharing: boolean
+          p_network_discoverable: boolean
+          p_network_offers: string[]
+          p_network_seeks: string[]
+          p_pref_location_types: string[]
+          p_pref_role_types: string[]
+          p_recruiter_discoverable: boolean
+          p_self_reported?: string
+          p_use_chat_memory: boolean
+        }
+        Returns: undefined
+      }
+      set_my_education: {
+        Args: { p_currently_enrolled: boolean; p_has_completed_degree: boolean }
         Returns: undefined
       }
       set_my_github_nudges: { Args: { p_enabled: boolean }; Returns: undefined }
@@ -2846,6 +3462,7 @@ export type Database = {
           p_contact_email: string
           p_contact_email_visible: boolean
           p_description: string
+          p_eligible_audience: string
           p_location_text: string
           p_location_type: Database["public"]["Enums"]["location_type"]
           p_pay: string
@@ -2892,6 +3509,7 @@ export type Database = {
           p_contact_email_visible: boolean
           p_description: string
           p_event_at: string
+          p_expected_version?: number
           p_id: string
           p_location: string
           p_luma_link: string
@@ -2909,6 +3527,8 @@ export type Database = {
           p_contact_email: string
           p_contact_email_visible: boolean
           p_description: string
+          p_eligible_audience: string
+          p_expected_version?: number
           p_id: string
           p_location_text: string
           p_location_type: Database["public"]["Enums"]["location_type"]
@@ -2930,6 +3550,7 @@ export type Database = {
           p_core_skill_ids?: number[]
           p_course: string
           p_current_focus?: string
+          p_expected_version?: number
           p_first_name: string
           p_github_url: string
           p_grad_year: number
@@ -2948,13 +3569,14 @@ export type Database = {
           p_venture_stage?: string
           p_venture_url?: string
         }
-        Returns: undefined
+        Returns: number
       }
       update_vc_grant: {
         Args: {
           p_amount: string
           p_deadline: string
           p_description: string
+          p_expected_version?: number
           p_id: string
           p_kind: Database["public"]["Enums"]["vc_grant_kind"]
           p_link: string
@@ -2963,9 +3585,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      viewer_admits_audience: { Args: { p_audience: string }; Returns: boolean }
       withdraw_connection_request: {
         Args: { p_id: string }
         Returns: undefined
+      }
+      worker_cv_wanted: { Args: { p_cv_id: string }; Returns: boolean }
+      worker_purge_superseded_cvs: {
+        Args: { p_cv_id: string }
+        Returns: number
       }
     }
     Enums: {

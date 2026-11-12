@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { actionLabel, markAction, unmarkAction, type ListingKind } from "@/lib/listingActions";
+import { settle } from "@/lib/settle";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Mark-as-applied / going pill
@@ -33,7 +34,7 @@ export function MarkActionPill({ kind, id, initial, onChange }: Props) {
     const next = !marked;
     setMarked(next);   // optimistic
     setPending(true);
-    const res = next ? await markAction(kind, id) : await unmarkAction(kind, id);
+    const res = await settle(next ? markAction(kind, id) : unmarkAction(kind, id));
     setPending(false);
     if (!res.ok) {
       setMarked(!next);              // rollback

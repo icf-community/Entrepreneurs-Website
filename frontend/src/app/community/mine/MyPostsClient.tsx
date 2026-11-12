@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
-import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog } from "@/components/ui/dialogCloser";
 import { deleteMyPost, loadMoreMyPosts } from "../actions";
 import PostBody from "../PostBody";
 import type { MyPostView } from "../feedView";
@@ -60,7 +61,9 @@ export default function MyPostsClient({
               key={post.id}
               className="rounded-xl border border-border-subtle bg-white/[0.02] p-5 sm:p-6"
             >
-              <p className="text-[0.7rem] text-text-muted">
+              {/* suppressHydrationWarning: this formats in the viewer's local
+                  zone, which legitimately differs from the server's. */}
+              <p className="text-[0.7rem] text-text-muted" suppressHydrationWarning>
                 {new Date(post.createdAt).toLocaleDateString("en-GB", {
                   day: "numeric", month: "short", year: "numeric",
                 })}
@@ -77,11 +80,11 @@ export default function MyPostsClient({
 
               {post.images.length > 0 && (
                 <div className={`mt-4 grid gap-3 ${post.images.length > 1 ? "sm:grid-cols-2" : ""}`}>
-                  {post.images.map((image, i) =>
+                  {post.images.map((image) =>
                     image.url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        key={i}
+                        key={image.blobKey}
                         src={image.url}
                         alt={image.altText}
                         width={image.width}
@@ -93,7 +96,7 @@ export default function MyPostsClient({
                       />
                     ) : (
                       <div
-                        key={i}
+                        key={image.blobKey}
                         className="flex aspect-[4/3] items-center justify-center rounded-lg border border-border-subtle bg-white/[0.02] px-4 text-center text-[0.75rem] text-text-muted"
                       >
                         {image.altText}

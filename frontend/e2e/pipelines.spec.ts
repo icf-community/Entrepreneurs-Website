@@ -61,7 +61,14 @@ async function makeAlum(admin: SupabaseClient, email: string, password: string):
     .from("profiles")
     // course is required once a profile leaves pending_onboarding
     // (profiles_course_required_post_onboarding), and grad_year for both roles.
-    .update({ status: "approved", course: "MSc Innovation", grad_year: 2020 })
+    // intake_deferred_at: a brand-new approved member is bounced /home ->
+    // /intake by a second client-side redirect that fires AFTER signInUI's
+    // waitForURL has already returned on /home. The next page.goto then
+    // collided with it (Firefox aborts it: NS_BINDING_ABORTED, and the page
+    // ended up on /intake). Existing members never see that bounce — the
+    // 20260901000004 backfill set this column for them — so setting it here
+    // is the realistic fixture, and leaves /home as the only landing page.
+    .update({ status: "approved", course: "MSc Innovation", grad_year: 2020, intake_deferred_at: new Date().toISOString() })
     .eq("id", id);
   if (pErr) throw new Error(`approve ${email}: ${pErr.message}`);
   return id;

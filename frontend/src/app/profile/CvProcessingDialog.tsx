@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog } from "@/components/ui/dialogCloser";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Button } from "@/components/ui/Button";
+import { watchProgress } from "@/lib/realtime/progress";
 import { getMyCvProfile, getMyCvStatus, type CvIngestStatus } from "./mediaActions";
 
 // ════════════════════════════════════════════════════════════════════
@@ -26,6 +29,7 @@ import { getMyCvProfile, getMyCvStatus, type CvIngestStatus } from "./mediaActio
 // this pipeline" from reading this file in isolation; it doesn't.
 // ════════════════════════════════════════════════════════════════════
 
+// Pace of the fallback poll, used only if the Realtime channel can't join.
 const POLL_INTERVAL_MS = 2000;
 
 const PROCESSING_STATUSES: CvIngestStatus[] = ["pending", "extracting", "embedding"];
@@ -36,66 +40,46 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
   const [profile, setProfile] = useState<{ summary: string; skills: string[] } | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
 
+  // Bumped by "Try again" to restart the poll after a failure.
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const stopPolling = () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
-    };
-
-    const poll = async () => {
-      const result = await getMyCvStatus();
-      if (cancelled) return;
-      if (!result.ok || !result.data) {
-        setLoadFailed(true);
-        stopPolling();
-        return;
-      }
-
-      setStatus(result.data.status);
-      setFailureReason(result.data.failureReason);
-
-      if (result.data.status === "ready") {
-        stopPolling();
-        const profileResult = await getMyCvProfile();
-        if (cancelled) return;
-        if (profileResult.ok && profileResult.data) {
-          setProfile(profileResult.data);
-        } else {
-          setLoadFailed(true);
+    // Re-reads when the CV row changes (lib/realtime/progress), with the old
+    // backoff poll only as a fallback. A thrown request ends in the failure
+    // state (with Try again) instead of a spinner that never stops.
+    const stop = watchProgress({
+      kind: "cv",
+      fetch: async () => {
+        const result = await getMyCvStatus();
+        if (!result.ok || !result.data) throw new Error("status unavailable");
+        return result.data;
+      },
+      onResult: (data) => {
+        setStatus(data.status);
+        setFailureReason(data.failureReason);
+        if (data.status === "ready") {
+          getMyCvProfile().then(
+            (profileResult) => {
+              if (cancelled) return;
+              if (profileResult.ok && profileResult.data) setProfile(profileResult.data);
+              else setLoadFailed(true);
+            },
+            () => { if (!cancelled) setLoadFailed(true); },
+          );
+          return "stop";
         }
-      } else if (result.data.status === "failed" || result.data.status === "flagged") {
-        stopPolling();
-      }
-    };
-
-    const startPolling = () => {
-      if (intervalId) return;
-      intervalId = setInterval(poll, POLL_INTERVAL_MS);
-    };
-
-    void poll();
-    if (document.visibilityState === "visible") startPolling();
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        void poll();
-        startPolling();
-      } else {
-        stopPolling();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
+        return PROCESSING_STATUSES.includes(data.status) ? "continue" : "stop";
+      },
+      onError: () => { if (!cancelled) setLoadFailed(true); },
+      baseMs: POLL_INTERVAL_MS,
+    });
 
     return () => {
       cancelled = true;
-      stopPolling();
-      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
     };
-  }, []);
+  }, [attempt]);
 
   const processing = status === null || PROCESSING_STATUSES.includes(status);
 
@@ -120,10 +104,18 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {loadFailed && (
-        <p className="text-[0.85rem] text-text-muted">
-          We couldn&apos;t check your CV&apos;s status just now. It&apos;s already saved — check back on this page in a
-          moment.
-        </p>
+        <div className="space-y-3">
+          <p role="alert" className="text-[0.85rem] text-text-muted">
+            We couldn&apos;t check your CV&apos;s status just now. It&apos;s already saved.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setLoadFailed(false); setStatus(null); setAttempt((n) => n + 1); }}
+          >
+            Try again
+          </Button>
+        </div>
       )}
 
       {!loadFailed && processing && (

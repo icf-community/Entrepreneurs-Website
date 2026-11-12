@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Sidebar, { type NavKey } from "./Sidebar";
+import { SiteBanner } from "@/components/SiteBanner";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · App shell
@@ -72,7 +73,7 @@ export default function AppShell({
             onClick={() => setOpen(true)}
             aria-label="Open navigation"
             aria-expanded={open}
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
               <path d="M3 6h14M3 10h14M3 14h14" />
@@ -81,6 +82,7 @@ export default function AppShell({
           <span className="text-[0.8rem] text-text-secondary">Foundry</span>
         </header>
 
+        <SiteBanner />
         <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">
           {children}
         </main>

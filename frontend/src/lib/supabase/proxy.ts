@@ -4,6 +4,8 @@ import { allow, clientIp } from "@/lib/ratelimit";
 import { buildCsp, generateNonce } from "@/lib/csp";
 import type { Database } from "@/lib/database.overrides";
 import { fetchWithTimeout } from "@/lib/supabase/unavailable";
+import { withPerf } from "@/lib/perf/metrics";
+import { currentUser } from "@/lib/auth/currentUser";
 
 export async function updateSession(request: NextRequest, pathname?: string) {
   // Per-request CSP nonce. Carried on the *request* headers so Next.js stamps
@@ -30,7 +32,7 @@ export async function updateSession(request: NextRequest, pathname?: string) {
       // Runs on EVERY request, public pages included, so a hung Auth must
       // not freeze the site. On timeout getUser() just yields no user —
       // the same as any other error here; the proxy never redirects on it.
-      global: { fetch: fetchWithTimeout(8_000) },
+      global: { fetch: withPerf(fetchWithTimeout(8_000), `proxy:${request.nextUrl.pathname}`) },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -46,10 +48,11 @@ export async function updateSession(request: NextRequest, pathname?: string) {
     },
   );
 
-  // Touching getUser() here causes @supabase/ssr to refresh the session
-  // cookie if it's near expiry. Do not run code between createServerClient
-  // and getUser() — it's a known auth race condition.
-  const { data: { user } } = await supabase.auth.getUser();
+  // Touching the session here causes @supabase/ssr to refresh the cookie
+  // if it's near expiry. Do not run code between createServerClient and
+  // this call — it's a known auth race condition. getClaims, not getUser:
+  // it verifies the JWT locally instead of asking Auth (B26).
+  const { user } = await currentUser(supabase);
 
   // Backstop on mutations (Next server actions are POSTs). No-op unless
   // Upstash is configured; reads (GET/HEAD) never hit Redis. Cloudflare

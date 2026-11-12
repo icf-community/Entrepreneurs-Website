@@ -1,35 +1,36 @@
+import { isUuid } from "@/lib/uuid";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/app/AppShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
-import { listTaxonomy, opportunityTaxonomy } from "@/lib/data/taxonomy";
-import { opportunityForEdit } from "@/lib/data/opportunities";
+import { listTaxonomy } from "@/lib/data/taxonomy";
+import { listingEditSnapshot } from "@/lib/listings/editSnapshot";
 import OpportunityForm, { type OpportunityInitialValues } from "../../new/OpportunityForm";
 import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditStatusNote";
-import { pendingRevision } from "@/lib/listings/pendingRevision";
 
 type Params = { id: string };
 
 export default async function EditOpportunityPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
+  const [{ id }, { supabase, user, isAdmin, displayName }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
+
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
 
   // SECURITY DEFINER RPC enforces caller = poster and returns
   // contact_email accordingly (migration 20260530000002).
-  const [row, taxonomy, selected] = await Promise.all([
-    opportunityForEdit(supabase, id),
-    listTaxonomy(supabase),
-    opportunityTaxonomy(supabase, id),
+  const [snapshot, taxonomy] = await Promise.all([
+    listingEditSnapshot(supabase, "opportunity", id), listTaxonomy(supabase),
   ]);
-
+  const row = snapshot?.row;
   if (!row) notFound();
   // posted_by check happens inside the RPC; status still gates which
   // path an edit takes — approved goes through review (20260907000005).
   if (row.status !== "pending" && row.status !== "approved") notFound();
 
-  const revision = row.status === "approved"
-    ? await pendingRevision(supabase, "opportunity", id)
-    : null;
+  const revision = snapshot?.revision;
   const p = revision?.proposed ?? {};
   const src = { ...row, ...p };
 
@@ -47,8 +48,9 @@ export default async function EditOpportunityPage({ params }: { params: Promise<
     contactEmailVisible: Boolean(src.contact_email_visible),
     applyMethod:         src.apply_method as typeof row.apply_method,
     applyUrl:            src.apply_url == null ? "" : String(src.apply_url),
-    skillIds:            (p.skill_ids  as number[] | undefined) ?? selected.skillIds,
-    sectorIds:           (p.sector_ids as number[] | undefined) ?? selected.sectorIds,
+    skillIds:            (p.skill_ids  as number[] | undefined) ?? row.skill_ids,
+    sectorIds:           (p.sector_ids as number[] | undefined) ?? row.sector_ids,
+    eligibleAudience:    (src.eligible_audience as OpportunityInitialValues["eligibleAudience"]) ?? null,
   };
 
   return (
@@ -72,6 +74,7 @@ export default async function EditOpportunityPage({ params }: { params: Promise<
             sectors={taxonomy.sectors}
             mode="user"
             editingId={id}
+            editVersion={row.edit_version}
             initialValues={initialValues}
             reviewOnSave={row.status === "approved"}
           />

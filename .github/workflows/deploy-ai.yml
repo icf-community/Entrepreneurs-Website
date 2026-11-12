@@ -1,0 +1,99 @@
+name: Deploy AI executor
+
+# Ships the AI executor (server/Dockerfile.ai) to Azure Container Apps.
+# Manual only: switching AI on is an operator decision, made with the
+# feature flags in /admin/ai, and the first deploy follows the owner's
+# provisioning (infra/azure/provision-ai.sh) and price confirmation.
+#
+# The executor has no ingress and no storage or GitHub credentials; its
+# only secrets (the matching OpenAI key, the ai_service DSN, Sentry DSN)
+# are Key Vault references on the container app, never in this workflow.
+# Deploys pin the image by commit SHA, and the job checks the revision
+# that is actually running uses it (the stale-:latest lesson).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ai
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  test:
+    name: Server tests + offline evals
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            server/requirements.txt
+            server/requirements-dev.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -e . --no-deps
+      - run: pytest -q
+      - run: python -m evals run
+
+  build-and-push:
+    name: Build and push image
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: tag
+        run: echo "image=ghcr.io/icf-community/foundry-ai:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - run: docker build --platform linux/amd64 --build-arg GIT_SHA="${GITHUB_SHA}" -f server/Dockerfile.ai -t "${{ steps.tag.outputs.image }}" server
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.tag.outputs.image }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - run: docker push "${{ steps.tag.outputs.image }}"
+
+  deploy:
+    name: Release to Container Apps
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Update the container app to this image
+        run: |
+          set -euo pipefail
+          az containerapp update \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_AI_APP_NAME }}" \
+            --image "${{ needs.build-and-push.outputs.image }}" \
+            --revision-suffix "g${GITHUB_SHA::8}"
+      - name: Verify the running revision uses this image
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            STATE=$(az containerapp revision list \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ vars.AZURE_AI_APP_NAME }}" \
+              --query "[?properties.active && properties.template.containers[0].image=='${{ needs.build-and-push.outputs.image }}'].properties.runningState | [0]" -o tsv)
+            echo "attempt $i: ${STATE:-none}"
+            if [ "$STATE" = "Running" ] || [ "$STATE" = "RunningAtMaxScale" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::the new revision is not running this image"
+          exit 1

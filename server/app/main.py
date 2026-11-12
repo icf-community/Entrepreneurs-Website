@@ -18,12 +18,14 @@ maps to, which keeps the blast radius of a compromise to this container.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 from fastapi import FastAPI, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from . import observability
 from .auth import InvalidTicket, TicketPurpose, is_valid_key, verify_service_token, verify_ticket
 from .config import settings
 from .documents import RejectedDocument
@@ -33,6 +35,10 @@ from .images import sanitise as sanitise_image
 from .storage import BlobAlreadyExists, delete_blob, put_blob
 
 log = logging.getLogger("foundry.gateway")
+
+# G2: errors only, with request bodies, headers and blob keys scrubbed
+# (observability.py). No SENTRY_DSN, no Sentry.
+observability.init_sentry("gateway")
 
 # docs_url/redoc_url only hide the Swagger/ReDoc UI — openapi_url is a
 # separate FastAPI setting and defaults to serving the raw schema
@@ -56,6 +62,35 @@ app.add_middleware(
 # Read size. Small enough that a hostile client cannot make us buffer much
 # per iteration, large enough not to make a real upload chatty.
 CHUNK = 64 * 1024
+
+# B22: the delete body is bounded here, not only by nginx. 100 items of
+# ~130 bytes each is about 13 KiB; 64 KiB leaves room without letting a
+# holder of the service token make the handler buffer arbitrary input.
+DELETE_BODY_MAX_BYTES = 64 * 1024
+
+
+async def _read_json_capped(request: Request, limit: int) -> dict:
+    """Read a JSON object body of at most `limit` bytes.
+
+    Checks Content-Length first, then counts while streaming, so a chunked
+    request without a length can't get past it either. Bad or non-object
+    JSON is a 400, not the 500 request.json() used to raise.
+    """
+    declared = request.headers.get("content-length")
+    if declared is not None and declared.isdigit() and int(declared) > limit:
+        raise HTTPException(status_code=413, detail="Request body too large.")
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > limit:
+            raise HTTPException(status_code=413, detail="Request body too large.")
+    try:
+        payload = json.loads(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Body must be JSON.") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Body must be a JSON object.")
+    return payload
 
 
 @app.get("/health")
@@ -221,7 +256,7 @@ async def delete_blobs(
     except InvalidTicket as exc:
         raise HTTPException(status_code=401, detail="Forbidden") from exc
 
-    payload = await request.json()
+    payload = await _read_json_capped(request, DELETE_BODY_MAX_BYTES)
     items = payload.get("items")
     if not isinstance(items, list):
         raise HTTPException(status_code=400, detail="items must be a list.")

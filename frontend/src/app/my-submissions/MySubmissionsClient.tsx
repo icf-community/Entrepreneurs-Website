@@ -75,7 +75,7 @@ function Section({ type, label, items }: { type: ListingType; label: string; ite
   return (
     <section>
       <h2 className="text-[0.85rem] text-text-muted mb-3">
-        {label} <span className="text-text-muted/70">— {items.length}</span>
+        {label} <span className="text-text-muted">— {items.length}</span>
       </h2>
       <div className="rounded-2xl bg-bg-card border border-border overflow-hidden">
         <div
@@ -146,7 +146,7 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
               <span className="flex items-center gap-2 text-text-secondary">
                 <EyeIcon />
                 {item.stats.views} view{item.stats.views === 1 ? "" : "s"}
-                <span className="text-text-muted/50">·</span>
+                <span className="text-text-muted/50" aria-hidden>·</span>
                 <ClickIcon />
                 {item.stats.clicks} click{item.stats.clicks === 1 ? "" : "s"}
               </span>

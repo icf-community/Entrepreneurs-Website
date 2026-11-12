@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/lib/supabase/service";
+import { errorSummary } from "@/lib/errorSummary";
 import { renderConnectionDigestEmail } from "@/lib/email";
 import { emailBaseUrl } from "@/lib/siteUrl";
 
@@ -90,7 +91,7 @@ async function digest(req: NextRequest): Promise<NextResponse> {
     Sentry.captureException(error, {
       level: "error", tags: { surface: "cron", path: "connections-digest-claim" },
     });
-    return NextResponse.json({ error: `Claim failed: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "Claim failed", detail: errorSummary(error) }, { status: 500 });
   }
 
   const rows = (data ?? []) as DigestRow[];

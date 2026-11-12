@@ -89,7 +89,7 @@ jobs:
       - id: tag
         run: echo "image=ghcr.io/icf-community/foundry-gateway:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
-      - run: docker build --platform linux/amd64 -t "${{ steps.tag.outputs.image }}" server
+      - run: docker build --platform linux/amd64 --build-arg GIT_SHA="${GITHUB_SHA}" -t "${{ steps.tag.outputs.image }}" server
 
       - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
@@ -116,7 +116,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: azure/login@v3
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}

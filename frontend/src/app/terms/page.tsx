@@ -28,7 +28,7 @@ export default function TermsPage() {
           </p>
         </div>
 
-        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed">
+        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
           <Section title="1. Who we are and these terms">
             <p>
               Foundry is operated under the name &ldquo;Imperial Entrepreneurs&rdquo; by <strong>IC Founders Ltd</strong>,
@@ -36,7 +36,7 @@ export default function TermsPage() {
               registered office 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ (&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;).
               These Terms and Conditions govern your access to and use of Foundry. By creating an account or using
               Foundry you agree to these terms and to our{" "}
-              <Link href="/privacy" className="text-accent hover:text-accent-light no-underline">Privacy Policy</Link>. If you
+              <Link href="/privacy" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Privacy Policy</Link>. If you
               do not agree, please do not use Foundry.
             </p>
           </Section>
@@ -88,7 +88,7 @@ export default function TermsPage() {
               you have the right to post it, that a profile photo is of you, and that it does not breach these
               terms or anyone&rsquo;s rights. When you delete a listing, your CV, your photo, or your account, we
               remove that content from our live systems as described in the{" "}
-              <Link href="/privacy" className="text-accent hover:text-accent-light no-underline">Privacy Policy</Link>.
+              <Link href="/privacy" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Privacy Policy</Link>.
             </p>
             <p className="mt-3">
               <strong>Community posts are temporary.</strong> A post you publish to the Community feed is deleted
@@ -149,7 +149,7 @@ export default function TermsPage() {
               We keep a record of that removal — including the text of the post and the reason given — for 12
               months, so that the decision can be explained or reviewed if you challenge it. That record is kept
               even if you delete your account, and section 8 of the{" "}
-              <Link href="/privacy" className="text-accent hover:text-accent-light no-underline">Privacy Policy</Link>{" "}
+              <Link href="/privacy" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Privacy Policy</Link>{" "}
               explains the basis for keeping it.
             </p>
             <p className="mt-3">

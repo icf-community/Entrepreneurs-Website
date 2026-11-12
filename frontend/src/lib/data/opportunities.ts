@@ -1,4 +1,5 @@
 import "server-only";
+import { cached } from "../cache";
 import { rows, type Db } from "./query";
 
 // Opportunity reads. The shape below is the single declaration of what an
@@ -23,9 +24,12 @@ export type Opportunity = {
   applyUrl: string | null;
   /** When the row was added, not its deadline. /home sorts on it. */
   createdAt: string;
-  postedBy: { firstName: string; surname: string; linkedinUrl: string | null };
+  /** id and avatar for "Posted by" + View profile (AI-plan §2); Connect stays inside the dialog. */
+  postedBy: { id: string; firstName: string; surname: string; linkedinUrl: string | null; avatarPath: string | null };
   skills: string[];
   sectors: string[];
+  /** Who may see and apply: students, graduates or both (AI-plan §7.2). */
+  audience: "students" | "graduates" | "both" | null;
 };
 
 /**
@@ -51,11 +55,14 @@ type Row = {
   apply_method: "email" | "link";
   apply_url: string | null;
   created_at: string;
+  posted_by: string;
   poster_first_name: string | null;
   poster_surname: string | null;
   poster_linkedin_url: string | null;
+  poster_avatar_path: string | null;
   skill_names: string[] | null;
   sector_names: string[] | null;
+  eligible_audience: string | null;
 };
 
 export function toOpportunity(r: Row): Opportunity {
@@ -77,12 +84,15 @@ export function toOpportunity(r: Row): Opportunity {
     applyUrl: r.apply_url,
     createdAt: r.created_at,
     postedBy: {
+      id:          r.posted_by,
       firstName:   r.poster_first_name ?? "",
       surname:     r.poster_surname    ?? "",
       linkedinUrl: r.poster_linkedin_url,
+      avatarPath:  r.poster_avatar_path,
     },
     skills:  r.skill_names  ?? [],
     sectors: r.sector_names ?? [],
+    audience: (r.eligible_audience as Opportunity["audience"]) ?? null,
   };
 }
 
@@ -117,11 +127,73 @@ export async function newestOpportunities(db: Db, limit = 3): Promise<NewestOppo
   }));
 }
 
-export async function listApprovedOpportunities(db: Db): Promise<Opportunity[]> {
-  const data = await rows("list_approved_opportunities", () =>
-    db.rpc("list_approved_opportunities"),
-  );
-  return data.map(toOpportunity);
+/**
+ * member_admits_audience (20261006000002), ported to JS. Must stay
+ * logically identical — including the "no audience set" case falling
+ * through to `false`, same as the SQL's unmatched CASE — since this is
+ * what re-applies the audience filter that the cache-safe RPC call below
+ * skips at the database layer. `education` mirrors myEducation()'s shape;
+ * `!!` matches the SQL's `coalesce(..., false)`.
+ */
+function admitsAudience(
+  audience: string | null,
+  education: { enrolled: boolean | null; graduated: boolean | null },
+): boolean {
+  switch (audience) {
+    case "students":  return !!education.enrolled;
+    case "graduates": return !!education.graduated;
+    case "both":      return !!education.enrolled || !!education.graduated;
+    default:          return false;
+  }
+}
+
+/**
+ * Approved, not-yet-expired opportunities.
+ *
+ * Admins call the RPC live, exactly as before this cache existed — admin
+ * traffic is a rounding error, and skipping the cache for them means their
+ * "see every job, every contact email" view can never be a stale or
+ * wrongly-shared cache entry.
+ *
+ * Everyone else reads a cache-safe RPC result (20261026000004 — no
+ * audience row-filter, contact_email masked by the visible flag only,
+ * identical for every non-admin caller) and the app layer restores what
+ * the database skipped: admitsAudience() re-applies the audience filter
+ * using the viewer's own education status, and the poster's own rows get
+ * their real contact_email back from my_posted_opportunity_contact_emails
+ * — both exemptions the SQL version grants unconditionally.
+ */
+export async function listApprovedOpportunities(
+  db: Db,
+  viewer: { userId: string; isAdmin: boolean },
+): Promise<Opportunity[]> {
+  if (viewer.isAdmin) {
+    const data = await rows("list_approved_opportunities", () =>
+      db.rpc("list_approved_opportunities"),
+    );
+    return data.map(toOpportunity);
+  }
+
+  const [data, mine, education] = await Promise.all([
+    cached(
+      "opportunities",
+      () => rows("list_approved_opportunities (cache-safe)", () =>
+        db.rpc("list_approved_opportunities", { p_cache_safe: true })),
+      { isCacheable: (r) => r.length > 0 },
+    ),
+    rows("my_posted_opportunity_contact_emails", () =>
+      db.rpc("my_posted_opportunity_contact_emails")),
+    myEducation(db),
+  ]);
+  const myEmails = new Map(mine.map((r) => [r.id, r.contact_email]));
+
+  return data
+    .filter((r) => r.posted_by === viewer.userId || admitsAudience(r.eligible_audience, education))
+    .map((r) => {
+      const o = toOpportunity(r);
+      if (r.posted_by === viewer.userId) o.contactEmail = myEmails.get(r.id) ?? o.contactEmail;
+      return o;
+    });
 }
 
 /**
@@ -163,17 +235,22 @@ export async function opportunityForEdit(db: Db, id: string) {
 }
 
 /**
- * One approved, still-open opportunity, or null.
+ * One approved, still-open opportunity the viewer may see, or null.
  *
- * Reads through listApprovedOpportunities rather than selecting the row
- * directly, because the RPC is what masks contact_email from anyone who
- * isn't the poster or an admin — a table read here would hand out an
- * address the poster chose to hide. The list is already bounded by
- * application_deadline >= current_date, so a closed role is a miss, and
- * /opportunities/[id] renders that as "no longer available" rather than
- * pretending the role is live.
+ * An ID-specific read (AI-plan §7.2): the old list-and-find missed jobs
+ * past the list's 1,000-row cap. Same SECURITY DEFINER contract as the
+ * list — contact_email masked, the audience applied — so a closed role, a
+ * job outside the viewer's audience and an unknown id all come back null,
+ * and /opportunities/[id] renders "no longer available".
  */
 export async function approvedOpportunity(db: Db, id: string): Promise<Opportunity | null> {
-  const items = await listApprovedOpportunities(db);
-  return items.find((o) => o.id === id) ?? null;
+  const data = await rows("get_approved_opportunity", () => db.rpc("get_approved_opportunity", { p_id: id }));
+  return data[0] ? toOpportunity(data[0]) : null;
+}
+
+/** The viewer's own education status (AI-plan §7.2): unknown means no audience job is visible yet. */
+export async function myEducation(db: Db): Promise<{ known: boolean; enrolled: boolean | null; graduated: boolean | null }> {
+  const data = await rows("get_my_education", () => db.rpc("get_my_education"));
+  const r = data[0];
+  return { known: !!r?.known, enrolled: r?.currently_enrolled ?? null, graduated: r?.has_completed_degree ?? null };
 }

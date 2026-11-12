@@ -36,6 +36,17 @@ systemctl restart foundry-gateway
 echo "==> health check"
 for _ in $(seq 1 10); do
   if curl -fsS --max-time 5 localhost:8000/health 2>/dev/null | grep -q '"ok"'; then
+    # Healthy is not the same as "running $REF". The unit runs
+    # $GATEWAY_IMAGE (:latest) and re-pulls it on every start, so asking for
+    # an older ref (a rollback) used to pull it, restart, pass the health
+    # check on the CURRENT :latest and still print the success line (D5).
+    want="$(docker image inspect --format '{{.Id}}' "$REF")"
+    got="$(docker inspect --format '{{.Image}}' foundry-gateway 2>/dev/null || true)"
+    if [ "$want" != "$got" ]; then
+      echo "running image ${got:-<none>} is not $REF ($want)." >&2
+      echo "The unit runs :latest. To roll back, point :latest at $REF first — see infra/README.md, Rollback." >&2
+      exit 1
+    fi
     echo "FOUNDRY_DEPLOY_OK $REF"
     exit 0
   fi

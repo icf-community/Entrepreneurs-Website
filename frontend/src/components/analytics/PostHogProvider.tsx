@@ -12,55 +12,81 @@
 // member (by Supabase user id) without ever sending PII.
 
 import { useEffect } from "react";
-import posthog from "posthog-js";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
-
-const KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-const HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com";
-
-export const analyticsEnabled = Boolean(KEY);
-
-// Thin capture wrapper so call sites don't each have to re-check
-// analyticsEnabled — a no-op with no PostHog traffic when the key is unset,
-// same inert-by-default stance as the rest of this file.
-export function track(event: string, properties?: Record<string, unknown>): void {
-  if (!analyticsEnabled) return;
-  posthog.capture(event, properties);
-}
+import { isSyntheticEmail } from "@/lib/observability/synthetic";
+import { sanitiseAnalyticsEvent } from "@/lib/observability/analyticsUrls";
+import { POSTHOG_KEY, POSTHOG_HOST, flushQueuedTracking } from "@/lib/analytics/track";
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    if (!KEY) return;
+    if (!POSTHOG_KEY) return;
+    let cancelled = false;
+    let unsubscribe = () => {};
 
-    posthog.init(KEY, {
-      api_host: HOST,
-      // Cookieless: no cookies, no localStorage device id.
-      persistence: "memory",
-      // We capture pageviews manually-free via history API; keep it simple.
-      capture_pageview: true,
-      capture_pageleave: true,
-      // Don't autocapture rage clicks / form contents — minimise PII.
-      autocapture: false,
-      // EU residency is enforced by api_host; disable cross-region GeoIP.
-      disable_session_recording: true,
-    });
+    void (async () => {
+      const supabase = createClient();
 
-    const supabase = createClient();
-
-    // Identify the current session immediately, then track changes.
-    void supabase.auth.getUser().then(({ data }) => {
-      if (data.user) posthog.identify(data.user.id);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT") {
-        posthog.reset();
-      } else if (session?.user) {
-        posthog.identify(session.user.id);
+      // G8: a load-test or prod-window test account never reaches PostHog —
+      // not even the $pageview that init sends — so the stored session
+      // (read locally, no network) is checked before posthog-js is loaded.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (isSyntheticEmail(session?.user.email)) {
+        Sentry.setTag("synthetic", "true");
+        return;
       }
-    });
 
-    return () => sub.subscription.unsubscribe();
+      const { default: posthog } = await import("posthog-js");
+      if (cancelled) return;
+      posthog.init(POSTHOG_KEY, {
+        api_host: POSTHOG_HOST,
+        // Cookieless: no cookies, no localStorage device id.
+        persistence: "memory",
+        // We capture pageviews manually-free via history API; keep it simple.
+        capture_pageview: true,
+        capture_pageleave: true,
+        // Don't autocapture rage clicks / form contents — minimise PII.
+        autocapture: false,
+        // EU residency is enforced by api_host; disable cross-region GeoIP.
+        disable_session_recording: true,
+        // F19: no AI conversation or job ids in page URLs sent with an identity.
+        before_send: (event) => sanitiseAnalyticsEvent(event),
+      });
+
+      // A test account that signs in later in this tab is opted out before
+      // identify, so not even its id is sent.
+      const identify = (user: { id: string; email?: string }) => {
+        if (isSyntheticEmail(user.email)) {
+          posthog.opt_out_capturing();
+          Sentry.setTag("synthetic", "true");
+          return;
+        }
+        posthog.identify(user.id);
+      };
+
+      // Subscribing emits INITIAL_SESSION with the stored session first, so
+      // this also identifies the current member. No getUser() here: that was
+      // a network call to Supabase Auth on every page load, for analytics
+      // only (D1).
+      const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "SIGNED_OUT") {
+          posthog.reset();
+          Sentry.setTag("synthetic", undefined);
+        } else if (session?.user) {
+          identify(session.user);
+        }
+        // track() goes straight to PostHog only from here on, after the
+        // first identify, so queued events are attributed to the member.
+        flushQueuedTracking(posthog);
+      });
+      unsubscribe = () => sub.subscription.unsubscribe();
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   return <>{children}</>;

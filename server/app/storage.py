@@ -15,7 +15,9 @@ than anywhere that would need a secret to be handed to it.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
@@ -23,13 +25,45 @@ from azure.storage.blob import BlobServiceClient, ContentSettings
 
 from .config import storage_account
 
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "host.docker.internal"}
+
 
 class BlobAlreadyExists(Exception):
     """Something already occupies that key."""
 
 
+def _local_connection_string() -> str | None:
+    """AZURE_STORAGE_CONNECTION_STRING, for a local Azurite instance only
+    (gap 24 — CV upload driven through the real UI needs a real blob
+    store, not a monkeypatch of get_blob/put_blob).
+
+    Refuses anything whose endpoint isn't local, the same way
+    fake_provider.assert_local refuses a non-local database: a connection
+    string is exactly the secret the module docstring says never exists
+    on this process in production (managed identity, no key on disk), so
+    this path must be structurally incapable of reaching a real account
+    even if the var were set somewhere it shouldn't be.
+    """
+    value = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+    if not value:
+        return None
+    parts = dict(
+        p.split("=", 1) for p in value.split(";") if "=" in p
+    )
+    endpoint = parts.get("BlobEndpoint", "")
+    host = urlparse(endpoint).hostname or ""
+    if host not in _LOCAL_HOSTS:
+        raise RuntimeError(
+            f"AZURE_STORAGE_CONNECTION_STRING refused: BlobEndpoint host {host!r} is not local"
+        )
+    return value
+
+
 @lru_cache(maxsize=1)
 def _service() -> BlobServiceClient:
+    local = _local_connection_string()
+    if local:
+        return BlobServiceClient.from_connection_string(local, connection_timeout=10)
     return BlobServiceClient(
         f"https://{storage_account()}.blob.core.windows.net",
         credential=DefaultAzureCredential(),

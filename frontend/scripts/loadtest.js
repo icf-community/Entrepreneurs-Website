@@ -84,6 +84,10 @@ import { SharedArray } from "k6/data";
 import { Trend, Rate, Counter } from "k6/metrics";
 
 const BASE = __ENV.BASE || "http://127.0.0.1:3100";
+// Several local app instances (perf-serve.sh PERF_INSTANCES), one per VU
+// in turn, the way production spreads load over serverless instances.
+const BASES = (__ENV.BASES || BASE).split(",").map((b) => b.trim()).filter(Boolean);
+const baseFor = () => BASES[(__VU - 1) % BASES.length];
 const STAGE = __ENV.STAGE ? Number(__ENV.STAGE) : null;
 const MODE = __ENV.MODE || "anon";
 // Default to browsing pace. THINK_SECONDS=0 explicitly opts into a stress
@@ -92,6 +96,28 @@ const THINK_SECONDS = Number(__ENV.THINK_SECONDS ?? 2);
 const HOLD_SECONDS = Number(__ENV.HOLD_SECONDS ?? 120);
 const P95_MS = Number(__ENV.P95_MS ?? 5000);
 const GATE = __ENV.GATE !== "0";
+// E1b gates: Stage 1 runs with P95_MS=1000 P99_MS=3000, Stage 2 with
+// 2000/5000. 0 leaves p99 ungated, as before.
+const P99_MS = Number(__ENV.P99_MS ?? 0);
+// Signed-in iterations also write (E1b "realistic read/write mix"): a
+// bookmark on and off through the real server action, plus the two RPCs
+// the browser calls straight to PostgREST. WRITES=0 restores read-only.
+const WRITES = MODE !== "anon" && __ENV.WRITES !== "0";
+// AI=1 (S7, gap 26): each signed-in iteration also submits one real AI turn
+// (`ai_submit_turn`) and polls `/api/ai/turns/:id` — the actual ETag/304
+// route — until it finishes, then reads `ai_result_cards`. Off by default:
+// it needs the real executor running (`AI_PROVIDER=fake python -m app.ai.runner`
+// from `server/`, same entrypoint deployed to the ACA executor) draining the
+// queue during the run, or every submitted turn sits `queued` and every
+// poll times out.
+const AI = MODE !== "anon" && __ENV.AI === "1";
+const AI_P95_MS = Number(__ENV.AI_P95_MS ?? 2000);
+const SUPABASE_URL = __ENV.SUPABASE_URL || "http://127.0.0.1:54321";
+const ANON_KEY = __ENV.SUPABASE_ANON_KEY;
+if ((WRITES || AI) && !ANON_KEY) {
+  throw new Error("Writes/AI need SUPABASE_ANON_KEY (export $(supabase status -o env | xargs)), or set WRITES=0.");
+}
+if (!Number.isFinite(P99_MS) || P99_MS < 0) throw new Error("Invalid P99_MS.");
 if ((STAGE !== null && (!Number.isInteger(STAGE) || STAGE < 1)) ||
     !Number.isFinite(THINK_SECONDS) || THINK_SECONDS < 0 ||
     !Number.isFinite(HOLD_SECONDS) || HOLD_SECONDS < 1 ||
@@ -106,6 +132,17 @@ if (!["anon", "auth", "mixed"].includes(MODE)) {
 // SharedArray so 500 VUs share one copy of the tokens rather than each
 // parsing and holding their own. Loaded in init; open() is not available
 // anywhere else.
+// Server actions are addressed by per-build ids (scripts/loadtest-actions.mjs).
+const ACTIONS = WRITES ? (() => {
+  try {
+    return JSON.parse(open("./.loadtest-actions.json"));
+  } catch {
+    throw new Error("Writes need action ids for THIS build: run `node scripts/loadtest-actions.mjs` after `pnpm build`.");
+  }
+})() : {};
+const BOOKMARK_ACTION = "app/opportunities/actions.ts#toggleOpportunityBookmark";
+if (WRITES && !ACTIONS[BOOKMARK_ACTION]) throw new Error(`No action id for ${BOOKMARK_ACTION}; re-run loadtest-actions.mjs.`);
+
 const SESSIONS = new SharedArray("sessions", () => {
   if (MODE === "anon") return [];
   let file;
@@ -164,6 +201,28 @@ const routeLatency = {
   connections_pending_auth: new Trend("route_connections_pending_auth", true),
   connections_graph_auth: new Trend("route_connections_graph_auth", true),
 };
+const writeLatency = {
+  bookmark: new Trend("write_bookmark", true),
+  listing_event: new Trend("write_listing_event", true),
+  mark_read: new Trend("write_mark_read", true),
+};
+// AI path (gap 26): submit is the ai_submit_turn RPC; poll is each
+// /api/ai/turns/:id GET (304s included — an unchanged poll is the cheap
+// case, not a skipped sample); cards/reopen are the two RPCs read after a
+// turn finishes. Each is its own series for the same reason as `routeLatency`.
+const aiLatency = {
+  ai_submit: new Trend("ai_submit", true),
+  ai_poll: new Trend("ai_poll", true),
+  ai_cards: new Trend("ai_cards", true),
+  ai_reopen: new Trend("ai_reopen", true),
+};
+const aiErrors = new Rate("ai_errors");
+const aiOutcomes = {};
+for (const o of ["queued", "duplicate", "rate_minute", "rate_day", "queue_full", "other"]) {
+  aiOutcomes[o] = new Counter(`ai_outcome_${o}`);
+}
+const aiPollTimeouts = new Counter("ai_poll_timeouts");
+const writeErrors = new Rate("write_errors");
 const errors = new Rate("route_errors");
 const expectedRedirect = new Counter("expected_redirect");
 const authRedirect = new Counter("auth_redirect");
@@ -186,7 +245,7 @@ const requiredContent = {
 // all — those look identical in the error-rate number but need opposite
 // fixes, so the raw status codes are broken out to tell them apart.
 const statusCodes = {};
-for (const code of [200, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
+for (const code of [200, 204, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
   statusCodes[code] = new Counter(`status_${code}`);
 }
 const statusOther = new Counter("status_other");
@@ -219,7 +278,18 @@ export const options = {
     checks: ["rate==1"],
     ...Object.fromEntries(Object.keys(routeLatency)
       .filter((name) => MODE === "mixed" || (MODE === "auth" ? name.endsWith("_auth") : !name.endsWith("_auth")))
-      .map((name) => [`route_${name}`, [`p(95)<${P95_MS}`]])),
+      .map((name) => [`route_${name}`, [`p(95)<${P95_MS}`, ...(P99_MS ? [`p(99)<${P99_MS}`] : [])]])),
+    ...(WRITES ? {
+      write_errors: ["rate==0"],
+      ...Object.fromEntries(Object.keys(writeLatency).map((name) =>
+        [`write_${name}`, [`p(95)<${P95_MS}`, ...(P99_MS ? [`p(99)<${P99_MS}`] : [])]])),
+    } : {}),
+    // Gap 26's own gate is p95 < 2s through the real routes, not the page
+    // P95_MS/P99_MS (which is about rendered HTML, not an async AI turn).
+    ...(AI ? {
+      ai_errors: ["rate==0"],
+      ...Object.fromEntries(Object.keys(aiLatency).map((name) => [name, [`p(95)<${AI_P95_MS}`]])),
+    } : {}),
   } : {},
   // Redirects are the thing being measured on protected routes, so do
   // not let k6 silently follow them and time two requests as one.
@@ -235,6 +305,15 @@ export const options = {
 // Validate EVERY synthetic identity before adding load. A valid expiry
 // does not prove the session still exists or that its member is approved.
 export function setup() {
+  let opportunities = [];
+  if (WRITES) {
+    const res = http.get(`${SUPABASE_URL}/rest/v1/opportunities?select=id&status=eq.approved&limit=200`, {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${SESSIONS[0].accessToken}` },
+      tags: { route: "setup" },
+    });
+    opportunities = res.status === 200 ? res.json().map((r) => r.id) : [];
+    if (opportunities.length === 0) throw new Error("Writes need approved opportunities in the corpus to bookmark.");
+  }
   for (let i = 0; i < SESSIONS.length; i += 1) {
     const res = http.get(`${BASE}/home`, {
       headers: { Cookie: SESSIONS[i].cookie },
@@ -246,6 +325,7 @@ export function setup() {
       throw new Error(`Synthetic session ${i + 1} failed authenticated preflight; no load stage started.`);
     }
   }
+  return { opportunities };
 }
 
 // `session` is undefined for anonymous hits and a minted session for
@@ -257,8 +337,8 @@ function hit(name, path, session) {
   const headers = { "Accept-Encoding": "gzip" };
   if (session) headers.Cookie = session.cookie;
 
-  const res = http.get(`${BASE}${path}`, {
-    tags: { route: name }, headers,
+  const res = http.get(`${baseFor()}${path}`, {
+    tags: { route: name, kind: "read" }, headers,
     // Never merge a refreshed cookie from one response with the fixed
     // synthetic cookie supplied above. Each measurement uses that session.
     jar: new http.CookieJar(),
@@ -300,6 +380,143 @@ function hit(name, path, session) {
 // A session, not a single URL: a real visitor lands, reads the two
 // listing boards, and bounces off one gated page. Weighting matters —
 // /events is where an announcement points, so it is hit twice.
+// A server action as the browser sends it: POST to a page that hosts it,
+// the build's action id, the args as a JSON array, and a same-origin
+// Origin header (Next refuses cross-origin actions).
+function action(name, key, path, args, session) {
+  const base = baseFor();
+  const res = http.post(`${base}${path}`, JSON.stringify(args), {
+    headers: {
+      "Next-Action": ACTIONS[key],
+      "Content-Type": "text/plain;charset=UTF-8",
+      Accept: "text/x-component",
+      Origin: base,
+      Cookie: session.cookie,
+    },
+    tags: { route: name, kind: "write" },
+    jar: new http.CookieJar(),
+  });
+  writeLatency[name].add(res.timings.duration);
+  (statusCodes[res.status] || statusOther).add(1);
+  const ok = res.status === 200 && typeof res.body === "string" && res.body.includes('"ok":true');
+  writeErrors.add(!ok);
+  check(res, { [`${name} succeeded`]: () => ok });
+  return ok;
+}
+
+// An RPC the browser calls directly, with the member's own token.
+function rpc(name, fn, body, session) {
+  const res = http.post(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, JSON.stringify(body), {
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
+    tags: { route: name, kind: "write" },
+  });
+  writeLatency[name].add(res.timings.duration);
+  (statusCodes[res.status] || statusOther).add(1);
+  const ok = res.status >= 200 && res.status < 300;
+  writeErrors.add(!ok);
+  check(res, { [`${name} succeeded`]: () => ok });
+}
+
+function writeBurst(session, opportunities) {
+  const opp = opportunities[Math.floor(Math.random() * opportunities.length)];
+  group("signed-in writes", () => {
+    // On, then off: net zero per iteration, so after the run the synthetic
+    // members hold no bookmarks. Anything left over is a lost or doubled
+    // write (checked by the E1b runbook query, not here).
+    action("bookmark", BOOKMARK_ACTION, "/opportunities", [opp], session);
+    action("bookmark", BOOKMARK_ACTION, "/opportunities", [opp], session);
+    rpc("listing_event", "record_listing_event", { p_kind: "opportunity", p_id: opp, p_event_type: "expand" }, session);
+    rpc("mark_read", "mark_notifications_read", {}, session);
+    if (THINK_SECONDS > 0) sleep(THINK_SECONDS);
+  });
+}
+
+// Submits one real network-mode turn, polls the real ETag/304 route to
+// completion, then reads the two RPCs a finished turn's UI calls (gap 26:
+// "chip rerun, reopen, replay and result cards p95 < 2s through the
+// routes"). "Rerun"/"replay" are the same ai_submit_turn path already
+// measured by the submit call above (a repeat submission with a new
+// idempotency key, same RPC) — not a distinct route to separately drive.
+function aiBurst(session) {
+  group("ai turn", () => {
+    const idempotencyKey = `lt-${__VU}-${__ITER}-${Date.now()}`;
+    const submitRes = http.post(`${SUPABASE_URL}/rest/v1/rpc/ai_submit_turn`, JSON.stringify({
+      p_mode: "network", p_conversation: null, p_opportunity: null, p_kind: "message",
+      p_message: "Python and NumPy", p_idempotency_key: idempotencyKey, p_expected_revision: null,
+      p_temporary: true,
+    }), {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
+      tags: { route: "ai_submit", kind: "write" },
+    });
+    aiLatency.ai_submit.add(submitRes.timings.duration);
+    (statusCodes[submitRes.status] || statusOther).add(1);
+    const submitOk = submitRes.status >= 200 && submitRes.status < 300;
+    aiErrors.add(!submitOk);
+    check(submitRes, { ai_submit_succeeded: () => submitOk });
+    if (!submitOk) return;
+
+    const row = (submitRes.json() || [])[0];
+    const outcome = row ? row.outcome : "other";
+    (aiOutcomes[outcome] || aiOutcomes.other).add(1);
+    if (outcome !== "queued" && outcome !== "duplicate") return; // a refusal is not a route failure
+    const turnId = row.turn_id;
+
+    // Polls the actual conditional route, honouring ETag/304 exactly like
+    // useTurnPolling.ts: a 304 is the expected cheap case, not an error.
+    let etag = null;
+    let finished = false;
+    for (let attempt = 0; attempt < 10 && !finished; attempt += 1) {
+      sleep(attempt === 0 ? 0.5 : Math.min(2 * attempt, 4));
+      const pollRes = http.get(`${baseFor()}/api/ai/turns/${turnId}`, {
+        headers: { Cookie: session.cookie, ...(etag ? { "If-None-Match": etag } : {}) },
+        tags: { route: "ai_poll", kind: "read" },
+        jar: new http.CookieJar(),
+      });
+      aiLatency.ai_poll.add(pollRes.timings.duration);
+      (statusCodes[pollRes.status] || statusOther).add(1);
+      const pollOk = pollRes.status === 304 || pollRes.status === 200;
+      aiErrors.add(!pollOk);
+      check(pollRes, { ai_poll_served: () => pollOk });
+      if (!pollOk) return;
+      if (pollRes.status === 200) {
+        etag = pollRes.headers.ETag || etag;
+        const body = pollRes.json();
+        if (body && body.finished) finished = true;
+      }
+    }
+    if (!finished) {
+      aiPollTimeouts.add(1);
+      return;
+    }
+
+    const cardsRes = http.post(`${SUPABASE_URL}/rest/v1/rpc/ai_result_cards`, JSON.stringify({ p_turn: turnId }), {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
+      tags: { route: "ai_cards", kind: "write" },
+    });
+    aiLatency.ai_cards.add(cardsRes.timings.duration);
+    (statusCodes[cardsRes.status] || statusOther).add(1);
+    const cardsOk = cardsRes.status >= 200 && cardsRes.status < 300;
+    aiErrors.add(!cardsOk);
+    check(cardsRes, { ai_cards_succeeded: () => cardsOk });
+
+    // "Reopen": ai_get_conversation on the just-finished conversation,
+    // exactly the saved-findings read a member makes returning to it later.
+    const conversationId = row.conversation_id;
+    if (conversationId) {
+      const reopenRes = http.post(`${SUPABASE_URL}/rest/v1/rpc/ai_get_conversation`,
+        JSON.stringify({ p_conversation: conversationId }), {
+          headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.accessToken}`, "Content-Type": "application/json" },
+          tags: { route: "ai_reopen", kind: "write" },
+        });
+      aiLatency.ai_reopen.add(reopenRes.timings.duration);
+      (statusCodes[reopenRes.status] || statusOther).add(1);
+      const reopenOk = reopenRes.status >= 200 && reopenRes.status < 300;
+      aiErrors.add(!reopenOk);
+      check(reopenRes, { ai_reopen_succeeded: () => reopenOk });
+    }
+  });
+}
+
 function anonymousBurst() {
   group("anonymous burst", () => {
     hit("home", "/");
@@ -353,21 +570,26 @@ function signedInBurst(session) {
 // shape rather than a laptop millisecond. A concurrency number for it
 // would have to come from a staging database that can be thrown away.
 
-export default function loadIteration() {
+export default function loadIteration(data) {
   // Spread VUs across the minted members rather than reusing one: a
   // single auth.uid() gets unrealistically warm plans and page caches.
   const session = SESSIONS.length ? SESSIONS[(__VU - 1) % SESSIONS.length] : null;
 
   if (MODE === "auth") {
     signedInBurst(session);
+    if (WRITES) writeBurst(session, data.opportunities);
+    if (AI) aiBurst(session);
     return;
   }
   if (MODE === "mixed") {
     // Alternate by VU, not by iteration, so each VU keeps one identity
     // for the whole run and the two populations stay evenly sized at
     // every ramp level.
-    if (__VU % 2 === 0) signedInBurst(session);
-    else anonymousBurst();
+    if (__VU % 2 === 0) {
+      signedInBurst(session);
+      if (WRITES) writeBurst(session, data.opportunities);
+      if (AI) aiBurst(session);
+    } else anonymousBurst();
     return;
   }
   anonymousBurst();
@@ -406,7 +628,7 @@ export function handleSummary(data) {
   out += `   expected redirects: ${m.expected_redirect ? m.expected_redirect.values.count : 0}\n`;
 
   out += `\n── status code breakdown ──\n`;
-  for (const code of [200, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
+  for (const code of [200, 204, 301, 302, 307, 308, 403, 404, 429, 500, 502, 503, 504, 0]) {
     const n = m[`status_${code}`] ? m[`status_${code}`].values.count : 0;
     if (n > 0) out += `  ${code === 0 ? "conn error/timeout" : code}: ${n}\n`;
   }
@@ -423,7 +645,26 @@ export function handleSummary(data) {
   if (MODE !== "anon" && authSamples === 0) out += "\nNo authenticated stage samples: this is NOT a capacity result.\n";
   out += `\nAuthenticated content/transport failures: ${m.auth_content_errors?.values.count || 0}\n`;
   out += `Pacing: ${THINK_SECONDS}s per page; distinct sessions: ${SESSIONS.length}; gate: ${GATE}\n`;
-  out += "HTTP-only: excludes browser effects, graph animation, images, login and mutations.\n";
+  if (WRITES) {
+    out += `\n── writes (ms) ──\n`;
+    for (const name of Object.keys(writeLatency)) {
+      out += `${pad(name, 22)}${pad(g(`write_${name}`, "med"), 10)}${pad(g(`write_${name}`, "p(95)"), 10)}${pad(g(`write_${name}`, "p(99)"), 10)}${g(`write_${name}`, "max")}\n`;
+    }
+    out += `write error rate: ${m.write_errors ? (m.write_errors.values.rate * 100).toFixed(2) : "0"}%\n`;
+  }
+  if (AI) {
+    out += `\n── AI turns (gap 26, ms) ──\n`;
+    for (const name of Object.keys(aiLatency)) {
+      out += `${pad(name, 22)}${pad(g(name, "med"), 10)}${pad(g(name, "p(95)"), 10)}${pad(g(name, "p(99)"), 10)}${g(name, "max")}\n`;
+    }
+    out += `ai error rate: ${m.ai_errors ? (m.ai_errors.values.rate * 100).toFixed(2) : "0"}%\n`;
+    out += `poll timeouts (turn never finished): ${m.ai_poll_timeouts ? m.ai_poll_timeouts.values.count : 0}\n`;
+    for (const o of ["queued", "duplicate", "rate_minute", "rate_day", "queue_full", "other"]) {
+      const n = m[`ai_outcome_${o}`] ? m[`ai_outcome_${o}`].values.count : 0;
+      if (n > 0) out += `  outcome ${o}: ${n}\n`;
+    }
+  }
+  out += `HTTP-only: excludes browser effects, graph animation, images and login${WRITES ? "" : " and mutations"}.\n`;
 
   out += `\nRead the RANKING, not the milliseconds — this ran on a laptop`;
   out += `\nsharing cores with Postgres and k6 itself.\n`;

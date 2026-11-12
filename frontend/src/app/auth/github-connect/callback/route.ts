@@ -1,8 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { isInfraAuthError } from "@/lib/supabase/unavailable";
+import { getActionAuth } from "@/lib/auth/actionAuth";
+import { createServiceClient } from "@/lib/supabase/service";
 import { emailBaseUrl } from "@/lib/siteUrl";
 import {
   GITHUB_OAUTH_RETURN_COOKIE,
@@ -62,15 +62,16 @@ export async function GET(request: Request) {
     return redirectBack(origin, returnPath, "error");
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const { user, isAdmin, status, unreachable } = await getActionAuth();
   // An outage is not a signed-out member: land on the existing error
   // outcome ("try again") rather than /login.
-  if (isInfraAuthError(authError)) return redirectBack(origin, returnPath, "error");
+  if (unreachable) return redirectBack(origin, returnPath, "error");
   if (!user) return NextResponse.redirect(`${origin}/login`);
+  // The same approval gate as ../start/route.ts. The state check above ties this
+  // request to a cookie the browser held, not to an approved member: a pending or
+  // rejected member can run GitHub's authorize URL themselves with a state of their
+  // choosing and land here. Without this they could store a token and queue scan jobs.
+  if (!isAdmin && status !== "approved") return redirectBack(origin, returnPath, "error");
 
   const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;
@@ -80,6 +81,7 @@ export async function GET(request: Request) {
     return redirectBack(origin, returnPath, "error");
   }
 
+  // react-doctor-disable-next-line react-doctor/no-fetch-response-used-without-status-check -- deliberate parse-then-check-.ok: GitHub's error bodies carry diagnostic fields (error/error_description) on both success and failure, checked right below before the token is used
   const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -106,19 +108,35 @@ export async function GET(request: Request) {
     return redirectBack(origin, returnPath, "error");
   }
 
+  // react-doctor-disable-next-line react-doctor/no-fetch-response-used-without-status-check -- same deliberate pattern: GitHub's error body (message field) is parsed before the .ok/id/login check right below
   const ghUserRes = await fetch("https://api.github.com/user", {
     headers: {
       Authorization: `Bearer ${tokenJson.access_token}`,
       Accept: "application/vnd.github+json",
     },
   });
-  const ghUser: { id?: number; login?: string } = await ghUserRes.json().catch(() => ({}));
+  const ghUser: { id?: number; login?: string; message?: string } = await ghUserRes.json().catch(() => ({}));
   if (!ghUserRes.ok || !ghUser.id || !ghUser.login) {
-    console.error("github-connect: fetching GitHub user failed", { status: ghUserRes.status, body: ghUser });
+    // Named fields only (B10): the /user body is the member's GitHub
+    // profile (name, email, bio, location), which has no place in logs.
+    console.error("github-connect: fetching GitHub user failed", {
+      status: ghUserRes.status,
+      hasId: !!ghUser.id,
+      hasLogin: !!ghUser.login,
+      message: typeof ghUser.message === "string" ? ghUser.message.slice(0, 200) : undefined,
+    });
     return redirectBack(origin, returnPath, "error");
   }
 
-  const { error } = await supabase.rpc("confirm_github_connected", {
+  // Security audit fix (2026-10-25, F5): confirm_github_connected now
+  // requires service_role and takes the member id explicitly, rather than
+  // trusting a caller-supplied GitHub identity/token from any
+  // authenticated caller via auth.uid(). The getUser() call above is the
+  // actual authorization check — this just carries its result to the RPC
+  // instead of letting the RPC re-derive (and any other caller
+  // re-define) it.
+  const { error } = await createServiceClient().rpc("confirm_github_connected", {
+    p_member_id: user.id,
     p_github_user_id: ghUser.id,
     p_github_username: ghUser.login,
     p_access_token: tokenJson.access_token,

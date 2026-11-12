@@ -46,6 +46,7 @@ export async function runBulk<R extends BulkRecipient>(
   const recipients: R[] = [];
 
   for (const id of ids) {
+    // react-doctor-disable-next-line async-await-in-loop -- sequential by necessity (see loop body); not a candidate for Promise.all
     const r = await opts.one(id);
     if (r.error) {
       errors.push(r.error);

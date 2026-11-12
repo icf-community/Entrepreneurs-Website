@@ -24,7 +24,7 @@ jobs:
       db: ${{ steps.filter.outputs.db }}
     steps:
       - uses: actions/checkout@v5
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 11
 
@@ -83,7 +83,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          # 3.12 to match server/Dockerfile's python:3.12-slim-bookworm base —
+          # 3.12 to match server/Dockerfile's python:3.12-slim-trixie base —
           # what actually runs in production now. Testing on a newer
           # interpreter than the one that runs in production is how a Pillow
           # or PyJWT behaviour difference reaches the box unnoticed.
@@ -129,7 +129,7 @@ jobs:
       # HIGH/CRITICAL CVEs so a vulnerable build never reaches deploy.sh.
       #
       # --ignore-unfixed: verified locally (`trivy image` against this exact
-      # image) that python:3.12-slim-bookworm currently carries several
+      # image) that python:3.12-slim-bookworm (the previous base; Debian 12) carried several
       # HIGH/CRITICAL findings in perl-base/util-linux/zlib1g with no
       # upstream fix available yet (Debian hasn't backported one) — failing
       # on those would be permanently red for a reason nobody here can
@@ -141,9 +141,26 @@ jobs:
       # aquasecurity/setup-trivy release that GitHub no longer resolves —
       # confirmed by running this job; v0.36.0 is the latest tag as of this
       # fix and resolves cleanly.
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: foundry-gateway:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  ai-docker:
+    name: AI executor (docker build + scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f server/Dockerfile.ai -t foundry-ai:ci server
+      # The slim image must import the executor and nothing else (the
+      # import-boundary test pins the same thing statically).
+      - run: docker run --rm foundry-ai:ci python -c "import app.ai.runner, app.ai.pipeline"
+      # Same policy as the gateway image: HIGH/CRITICAL with a fix fails.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: foundry-ai:ci
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
@@ -153,16 +170,18 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     # Spinning up the Supabase stack is slow, so only pay it on pushes to
-    # main, PRs that touch DB/server/E2E surfaces (changes.outputs.db), or
-    # PRs explicitly labelled `db`.
+    # main, every PR INTO main (B14: the release PR runs everything,
+    # whatever its paths), PRs that touch DB/server/E2E surfaces
+    # (changes.outputs.db), or PRs explicitly labelled `db`.
     if: >
       github.event_name == 'push' ||
+      github.base_ref == 'main' ||
       needs.changes.outputs.db == 'true' ||
       contains(github.event.pull_request.labels.*.name, 'db')
     steps:
       - uses: actions/checkout@v5
 
-      - uses: supabase/setup-cli@v2
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
         with:
           # Pinned: 2.106.0 (2026-06-11) regressed the local stack's default
           # table grants — a fresh `supabase start` no longer grants SELECT to
@@ -193,6 +212,65 @@ jobs:
           DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/admission_roles.sql
 
+      # B14: these existed but never ran anywhere. adversarial_edges probes
+      # the edge cases rls_smoke doesn't (hostile inputs to member RPCs);
+      # verify_prod_schema is the post-deploy check, run here against a
+      # fresh stack so a migration that breaks it is caught before prod.
+      - name: Run adversarial edge tests
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/adversarial_edges.sql
+      # Adversarial sweep F1-F8: event date bounds, the pending-listing cap,
+      # delete-vs-mark orphans, blank/oversized/far-future values, and the
+      # error wording the app maps to "already handled".
+      - name: Run listing hardening tests
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/listing_hardening.sql
+      # Structural authz invariants: anon surface, pinned search_path, RLS on
+      # every table, admin_* guards, no write policy on audit/ledger tables.
+      - name: Run authz invariants
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/authz_invariants.sql
+      - name: Run helper-function tests
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/helper_functions.sql
+      # F25: every statement the worker runs, executed as the scoped
+      # cv_worker role, and the tables it must not reach.
+      - name: cv_worker role
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/cv_worker_role.sql
+      # Progress signals on the member's private Realtime topic: one per
+      # real change, own topic only, no client sends.
+      - name: Progress broadcasts
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/progress_broadcasts.sql
+      # AI (A0–A3): grants, the criteria grammar, ledger caps, leases,
+      # audiences, withdrawal, expiry and deletion with AI rows present.
+      - name: AI invariants
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/ai_smoke.sql
+      # The real worker projection code and the real executor pipeline,
+      # end to end against this stack, with the fake provider.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: AI integration (fake provider)
+        run: |
+          pip install -r server/requirements.txt -r server/requirements-dev.txt
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          cd server && AI_INTEGRATION_DSN="$DB_URL" python -m pytest tests/integration -q
+
+      - name: Run schema verification
+        run: |
+          DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/verify_prod_schema.sql
+
       # Piggybacks on the stack this job already booted rather than paying the
       # `supabase start` cost again in a job of its own. Fails when a migration
       # lands without regenerating types, which is the drift that silently
@@ -219,6 +297,7 @@ jobs:
     # pushes to main, PRs touching DB/server/E2E surfaces, or PRs labelled `e2e`.
     if: >
       github.event_name == 'push' ||
+      github.base_ref == 'main' ||
       needs.changes.outputs.db == 'true' ||
       contains(github.event.pull_request.labels.*.name, 'e2e')
     env:
@@ -229,7 +308,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: supabase/setup-cli@v2
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
         with:
           # Pinned: 2.106.0 (2026-06-11) regressed the local stack's default
           # table grants — a fresh `supabase start` no longer grants SELECT to
@@ -247,11 +326,29 @@ jobs:
           API_URL=$(grep '^API_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           ANON=$(grep '^ANON_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           SRK=$(grep '^SERVICE_ROLE_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
-          echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
-          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON" >> "$GITHUB_ENV"
-          echo "SUPABASE_SERVICE_ROLE_KEY=$SRK" >> "$GITHUB_ENV"
+          # E2E_DB_URL: e2e/ai.spec.ts starts the AI executor and the
+          # projection worker against this stack, with the fake provider
+          # (AI-plan §14.4, F32).
+          DBU=$(grep '^DB_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SRK"
+            echo "E2E_DB_URL=$DBU"
+          } >> "$GITHUB_ENV"
 
-      - uses: pnpm/action-setup@v5
+      # Python for the AI executor and worker the AI spec runs (F32).
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - name: Install server deps
+        run: |
+          python -m pip install -r server/requirements.txt
+          echo "E2E_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 11
 
@@ -281,7 +378,7 @@ jobs:
         # still alive after 20 minutes — see scripts/ci-playwright.sh.
         env:
           PW_LIMIT_SECONDS: "1200"
-        run: scripts/ci-playwright.sh --project=public --project=member --project=admin --project=pipelines --project=connections
+        run: scripts/ci-playwright.sh --project=public --project=member --project=admin --project=pipelines --project=connections --project=ai --project=matrix
 
       - if: always()
         run: supabase stop || true
@@ -293,6 +390,209 @@ jobs:
           path: frontend/playwright-report
           retention-days: 7
 
+  e2e-cross-browser:
+    name: E2E (WebKit/Firefox/iPhone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    if: >
+      github.event_name == 'push' ||
+      github.base_ref == 'main' ||
+      needs.changes.outputs.db == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'e2e')
+    env:
+      CRON_SECRET: e2e-cron-secret
+      # gap 27: opts the cross-browser projects (playwright.config.ts
+      # withCrossBrowser) into the run.
+      E2E_ALL_BROWSERS: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
+        with:
+          version: 2.105.0
+
+      - run: supabase init || true
+      - run: supabase start
+
+      - name: Export Supabase env
+        run: |
+          supabase status -o env > /tmp/sb.env
+          API_URL=$(grep '^API_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          ANON=$(grep '^ANON_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          SRK=$(grep '^SERVICE_ROLE_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          DBU=$(grep '^DB_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SRK"
+            echo "E2E_DB_URL=$DBU"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - name: Install server deps
+        run: |
+          python -m pip install -r server/requirements.txt
+          echo "E2E_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps webkit firefox
+
+      - name: Build (against the ephemeral stack)
+        working-directory: frontend
+        run: pnpm build
+
+      # WebKit's auto-HTTPS-upgrade quirk (hstsStripProxy.ts) only covers
+      # the Next.js app's own origin, not direct browser-to-Supabase calls —
+      # member/admin/pipelines/connections poll Supabase directly for counts,
+      # so webkit/iphone there hit a TLS error against local (plain-HTTP)
+      # Supabase. That is structurally impossible against real production
+      # Supabase (always HTTPS), so it is scoped out here rather than fixed:
+      # fixing it would need a second, WebKit-only Next build pointed at an
+      # HTTPS-proxied Supabase URL (NEXT_PUBLIC_SUPABASE_URL is build-time-
+      # inlined), for a failure mode prod cannot hit. Firefox has no such
+      # issue (no auto-upgrade behaviour) and runs across every project.
+      - name: Run E2E (WebKit/iPhone — public only)
+        working-directory: frontend
+        env:
+          PW_LIMIT_SECONDS: "1200"
+        run: scripts/ci-playwright.sh --project=public-webkit --project=public-iphone
+
+      # Blocking again. It was non-blocking on 2026-11-11 while the leg's first
+      # runs showed Firefox-only races; the traces showed they were test races
+      # (a fixture that left a /home -> /intake redirect in flight when the next
+      # page.goto fired; actions that refresh the router; clicks before
+      # hydration), fixed in the specs, after which the leg ran clean.
+      - name: Run E2E (Firefox — all projects)
+        working-directory: frontend
+        env:
+          PW_LIMIT_SECONDS: "1200"
+        run: scripts/ci-playwright.sh --project=public-firefox --project=member-firefox --project=admin-firefox --project=pipelines-firefox --project=connections-firefox
+
+      - if: always()
+        run: supabase stop || true
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-cross-browser
+          path: frontend/playwright-report
+          retention-days: 7
+
+  e2e-cv-upload:
+    name: E2E CV upload (gateway + Azurite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: changes
+    # Same gate as the main e2e job — this stands up its own gateway +
+    # Azurite (via Docker, already on ubuntu-latest), so it's isolated
+    # rather than folded into that job's shared UPLOAD_GATEWAY_URL-unset
+    # build (community.spec.ts there relies on it being unset).
+    if: >
+      github.event_name == 'push' ||
+      github.base_ref == 'main' ||
+      needs.changes.outputs.db == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'e2e')
+    env:
+      CRON_SECRET: e2e-cron-secret
+      E2E_CV_UPLOAD: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
+        with:
+          version: 2.105.0
+      - run: supabase init || true
+      - run: supabase start
+
+      - name: Export Supabase env
+        run: |
+          supabase status -o env > /tmp/sb.env
+          API_URL=$(grep '^API_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          ANON=$(grep '^ANON_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          SRK=$(grep '^SERVICE_ROLE_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          DBU=$(grep '^DB_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SRK"
+            echo "E2E_DB_URL=$DBU"
+          } >> "$GITHUB_ENV"
+
+      # Python for the gateway (app.main), the CV ingest worker (app.worker)
+      # and PyMuPDF (the spec's own sample-PDF generator).
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - name: Install server deps
+        run: |
+          python -m pip install -r server/requirements.txt
+          echo "E2E_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 11
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      # UPLOAD_GATEWAY_URL/UPLOAD_TICKET_SECRET must match
+      # frontend/e2e/gateway-services.ts's GATEWAY_URL/TICKET_SECRET
+      # exactly — set before the build since uploadsEnabled() gates the UI.
+      - name: Build (gateway configured)
+        working-directory: frontend
+        env:
+          UPLOAD_GATEWAY_URL: "http://127.0.0.1:8000"
+          UPLOAD_TICKET_SECRET: "e2e-cv-upload-ticket-secret"
+        run: pnpm build
+
+      - name: Run CV upload E2E
+        working-directory: frontend
+        env:
+          UPLOAD_GATEWAY_URL: "http://127.0.0.1:8000"
+          UPLOAD_TICKET_SECRET: "e2e-cv-upload-ticket-secret"
+          PW_LIMIT_SECONDS: "600"
+        run: scripts/ci-playwright.sh --project=cv
+
+      - if: always()
+        run: supabase stop || true
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-cv-upload
+          path: frontend/playwright-report
+          retention-days: 7
+
   e2e-ratelimit:
     name: E2E rate-limit enforcement (SRH)
     runs-on: ubuntu-latest
@@ -300,20 +600,23 @@ jobs:
     needs: changes
     if: >
       github.event_name == 'push' ||
+      github.base_ref == 'main' ||
       needs.changes.outputs.db == 'true' ||
       contains(github.event.pull_request.labels.*.name, 'e2e')
     # Real Upstash REST surface: SRH speaks the Upstash REST API in front of
     # a Redis, so @upstash/ratelimit actually enforces.
     services:
       redis:
-        image: redis:7-alpine
+        image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
       srh:
-        image: hiett/serverless-redis-http:latest
+        # Pinned by digest (B14): `latest` could change under a green run.
+        # This is the digest `latest` resolved to when pinned (2026-09-28).
+        image: hiett/serverless-redis-http:latest@sha256:5b0bb9239fce53abf87b2018a7a0deb9ec7bd900c5360738fe5fbeeb426f9150
         env:
           SRH_MODE: env
           SRH_TOKEN: e2e-rl-token
@@ -326,7 +629,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: supabase/setup-cli@v2
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
         with:
           # Pinned: 2.106.0 (2026-06-11) regressed the local stack's default
           # table grants — a fresh `supabase start` no longer grants SELECT to
@@ -342,9 +645,13 @@ jobs:
           API_URL=$(grep '^API_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           ANON=$(grep '^ANON_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           SRK=$(grep '^SERVICE_ROLE_KEY=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
+          # E2E_DB_URL: e2e/global-setup.ts seeds users through e2e/ai-services.ts,
+          # which needs it for every project, this one included.
+          DBU=$(grep '^DB_URL=' /tmp/sb.env | cut -d= -f2- | tr -d '"')
           echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SRK" >> "$GITHUB_ENV"
+          echo "E2E_DB_URL=$DBU" >> "$GITHUB_ENV"
 
       - name: Wait for SRH
         # SRH implements only the Upstash REST "body" method (POST / with a
@@ -364,7 +671,19 @@ jobs:
           done
           echo "SRH did not become ready"; exit 1
 
-      - uses: pnpm/action-setup@v5
+      # e2e/global-setup.ts seeds users through e2e/ai-services.ts, which runs
+      # its SQL with this Python (E2E_PYTHON) for every project, this one included.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - name: Install server deps
+        run: |
+          python -m pip install -r server/requirements.txt
+          echo "E2E_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: 11
       - uses: actions/setup-node@v5
@@ -395,4 +714,90 @@ jobs:
         with:
           name: playwright-report-ratelimit
           path: frontend/playwright-report
+          retention-days: 7
+
+  # The adversarial sweep (frontend/scripts/adversarial-local.sh, `pnpm test:adversarial`):
+  # DB-only RPC specs first (authorization matrix, tenant isolation, injection,
+  # concurrency, input fuzz, admin/AI operator flows), then the browser specs
+  # (hostile URLs and params, focus, offline, mobile, AI composer edges). About
+  # 10 minutes on a laptop. It stands up its own throwaway Supabase stack and,
+  # for the AI specs, the executor and projection worker against the fake
+  # provider, so it needs no secrets. ai-live.spec.ts spends real money and stays
+  # skipped here (it needs AI_LIVE=1 and a key, neither of which CI has).
+  e2e-adversarial:
+    name: E2E adversarial sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: changes
+    # Same gate as the other Supabase-backed E2E jobs.
+    if: >
+      github.event_name == 'push' ||
+      github.base_ref == 'main' ||
+      needs.changes.outputs.db == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'e2e')
+    env:
+      CRON_SECRET: e2e-cron-secret
+      # adversarial/email.spec.ts drains the real route against a fake Resend
+      # that the spec itself starts on :4010. Without these three the route
+      # answers 500 "not configured" and all nine email tests skip themselves,
+      # which is how they went unrun in CI. Fake values, never a real key.
+      RESEND_API_KEY: re_fake_key
+      RESEND_BASE_URL: http://127.0.0.1:4010
+      RESEND_FROM: "Foundry <noreply@example.test>"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b # v2.1.2
+        with:
+          # Pinned for the reason given on the e2e job (2.106.0 regressed the
+          # local stack's default table grants).
+          version: 2.105.0
+      - run: supabase init || true
+      - run: supabase start
+
+      # The sweep's scripts/local-env.sh exports the stack's URL and keys itself
+      # (and refuses anything that is not local); only the Python interpreter
+      # for the AI services needs passing in.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - name: Install server deps
+        run: |
+          python -m pip install -r server/requirements.txt
+          echo "E2E_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: 11
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Builds, then runs both Playwright configs. `timeout` is the hang guard
+      # (see scripts/ci-playwright.sh for why a run that never exits must fail
+      # loudly): it fails the step well inside the job ceiling.
+      - name: Run the adversarial sweep
+        working-directory: frontend
+        run: timeout --signal=TERM --kill-after=30s 40m scripts/adversarial-local.sh
+
+      - if: always()
+        run: supabase stop || true
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-adversarial
+          path: |
+            frontend/playwright-report
+            frontend/test-results
           retention-days: 7

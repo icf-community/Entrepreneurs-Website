@@ -43,6 +43,11 @@ class Settings:
     # a deliberately distinct knob rather than reusing max_upload_bytes,
     # since a future change to one must not silently change the other.
     max_document_bytes: int
+    # B21 rollout switch. False for one release so tickets minted by a
+    # Next.js deploy that predates aud/iss still verify; then set
+    # UPLOAD_TICKET_REQUIRE_AUDIENCE=true on the gateway VM. A ticket that
+    # carries either claim is always checked, whatever this says.
+    require_ticket_audience: bool
 
 
 @lru_cache(maxsize=1)
@@ -74,6 +79,7 @@ def settings() -> Settings:
         ),
         max_upload_bytes=int(os.environ.get("MAX_UPLOAD_BYTES", 8 * 1024 * 1024)),
         max_document_bytes=int(os.environ.get("MAX_DOCUMENT_BYTES", 8 * 1024 * 1024)),
+        require_ticket_audience=os.environ.get("UPLOAD_TICKET_REQUIRE_AUDIENCE", "").lower() == "true",
     )
 
 

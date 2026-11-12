@@ -34,6 +34,7 @@ export default function AffiliationSection({ role }: { role: Affiliation }) {
   const router = useRouter();
   const supabase = createClient();
 
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- editable choice seeded once from the role prop; only ever mutated by this component's own ChoiceCards onChange and its own submit handler, never by an external writer while mounted
   const [choice, setChoice] = useState<Affiliation>(role);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -80,18 +81,22 @@ export default function AffiliationSection({ role }: { role: Affiliation }) {
     setError("");
     setSaved(false);
 
-    const { error: rpcError } = await supabase.rpc("set_my_affiliation", { p_role: choice });
-    if (rpcError) {
-      setError(describeSupabaseError(rpcError));
-      setIsLoading(false);
-      return;
-    }
+    try {
+      const { error: rpcError } = await supabase.rpc("set_my_affiliation", { p_role: choice });
+      if (rpcError) {
+        setError(describeSupabaseError(rpcError));
+        return;
+      }
 
-    setSaved(true);
-    setIsLoading(false);
-    // The directory labels members by role, so its cache is now stale.
-    await invalidateDirectoryCache();
-    router.refresh();
+      setSaved(true);
+      // The directory labels members by role, so its cache is now stale.
+      await invalidateDirectoryCache();
+      router.refresh();
+    } catch {
+      setError("Couldn't reach the server. Try again in a moment.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

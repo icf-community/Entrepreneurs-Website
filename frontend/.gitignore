@@ -16,13 +16,16 @@
 # playwright
 /test-results
 /playwright-report
+/adversarial-results.json
 /blob-report
 /playwright/.cache
 /e2e/.auth
 
 # load test — holds live (local-only) session tokens for the seeded corpus
 /scripts/.loadtest-sessions.json
+/scripts/.loadtest-actions.json
 /loadtest-summary.json
+/scripts/loadtest-summary.json
 
 # next.js
 /.next/
@@ -51,3 +54,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local load-test measurements (E1c); never committed.
+/.perf/

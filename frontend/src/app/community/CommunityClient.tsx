@@ -28,10 +28,10 @@ import type { FeedPostView } from "./feedView";
 // appeared after a hard reload. revalidatePath still runs in the action so
 // the *next* navigation is correct.
 //
-// Like counts are the one thing this component pulls from the server on a
-// timer rather than only in response to an action here — see the polling
-// effect below for why and how it avoids fighting an in-flight optimistic
-// update on any one card.
+// Like counts are the one thing this component pulls from the server
+// without an action here: once, when the reader comes back to the tab —
+// see the effect below for why not live, and how it avoids fighting an
+// in-flight optimistic update on any one card.
 // ════════════════════════════════════════════════════════════════════
 
 export default function CommunityClient({
@@ -59,11 +59,15 @@ export default function CommunityClient({
     router.refresh();
   };
 
-  // Live-ish likes. There's no push channel — see get_post_like_counts'
-  // own header comment for why — so this polls on an interval instead,
-  // only while the tab is actually visible, and merges just the two like
-  // fields into whatever's already rendered; title/body/images/pagination
-  // are untouched, so it can't stomp a card mid-edit or mid-delete.
+  // Fresh likes when the reader returns to the tab, and no other time.
+  // This used to poll every 45 s, a billed call per open feed whether or
+  // not anything changed. Pushing each like over Realtime would be worse:
+  // one message per like per open feed, the shape that runs up the message
+  // quota (see 20261111000001's header), for a cosmetic count. Your own
+  // likes update instantly from the toggle; other people's appear on return
+  // or on the next load. Merges just the two like fields into whatever's
+  // already rendered; title/body/images/pagination are untouched, so it
+  // can't stomp a card mid-edit or mid-delete.
   const postsRef = useRef(posts);
   useEffect(() => {
     postsRef.current = posts;
@@ -74,42 +78,18 @@ export default function CommunityClient({
   };
 
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const poll = async () => {
+    const refresh = async () => {
       const ids = postsRef.current.filter((p) => p.kind === "member").map((p) => p.id);
       if (ids.length === 0) return;
       const res = await refreshLikeCounts(ids);
       if (!res.ok) return;
       setPosts((prev) => prev.map((p) => (res.data[p.id] ? { ...p, ...res.data[p.id] } : p)));
     };
-
-    const startPolling = () => {
-      if (intervalId) return;
-      intervalId = setInterval(poll, 45_000);
-    };
-    const stopPolling = () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
-    };
-
-    if (document.visibilityState === "visible") startPolling();
     const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        poll();
-        startPolling();
-      } else {
-        stopPolling();
-      }
+      if (document.visibilityState === "visible") void refresh();
     };
     document.addEventListener("visibilitychange", onVisibility);
-
-    return () => {
-      stopPolling();
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
   return (

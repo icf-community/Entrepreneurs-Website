@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, closeDialog, dialogCloser } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog, dialogCloser } from "@/components/ui/dialogCloser";
 import { Button } from "@/components/ui/Button";
 import { respondToConnectionRequest } from "@/app/connections/actions";
+import { settle } from "@/lib/settle";
+import { track } from "@/lib/analytics/track";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · The accept dialog — the consent moment
@@ -63,11 +66,11 @@ export function AcceptDialog({
     const close = dialogCloser(e);
     setBusy(true);
     setError(null);
-    const res = await respondToConnectionRequest({
+    const res = await settle(respondToConnectionRequest({
       connectionId,
       accept: true,
       consentVersion,
-    });
+    }));
     setBusy(false);
     if (!res.ok) {
       if (res.error === STALE_REQUEST_ERROR) {
@@ -78,6 +81,7 @@ export function AcceptDialog({
       setError(res.error);
       return;
     }
+    track("connection_accepted");
     onAccepted();
     close();
   }

@@ -58,6 +58,12 @@ begin
 
   insert into public.admins (user_id) values (v_admin) on conflict do nothing;
 
+  -- Every fixture member is a current student, so a job for students or
+  -- both is theirs to see (20261006000002: audience comes from education).
+  insert into public.member_education (member_id, currently_enrolled, has_completed_degree)
+  values (v_user_a, true, false), (v_user_b, true, false), (v_admin, true, false)
+  on conflict (member_id) do nothing;
+
   -- A pending opportunity owned by A, an approved one owned by B.
   -- approved_at / approved_by must be set inline: the opportunities_approval_metadata
   -- CHECK rejects an 'approved' row with null approval metadata, so we can't insert
@@ -65,18 +71,18 @@ begin
   insert into public.opportunities (
     id, posted_by, status, position_name, company, pay, location_type,
     description, start_month, start_year, application_deadline,
-    contact_email, apply_method, approved_at, approved_by
+    contact_email, apply_method, approved_at, approved_by, eligible_audience
   ) values
     (v_opp_a, v_user_a, 'pending',
      'A''s role', 'Co', '£50k', 'remote',
      'Description that is at least twenty chars long.',
      1, 2027, current_date + 30,
-     'a@imperial.ac.uk', 'email', null, null),
+     'a@imperial.ac.uk', 'email', null, null, 'both'),
     (v_opp_b, v_user_b, 'approved',
      'B''s approved role', 'Co', '£50k', 'remote',
      'Description that is at least twenty chars long.',
      1, 2027, current_date + 30,
-     'b@imperial.ac.uk', 'email', now(), v_admin);
+     'b@imperial.ac.uk', 'email', now(), v_admin, 'both');
 
   -- Stash UUIDs so the test blocks below can find them.
   create temporary table _test_ctx (k text, v uuid);
@@ -428,7 +434,7 @@ begin
       p_linkedin_url  => 'https://linkedin.com/in/alum13',
       p_github_url    => null,
       p_portfolio_url => null
-    );
+    , p_expected_version => (public.get_my_profile_edit()->'profile'->>'edit_version')::bigint);
     raise exception 'FAIL: alum set a future graduation year';
   exception
     when sqlstate '22023' then null;  -- expected: grad-year bound
@@ -757,6 +763,10 @@ declare
     -- public / member reads
     'list_approved_opportunities','list_approved_events',
     'list_approved_vcs_grants',
+    -- 20261026000004: the caller's own posted-row contact_email, so the
+    -- app can restore it on top of the cache-safe (visible-flag-only)
+    -- listing result. Scoped to posted_by = auth.uid() internally.
+    'my_posted_opportunity_contact_emails','my_posted_event_contact_emails',
     -- /home's newest strips (20260917000019): same visibility gate, no
     -- contact_email, nothing viewer-dependent.
     'list_newest_events','list_newest_opportunities',
@@ -778,7 +788,11 @@ declare
     -- (enqueue_*, due_*, mark_*, reap_stalled_jobs) are deliberately
     -- absent and stay service-role only.
     'get_my_cv_status','get_my_cv_profile',
-    'get_my_github_status','confirm_github_connected','disconnect_github',
+    -- confirm_github_connected is deliberately ABSENT here as of
+    -- 20261025000004 (F5): it's now service_role-only, called from the
+    -- callback route's service client with an explicit member id, not
+    -- re-derivable by any authenticated caller via auth.uid().
+    'get_my_github_status','disconnect_github',
     'get_my_github_showcase','set_my_github_showcase',
     'dismiss_my_github_showcase_prompt','set_my_github_nudges',
     -- post-approval listing revisions (20260907000005). The member pair
@@ -787,7 +801,7 @@ declare
     -- apply_listing_edit_payload, listing_snapshot and listing_table_name
     -- are deliberately absent — they are internal, and section 34 asserts
     -- a member cannot reach them.
-    'listing_has_pending_edit','get_my_pending_listing_edit',
+    'listing_has_pending_edit','get_my_pending_listing_edit','get_my_profile_edit','get_my_listing_edit',
     'admin_list_listing_edits','admin_apply_listing_edit',
     'admin_reject_listing_edit','admin_update_listing',
     -- ingestion kill switch (20260911000003) — read by the two RPCs above
@@ -823,6 +837,20 @@ declare
     'my_connection_settings','set_connection_settings',
     -- 20260917000017: the caller's own usage against their own caps.
     'my_connection_quota',
+    -- 20260928000001: the four reads above in one call, for the Connect
+    -- control. Composes them, so it inherits their 42501 self-defence.
+    'connection_panel_state',
+    -- 20260928000003 incident banner (F-x4). get_site_banner is the one
+    -- deliberately anon-callable read (the /login page shows it); the
+    -- admin_* trio guard on is_admin() in-body.
+    'get_site_banner','admin_get_site_banner','admin_set_site_banner','admin_clear_site_banner',
+    -- 20260928000004 in-app notifications (F-x3): owner-scoped reads and
+    -- mark-read, each on auth.uid(); the writers are triggers, not callable.
+    'list_my_notifications','my_unread_notification_count','mark_notifications_read',
+    -- 20260928000005 data export (F-x2): no parameters, keyed on auth.uid().
+    'export_my_data',
+    -- 20260928000008 page gate (B26): is_admin + own profile, on auth.uid().
+    'my_gate_state',
     -- 20260917000007. Scoped to rows the caller BLOCKED (blocked_by =
     -- caller), never rows where they were blocked — there is deliberately
     -- no counterpart RPC, because a member must not be able to learn they
@@ -841,6 +869,30 @@ declare
     -- expire_connection_requests, purge_removed_connections,
     -- purge_connection_records, cron_connection_digest,
     -- claim_connection_digests, purge_sent_outbound_email.
+    -- 20261006000002 education + job audience: the member's own education
+    -- facts (auth.uid()), the viewer predicate the opportunities RLS uses,
+    -- the ID-specific detail read (same gate as the list), and the admin
+    -- audience queue (is_admin() in-body).
+    'get_my_education','set_my_education','viewer_admits_audience','get_approved_opportunity',
+    -- 20261011000005 graduates: admin prompt (is_admin() in-body, audited);
+    -- the member's own answer (caller-only, approved students only).
+    'admin_prompt_graduates','confirm_my_graduation',
+    'admin_list_opportunities_needing_audience','admin_set_opportunity_audience',
+    -- 20261006000001/3/4 AI. Flag and operator readers; the member's own
+    -- settings, the concept labels, and the conversation/turn RPCs (each on
+    -- auth.uid() and is_approved()). The executor's functions live in
+    -- ai_private, a schema PostgREST does not expose, and appear nowhere
+    -- here. admin_ai_overview guards on is_admin(); the three operator
+    -- controls on is_ai_operator().
+    'ai_mode_enabled','is_ai_operator','ai_list_concepts','get_my_ai_settings','set_my_ai_settings',
+    'ai_preview_my_projection','ai_state','ai_list_conversations','ai_get_conversation','ai_submit_turn',
+    'ai_turn_status','ai_cancel_turn','ai_edit_spec','ai_delete_conversation','ai_delete_all_history',
+    'ai_forget_message','ai_save_findings','ai_result_cards','ai_get_job_requirements',
+    'ai_confirm_job_requirements','admin_ai_overview','admin_set_ai_flag','admin_set_ai_limits',
+    'admin_ai_rebuild_index','ai_report_match','ai_create_draft_handoff','ai_consume_draft_handoff',
+    -- 20261006000006: one approved member's directory card, for View
+    -- profile; same visibility as the profiles RLS the dialog already uses.
+    'get_member_card',
     -- this test's OWN role-impersonation helper (created near the top of this
     -- file, dropped in cleanup below). Not an app RPC — it only exists during
     -- the test run, where Supabase default privileges make it anon-callable;
@@ -871,7 +923,7 @@ begin
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public'
    where p.proname = any (v_allowed)
-     and p.proname not in ('_set_caller', 'is_admin', 'is_approved')
+     and p.proname not in ('_set_caller', 'is_admin', 'is_approved', 'get_site_banner')
      and has_function_privilege('anon', p.oid, 'EXECUTE');
   if v_leaked is not null then
     raise exception
@@ -1044,11 +1096,13 @@ begin
   ) values (v_vc, 'vc', v_a, 'pending', 'Soon approved fund',
             'Description that is at least twenty chars long.', 'https://example.com/d');
 
-  -- Approve all three through the real admin RPCs.
+  -- Approve all three through the real admin RPCs. edit_version starts at
+  -- 0 (20261011000007's default) and approve_* now requires it match
+  -- (audit follow-up F4).
   perform _set_caller(v_adm);
-  perform public.approve_opportunity(v_opp, null);
-  perform public.approve_event(v_ev, null);
-  perform public.approve_vc_grant(v_vc, null);
+  perform public.approve_opportunity(v_opp, null, 0);
+  perform public.approve_event(v_ev, null, 0);
+  perform public.approve_vc_grant(v_vc, null, 0);
 
   -- The owner's edit window is now shut on every one of them.
   perform _set_caller(v_a);
@@ -1108,7 +1162,7 @@ begin
   begin
     perform public.update_event(v_ev, 'HIJACKED',
       'Description that is at least twenty chars long.', 'https://lu.ma/g',
-      now() + interval '30 days', 'London', 'B User', 'b@imperial.ac.uk', false);
+      now() + interval '30 days', 'London', 'B User', 'b@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -1118,7 +1172,7 @@ begin
   begin
     perform public.update_vc_grant(v_vc, 'vc', 'HIJACKED',
       'Description that is at least twenty chars long.', 'https://example.com/g',
-      null, null, null);
+      null, null, null, p_expected_version => (public.get_my_listing_edit('vc_grant', v_vc)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -1128,10 +1182,10 @@ begin
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'Edited via RPC',
     'Description that is at least twenty chars long.', 'https://lu.ma/g',
-    now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
   perform public.update_vc_grant(v_vc, 'grant', 'Edited via RPC',
     'Description that is at least twenty chars long.', 'https://example.com/g',
-    null, null, null);
+    null, null, null, p_expected_version => (public.get_my_listing_edit('vc_grant', v_vc)->'row'->>'edit_version')::bigint);
 
   set local role none;
   select title into v_title from public.events     where id = v_ev;
@@ -1147,16 +1201,16 @@ begin
   --     nothing a member types reaches the published row without a human
   --     approving it. Section 34 covers the rest of that path.
   perform _set_caller(v_adm);
-  perform public.approve_event(v_ev, null);
-  perform public.approve_vc_grant(v_vc, null);
+  perform public.approve_event(v_ev, null, (select edit_version from public.events where id = v_ev));
+  perform public.approve_vc_grant(v_vc, null, (select edit_version from public.vcs_grants where id = v_vc));
 
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'TOO LATE',
     'Description that is at least twenty chars long.', 'https://lu.ma/g',
-    now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'London', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
   perform public.update_vc_grant(v_vc, 'vc', 'TOO LATE',
     'Description that is at least twenty chars long.', 'https://example.com/g',
-    null, null, null);
+    null, null, null, p_expected_version => (public.get_my_listing_edit('vc_grant', v_vc)->'row'->>'edit_version')::bigint);
 
   set local role none;
   select title into v_title from public.events     where id = v_ev;
@@ -1178,7 +1232,7 @@ begin
   begin
     perform public.update_vc_grant(v_vc, 'vc', 'TOO LATE',
       'Description that is at least twenty chars long.', 'https://example.com/g',
-      null, null, null);
+      null, null, null, p_expected_version => (public.get_my_listing_edit('vc_grant', v_vc)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -1194,7 +1248,7 @@ begin
   begin
     perform public.update_event(v_ev, 'Backdated',
       'Description that is at least twenty chars long.', 'https://lu.ma/g',
-      now() - interval '2 days', 'London', 'A User', 'a@imperial.ac.uk', false);
+      now() - interval '2 days', 'London', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -1303,6 +1357,29 @@ begin
     raise exception 'FAIL: pending queue is not oldest-first (first row was %)', v_first;
   end if;
 
+  -- (g2) A1's badge: a signup whose email hash is in banned_email_hashes is flagged,
+  --      everyone else in the same queue is not. The table is revoked from
+  --      authenticated (members never see it), so the setup insert/delete has
+  --      to run as the login superuser, not as the faked admin caller.
+  set local role none;
+  insert into public.banned_email_hashes (email_hash)
+  values (public.email_ban_hash('page3@imperial.ac.uk'));
+  perform _set_caller(v_adm);
+
+  if (select previously_banned from public.admin_list_pending_profiles(p_limit => 10)
+       where email = 'page3@imperial.ac.uk') is not true then
+    raise exception 'FAIL: previously_banned was not set for a banned-hash match';
+  end if;
+  select count(*) into v_rows from public.admin_list_pending_profiles(p_limit => 10)
+   where previously_banned;
+  if v_rows <> 1 then
+    raise exception 'FAIL: previously_banned flagged % rows, expected exactly 1', v_rows;
+  end if;
+
+  set local role none;
+  delete from public.banned_email_hashes where email_hash = public.email_ban_hash('page3@imperial.ac.uk');
+  perform _set_caller(v_adm);
+
   -- (h) facets span every status, not just approved members — filtering
   --     this page by "rejected" is the point of it
   if not exists (
@@ -1374,11 +1451,17 @@ begin
      and (p.proname ~ '^(admin|approve|reject)_'
           or p.proname in ('list_pending_opportunities_admin',
                            'list_pending_events_admin'))
+     -- Retired on purpose (20261011000005): graduates transition instead.
+     and p.proname <> 'admin_delete_graduates'
      and not has_function_privilege('authenticated', p.oid, 'EXECUTE');
   if v_locked is not null then
     raise exception
       'FAIL: admin RPC(s) no longer EXECUTE-able by authenticated: % — the revoke '
       'took the admin console with it', v_locked;
+  end if;
+  -- ...and the retired bulk delete stays unreachable.
+  if has_function_privilege('authenticated', 'public.admin_delete_graduates(integer)', 'EXECUTE') then
+    raise exception 'FAIL: admin_delete_graduates is executable again; graduates must transition, not be deleted';
   end if;
 end;
 $$;
@@ -1398,9 +1481,11 @@ declare
   v_listing  uuid;
   v_rows     int;
 begin
-  select id into v_member   from public.profiles where status = 'approved' limit 1;
+  -- A member and a job that member's audience can see: a view of a job
+  -- outside the audience is deliberately not recorded (20261006000002).
+  v_member  := (select v from _test_ctx where k = 'user_a');
+  v_listing := (select v from _test_ctx where k = 'opp_b');
   select id into v_rejected from public.profiles where status = 'rejected' limit 1;
-  select id into v_listing  from public.opportunities where status = 'approved' limit 1;
   if v_member is null or v_listing is null then
     raise exception 'FAIL: fixture missing (approved profile / approved opportunity)';
   end if;
@@ -2181,7 +2266,7 @@ begin
       p_linkedin_url  => 'https://linkedin.com/in/foundry-test',
       p_github_url    => null,
       p_portfolio_url => null
-    );
+    , p_expected_version => (public.get_my_profile_edit()->'profile'->>'edit_version')::bigint);
     raise exception 'FAIL: a rejected member saved profile edits via update_profile';
   exception when sqlstate '42501' then v_ok := true;
   end;
@@ -2267,29 +2352,33 @@ begin
 
   perform _set_caller(v_admin);
 
-  -- (a) double-approve is refused, for all three types.
-  perform public.approve_opportunity(v_opp, null);
+  -- (a) double-approve is refused, for all three types. The first call of
+  -- each pair passes the real edit_version (0, fresh insert); the second
+  -- deliberately keeps passing it too — it must still fail, but on the
+  -- status check (P0001), not the version check (PT409), since the status
+  -- check runs first.
+  perform public.approve_opportunity(v_opp, null, 0);
   v_ok := false;
   begin
-    perform public.approve_opportunity(v_opp, null);
+    perform public.approve_opportunity(v_opp, null, 0);
     raise exception 'FAIL: approve_opportunity re-processed an already-approved listing';
   exception when sqlstate 'P0001' then v_ok := true;
   end;
   if not v_ok then raise exception 'FAIL: approve_opportunity did not guard against re-approval'; end if;
 
-  perform public.approve_event(v_ev, null);
+  perform public.approve_event(v_ev, null, 0);
   v_ok := false;
   begin
-    perform public.approve_event(v_ev, null);
+    perform public.approve_event(v_ev, null, 0);
     raise exception 'FAIL: approve_event re-processed an already-approved listing';
   exception when sqlstate 'P0001' then v_ok := true;
   end;
   if not v_ok then raise exception 'FAIL: approve_event did not guard against re-approval'; end if;
 
-  perform public.approve_vc_grant(v_vc, null);
+  perform public.approve_vc_grant(v_vc, null, 0);
   v_ok := false;
   begin
-    perform public.approve_vc_grant(v_vc, null);
+    perform public.approve_vc_grant(v_vc, null, 0);
     raise exception 'FAIL: approve_vc_grant re-processed an already-approved listing';
   exception when sqlstate 'P0001' then v_ok := true;
   end;
@@ -2386,6 +2475,105 @@ begin
   if not exists (select 1 from public.admins where user_id = v_admin) then
     raise exception 'FAIL: an unrelated admin lost admin access during this test';
   end if;
+
+  -- 25f. Security audit (2026-10-26): leaving committee must not demote
+  --      someone who was ALSO granted admin independently of committee
+  --      (the exact gap 25e doesn't cover — v_admin there never touches
+  --      committee at all). Grant v_b admin the documented manual way
+  --      first (insert into admins), then add and remove them from
+  --      committee, and confirm they're still admin afterward.
+  set local role postgres;
+  insert into public.admins (user_id) values (v_b) on conflict (user_id) do nothing;
+  perform _set_caller(v_admin);
+  perform public.admin_set_committee(v_b, true, 'Committee member');
+  perform public.admin_set_committee(v_b, false, null);
+  if not exists (select 1 from public.admins where user_id = v_b) then
+    raise exception 'FAIL: committee revoke demoted an admin who was independently granted admin';
+  end if;
+  set local role postgres;
+  delete from public.admins where user_id = v_b;
+end;
+$$;
+
+-- 26. Security audit (2026-10-26): the member-facing create flow for all
+--     three listing types goes exclusively through SECURITY DEFINER RPCs
+--     (submit_opportunity, submit_event, the vc_grant equivalent), which
+--     bypass RLS and enforce Turnstile + the submit rate limit
+--     themselves. The *_insert_own policies that used to let an approved
+--     member INSERT the table directly were never needed for that path —
+--     they only gave a direct PostgREST POST a way around both checks,
+--     plus the ability to forge creation_source on opportunities and
+--     backdate/forward-date created_at on any of the three. Dropped
+--     entirely (20261026000005); this asserts a direct insert into each
+--     table is now rejected outright, even with every other column
+--     honest.
+do $$
+declare
+  v_a  uuid := (select v from _test_ctx where k='user_a');
+  v_ok boolean;
+begin
+  perform _set_caller(v_a);
+
+  v_ok := false;
+  begin
+    insert into public.opportunities (
+      posted_by, status, position_name, company, pay, location_type, description,
+      start_month, start_year, application_deadline, contact_email, apply_method
+    ) values (
+      v_a, 'pending', 'Forged role', 'Co', '£1', 'remote',
+      'Description that is at least twenty chars long.',
+      1, 2027, current_date + 30, 'a@imperial.ac.uk', 'email'
+    );
+    raise exception 'FAIL: direct opportunities insert succeeded with no insert policy';
+  exception when sqlstate '42501' then v_ok := true;
+  end;
+  if not v_ok then raise exception 'FAIL: opportunities insert did not raise 42501'; end if;
+
+  -- The specific forgery this closes: creation_source = 'admin' changes
+  -- how the row is treated by the AI job-matching paths (20261006000002
+  -- only trusts creation_source = 'member' there).
+  v_ok := false;
+  begin
+    insert into public.opportunities (
+      posted_by, status, position_name, company, pay, location_type, description,
+      start_month, start_year, application_deadline, contact_email, apply_method, creation_source
+    ) values (
+      v_a, 'pending', 'Forged role', 'Co', '£1', 'remote',
+      'Description that is at least twenty chars long.',
+      1, 2027, current_date + 30, 'a@imperial.ac.uk', 'email', 'admin'
+    );
+    raise exception 'FAIL: direct opportunities insert forged creation_source = admin';
+  exception when sqlstate '42501' then v_ok := true;
+  end;
+  if not v_ok then raise exception 'FAIL: forged-creation_source insert did not raise 42501'; end if;
+
+  v_ok := false;
+  begin
+    insert into public.events (
+      posted_by, status, title, description, luma_link,
+      event_at, location, organiser_name, contact_email
+    ) values (
+      v_a, 'pending', 'Forged event',
+      'Description that is at least twenty chars long.',
+      'https://lu.ma/x', now() + interval '7 days', 'Imperial', 'A User', 'a@imperial.ac.uk'
+    );
+    raise exception 'FAIL: direct events insert succeeded with no insert policy';
+  exception when sqlstate '42501' then v_ok := true;
+  end;
+  if not v_ok then raise exception 'FAIL: events insert did not raise 42501'; end if;
+
+  v_ok := false;
+  begin
+    insert into public.vcs_grants (
+      posted_by, status, name, kind, description, link
+    ) values (
+      v_a, 'pending', 'Forged fund', 'vc',
+      'Description that is at least twenty chars long.', 'https://example.com'
+    );
+    raise exception 'FAIL: direct vcs_grants insert succeeded with no insert policy';
+  exception when sqlstate '42501' then v_ok := true;
+  end;
+  if not v_ok then raise exception 'FAIL: vcs_grants insert did not raise 42501'; end if;
 end;
 $$;
 
@@ -2420,7 +2608,7 @@ begin
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'Revision fixture',
     'Description that is at least twenty chars long.', 'https://lu.ma/r',
-    now() + interval '30 days', 'Blackett 202', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'Blackett 202', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
 
   set local role none;
   select location into v_txt from public.events where id = v_ev;
@@ -2432,7 +2620,7 @@ begin
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'Revision fixture',
     'Description that is at least twenty chars long.', 'https://lu.ma/r',
-    now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
   set local role none;
   select count(*) into v_n from public.listing_edits where listing_id = v_ev and status = 'pending';
   if v_n <> 1 then raise exception 'FAIL: % open revisions on one listing', v_n; end if;
@@ -2445,7 +2633,7 @@ begin
   begin
     perform public.update_event(v_ev, 'x',
       'Description that is at least twenty chars long.', 'https://lu.ma/r',
-      now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false);
+      now() + interval '30 days', 'Blackett 999', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
     v_passed := true;
   exception when others then null;
   end;
@@ -2532,7 +2720,7 @@ begin
   perform _set_caller(v_a);
   perform public.update_event(v_ev, 'Revision fixture',
     'Description that is at least twenty chars long.', 'https://lu.ma/r',
-    now() + interval '30 days', 'Doomed room', 'A User', 'a@imperial.ac.uk', false);
+    now() + interval '30 days', 'Doomed room', 'A User', 'a@imperial.ac.uk', false, p_expected_version => (public.get_my_listing_edit('event', v_ev)->'row'->>'edit_version')::bigint);
   perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
   set local role none;
   update public.events set status = 'expired' where id = v_ev;
@@ -2671,10 +2859,12 @@ begin
   end if;
 
   -- 36b. confirm_github_connected: connection still recorded, scan job does not.
+  -- (20261025000004, F5): now service_role-only with an explicit
+  -- p_member_id, matching the real callback route's service-role client.
   select count(*) into v_scan_before from public.jobs where kind = 'scan_github';
 
-  perform _set_caller(v_m);
-  perform public.confirm_github_connected(123456789, 'kill-switch-octocat', 'fake-token', 'test-encryption-key-not-real');
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  perform public.confirm_github_connected(v_m, 123456789, 'kill-switch-octocat', 'fake-token', 'test-encryption-key-not-real');
   set local role postgres;
 
   select scan_status into v_gh_status from public.github_connections where member_id = v_m;
@@ -2926,6 +3116,10 @@ begin
   create temporary table _conn_ctx (k text, v uuid);
   insert into _conn_ctx (k, v)
     select v_keys[i], v_ids[i] from generate_series(1,9) i;
+  -- Current students, so jobs for students or both are visible to them.
+  insert into public.member_education (member_id, currently_enrolled, has_completed_degree)
+    select v_ids[i], true, false from generate_series(1,9) i
+  on conflict (member_id) do nothing;
   grant select on _conn_ctx to authenticated;
 end;
 $$;
@@ -3344,6 +3538,8 @@ begin
   then raise exception 'FAIL: connection_refusal_message executable by authenticated'; end if;
   if has_function_privilege('anon', 'public.send_connection_request(uuid,text,text)', 'execute')
   then raise exception 'FAIL: send_connection_request executable by anon'; end if;
+  if has_function_privilege('anon', 'public.connection_panel_state(uuid)', 'execute')
+    then raise exception 'FAIL: anon can read connection_panel_state'; end if;
   if not has_function_privilege('authenticated', 'public.send_connection_request(uuid,text,text)', 'execute')
   then raise exception 'FAIL: send_connection_request NOT executable by authenticated'; end if;
 end; $$;
@@ -3364,6 +3560,14 @@ begin
   if (select count(*) from public.list_my_pending_requests()) <> 0 then raise exception 'FAIL: sender sees own request as pending'; end if;
   if public.my_pending_connection_count() <> 0 then raise exception 'FAIL: sender badge non-zero'; end if;
   if (select state from public.connection_state_with(v_b)) <> 'pending_outgoing' then raise exception 'FAIL: wrong sender state'; end if;
+  -- B25: the one-call panel read agrees with the parts it composes.
+  select * into r from public.connection_panel_state(v_b);
+  if r.state <> 'pending_outgoing' or r.connection_id is distinct from v_id then
+    raise exception 'FAIL: connection_panel_state disagrees with connection_state_with';
+  end if;
+  if r.consent_version is distinct from v_v or r.outstanding <> 1 then
+    raise exception 'FAIL: connection_panel_state consent/quota wrong (%, %)', r.consent_version, r.outstanding;
+  end if;
 
   -- B sees it in Pending, with the note.
   perform _set_caller(v_b);
@@ -4443,11 +4647,11 @@ begin
   insert into public.opportunities (
     id, posted_by, status, position_name, company, pay, location_type,
     description, start_month, start_year, application_deadline,
-    contact_email, contact_email_visible, apply_method, approved_at, approved_by
+    contact_email, contact_email_visible, apply_method, approved_at, approved_by, eligible_audience
   ) values (
     v_opp, v_poster, 'approved', 'L1 role', 'Co', '£1', 'remote',
     'Description that is at least twenty chars long.', 1, 2027, current_date + 30,
-    'l1-hidden@imperial.ac.uk', false, 'email', now(), v_admin
+    'l1-hidden@imperial.ac.uk', false, 'email', now(), v_admin, 'both'
   );
   insert into public.events (
     id, posted_by, status, title, description, luma_link,
@@ -4534,6 +4738,93 @@ begin
   delete from public.events where id = v_ev;
 end; $$;
 
+-- L2. p_cache_safe listing RPCs and the self-contact-email overlay helpers
+-- (20261026000004). The cache-safe variant must return the row set
+-- unfiltered by audience (so the app can cache one copy for every
+-- non-admin caller) while still masking contact_email exactly as before;
+-- the default (no-arg) call must still apply the audience filter, since
+-- that's the app's admin-only live path, unchanged by this feature. The
+-- self-contact-email helpers must return only the caller's own rows.
+do $$
+declare
+  v_poster uuid := (select v from _conn_ctx where k='ma');
+  v_member uuid := (select v from _conn_ctx where k='mb');
+  v_admin  uuid := (select v from _conn_ctx where k='madm');
+  v_opp    uuid := gen_random_uuid();
+  v_ev     uuid := gen_random_uuid();
+begin
+  set local role none;
+  insert into public.opportunities (
+    id, posted_by, status, position_name, company, pay, location_type,
+    description, start_month, start_year, application_deadline,
+    contact_email, contact_email_visible, apply_method, approved_at, approved_by, eligible_audience
+  ) values (
+    v_opp, v_poster, 'approved', 'L2 role', 'Co', '£1', 'remote',
+    'Description that is at least twenty chars long.', 1, 2027, current_date + 30,
+    'l2-hidden@imperial.ac.uk', false, 'email', now(), v_admin, 'students'
+  );
+  insert into public.events (
+    id, posted_by, status, title, description, luma_link,
+    event_at, location, organiser_name, contact_email, contact_email_visible, is_society_event,
+    approved_at, approved_by
+  ) values (
+    v_ev, v_poster, 'approved', 'L2 event',
+    'Description that is at least twenty chars long.',
+    'https://lu.ma/l2', now() + interval '7 days', 'Imperial',
+    'L2 Organiser', 'l2-hidden@imperial.ac.uk', false, false,
+    now(), v_admin
+  );
+  -- v_member is a graduate, not a student: the default (audience-filtered)
+  -- RPC must exclude the students-only opportunity, and p_cache_safe must
+  -- include it anyway — the app layer does the audience filtering itself
+  -- (admitsAudience() in lib/data/opportunities.ts) once it has the cached
+  -- result.
+  insert into public.member_education (member_id, currently_enrolled, has_completed_degree)
+  values (v_member, false, true)
+  on conflict (member_id) do update set currently_enrolled = false, has_completed_degree = true;
+
+  perform _set_caller(v_member);
+  if exists (select 1 from public.list_approved_opportunities() where id = v_opp) then
+    raise exception 'FAIL(L2): a graduate sees a students-only opportunity through the default (audience-filtered) RPC';
+  end if;
+  if not exists (select 1 from public.list_approved_opportunities(p_cache_safe => true) where id = v_opp) then
+    raise exception 'FAIL(L2): p_cache_safe=true must return every approved opportunity regardless of audience';
+  end if;
+  if (select contact_email from public.list_approved_opportunities(p_cache_safe => true) where id = v_opp) is not null then
+    raise exception 'FAIL(L2): p_cache_safe leaked a hidden opportunity contact_email to a non-poster';
+  end if;
+  if (select contact_email from public.list_approved_events(p_cache_safe => true) where id = v_ev) is not null then
+    raise exception 'FAIL(L2): p_cache_safe leaked a hidden event contact_email to a non-poster';
+  end if;
+
+  -- The helpers return only the caller's own posted rows.
+  if exists (select 1 from public.my_posted_opportunity_contact_emails() where id = v_opp)
+     or exists (select 1 from public.my_posted_event_contact_emails() where id = v_ev) then
+    raise exception 'FAIL(L2): a non-poster sees another member''s row from the self-contact-email helpers';
+  end if;
+
+  perform _set_caller(v_poster);
+  if (select contact_email from public.my_posted_opportunity_contact_emails() where id = v_opp)
+       is distinct from 'l2-hidden@imperial.ac.uk'
+     or (select contact_email from public.my_posted_event_contact_emails() where id = v_ev)
+       is distinct from 'l2-hidden@imperial.ac.uk' then
+    raise exception 'FAIL(L2): the poster does not get their own contact_email back from the helpers';
+  end if;
+
+  -- An admin's own default (non-cache-safe) call is untouched by this feature.
+  perform _set_caller(v_admin);
+  if (select contact_email from public.list_approved_opportunities() where id = v_opp)
+       is distinct from 'l2-hidden@imperial.ac.uk' then
+    raise exception 'FAIL(L2): an admin no longer sees a hidden contact_email on the default RPC call';
+  end if;
+
+  set local role none;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  delete from public.opportunities where id = v_opp;
+  delete from public.events where id = v_ev;
+  delete from public.member_education where member_id = v_member;
+end; $$;
+
 -- A10. Cron functions are unreachable from every client role; service_role can claim.
 do $$
 declare fn text;
@@ -4603,149 +4894,909 @@ begin
 end; $$;
 
 
--- ─── 38. admin_delete_graduates deletes a NON-EMPTY cohort ───────────
--- The function returns early on an empty cohort, and that early return is
--- precisely what hid "column reference user_id is ambiguous" for four
--- months (docs/audits/C3-connections-benchmark-gate.md, Finding 2). Every
--- assertion here is therefore on a cohort with rows in it.
---
--- The fixture graduates are seeded at grad_year 1951 and the cutoff is
--- 1951, so this cannot reach the file's own 2025-2027 fixtures.
+-- ─── 38. Graduates transition; nobody is deleted (20261011000005) ────
+-- admin_delete_graduates is retired (its grant revoked; §"admin RPCs"
+-- above pins that). admin_prompt_graduates stamps the due cohort once and
+-- audits each; confirm_my_graduation is the member's own answer. Fixture
+-- graduates are at grad_year 1950 so the file's own fixtures (and the E2E
+-- graduate, at 1951) are out of reach, and the admin running it is in the cohort on purpose.
 do $$
 declare
-  v_admin uuid := (select v from _test_ctx where k = 'admin');
+  v_admin uuid := gen_random_uuid();
   v_g1    uuid := gen_random_uuid();
   v_g2    uuid := gen_random_uuid();
   v_keep  uuid := gen_random_uuid();
+  v_conn  uuid := gen_random_uuid();
   v_rows  int;
-  v_conn  uuid;
+  v_role  text;
   r       record;
 begin
   set local role postgres;
   perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
-
   insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
-    (v_g1,   'grad1@imperial.ac.uk', '{"first_name":"Gee","surname":"One","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
-    (v_g2,   'grad2@imperial.ac.uk', '{"first_name":"Gee","surname":"Two","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
-    (v_keep, 'keep1@imperial.ac.uk', '{"first_name":"Kee","surname":"Per","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
-
+    (v_admin, 'gradadmin@imperial.ac.uk', '{"first_name":"Grad","surname":"Admin","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_g1,    'grad1@imperial.ac.uk', '{"first_name":"Gee","surname":"One","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_g2,    'grad2@imperial.ac.uk', '{"first_name":"Gee","surname":"Two","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_keep,  'keep1@imperial.ac.uk', '{"first_name":"Kee","surname":"Per","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
   insert into public.profiles (id, role, status, first_name, surname, course, grad_year, profile_version)
   values
-    (v_g1,   'student', 'approved', 'Gee', 'One', 'MEng Computing', 1951, 2),
-    (v_g2,   'student', 'approved', 'Gee', 'Two', 'MEng Computing', 1951, 2),
-    (v_keep, 'student', 'approved', 'Kee', 'Per', 'MEng Computing', 2099, 2)
+    (v_admin, 'student', 'approved', 'Grad', 'Admin', 'MEng Computing', 1950, 2),
+    (v_g1,    'student', 'approved', 'Gee',  'One',   'MEng Computing', 1950, 2),
+    (v_g2,    'student', 'approved', 'Gee',  'Two',   'MEng Computing', 1950, 2),
+    (v_keep,  'student', 'approved', 'Kee',  'Per',   'MEng Computing', 2099, 2)
   on conflict (id) do update set
     status = excluded.status, course = excluded.course,
     grad_year = excluded.grad_year, profile_version = excluded.profile_version;
-
-  -- A connection between a doomed graduate and a survivor. Both FK columns
-  -- are on delete cascade, and the row must go with the graduate -- this is
-  -- the deletion path the connections index list exists for.
-  v_conn := gen_random_uuid();
+  insert into public.admins (user_id) values (v_admin);
   insert into public.connections (id, requester_id, addressee_id, status, consent_version, decided_at)
   values (v_conn, v_g1, v_keep, 'accepted', public.connection_consent_version(), now());
 
-  -- An admin_actions row authored BY a doomed graduate: admin_id has no
-  -- cascade, so the function has to clear it or the auth delete fails.
-  insert into public.admin_actions (admin_id, action, target_table, target_id, notes)
-  values (v_g1, 'test_fixture', 'profiles', v_keep, 'authored by a doomed graduate');
-
   perform _set_caller(v_admin);
-
   v_rows := 0;
-  for r in select * from public.admin_delete_graduates(1951) loop
+  for r in select * from public.admin_prompt_graduates(1950) loop
     v_rows := v_rows + 1;
     if r.user_id not in (v_g1, v_g2) then
-      raise exception 'FAIL: admin_delete_graduates returned an unexpected member %', r.user_id;
+      raise exception 'FAIL: admin_prompt_graduates prompted an unexpected member %', r.user_id;
     end if;
-    if r.email is null or r.first_name is null then
-      raise exception 'FAIL: admin_delete_graduates returned a null identity for %', r.user_id;
+    if r.email is null then
+      raise exception 'FAIL: admin_prompt_graduates returned no address for %', r.user_id;
     end if;
   end loop;
   if v_rows <> 2 then
-    raise exception 'FAIL: expected 2 deleted graduates, got %', v_rows;
+    raise exception 'FAIL: expected 2 prompted graduates (never the admin running it), got %', v_rows;
+  end if;
+  if (select count(*) from public.admin_prompt_graduates(1950)) <> 0 then
+    raise exception 'FAIL: a second run prompted the same graduates again';
   end if;
 
   set local role postgres;
-  if exists (select 1 from auth.users where id in (v_g1, v_g2)) then
-    raise exception 'FAIL: a graduate survived the cohort delete';
+  if (select count(*) from auth.users where id in (v_admin, v_g1, v_g2, v_keep)) <> 4 then
+    raise exception 'FAIL: prompting graduates deleted an account';
   end if;
-  if not exists (select 1 from auth.users where id = v_keep) then
-    raise exception 'FAIL: the cohort delete reached outside the cutoff';
-  end if;
-  if exists (select 1 from public.connections where id = v_conn) then
-    raise exception 'FAIL: the connection did not cascade with the deleted graduate';
-  end if;
-  if (select count(*) from public.admin_actions
-       where action = 'admin_delete_graduate' and target_id in (v_g1, v_g2)) <> 2 then
-    raise exception 'FAIL: the cohort delete was not audited one row per graduate';
+  if (select count(*) from public.admin_actions where action = 'admin_prompt_graduate' and target_id in (v_g1, v_g2)) <> 2 then
+    raise exception 'FAIL: the prompt was not audited one row per graduate';
   end if;
 
-  -- Re-entrancy: the temp table is `on commit drop`, so a second call in
-  -- this same transaction used to fail with "relation already exists".
-  perform _set_caller(v_admin);
-  perform public.admin_delete_graduates(1951);
+  -- Graduated (not studying further): recent graduate, Graduates audience,
+  -- connections and account intact.
+  perform _set_caller(v_g1);
+  v_role := public.confirm_my_graduation(true, false, null);
+  set local role postgres;
+  if v_role <> 'recent_grad' or (select role::text from public.profiles where id = v_g1) <> 'recent_grad' then
+    raise exception 'FAIL: confirming graduation did not make the member a recent graduate';
+  end if;
+  if not exists (select 1 from public.member_education where member_id = v_g1
+                  and has_completed_degree and not currently_enrolled) then
+    raise exception 'FAIL: confirming graduation did not record the completed degree';
+  end if;
+  if not exists (select 1 from public.connections where id = v_conn) then
+    raise exception 'FAIL: graduating removed the member''s connections';
+  end if;
+  if current_setting('foundry.affiliation_change', true) = 'true' then
+    raise exception 'FAIL: confirm_my_graduation left the affiliation marker raised';
+  end if;
+
+  -- Not yet: a new expected year, still a student, prompt cleared.
+  perform _set_caller(v_g2);
+  v_role := public.confirm_my_graduation(false, null, extract(year from now())::int + 1);
+  set local role postgres;
+  if v_role <> 'student' or exists (select 1 from public.profiles where id = v_g2
+                                     and (graduation_prompted_at is not null or role <> 'student')) then
+    raise exception 'FAIL: "not yet" did not keep a student and clear the prompt';
+  end if;
+
+  -- Only an approved student can answer.
+  perform _set_caller(v_g1);
+  begin
+    perform public.confirm_my_graduation(true, false, null);
+    raise exception 'FAIL: a recent graduate confirmed graduation again';
+  exception when insufficient_privilege then null;
+  end;
+  set local role postgres;
 end; $$;
 
--- ─── 38b. The cleanup never deletes the admin running it ─────────────
--- Admins here ARE members: admin is granted by email after onboarding, so
--- a committee member who is an admin and whose graduation year has passed
--- lands in their own cohort. Before 20260917000009 the annual cleanup
--- deleted the person running it -- and then failed on
--- admin_actions_admin_id_fkey while writing the audit row against an
--- auth.users row it had just removed, rolling the WHOLE cleanup back with
--- nothing logged to say it had been attempted.
---
--- admin_delete_user has refused this for a single target since
--- 20260529000007 ("Use the self-service Delete Account flow"); this is the
--- bulk variant inheriting the same rule.
+-- ─── F-x4. Incident banner: admins publish, everyone reads, members can't write ─
+-- (20260928000003). The whole file rolls back at the end, so nothing here
+-- needs undoing.
 do $$
 declare
-  v_selfadmin uuid := gen_random_uuid();
-  v_other     uuid := gen_random_uuid();
-  v_rows      int;
+  v_admin  uuid := gen_random_uuid();
+  v_member uuid := gen_random_uuid();
+  v_v int; r record;
 begin
   set local role postgres;
   perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
-
   insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
-    (v_selfadmin, 'gradadmin@imperial.ac.uk', '{"first_name":"Grad","surname":"Admin","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
-    (v_other,     'grad3@imperial.ac.uk',     '{"first_name":"Gee","surname":"Three","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+    (v_admin, 'banneradmin@imperial.ac.uk', '{"first_name":"Ban","surname":"Ner","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.admins (user_id) values (v_admin) on conflict do nothing;
 
-  insert into public.profiles (id, role, status, first_name, surname, course, grad_year, profile_version)
-  values
-    (v_selfadmin, 'student', 'approved', 'Grad', 'Admin', 'MEng Computing', 1952, 2),
-    (v_other,     'student', 'approved', 'Gee',  'Three', 'MEng Computing', 1952, 2)
-  -- on_auth_user_created has already inserted a bare profile row, so this
-  -- is an update in practice and `course` has to be set here or the
-  -- post-onboarding check constraint rejects the approved status.
-  on conflict (id) do update set
-    status = excluded.status, course = excluded.course,
-    grad_year = excluded.grad_year, profile_version = excluded.profile_version;
+  if has_function_privilege('anon', 'public.admin_set_site_banner(text,text,text,timestamptz)', 'execute')
+    then raise exception 'FAIL: anon can publish a banner'; end if;
+  if not has_function_privilege('anon', 'public.get_site_banner()', 'execute')
+    then raise exception 'FAIL: anon cannot read the banner (/login needs it)'; end if;
+  if has_table_privilege('authenticated', 'public.site_banner', 'update')
+     or has_table_privilege('anon', 'public.site_banner', 'select')
+    then raise exception 'FAIL: site_banner is directly reachable'; end if;
 
-  insert into public.admins (user_id) values (v_selfadmin) on conflict do nothing;
+  -- A non-admin caller is refused in-body.
+  perform _set_caller(v_member);
+  begin
+    perform public.admin_set_site_banner('x', 'info');
+    raise exception 'FAIL: a non-admin published a banner';
+  exception when insufficient_privilege then null;
+  end;
 
-  perform _set_caller(v_selfadmin);
-  select count(*) into v_rows from public.admin_delete_graduates(1952);
+  perform _set_caller(v_admin);
+  -- Validation: https only, 200 chars, known severity.
+  begin perform public.admin_set_site_banner('x', 'info', 'javascript:alert(1)');
+    raise exception 'FAIL: non-https link accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.admin_set_site_banner(repeat('a', 201), 'info');
+    raise exception 'FAIL: over-long message accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.admin_set_site_banner('x', 'loud');
+    raise exception 'FAIL: unknown severity accepted';
+  exception when invalid_parameter_value then null; end;
+
+  v_v := public.admin_set_site_banner('Sign-in is slow right now.', 'warning', 'https://example.com/status');
+  select * into r from public.get_site_banner();
+  if r.message <> 'Sign-in is slow right now.' or r.version <> v_v then
+    raise exception 'FAIL: published banner not readable';
+  end if;
+
+  perform public.admin_clear_site_banner();
+  if exists (select 1 from public.get_site_banner()) then raise exception 'FAIL: cleared banner still shows'; end if;
 
   set local role postgres;
-  if v_rows <> 1 then
-    raise exception 'FAIL: expected 1 deleted graduate, got % (the caller was probably included)', v_rows;
+  if (select count(*) from public.admin_actions
+       where admin_id = v_admin and action in ('site_banner_publish', 'site_banner_clear')) <> 2
+    then raise exception 'FAIL: banner publish/clear not both written to admin_actions'; end if;
+end;
+$$;
+
+-- ─── F-x3. Notifications: triggers write them, only the owner reads them ─
+-- (20260928000004). Rolled back with the rest of the file.
+do $$
+declare
+  v_a uuid := gen_random_uuid();
+  v_b uuid := gen_random_uuid();
+  v_c uuid := gen_random_uuid();
+  v_conn uuid;
+  v_n int;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_a, 'notif-a@imperial.ac.uk', '{"first_name":"Nia","surname":"Alpha","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_b, 'notif-b@imperial.ac.uk', '{"first_name":"Nob","surname":"Beta","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_c, 'notif-c@imperial.ac.uk', '{"first_name":"Noc","surname":"Gamma","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+
+  -- The writers are not callable by members.
+  if has_function_privilege('authenticated', 'public.notify(uuid,text,text,text,text,uuid)', 'execute')
+    then raise exception 'FAIL: members can write notifications directly'; end if;
+  if has_table_privilege('authenticated', 'public.notifications', 'select')
+    then raise exception 'FAIL: notifications table directly readable'; end if;
+
+  -- A request notifies the addressee; withdrawing it removes the notice.
+  insert into public.connections (requester_id, addressee_id, status, consent_version)
+  values (v_a, v_b, 'pending', '2026-09-17') returning id into v_conn;
+  if (select count(*) from public.notifications where user_id = v_b and kind = 'connection_request') <> 1
+    then raise exception 'FAIL: connection request did not notify the addressee'; end if;
+  update public.connections set status = 'withdrawn', decided_at = now() where id = v_conn;
+  if exists (select 1 from public.notifications where user_id = v_b and kind = 'connection_request')
+    then raise exception 'FAIL: withdrawn request still notifies'; end if;
+
+  -- Re-request, then accept: the requester hears, the addressee's notice clears.
+  update public.connections set status = 'pending', decided_at = null where id = v_conn;
+  update public.connections set status = 'accepted', decided_at = now() where id = v_conn;
+  if (select count(*) from public.notifications where user_id = v_a and kind = 'connection_accepted') <> 1
+    then raise exception 'FAIL: acceptance did not notify the requester'; end if;
+
+  -- Owner-only reads and mark-read.
+  perform _set_caller(v_c);
+  if (select count(*) from public.list_my_notifications()) <> 0
+    then raise exception 'FAIL: a third member can read someone else''s notifications'; end if;
+  if public.mark_notifications_read() <> 0
+    then raise exception 'FAIL: a third member marked someone else''s notifications read'; end if;
+  perform _set_caller(v_a);
+  if public.my_unread_notification_count() <> 1 then raise exception 'FAIL: unread count wrong'; end if;
+  v_n := public.mark_notifications_read();
+  if v_n <> 1 or public.my_unread_notification_count() <> 0 then raise exception 'FAIL: mark-read did not clear'; end if;
+
+  -- Account deletion takes them (F30).
+  set local role postgres;
+  delete from auth.users where id = v_a;
+  if exists (select 1 from public.notifications where user_id = v_a)
+    then raise exception 'FAIL: notifications survived account deletion'; end if;
+end;
+$$;
+
+-- ─── F-x2. Data export: the caller's own data, never anyone else's ───
+-- (20260928000005). Rolled back with the rest of the file.
+do $$
+declare
+  v_a uuid := gen_random_uuid();
+  v_b uuid := gen_random_uuid();
+  v_c uuid := gen_random_uuid();
+  v_x jsonb;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_a, 'export-a@imperial.ac.uk', '{"first_name":"Exa","surname":"Alpha","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_b, 'export-b@imperial.ac.uk', '{"first_name":"Exb","surname":"Beta","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_c, 'export-c@imperial.ac.uk', '{"first_name":"Exc","surname":"Gamma","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+
+  if has_function_privilege('anon', 'public.export_my_data()', 'execute')
+    then raise exception 'FAIL: anon can call export_my_data'; end if;
+  if not has_function_privilege('authenticated', 'public.export_my_data()', 'execute')
+    then raise exception 'FAIL: members cannot call export_my_data'; end if;
+
+  -- A asked B with a note; C asked A and was declined; C blocked B.
+  insert into public.connections (requester_id, addressee_id, status, note, consent_version)
+  values (v_a, v_b, 'pending', 'note-written-by-exa', '2026-09-17');
+  insert into public.connections (requester_id, addressee_id, status, consent_version, decided_at)
+  values (v_c, v_a, 'declined', '2026-09-17', now());
+  insert into public.connections (requester_id, addressee_id, status, consent_version, blocked_by, decided_at)
+  values (v_b, v_c, 'blocked', '2026-09-17', v_c, now());
+
+  perform _set_caller(v_a);
+  v_x := public.export_my_data();
+  if v_x #>> '{account,email}' <> 'export-a@imperial.ac.uk'
+    then raise exception 'FAIL: export is not the caller''s account'; end if;
+  if v_x::text like '%export-b@%' or v_x::text like '%export-c@%'
+    then raise exception 'FAIL: export carries another member''s email'; end if;
+  if v_x::text not like '%note-written-by-exa%'
+    then raise exception 'FAIL: export omits a note the caller wrote'; end if;
+  if v_x->'profile' ? 'avatar_path' then raise exception 'FAIL: export carries a storage key'; end if;
+
+  -- The addressee sees the request, not the requester's note.
+  perform _set_caller(v_b);
+  v_x := public.export_my_data();
+  if v_x::text like '%note-written-by-exa%'
+    then raise exception 'FAIL: export leaks a note someone else wrote'; end if;
+  if not exists (select 1 from jsonb_array_elements(v_x->'connections') e where e->>'status' = 'request received')
+    then raise exception 'FAIL: export omits a received request'; end if;
+  -- B was blocked by C: nothing in B's export says so.
+  if v_x::text like '%Gamma%' then raise exception 'FAIL: export reveals who blocked the caller'; end if;
+
+  -- The declined sender sees "closed", never "declined".
+  perform _set_caller(v_c);
+  v_x := public.export_my_data();
+  if v_x::text like '%declined%' then raise exception 'FAIL: export tells a sender they were declined'; end if;
+  if not exists (select 1 from jsonb_array_elements(v_x->'connections') e where e->>'status' = 'blocked by you')
+    then raise exception 'FAIL: export omits a block the caller placed'; end if;
+end;
+$$;
+
+-- ─── G3/G4. Health snapshot: service-only, reports once then hourly ──
+-- (20260928000006). Rolled back with the rest of the file.
+do $$
+declare
+  v_first  boolean;
+  v_second boolean;
+begin
+  set local role postgres;
+  if has_function_privilege('authenticated', 'public.app_health_snapshot()', 'execute')
+     or has_function_privilege('anon', 'public.app_health_snapshot()', 'execute')
+    then raise exception 'FAIL: app_health_snapshot callable by members'; end if;
+  if has_function_privilege('authenticated', 'public.cron_health_check()', 'execute')
+    then raise exception 'FAIL: cron_health_check callable by members'; end if;
+  if has_table_privilege('authenticated', 'public.app_health_state', 'select')
+    then raise exception 'FAIL: app_health_state readable by members'; end if;
+
+  -- Force a failing check (no health_url), then confirm the throttle.
+  delete from public.app_config where key = 'health_url';
+  delete from public.app_health_state;
+  select (c->>'report')::boolean into v_first
+    from jsonb_array_elements(public.app_health_snapshot()) c where c->>'check' = 'config_missing';
+  select (c->>'report')::boolean into v_second
+    from jsonb_array_elements(public.app_health_snapshot()) c where c->>'check' = 'config_missing';
+  if v_first is not true then raise exception 'FAIL: a newly failing check was not reported'; end if;
+  if v_second is not false then raise exception 'FAIL: a still-failing check was re-reported within the hour'; end if;
+end;
+$$;
+
+-- ─── B26. my_gate_state: the caller's own gate row, nobody else's ────
+-- (20260928000008). Rolled back with the rest of the file.
+do $$
+declare
+  v_a uuid := gen_random_uuid();
+  v_b uuid := gen_random_uuid();
+  v_row record;
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_a, 'gate-a@imperial.ac.uk', '{"first_name":"Gia","surname":"Alpha","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_b, 'gate-b@imperial.ac.uk', '{"first_name":"Gib","surname":"Beta","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.admins (user_id) values (v_b);
+
+  if has_function_privilege('anon', 'public.my_gate_state()', 'execute')
+    then raise exception 'FAIL: anon can call my_gate_state'; end if;
+
+  perform _set_caller(v_a);
+  select * into v_row from public.my_gate_state();
+  if v_row.is_admin or v_row.first_name is distinct from 'Gia'
+    then raise exception 'FAIL: my_gate_state returned the wrong row for a member'; end if;
+  if (select count(*) from public.my_gate_state()) <> 1
+    then raise exception 'FAIL: my_gate_state returned more than one row'; end if;
+
+  perform _set_caller(v_b);
+  select * into v_row from public.my_gate_state();
+  if not v_row.is_admin or v_row.first_name is distinct from 'Gib'
+    then raise exception 'FAIL: my_gate_state missed the admin flag'; end if;
+end;
+$$;
+
+-- ─── D2. Every admin write leaves an admin_actions row ──────────────
+-- Every committee member becomes an admin at launch, so the audit log is
+-- the only record of who deleted, banned or approved what. Any volatile
+-- admin RPC (admin_*, approve_*, reject_*) must insert into admin_actions,
+-- unless it is a read listed here on purpose. A new admin mutation that
+-- forgets to log fails this; a new volatile admin read needs adding below.
+-- Static (it reads the live function body, like the postdeploy checks):
+-- calling every destructive RPC here is not an option.
+do $$
+declare
+  v_reads text[] := array[
+    'admin_connection_stats', 'admin_get_connections_status',
+    'admin_get_ingestion_status', 'admin_get_signup_emails',
+    'admin_list_connection_reports', 'admin_list_flagged_senders',
+    'admin_outbound_email_stats'];
+  v_missing text;
+begin
+  set local role postgres;
+  select string_agg(p.oid::regprocedure::text, ', ' order by p.proname) into v_missing
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.provolatile = 'v'
+     and (p.proname like 'admin\_%' or p.proname like 'approve\_%' or p.proname like 'reject\_%')
+     and p.proname <> all (v_reads)
+     and pg_get_functiondef(p.oid) !~* 'insert\s+into\s+(public\.)?admin_actions';
+  if v_missing is not null then
+    raise exception 'FAIL: admin RPCs that write no admin_actions row: %', v_missing;
   end if;
-  if not exists (select 1 from auth.users where id = v_selfadmin) then
-    raise exception 'FAIL: the graduate cleanup deleted the admin who ran it';
+end;
+$$;
+
+-- ─── D3. Deleting an account keeps the admin audit trail ────────────
+-- (20260928000011). Self-delete and an admin deleting another admin both
+-- used to delete the deleted person's admin_actions rows.
+do $$
+declare
+  v_a uuid := gen_random_uuid();   -- admin who later deletes their account
+  v_b uuid := gen_random_uuid();   -- admin who deletes another admin
+  v_c uuid := gen_random_uuid();   -- admin deleted by v_b
+  v_t uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_a, 'audit-a@imperial.ac.uk', '{"first_name":"Ada","surname":"Audit","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_b, 'audit-b@imperial.ac.uk', '{"first_name":"Bo","surname":"Audit","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_c, 'audit-c@imperial.ac.uk', '{"first_name":"Cy","surname":"Audit","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.admins (user_id) values (v_a), (v_b), (v_c);
+  insert into public.admin_actions (admin_id, action, target_table, target_id, notes) values
+    (v_a, 'd3_fixture_a', 'profiles', v_t, 'by a'),
+    (v_c, 'd3_fixture_c', 'profiles', v_t, 'by c');
+
+  perform _set_caller(v_a);
+  perform public.delete_my_account();
+  set local role postgres;
+  if exists (select 1 from auth.users where id = v_a) then
+    raise exception 'FAIL: delete_my_account left the auth row';
   end if;
-  if exists (select 1 from auth.users where id = v_other) then
-    raise exception 'FAIL: the cohort delete did not remove the other graduate';
+  if not exists (select 1 from public.admin_actions where action = 'd3_fixture_a' and admin_id is null) then
+    raise exception 'FAIL: deleting an admin account erased their admin_actions';
   end if;
-  -- The audit is written BEFORE the destruction, so it exists whatever
-  -- happens later in the statement.
+
+  perform _set_caller(v_b);
+  perform public.admin_delete_user(v_c, 'D3 audit-trail test');
+  set local role postgres;
+  if not exists (select 1 from public.admin_actions where action = 'd3_fixture_c' and admin_id is null) then
+    raise exception 'FAIL: admin_delete_user erased the deleted admin''s admin_actions';
+  end if;
   if not exists (select 1 from public.admin_actions
-                  where action = 'admin_delete_graduate'
-                    and admin_id = v_selfadmin and target_id = v_other) then
-    raise exception 'FAIL: the cohort delete was not audited against the calling admin';
+                  where action = 'admin_delete_user' and admin_id = v_b and target_id = v_c) then
+    raise exception 'FAIL: admin_delete_user did not log the deletion';
   end if;
-end; $$;
+end;
+$$;
+
+-- ─── D6. An open post report outlives its 12-month clock ────────────
+-- The privacy page: "A report that is still open when the 12 months are up
+-- is kept until it is resolved." connection_reports already did that;
+-- post_reports did not (20260928000012).
+do $$
+declare
+  v_open uuid := gen_random_uuid();
+  v_done uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  insert into public.post_reports (id, post_title_snapshot, category, reason, status, purge_after, resolved_at)
+  values (v_open, 'd6 open', 'spam', 'still being looked at', 'open', now() - interval '1 day', null);
+  -- resolved_by is required once resolved; any existing auth user will do.
+  insert into public.post_reports (id, post_title_snapshot, category, reason, status, purge_after, resolved_at, resolved_by)
+  values (v_done, 'd6 dismissed', 'spam', 'looked at', 'dismissed', now() - interval '1 day', now(),
+          (select id from auth.users limit 1));
+
+  perform public.purge_moderation_records();
+
+  if not exists (select 1 from public.post_reports where id = v_open) then
+    raise exception 'FAIL: an open post report was purged at 12 months';
+  end if;
+  if exists (select 1 from public.post_reports where id = v_done) then
+    raise exception 'FAIL: a resolved post report past its purge date survived';
+  end if;
+end;
+$$;
+
+-- ─── S0. A decider can leave: approvals and resolutions survive it ──
+-- (20261011000001). approved_by / resolved_by are ON DELETE SET NULL, and
+-- CHECKs demanded them non-null, so an admin who had approved a listing or
+-- resolved a report could not delete their account. The scan makes the
+-- whole pattern fail here, not just the tables known today.
+do $$
+declare
+  v_bad text;
+begin
+  set local role postgres;
+  select string_agg(format('%s.%s (%s)', k.conrelid::regclass, a.attname, c.conname), ', ') into v_bad
+    from pg_constraint k
+    join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any(k.conkey)
+    join pg_constraint c on c.conrelid = k.conrelid and c.contype = 'c'
+   where k.contype = 'f' and k.confdeltype = 'n'
+     and pg_get_constraintdef(c.oid) ~ ('\m' || a.attname || '\M IS NOT NULL');
+  if v_bad is not null then
+    raise exception 'FAIL: a CHECK requires a column its foreign key sets to NULL on delete: %', v_bad;
+  end if;
+end;
+$$;
+
+do $$
+declare
+  v_admin  uuid := gen_random_uuid();
+  v_poster uuid := gen_random_uuid();
+  v_opp    uuid;
+  v_report uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_admin,  's0-admin@imperial.ac.uk',  '{"first_name":"Dee","surname":"Cider","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_poster, 's0-poster@imperial.ac.uk', '{"first_name":"Po","surname":"Ster","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.admins (user_id) values (v_admin);
+  insert into public.opportunities (posted_by, status, position_name, company, pay, location_type, description,
+    start_month, start_year, application_deadline, contact_email, apply_method, approved_at, approved_by,
+    eligible_audience)
+  values (v_poster, 'approved', 'S0 role', 'S0 Co', 'Paid', 'remote', 'A role used by the S0 deletion test.',
+    6, 2027, current_date + 30, 's0@test.invalid', 'email', now(), v_admin, 'both')
+  returning id into v_opp;
+  insert into public.post_reports (id, post_title_snapshot, category, reason, status, resolved_at, resolved_by)
+  values (v_report, 's0 report', 'spam', 'looked at', 'dismissed', now(), v_admin);
+
+  perform _set_caller(v_admin);
+  perform public.delete_my_account();
+  set local role postgres;
+  if exists (select 1 from auth.users where id = v_admin) then
+    raise exception 'FAIL: an admin who approved a listing could not delete their account';
+  end if;
+  if not exists (select 1 from public.opportunities where id = v_opp and status = 'approved' and approved_by is null) then
+    raise exception 'FAIL: the listing the deleted admin approved did not stay approved';
+  end if;
+  if not exists (select 1 from public.post_reports where id = v_report and status = 'dismissed') then
+    raise exception 'FAIL: the report the deleted admin resolved did not stay resolved';
+  end if;
+end;
+$$;
+
+-- ─── S0. No policy calls a function its roles cannot execute ────────
+-- (20261011000006). Postgres checks EXECUTE when it plans a policy, so a
+-- revoked helper inside one makes every write it guards fail with
+-- "permission denied" — bookmarking a job did, for every member. The
+-- local image segfaults instead of raising, which is why this is a scan
+-- and not a call-and-catch.
+do $$
+declare
+  v_bad text;
+begin
+  set local role postgres;
+  select string_agg(distinct format('%s.%s → %s (%s)', c.relname, p.polname, f.proname, r.rolname), '; ') into v_bad
+    from pg_policy p
+    join pg_class c on c.oid = p.polrelid
+    join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+    cross join lateral regexp_matches(
+      coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), ''),
+      '(?:public\.)?([a-z_][a-z0-9_]*)\(', 'g') as m(fn)
+    join pg_proc f on f.proname = m.fn[1]
+    join pg_namespace fn on fn.oid = f.pronamespace and fn.nspname = 'public'
+    join pg_roles r on r.rolname in ('authenticated', 'anon')
+                   and (r.oid = any(p.polroles) or p.polroles = '{0}')
+   where not has_function_privilege(r.rolname, f.oid, 'EXECUTE');
+  if v_bad is not null then
+    raise exception 'FAIL: a policy calls a function its role cannot execute: %', v_bad;
+  end if;
+end;
+$$;
+
+-- And the write that broke, done for real as a student.
+do $$
+declare
+  v_student uuid := gen_random_uuid();
+  v_poster  uuid := gen_random_uuid();
+  v_opp     uuid;
+begin
+  set local role postgres;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data) values
+    (v_student, 's0-bm@imperial.ac.uk', '{"first_name":"Bo","surname":"Mark","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb),
+    (v_poster,  's0-bp@imperial.ac.uk', '{"first_name":"Po","surname":"Ster","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  perform set_config('request.jwt.claims', json_build_object('role','service_role')::text, true);
+  update public.profiles set status = 'approved', course = 'Computing', grad_year = 2028 where id in (v_student, v_poster);
+  insert into public.member_education (member_id, currently_enrolled, has_completed_degree) values (v_student, true, false);
+  insert into public.opportunities (posted_by, status, position_name, company, pay, location_type, description,
+    start_month, start_year, application_deadline, contact_email, apply_method, approved_at, approved_by, eligible_audience)
+  values (v_poster, 'approved', 'S0 bookmark role', 'S0 Co', 'Paid', 'remote', 'A role a student bookmarks in the S0 test.',
+    6, 2027, current_date + 30, 's0@test.invalid', 'email', now(), v_poster, 'students')
+  returning id into v_opp;
+
+  perform _set_caller(v_student);
+  insert into public.opportunity_bookmarks (user_id, opportunity_id) values (v_student, v_opp);
+  set local role postgres;
+  if not exists (select 1 from public.opportunity_bookmarks where user_id = v_student and opportunity_id = v_opp) then
+    raise exception 'FAIL: a student could not bookmark a job open to students';
+  end if;
+end;
+$$;
+
+-- ─── S1. Deleted accounts stay deleted after a restore ──────────────
+-- (20261011000005). Every auth.users deletion leaves a hash-only
+-- tombstone; nobody but the service can read it; replaying it after a
+-- restore deletes the restored account again.
+do $$
+declare
+  v_id   uuid := gen_random_uuid();
+  v_hash text;
+  v_n    int;
+begin
+  set local role postgres;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_id, 'tomb@imperial.ac.uk', '{"first_name":"Tom","surname":"Stone","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  perform _set_caller(v_id);
+  perform public.delete_my_account();
+  set local role postgres;
+
+  v_hash := encode(extensions.digest(v_id::text, 'sha256'), 'hex');
+  if not exists (select 1 from public.deleted_accounts where id_hash = v_hash) then
+    raise exception 'FAIL: deleting an account left no tombstone';
+  end if;
+  if exists (select 1 from public.deleted_accounts where id_hash like '%tomb%' or id_hash = v_id::text) then
+    raise exception 'FAIL: a tombstone holds identity, not a hash';
+  end if;
+  if has_table_privilege('authenticated', 'public.deleted_accounts', 'SELECT')
+     or has_table_privilege('anon', 'public.deleted_accounts', 'SELECT')
+     or has_function_privilege('authenticated', 'public.replay_account_deletions()', 'EXECUTE') then
+    raise exception 'FAIL: tombstones or the replay are reachable by members';
+  end if;
+
+  -- A restore brings the account back (data loads with triggers off)...
+  set local session_replication_role = replica;
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_id, 'tomb@imperial.ac.uk', '{"first_name":"Tom","surname":"Stone","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  insert into public.profiles (id, role, status, first_name, surname) values (v_id, 'student', 'pending_onboarding', 'Tom', 'Stone');
+  set local session_replication_role = origin;
+  -- ...and the replay removes it again.
+  v_n := public.replay_account_deletions();
+  if v_n < 1 or exists (select 1 from auth.users where id = v_id) then
+    raise exception 'FAIL: replaying tombstones did not delete the restored account (replayed %, still there %)',
+      v_n, exists (select 1 from auth.users where id = v_id);
+  end if;
+end;
+$$;
+
+-- ─── S2. profiles lifecycle columns are locked (20261025000001) ─────
+-- Security audit finding: is_committee/committee_role/created_at and
+-- graduation_confirmed_at/graduation_prompted_at/intake_completed_at/
+-- profile_version had no write guard at all, so an ordinary member could
+-- PATCH their own row directly. The admin RPC path (already covered by
+-- the committee-sync tests elsewhere in this project) and the GUC-marked
+-- self-service RPCs (submit_intake, confirm_my_graduation) must keep
+-- working; a direct write from an ordinary member must not.
+do $$
+declare
+  v_student uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  -- auth.role() reads request.jwt.claims, not the actual Postgres role —
+  -- "set local role postgres" alone doesn't satisfy the protect triggers'
+  -- service_role escape hatch, and the claims GUC leaks forward from
+  -- whichever test ran last (file header note above). Set it explicitly.
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_student, 'lifecycle@imperial.ac.uk', '{"first_name":"Life","surname":"Cycle","role":"student"}'::jsonb, '{"provider":"email"}'::jsonb);
+  update public.profiles
+     set status = 'approved', course = 'Computing', grad_year = extract(year from now())::int + 1,
+         cv_path = 'cv/lifecycle.pdf', linkedin_url = 'https://linkedin.com/in/lifecycle'
+   where id = v_student;
+
+  -- Direct writes, as the member themselves: every one of these must fail.
+  perform _set_caller(v_student);
+
+  begin
+    update public.profiles set is_committee = true, committee_role = 'President' where id = v_student;
+    raise exception 'FAIL: a member could self-promote to committee';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    update public.profiles set created_at = '2000-01-01' where id = v_student;
+    raise exception 'FAIL: a member could backdate created_at';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    update public.profiles set graduation_confirmed_at = now() where id = v_student;
+    raise exception 'FAIL: a member could self-set graduation_confirmed_at';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    update public.profiles set intake_completed_at = now(), profile_version = 2 where id = v_student;
+    raise exception 'FAIL: a member could self-set intake_completed_at/profile_version';
+  exception when sqlstate '42501' then null;
+  end;
+
+  -- The legitimate self-service RPC must still work: submit_intake sets
+  -- profile_version and intake_completed_at via the foundry.
+  -- profile_lifecycle_write GUC marker.
+  perform public.submit_intake('Life', 'Focus text long enough.', 'Hobbies text long enough.');
+
+  set local role postgres;
+  if not exists (
+    select 1 from public.profiles
+     where id = v_student and profile_version = 2 and intake_completed_at is not null
+  ) then
+    raise exception 'FAIL: submit_intake could not set profile_version/intake_completed_at after the trigger was added';
+  end if;
+
+  -- The legitimate self-service RPC for graduation must also still work.
+  perform _set_caller(v_student);
+  perform public.confirm_my_graduation(true, false, null);
+  set local role postgres;
+  if not exists (
+    select 1 from public.profiles
+     where id = v_student and role = 'recent_grad' and graduation_confirmed_at is not null
+  ) then
+    raise exception 'FAIL: confirm_my_graduation could not set graduation_confirmed_at after the trigger was added';
+  end if;
+end;
+$$;
+
+-- admin_set_committee (admin-only) must still work directly against the
+-- now-locked is_committee/committee_role columns.
+do $$
+declare
+  v_admin uuid := (select v from _test_ctx where k='admin');
+  v_b     uuid := (select v from _test_ctx where k='user_b');
+begin
+  set local role postgres;
+  perform _set_caller(v_admin);
+  perform public.admin_set_committee(v_b, true, 'Treasurer');
+  set local role postgres;
+  if not exists (
+    select 1 from public.profiles where id = v_b and is_committee and committee_role = 'Treasurer'
+  ) then
+    raise exception 'FAIL: admin_set_committee could not set is_committee/committee_role after the trigger was added';
+  end if;
+  -- Leave user_b as found for any test added after this one in future.
+  perform public.admin_set_committee(v_b, false, null);
+end;
+$$;
+
+-- ─── S3. a banned member can't edit their own listings (20261025000003) ─
+-- Security audit finding: update_event/update_opportunity/update_vc_grant
+-- checked ownership but not is_approved() — a rejected member could still
+-- edit their own already-approved, still-live listing.
+do $$
+declare
+  v_member uuid := gen_random_uuid();
+  v_opp    uuid := gen_random_uuid();
+  v_evt    uuid := gen_random_uuid();
+  v_vc     uuid := gen_random_uuid();
+begin
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_member, 'ban3@imperial.ac.uk', '{"first_name":"Ban","surname":"Three","role":"alum"}'::jsonb, '{"provider":"email"}'::jsonb);
+  update public.profiles set status = 'approved', course = 'Computing', grad_year = 2020 where id = v_member;
+
+  insert into public.opportunities (
+    id, posted_by, status, position_name, company, pay, location_type, description,
+    start_month, start_year, application_deadline, contact_email, apply_method,
+    approved_at, approved_by, eligible_audience, edit_version, creation_source
+  ) values (
+    v_opp, v_member, 'approved', 'Role', 'Co', '£50k', 'remote',
+    'Description that is at least twenty chars long.', 1, 2027, current_date + 30,
+    'ban3@imperial.ac.uk', 'email', now(), v_member, 'both', 0, 'member'
+  );
+  insert into public.events (
+    id, posted_by, status, title, description, luma_link, event_at, location, organiser_name,
+    contact_email, approved_at, approved_by, edit_version
+  ) values (
+    v_evt, v_member, 'approved', 'Event', 'Description that is at least twenty chars long.',
+    'https://lu.ma/x', now() + interval '10 days', 'Here', 'Org', 'ban3@imperial.ac.uk', now(), v_member, 0
+  );
+  insert into public.vcs_grants (
+    id, posted_by, status, kind, name, description, link, approved_at, approved_by, edit_version
+  ) values (
+    v_vc, v_member, 'approved', 'vc', 'VC', 'Description that is at least twenty chars long.',
+    'https://example.com', now(), v_member, 0
+  );
+  insert into ai_private.job_requirements (opportunity_id, content_version, status) values (v_opp, 1, 'parsed');
+
+  -- Ban the member, then try to edit each listing as them.
+  update public.profiles set status = 'rejected' where id = v_member;
+  perform _set_caller(v_member);
+
+  begin
+    perform public.update_opportunity(v_opp, 'New', 'Co', '£99k', 'remote'::location_type, null,
+      'Description that is at least twenty chars long.', 1::smallint, 2027, current_date + 30,
+      'ban3@imperial.ac.uk', false, 'email'::apply_method, null, '{}'::smallint[], '{}'::smallint[], 'both', 0);
+    raise exception 'FAIL: a banned member could edit their own opportunity';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    perform public.update_event(v_evt, 'New', 'Description that is at least twenty chars long.',
+      'https://lu.ma/y', now() + interval '20 days', 'There', 'Org', 'ban3@imperial.ac.uk', false, 0);
+    raise exception 'FAIL: a banned member could edit their own event';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    perform public.update_vc_grant(v_vc, 'vc'::vc_grant_kind, 'New',
+      'Description that is at least twenty chars long.', 'https://example.com', null, null, null);
+    raise exception 'FAIL: a banned member could edit their own VC/grant listing';
+  exception when sqlstate '42501' then null;
+  end;
+
+  begin
+    perform public.ai_confirm_job_requirements(v_opp, '[]'::jsonb, 1);
+    raise exception 'FAIL: a banned member could confirm AI job requirements for their own job';
+  exception when sqlstate '42501' then null;
+  end;
+end;
+$$;
+
+-- 37. Audit follow-up (run-2): direct table UPDATE on profiles is gone
+--     entirely, not just narrowed by RLS. profiles_update_own used to
+--     allow any column on the caller's own row (id = auth.uid(), no
+--     status/content check) and the table-level UPDATE grant was never
+--     revoked — every legitimate self-edit already goes through a
+--     SECURITY DEFINER RPC, so the grant had no legitimate caller left.
+--     Expect a bare permission-denied (42501) from the missing grant,
+--     for an ordinary column and not just the already-trigger-guarded
+--     committee ones.
+set local role postgres;
+do $$
+declare
+  v_a uuid := (select v from _test_ctx where k='user_a');
+begin
+  perform _set_caller(v_a);
+  begin
+    update public.profiles set linkedin_url = 'https://evil.example/hijacked' where id = v_a;
+    raise exception 'FAIL: a member updated their own profiles row by direct PostgREST UPDATE';
+  exception when sqlstate '42501' then null;
+  end;
+end;
+$$;
+
+-- 38. Audit follow-up (run-2): list_my_bookmarked_opportunities and the
+--     opportunity_bookmarks insert policy both gate on the CALLER's own
+--     approval status now, not just the opportunity's audience. Before
+--     this fix, a pending member could bookmark a known approved
+--     opportunity (the insert policy only checked user_id = auth.uid())
+--     and read it back in full through the RPC — a read every other
+--     approved-members-only surface correctly withholds.
+set local role postgres;
+do $$
+declare
+  v_pending uuid := gen_random_uuid();
+  v_opb     uuid := (select v from _test_ctx where k='opp_b');
+  v_seen    int;
+begin
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_pending, 'pending-bm@imperial.ac.uk',
+          '{"first_name":"Pending","surname":"Bookmarker","role":"student"}'::jsonb,
+          '{"provider":"email"}'::jsonb)
+  on conflict do nothing;
+  insert into public.profiles (id, role, status, first_name, surname)
+  values (v_pending, 'student', 'pending_onboarding', 'Pending', 'Bookmarker')
+  on conflict (id) do update set status = excluded.status;
+
+  perform _set_caller(v_pending);
+  begin
+    insert into public.opportunity_bookmarks (user_id, opportunity_id) values (v_pending, v_opb);
+    raise exception 'FAIL: a pending member bookmarked an approved opportunity';
+  exception when sqlstate '42501' then null;
+  end;
+
+  -- Seed the bookmark as service_role to isolate the RPC's own gate from
+  -- the insert-policy gate just proven above.
+  set local role postgres;
+  perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  insert into public.opportunity_bookmarks (user_id, opportunity_id) values (v_pending, v_opb)
+  on conflict do nothing;
+
+  perform _set_caller(v_pending);
+  select count(*) into v_seen from public.list_my_bookmarked_opportunities();
+  if v_seen <> 0 then
+    raise exception 'FAIL: a pending member read % bookmarked listing(s) via the RPC', v_seen;
+  end if;
+end;
+$$;
+
+-- 39. Regression: an approved member's bookmark flow is unaffected by 38.
+set local role postgres;
+do $$
+declare
+  v_a   uuid := (select v from _test_ctx where k='user_a');
+  v_opb uuid := (select v from _test_ctx where k='opp_b');
+  v_seen int;
+begin
+  perform _set_caller(v_a);
+  insert into public.opportunity_bookmarks (user_id, opportunity_id) values (v_a, v_opb)
+  on conflict do nothing;
+  select count(*) into v_seen from public.list_my_bookmarked_opportunities() where id = v_opb;
+  if v_seen <> 1 then
+    raise exception 'FAIL: an approved member could not read their own bookmark (got %)', v_seen;
+  end if;
+end;
+$$;
+
+-- 40. Audit follow-up (F4): approve_* refuses a stale edit_version. An
+--     admin's own-pending-review state can silently go stale if the owner
+--     edits the listing between the admin loading it and clicking Approve
+--     — without this check, the admin's "approve" click would publish
+--     whatever the row currently holds, not what they actually reviewed.
+set local role postgres;
+do $$
+declare
+  v_a   uuid := (select v from _test_ctx where k='user_a');
+  v_adm uuid := (select v from _test_ctx where k='admin');
+  v_opp uuid := gen_random_uuid();
+begin
+  insert into public.opportunities (
+    id, posted_by, status, position_name, company, pay, location_type,
+    description, start_month, start_year, application_deadline,
+    contact_email, apply_method, eligible_audience
+  ) values (
+    v_opp, v_a, 'pending', 'Version-pin test', 'Co', '£50k', 'remote',
+    'Description that is at least twenty chars long.', 1, 2027, current_date + 30,
+    'a@imperial.ac.uk', 'email', 'both'
+  );
+
+  -- The owner edits after the admin would have loaded the queue —
+  -- edit_version is now 1, but the admin's stale client still thinks 0.
+  perform _set_caller(v_a);
+  perform public.update_opportunity(v_opp, 'Version-pin test (edited)', 'Co', '£50k', 'remote'::location_type, null,
+    'Description that is at least twenty chars long.', 1::smallint, 2027, current_date + 30,
+    'a@imperial.ac.uk', false, 'email'::apply_method, null, '{}'::smallint[], '{}'::smallint[], 'both', 0);
+
+  perform _set_caller(v_adm);
+  begin
+    perform public.approve_opportunity(v_opp, null, 0);
+    raise exception 'FAIL: approve_opportunity approved a listing against a stale edit_version';
+  exception when sqlstate 'PT409' then null;
+  end;
+
+  -- The correct, current version still approves normally.
+  perform public.approve_opportunity(v_opp, null, 1);
+  if (select status from public.opportunities where id = v_opp) <> 'approved' then
+    raise exception 'FAIL: approve_opportunity did not approve against the current edit_version';
+  end if;
+end;
+$$;
 
 -- ─── Cleanup ────────────────────────────────────────────────────────
 -- The test blocks leak the transaction-local 'authenticated' role (see note

@@ -1,8 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Dialog, closeDialog } from "@/components/ui/Dialog";
+import { Dialog } from "@/components/ui/Dialog";
+import { closeDialog } from "@/components/ui/dialogCloser";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Button } from "@/components/ui/Button";
+import { watchProgress } from "@/lib/realtime/progress";
+import { settle } from "@/lib/settle";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { RepoPicker } from "@/components/github/RepoPicker";
 import type { GithubShowcase } from "@/lib/github/showcase";
@@ -33,6 +37,7 @@ import {
 // terminal state.
 // ════════════════════════════════════════════════════════════════════
 
+// Pace of the fallback poll, used only if the Realtime channel can't join.
 const POLL_INTERVAL_MS = 2000;
 
 type Phase = "scanning" | "picking" | "saved" | "failed" | "loadFailed";
@@ -56,8 +61,19 @@ export function GithubDialog({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Bumped by "Try again" to restart after a failure.
+  const [attempt, setAttempt] = useState(0);
+
   const loadShowcase = useCallback(async () => {
-    const result = await getMyGithubShowcase();
+    // B8: a thrown request lands in loadFailed (with Try again), not a
+    // blank dialog.
+    let result: Awaited<ReturnType<typeof getMyGithubShowcase>>;
+    try {
+      result = await getMyGithubShowcase();
+    } catch {
+      setPhase("loadFailed");
+      return;
+    }
     if (!result.ok || !result.data) {
       setPhase("loadFailed");
       return;
@@ -77,68 +93,44 @@ export function GithubDialog({
     }
 
     let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const stopPolling = () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
-    };
-
-    const poll = async () => {
-      const result = await getMyGithubStatus();
-      if (cancelled) return;
-      if (!result.ok || !result.data) {
-        setPhase("loadFailed");
-        stopPolling();
-        return;
-      }
-
-      const status: GithubScanStatus = result.data.scanStatus;
-      setFailureReason(result.data.scanFailureReason);
-
-      if (status === "failed") {
-        setPhase("failed");
-        stopPolling();
-        return;
-      }
-      if (status === "ready") {
-        stopPolling();
-        // The scan is what produces available_repos, so the picker can
-        // only be loaded once it reaches 'ready'.
-        await loadShowcase();
-      }
-    };
-
-    const startPolling = () => {
-      if (intervalId) return;
-      intervalId = setInterval(poll, POLL_INTERVAL_MS);
-    };
-
-    void poll();
-    if (document.visibilityState === "visible") startPolling();
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        void poll();
-        startPolling();
-      } else {
-        stopPolling();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
+    // Re-reads when the scan status changes (lib/realtime/progress), with the
+    // old backoff poll only as a fallback. A thrown request ends it visibly.
+    const stop = watchProgress({
+      kind: "github",
+      fetch: async () => {
+        const result = await getMyGithubStatus();
+        if (!result.ok || !result.data) throw new Error("status unavailable");
+        return result.data;
+      },
+      onResult: (data) => {
+        const status: GithubScanStatus = data.scanStatus;
+        setFailureReason(data.scanFailureReason);
+        if (status === "failed") {
+          setPhase("failed");
+          return "stop";
+        }
+        if (status === "ready") {
+          // The scan is what produces available_repos, so the picker can
+          // only be loaded once it reaches 'ready'.
+          if (!cancelled) void loadShowcase();
+          return "stop";
+        }
+        return "continue";
+      },
+      onError: () => { if (!cancelled) setPhase("loadFailed"); },
+      baseMs: POLL_INTERVAL_MS,
+    });
 
     return () => {
       cancelled = true;
-      stopPolling();
-      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
     };
-  }, [startAtPicker, loadShowcase]);
+  }, [startAtPicker, loadShowcase, attempt]);
 
   async function save(picks: { name: string; blurb: string }[]) {
     setSaving(true);
     setSaveError(null);
-    const result = await setMyGithubShowcase(picks);
+    const result = await settle(setMyGithubShowcase(picks));
     setSaving(false);
     if (!result.ok) {
       setSaveError(result.error);
@@ -181,10 +173,28 @@ export function GithubDialog({
       </div>
 
       {phase === "loadFailed" && (
-        <p className="text-[0.85rem] text-text-muted">
-          We couldn&apos;t load your repositories just now. Your GitHub is connected — check back on
-          this page in a moment.
-        </p>
+        <div className="space-y-3">
+          <p role="alert" className="text-[0.85rem] text-text-muted">
+            We couldn&apos;t load your repositories just now. Your GitHub is still connected.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setPhase(startAtPicker ? "picking" : "scanning"); setAttempt((n) => n + 1); }}
+          >
+            Try again
+          </Button>
+        </div>
+      )}
+
+      {/* Picker requested but the repositories haven't arrived yet: a
+          placeholder rather than an empty dialog (B8). */}
+      {phase === "picking" && !showcase && (
+        <div className="space-y-3" aria-busy="true">
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-5/6" />
+          <Skeleton className="h-3 w-2/3" />
+        </div>
       )}
 
       {phase === "scanning" && (

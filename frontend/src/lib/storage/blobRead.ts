@@ -8,6 +8,7 @@ import {
   type UserDelegationKey,
 } from "@azure/storage-blob";
 import { ClientSecretCredential } from "@azure/identity";
+import { errorSummary } from "@/lib/errorSummary";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Reading blobs out of Azure — post images, avatars, and CVs
@@ -169,7 +170,7 @@ export async function signedImageUrls(
   } catch (e) {
     // Logged, not thrown. Storage being unreachable degrades the feed to
     // text; it does not take the page down.
-    console.error("Failed to obtain an Azure user delegation key:", e);
+    console.error("Failed to obtain an Azure user delegation key:", errorSummary(e));
     Sentry.captureException(e, { tags: { surface: "blob-read", op: "delegationKey" } });
     return keys.map(() => null);
   }
@@ -195,7 +196,7 @@ export async function signedImageUrls(
 
       return `https://${cfg.account}.blob.core.windows.net/${container}/${blobKey}?${sas}`;
     } catch (e) {
-      console.error("Failed to sign a read URL for:", blobKey, e);
+      console.error("Failed to sign a read URL:", errorSummary(e));
       Sentry.captureException(e, { tags: { surface: "blob-read", op: "signedImageUrls" } });
       return null;
     }
@@ -222,7 +223,7 @@ export async function signedCvUrl(blobKey: string): Promise<string | null> {
   try {
     key = await delegationKey(cfg);
   } catch (e) {
-    console.error("Failed to obtain an Azure user delegation key:", e);
+    console.error("Failed to obtain an Azure user delegation key:", errorSummary(e));
     Sentry.captureException(e, { tags: { surface: "blob-read", op: "delegationKey" } });
     return null;
   }
@@ -247,7 +248,7 @@ export async function signedCvUrl(blobKey: string): Promise<string | null> {
 
     return `https://${cfg.account}.blob.core.windows.net/${container}/${blobKey}?${sas}`;
   } catch (e) {
-    console.error("Failed to sign a read URL for:", blobKey, e);
+    console.error("Failed to sign a read URL:", errorSummary(e));
     Sentry.captureException(e, { tags: { surface: "blob-read", op: "signedCvUrl" } });
     return null;
   }
@@ -270,7 +271,7 @@ export async function downloadCvBytes(blobKey: string): Promise<Buffer | null> {
       abortSignal: AbortSignal.timeout(10_000),
     });
   } catch (e) {
-    console.error("Failed to download CV blob:", blobKey, e);
+    console.error("Failed to download CV blob:", errorSummary(e));
     Sentry.captureException(e, { tags: { surface: "blob-read", op: "downloadCvBytes" } });
     return null;
   }
@@ -307,7 +308,7 @@ export async function blobsExist(
     );
     return results.every(Boolean);
   } catch (e) {
-    console.error("Failed to verify uploaded blobs:", e);
+    console.error("Failed to verify uploaded blobs:", errorSummary(e));
     Sentry.captureException(e, { tags: { surface: "blob-read", op: "blobsExist" } });
     return false;
   }

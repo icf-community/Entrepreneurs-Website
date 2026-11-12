@@ -12,10 +12,16 @@ test("approved student reaches the community directory (not bounced to /login)",
 });
 
 test("student can open the opportunities, events and vcs tabs", async ({ page }) => {
+  // A hydration mismatch (React #418) makes React throw away the server
+  // HTML and re-render the page on the client; these three once did so
+  // whenever the item count streamed in after the shell (D1).
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
   for (const path of ["/opportunities", "/events", "/vcs"]) {
-    await page.goto(path);
+    await page.goto(path, { waitUntil: "networkidle" });
     await expect(page, `stayed on ${path}`).toHaveURL(new RegExp(path.replace("/", "\\/")));
   }
+  expect(errors).toEqual([]);
 });
 
 test("student can open settings", async ({ page }) => {
@@ -27,6 +33,45 @@ test("non-admin student gets a 404 on /admin (existence stays hidden)", async ({
   const res = await page.goto("/admin");
   expect(res?.status()).toBe(404);
   await expect(page.getByText("Foundry control panel")).toHaveCount(0);
+});
+
+// D2: a soft navigation fetches only the page segment, so the admin
+// layout's gate never runs for it. Every admin page carries the gate
+// itself (requireAdminPage). The request is captured from a real admin's
+// in-app navigation, so the test follows whatever Next sends, then replayed
+// with this student's session: it must not render the admin page.
+test("non-admin student can't fetch an admin page segment by soft navigation", async ({ page, browser }) => {
+  const adminCtx = await browser.newContext({ storageState: storageStatePath("admin") });
+  const adminPage = await adminCtx.newPage();
+  let nav: { url: string; headers: Record<string, string> } | null = null;
+  adminPage.on("request", (r) => {
+    const h = r.headers();
+    if (new URL(r.url()).pathname === "/admin/reports" && h["rsc"] && !h["next-router-prefetch"]) {
+      nav = { url: r.url(), headers: h };
+    }
+  });
+  await adminPage.goto("/admin");
+  // A Next <Link> clicked before React owns it can sit unresponsive, and
+  // Firefox hung here for the full 30s on one run in CI (passed on retry).
+  // Clicking a link again is harmless, so replay click + URL check together
+  // until the soft navigation takes — the same idiom as dialog.spec.ts.
+  await expect(async () => {
+    await adminPage.locator('a[href="/admin/reports"]').first().click({ timeout: 3_000 });
+    await adminPage.waitForURL(/\/admin\/reports/, { timeout: 3_000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(adminPage.getByText("Reported posts").first()).toBeVisible();
+  await adminCtx.close();
+  expect(nav, "captured the admin's soft-navigation request").not.toBeNull();
+
+  const { url, headers } = nav!;
+  const { cookie: _adminCookie, ...replay } = headers;
+  void _adminCookie;
+  const res = await page.request.get(url, { headers: replay, maxRedirects: 0 });
+  const body = await res.text();
+  expect(body).not.toContain("Reported posts");
+  // A soft navigation answers 200 and carries the 404 inside the payload,
+  // so the notFound() digest is what shows the gate ran.
+  expect(body).toContain("NEXT_HTTP_ERROR_FALLBACK;404");
 });
 
 // ════════════════════════════════════════════════════════════════════
@@ -76,6 +121,7 @@ test.describe("member pages that read per-user data", () => {
     const { data: opp, error: oppErr } = await db
       .from("opportunities")
       .insert({
+        eligible_audience: "both",
         ...approved,
         position_name: OPP,
         company: "Bookmark Co",
@@ -417,4 +463,64 @@ test("a student cannot change their own affiliation", async ({ page }) => {
 
   await expect(section.getByRole("button", { name: "Save affiliation" })).toHaveCount(0);
   await expect(section.getByRole("radiogroup")).toHaveCount(0);
+});
+
+// D1: a long board renders one page of cards and a "Show more" button,
+// rather than hydrating every open role at once. The search narrows the
+// board to the seeded rows, so other specs' listings can't move the count.
+test.describe("opportunities board renders one page at a time", () => {
+  const TAG = "Pagingcheck Role";
+  const ids: string[] = [];
+
+  function admin() {
+    return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+
+  test.beforeAll(async () => {
+    const db = admin();
+    const { data: userList } = await db.auth.admin.listUsers({ page: 1, perPage: 200 });
+    const idFor = (email: string) =>
+      userList.users.find((u) => u.email?.toLowerCase() === email.toLowerCase())?.id;
+    const student = idFor(USERS.student.email);
+    const approver = idFor(USERS.admin.email);
+    if (!student || !approver) throw new Error("seeded users not found");
+    const deadline = new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10);
+    const { data, error } = await db
+      .from("opportunities")
+      .insert(Array.from({ length: 31 }, (_, i) => ({
+        eligible_audience: "both",
+        status: "approved" as const,
+        approved_at: new Date().toISOString(),
+        approved_by: approver,
+        posted_by: student,
+        position_name: `${TAG} ${String(i + 1).padStart(2, "0")}`,
+        company: "Paging Co",
+        pay: "£1",
+        location_type: "remote" as const,
+        description: "Seeded to fill more than one page of the board.",
+        start_month: 1,
+        start_year: 2030,
+        application_deadline: deadline,
+        apply_method: "email" as const,
+        contact_email: USERS.student.email,
+      })))
+      .select("id");
+    if (error) throw new Error(`seed opportunities: ${error.message}`);
+    ids.push(...data!.map((r) => r.id as string));
+  });
+
+  test.afterAll(async () => {
+    if (ids.length) await admin().from("opportunities").delete().in("id", ids);
+  });
+
+  test("30 cards, then the 31st behind Show more", async ({ page }) => {
+    await page.goto(`/opportunities?q=${encodeURIComponent(TAG)}`);
+    const cards = page.locator("article").filter({ hasText: TAG });
+    await expect(cards).toHaveCount(30);
+    await page.getByRole("button", { name: "Show more (1 more)" }).click();
+    await expect(cards).toHaveCount(31);
+    await expect(page.getByRole("button", { name: /Show more/ })).toHaveCount(0);
+  });
 });

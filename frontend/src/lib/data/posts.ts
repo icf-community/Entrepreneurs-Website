@@ -1,4 +1,4 @@
-import { rows, type Db } from "@/lib/data/query";
+import { rows, rowsOrThrow, type Db } from "@/lib/data/query";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Community feed reads
@@ -212,7 +212,9 @@ export async function adminReportsPage(
   db: Db,
   filters: { status: string; page: number },
 ): Promise<{ reports: PostReport[]; matching: number }> {
-  const data = await rows("admin_list_post_reports", () =>
+  // B4/D3: a moderation queue that failed to load must not read as
+  // "nothing to review"; it throws to admin/error.tsx with Try again.
+  const data = await rowsOrThrow("admin_list_post_reports", () =>
     db.rpc("admin_list_post_reports", {
       p_status: filters.status,
       p_limit: REPORTS_PAGE_SIZE,

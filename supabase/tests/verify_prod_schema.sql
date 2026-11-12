@@ -77,7 +77,7 @@ begin
   -- 3. Signature integrity for the two RPCs whose arg lists changed last:
   --    submit_onboarding = 5 args (shrunk to identity-only by
   --    20260901000006, when the rich intake fields moved to
-  --    submit_intake), update_profile = 24 args (grew to cover every
+  --    submit_intake), update_profile = 25 args (grew to cover every
   --    intake field, same migration). Wrong count = either a drifted
   --    overload or the wrong migration applied.
   select pronargs into v_n
@@ -89,10 +89,10 @@ begin
   select pronargs into v_n
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.proname = 'update_profile';
-  if v_n is distinct from 24 then
-    raise exception 'update_profile has % args, expected 24', coalesce(v_n::text,'NONE');
+  if v_n is distinct from 25 then
+    raise exception 'update_profile has % args, expected 25', coalesce(v_n::text,'NONE');
   end if;
-  raise notice 'OK  3  submit_onboarding(5) + update_profile(24) signatures intact';
+  raise notice 'OK  3  submit_onboarding(5) + update_profile(25) signatures intact';
 
   -- 4. RLS enabled on every base table in public (no table silently world-open).
   select string_agg(c.relname, ', ') into v_bad
@@ -337,6 +337,68 @@ begin
     raise exception 'MISSING or INACTIVE cron job: %', v_bad;
   end loop;
   raise notice 'OK  7g connections cron jobs registered and active';
+
+  -- 7h. Launch-programme objects (20260928000001-6). A missing one means
+  --     a migration didn't apply; the frontend calling it would 404.
+  for v_bad in
+    select x.want from (values
+      ('connection_panel_state'), ('get_site_banner'), ('admin_set_site_banner'),
+      ('list_my_notifications'), ('mark_notifications_read'), ('export_my_data'),
+      ('app_health_snapshot'), ('cron_health_check')
+    ) as x(want)
+    where not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = x.want)
+  loop
+    raise exception 'MISSING function: %', v_bad;
+  end loop;
+  for v_bad in
+    select x.want from (values ('purge-old-notifications-daily'), ('health-check')) as x(want)
+    where not exists (select 1 from cron.job j where j.jobname = x.want and j.active)
+  loop
+    raise exception 'MISSING or INACTIVE cron job: %', v_bad;
+  end loop;
+  raise notice 'OK  7h launch-programme functions and cron jobs present';
+
+  -- 7h-ii. health_url is deployment config like the digest URL. Without
+  --     it the health check never runs; the Sentry monitor's missed
+  --     check-in is the backstop, but on PROD this line must read OK.
+  if not exists (select 1 from public.app_config where key = 'health_url') then
+    raise notice 'WARN 7h-ii health_url MISSING — expected locally; on PROD run snippets/seed_app_config.sql';
+  else
+    raise notice 'OK  7h-ii health_url present';
+  end if;
+
+  -- 8. Statement/lock timeouts on every login that reaches the database
+  --    (20261011000002 for the two service logins; Supabase's own for
+  --    anon/authenticated). Without them a stuck query holds its locks
+  --    and its pooler slot indefinitely.
+  declare
+    v_missing text;
+  begin
+    select string_agg(r.rolname || ':' || s.setting, ', ') into v_missing
+      from (values ('anon', 'statement_timeout'), ('authenticated', 'statement_timeout'),
+                   ('ai_service', 'statement_timeout'), ('ai_service', 'lock_timeout'),
+                   ('ai_service', 'idle_in_transaction_session_timeout'),
+                   ('cv_worker', 'statement_timeout'), ('cv_worker', 'lock_timeout'),
+                   ('cv_worker', 'idle_in_transaction_session_timeout')) as s(rolname, setting)
+      join pg_roles r on r.rolname = s.rolname
+     where not exists (select 1 from unnest(coalesce(r.rolconfig, '{}')) c where c like s.setting || '=%');
+    if v_missing is not null then
+      raise exception 'FAIL 8 timeouts missing on: %', v_missing;
+    end if;
+    raise notice 'OK  8  statement/lock/idle timeouts on anon, authenticated, ai_service, cv_worker';
+  end;
+
+  -- 9. A decider can leave (20261011000001): no CHECK requires a column its
+  --    foreign key sets to NULL on delete.
+  if exists (
+    select 1 from pg_constraint k
+      join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any(k.conkey)
+      join pg_constraint c on c.conrelid = k.conrelid and c.contype = 'c'
+     where k.contype = 'f' and k.confdeltype = 'n'
+       and pg_get_constraintdef(c.oid) ~ ('\m' || a.attname || '\M IS NOT NULL')) then
+    raise exception 'FAIL 9 a CHECK requires a column its foreign key sets to NULL on delete';
+  end if;
+  raise notice 'OK  9  no CHECK blocks account deletion through a SET NULL foreign key';
 
   raise notice '─── ALL ASSERTIONS PASSED ───';
 end $$;

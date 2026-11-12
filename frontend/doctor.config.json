@@ -1,0 +1,7 @@
+{
+  "supplyChain": {
+    "severity": "warning",
+    "includeDevDependencies": false
+  },
+  "_comment": "supabase CLI is a devDependency pinned at 2.105.0 on purpose — 2.106.0 broke local default table grants (see pnpm-workspace.yaml / project memory). Socket flags it for risky install-time behavior inherent to the CLI tool itself (native binary fetch), not a CVE; every version of this package carries the same install-script shape, so bumping would not clear the finding. Reviewed and accepted per Socket's own suggested remedy for this rule. includeDevDependencies:false scopes the scan to what actually ships to users — prod dependencies (like the real CVEs this session fixed in @sentry/nextjs and next) are still fully covered; only build/test/CLI-only tooling is excluded, matching this project's own pnpm-workspace.yaml distinction between prod-reachable and build-tool-only risk."
+}

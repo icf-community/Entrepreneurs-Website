@@ -4,7 +4,8 @@
 
 export type Role =
   | "student" | "admin" | "reauth" | "emailchange"
-  | "connector" | "connectee";
+  | "connector" | "connectee" | "graduate"
+  | "matrixPending" | "matrixRejected" | "matrixAlum" | "matrixOperator";
 
 export type SeedUser = {
   role: Role;
@@ -24,6 +25,17 @@ export type SeedUser = {
    * needs this.
    */
   intakeComplete?: boolean;
+  /**
+   * Seed `profiles.status` as something other than "approved" — for
+   * routeMatrix.ts's pending/rejected rows. Auth sign-in doesn't care
+   * about status, only the app-level gates in guard.ts do, so these can
+   * still get a storageState minted the normal way.
+   */
+  status?: "pending_review" | "rejected";
+  /** Seed as graduated (routeMatrix.ts's "alum" row): same approved gate as a student, distinct education state. */
+  graduated?: boolean;
+  /** Also insert an `ai_private.operators` row. Harmless no-op since 2026-11-10 (`is_ai_operator()` is now just `is_admin()`); kept so `matrixOperator` still reads as the operator row in routeMatrix.ts. */
+  isOperator?: boolean;
 };
 
 // Student emails must be @imperial.ac.uk (the signup-domain trigger enforces it).
@@ -90,6 +102,60 @@ export const USERS: Record<Role, SeedUser> = {
     surname: "Connectee",
     isAdmin: false,
     intakeComplete: true,
+  },
+  // Dedicated to graduates.spec.ts: confirming graduation turns this
+  // student into a recent graduate for the rest of the run.
+  graduate: {
+    role: "graduate",
+    email: "e2e-graduate@imperial.ac.uk",
+    password: "E2e-Graduate-Pw-123!",
+    firstName: "Gus",
+    surname: "Graduate",
+    isAdmin: false,
+  },
+  // routeMatrix.ts: a member still awaiting admin review.
+  matrixPending: {
+    role: "matrixPending",
+    email: "e2e-matrix-pending@imperial.ac.uk",
+    password: "E2e-MatrixPending-Pw-123!",
+    firstName: "Penny",
+    surname: "Pending",
+    isAdmin: false,
+    status: "pending_review",
+  },
+  // routeMatrix.ts: a member an admin has rejected.
+  matrixRejected: {
+    role: "matrixRejected",
+    email: "e2e-matrix-rejected@imperial.ac.uk",
+    password: "E2e-MatrixRejected-Pw-123!",
+    firstName: "Rex",
+    surname: "Rejected",
+    isAdmin: false,
+    status: "rejected",
+  },
+  // routeMatrix.ts: a graduated member, seeded straight into that state
+  // (graduates.spec.ts's own `graduate` fixture transitions mid-run, so it
+  // cannot be assumed to already be an alum before global-setup finishes).
+  matrixAlum: {
+    role: "matrixAlum",
+    email: "e2e-matrix-alum@imperial.ac.uk",
+    password: "E2e-MatrixAlum-Pw-123!",
+    firstName: "Alice",
+    surname: "Alum",
+    isAdmin: false,
+    graduated: true,
+  },
+  // routeMatrix.ts: an AI operator. Admin + `ai_private.operators`, kept
+  // separate from `admin` so admin.spec.ts's own operator-promotion test
+  // (which inserts/deletes that row for e2e-admin) can't race this seed.
+  matrixOperator: {
+    role: "matrixOperator",
+    email: "e2e-matrix-operator@imperial.ac.uk",
+    password: "E2e-MatrixOperator-Pw-123!",
+    firstName: "Opal",
+    surname: "Operator",
+    isAdmin: true,
+    isOperator: true,
   },
 };
 

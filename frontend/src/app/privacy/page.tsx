@@ -9,7 +9,7 @@ export const metadata = {
   title: "Privacy Policy · Foundry",
 };
 
-const LAST_UPDATED = "20 September 2026";
+const LAST_UPDATED = "3 November 2026";
 
 export default function PrivacyPage() {
   return (
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
           </p>
         </div>
 
-        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed">
+        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
           <Section title="1. Who we are">
             <p>
               Foundry is a private community platform for Imperial College London students and alumni
@@ -91,7 +91,7 @@ export default function PrivacyPage() {
               <li><strong>Exchanging your email address when you connect with a member</strong> — your consent, given by sending a request or by accepting one, and withdrawable by removing the connection. See section 7a.</li>
               <li><strong>Sending you service / transactional emails</strong> (sign-in and password reset, decisions on your application and listings, account and content notices, a summary of connection requests waiting for you, and replies when you contact us) — necessary to perform our contract with you and our legitimate interest in operating the platform. You can turn the connection summary off in Settings.</li>
               <li><strong>Keeping the platform secure</strong> (anti-bot challenges, rate limiting, abuse prevention) — our legitimate interest in protecting members and the service.</li>
-              <li><strong>Understanding how the product is used</strong> (cookieless, pseudonymous analytics) — our legitimate interest in improving Foundry. See our <Link href="/cookies" className="text-accent hover:text-accent-light no-underline">Cookie Policy</Link>.</li>
+              <li><strong>Understanding how the product is used</strong> (cookieless, pseudonymous analytics) — our legitimate interest in improving Foundry. See our <Link href="/cookies" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Cookie Policy</Link>.</li>
             </ul>
             <p className="mt-2">
               We do not use your data for advertising, we do not sell it, and we do not carry out automated
@@ -207,10 +207,11 @@ export default function PrivacyPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
               <li><strong>Community posts and their images — 7 days.</strong> Every post is deleted automatically seven days after it is published, along with any images attached to it. You can delete a post sooner at any time from Community → My posts.</li>
-              <li><strong>Profile photo and CV — until you replace, remove, or your account is deleted.</strong> We keep one of each at a time; uploading a new one, removing it, or deleting your account queues the old file for deletion within minutes.</li>
+              <li><strong>Profile photo and CV — until you replace, remove, or your account is deleted.</strong> We keep one of each at a time; uploading a new one, removing it, or deleting your account queues the old file for deletion within minutes, and deletes the text and search data we extracted from the old CV at the same time. The one thing we keep is the CV you currently have: if you upload an identical file again we recognise it and reuse that data instead of reading it a second time.</li>
+              <li><strong>Removed accounts — 12 months.</strong> If an account is removed from Foundry for breaking the rules and then deleted, we keep a one-way hash of its email address for 12 months so that the same address cannot rejoin with automatic approval; it would wait in the normal review queue instead. We keep this because it is needed to enforce a removal, which is a legitimate interest. The hash cannot be turned back into the address, and it is not kept for accounts that were not removed. Deleting your account is never refused.</li>
               <li><strong>Moderation records — 12 months.</strong> If an admin removes one of your posts, we keep a record of the removal: the post&rsquo;s title and text, the reason given, and who removed it and when. We keep this so that a removal can be explained, reviewed, or defended if it is challenged, which is a legitimate interest and, where the record relates to a potential legal claim, is permitted under Article 17(3)(e) UK GDPR even if you ask us to erase your data. It is deleted after 12 months unless a specific dispute is still live.</li>
               <li><strong>Reports — 12 months.</strong> If you report a post or a connection, we keep your report, what you told us, and the outcome, on the same 12-month clock. A report that is still open when the 12 months are up is kept until it is resolved, so that nothing is deleted out from under an investigation.</li>
-              <li><strong>Connections — while they last.</strong> A connection you remove is deleted permanently within a day. A request that is withdrawn or declined is deleted permanently three weeks later, along with any note that was sent with it. The three weeks are not storage for its own sake: that is the period during which the member who sent the request cannot send another to the same person, and the record is what enforces it. A request nobody answers expires after six months and is deleted at that point. A block is kept until you lift it, because the block is the record. We also keep a record of connection activity (a request sent, accepted, declined, blocked) for 12 months, which is what lets us spot someone sending unwanted requests to many people. As with moderation records, that activity log is kept even if you delete your account, for the same reason and under the same Article 17(3)(e) basis.</li>
+              <li><strong>Connections — while they last.</strong> A connection you remove is deleted permanently within a day. A request that is withdrawn or declined is deleted permanently three weeks later, along with any note that was sent with it. The three weeks are not storage for its own sake: that is the period during which the member who sent the request cannot send another to the same person, and the record is what enforces it. A request nobody answers expires after six months and is deleted at that point. A block is kept until you lift it, because the block is the record. If the person you blocked deletes their account, we keep your member ID and a one-way hash of their email address for 12 months, so that if that address signs up again the block is put back; it is removed once it has been used, when you delete your account, or after 12 months. The hash cannot be turned back into the address. We also keep a record of connection activity (a request sent, accepted, declined, blocked) for 12 months, which is what lets us spot someone sending unwanted requests to many people. As with moderation records, that activity log is kept even if you delete your account, for the same reason and under the same Article 17(3)(e) basis.</li>
               <li><strong>Emails we send you — 7 days.</strong> Mail leaves Foundry through a short queue, and we delete the queued copy a week after it is sent. We keep it that long only so we can tell you whether something actually went out if you say you never received it. This matters for one email in particular: when someone accepts your connection request, the email telling you so contains their address, and that copy goes with the rest. The email in your own inbox is yours and stays there.</li>
             </ul>
           </Section>
@@ -244,7 +245,7 @@ export default function PrivacyPage() {
             <p>
               We use only strictly necessary cookies (for your sign-in session and security) and run our analytics
               cookielessly, so we do not show a cookie banner. Full details are in our{" "}
-              <Link href="/cookies" className="text-accent hover:text-accent-light no-underline">Cookie Policy</Link>.
+              <Link href="/cookies" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Cookie Policy</Link>.
             </p>
           </Section>
 
@@ -267,7 +268,7 @@ export default function PrivacyPage() {
               Contact us about your data at <strong>contact@imperialentrepreneurs.com</strong>. If you are
               unhappy with how we have handled your data you can complain to the UK Information Commissioner&rsquo;s
               Office (ICO) at{" "}
-              <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noopener noreferrer" className="text-accent hover:text-accent-light no-underline">ico.org.uk/make-a-complaint</a>{" "}
+              <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-[3px] hover:text-accent-light">ico.org.uk/make-a-complaint</a>{" "}
               or by calling 0303 123 1113. We would appreciate the chance to resolve it with you first.
             </p>
           </Section>

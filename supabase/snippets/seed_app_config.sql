@@ -93,7 +93,8 @@ begin
     ('drain_email_url',           v_app_url || '/api/cron/drain-email'),
     ('drain_blob_deletions_url',  v_app_url || '/api/cron/drain-blob-deletions'),
     ('github_showcase_nudge_url', v_app_url || '/api/cron/github-showcase-nudge'),
-    ('connections_digest_url',    v_app_url || '/api/cron/connections-digest')
+    ('connections_digest_url',    v_app_url || '/api/cron/connections-digest'),
+    ('health_url',                v_app_url || '/api/cron/health')
   on conflict (key) do update set value = excluded.value;
 end $$;
 

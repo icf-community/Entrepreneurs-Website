@@ -123,7 +123,7 @@ function Row({ item, onUnmark }: { item: ActivityItem; onUnmark: () => void }) {
               {item.actionType === "going" ? "Going" : "Applied"}
             </span>
             {expired && (
-              <span className="px-2 py-0.5 rounded-lg text-[0.65rem] uppercase tracking-wider border bg-white/[0.02] border-border-subtle text-text-muted/70">
+              <span className="px-2 py-0.5 rounded-lg text-[0.65rem] uppercase tracking-wider border bg-white/[0.02] border-border-subtle text-text-muted">
                 Listing expired
               </span>
             )}

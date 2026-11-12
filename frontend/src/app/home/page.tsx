@@ -5,6 +5,7 @@ import { IntakePromptCard } from "@/components/app/IntakePromptCard";
 import NewestMembers from "@/components/members/NewestMembers";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { requireApprovedUser } from "@/lib/auth/guard";
+import { GraduationPrompt } from "./GraduationPrompt";
 import { myPendingConnectionCount } from "@/lib/data/connections";
 import { newestMembers } from "@/lib/data/directory";
 import { newestEvents } from "@/lib/data/events";
@@ -46,7 +47,7 @@ export default async function HomePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("first_name, surname, preferred_name, profile_version")
+    .select("first_name, surname, preferred_name, profile_version, role, graduation_prompted_at, graduation_confirmed_at")
     .eq("id", user.id)
     .single();
 
@@ -59,6 +60,9 @@ export default async function HomePage() {
   // a first invitation. Admins never get the bounce, so they see this too,
   // which is fine — it's inert for them either way.
   const showIntakePrompt = (profile?.profile_version ?? 2) < 2;
+  // An admin asked this student to confirm graduation (20261011000005).
+  const showGraduationPrompt =
+    profile?.role === "student" && !!profile?.graduation_prompted_at && !profile?.graduation_confirmed_at;
 
   // Started, not awaited — the four sections resolve in the same tick.
   const members = newestMembers(supabase, 5, { isAdmin });
@@ -80,6 +84,8 @@ export default async function HomePage() {
             {name}
           </h1>
         </header>
+
+        {showGraduationPrompt && <GraduationPrompt currentYear={new Date().getFullYear()} />}
 
         {showIntakePrompt && <IntakePromptCard />}
 
@@ -236,7 +242,11 @@ function Grid({ children }: { children: React.ReactNode }) {
 }
 
 async function Newest({ data }: { data: ReturnType<typeof newestMembers> }) {
-  return <NewestMembers newest={await data} />;
+  const newest = await data;
+  // C4: an empty strip used to render nothing at all, which on a quiet
+  // week read as a gap in the page.
+  if (newest.length === 0) return <Empty>New members will appear here as they join.</Empty>;
+  return <NewestMembers newest={newest} />;
 }
 
 async function Events({ data }: { data: ReturnType<typeof newestEvents> }) {

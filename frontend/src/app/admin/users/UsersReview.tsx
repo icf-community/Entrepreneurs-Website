@@ -6,6 +6,7 @@ import { bulkApproveUsers, bulkRejectUsers } from "./actions";
 import { BulkReview } from "@/app/admin/BulkReview";
 import { useUrlFilters } from "@/lib/filters/useUrlFilters";
 import { Pager } from "@/components/ui/Pager";
+import { Updating } from "@/components/ui/Updating";
 
 type Item = ComponentProps<typeof UserCard>["member"];
 
@@ -23,7 +24,8 @@ export default function UsersReview({
 
   return (
     <>
-      <div className={url.pending ? "opacity-60 transition-opacity duration-150" : undefined}>
+      <div className={`relative ${url.pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={url.pending || undefined}>
+        {url.pending && <Updating />}
         {/* "Select all" selects this page. That is the honest meaning of the
             control once the queue is paged, and approving 25 at a time is
             the behaviour a reviewer wants anyway. */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { SegmentError } from "@/components/SegmentError";
+import { ShellError } from "@/components/ShellError";
 
 export default function CalendarError({
   error,
@@ -9,5 +9,5 @@ export default function CalendarError({
   error: Error & { digest?: string };
   retry: () => void;
 }) {
-  return <SegmentError error={error} retry={retry} label="the calendar" />;
+  return <ShellError error={error} retry={retry} active="calendar" label="the calendar" />;
 }

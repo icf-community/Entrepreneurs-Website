@@ -28,10 +28,15 @@ overrides:
   # Ships in production via next's image optimisation — the only entry here
   # not confined to build or test tooling. libvips CVE-2026-33327, -33328,
   # -35590, -35591 (<0.35.0) plus the later libheif pair GHSA-g89c-p67h-r497
-  # / GHSA-2jg2-4ch7-h545 (<0.35.4). ^0.35.4 pins to 0.35.x: a caret on a
-  # 0.x version bounds at the minor, which is the correct read for sharp's
-  # native bindings.
-  sharp@<0.35.4: '^0.35.4'
+  # / GHSA-2jg2-4ch7-h545 (<0.35.4), plus the later librsvg CVE-2026-96889
+  # (<0.35.5). ^0.35.5 pins to 0.35.x: a caret on a 0.x version bounds at
+  # the minor, which is the correct read for sharp's native bindings.
+  sharp@<0.35.5: '^0.35.5'
+  # MSAL Node authorization code flow could disclose parameters to an
+  # attacker-controlled endpoint (<7.1.0). Arrives via @azure/identity, a
+  # direct runtime dependency used for Azure Blob storage auth — reaches
+  # the deployed app, not just build tooling.
+  '@azure/msal-node@>=5.0.0-beta.0 <7.1.0': '^7.1.1'
   # next@16.3.3 still declares baseline-browser-mapping as `^2.9.19`
   # (unbumped upstream), so pnpm keeps resolving a second, vulnerable
   # 2.10.x copy alongside browserslist's already-patched 2.11.19 rather
@@ -42,16 +47,23 @@ overrides:
   nanoid@<3.3.18: '^3.3.18'
   # Two majors of minimatch are in the tree and each needs its own line.
   # minimatch 3 cannot take brace-expansion 5 — different export shape.
-  brace-expansion@<2: '^1.1.18'
-  brace-expansion@>=5: '^5.0.9'
-  fast-uri@<3.1.5: '^3.1.5'
+  brace-expansion@<2: '^1.1.21'
+  # Two DoS-by-recursion advisories (<5.0.11) and a quadratic expansion
+  # (<5.0.12); build-tool-only, via @sentry/bundler-plugin-core's glob.
+  brace-expansion@>=5: '^5.0.12'
+  # Authority injection via port (<3.1.7), host confusion via an unclosed
+  # bracket (3.1.6) and host-case normalisation (<3.1.8). Build-tool-only,
+  # via the Sentry webpack plugin's ajv.
+  fast-uri@<3.1.8: '^3.1.8'
   # CPU-exhaustion DoS via maxTotalMergeKeys on empty merge sources
   # (GHSA disclosed 2026-09-13) — the 4.3.1 threshold above predates this
   # advisory and no longer covers it. Caret preserved for the same reason
   # every other line here has one: 4.3.1 -> 5.x is a real jump this repo
   # was already burned by once (see the block comment above).
   js-yaml@<4.3.2: '^4.3.2'
-  dompurify@<3.4.13: '^3.4.13'
+  # IN_PLACE afterSanitize hook leaves detached handlers armed (<=3.4.15).
+  # Arrives via posthog-js, which loads client-side.
+  dompurify@<3.4.16: '^3.4.16'
   protobufjs@<7.6.5: '^7.6.5'
   '@opentelemetry/core@<2.8.0': '^2.8.0'
   # Unbounded memory growth (GHSA-c83g-rgw3-j3cx) + prototype-write crash via
@@ -67,6 +79,21 @@ overrides:
   # posthog-js itself pins; @types/three's separate 0.8.3 copy is types-only
   # and already past the patched version.
   fflate@<0.4.9: '^0.4.9'
+  # Oversized constrained collections could exhaust memory during
+  # validation (<4.6.6). Build-tool-only here — arrives via
+  # eslint-plugin-react-hooks's zod-validation-error, not the app's own
+  # zod (already a direct dependency at a patched version).
+  zod@<4.6.6: '^4.6.7'
+  # AbortSignal cancellation bypass lets a glob keep traversing the filesystem
+  # after its timeout (GHSA-3g3m-2fjr-6pw4, >=9 <=14.0.1). Build-tool-only: it
+  # arrives through @sentry/bundler-plugins, which uses it to find source maps
+  # at build time, and never reaches the deployed app. Caret bounds it at 14.x
+  # (one major from the 13.x it resolves to today).
+  # NOT overridden: minimatch (GHSA-g3hv-75wg-m249, <11.0.1). 98 paths, including
+  # ESLint's own tooling on minimatch 3, which cannot take a newer major (see the
+  # brace-expansion note above). Build/lint-time only, fed repo files, not
+  # reachable from a request. Accepted until eslint-config-next moves off it.
+  glob@<14.0.2: '^14.0.2'
 allowBuilds:
   '@sentry/cli': false
   core-js: false

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { listPendingOpportunities } from "@/lib/data/admin";
 import OpportunitiesReview from "./OpportunitiesReview";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 // bulkApproveOpportunities/bulkRejectOpportunities are one SECURITY
 // DEFINER RPC call per id (see runBulk's own comment on why that's
@@ -15,7 +15,7 @@ import OpportunitiesReview from "./OpportunitiesReview";
 export const maxDuration = 60;
 
 export default async function AdminOpportunitiesPage() {
-  const supabase = await createClient();
+  const { supabase } = await requireAdminPage();
 
   const pending = await listPendingOpportunities(supabase);
 

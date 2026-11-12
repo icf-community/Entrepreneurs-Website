@@ -3,19 +3,27 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import { computeDisplayName } from "@/lib/auth/guard";
+import { currentUser } from "@/lib/auth/currentUser";
 import AppShell from "@/components/app/AppShell";
 import EmailChangeForm from "./EmailChangeForm";
 import PasswordChangeForm from "./PasswordChangeForm";
 import DeleteAccountSection from "./DeleteAccountSection";
 import SessionsSection from "./SessionsSection";
+import DataExportSection from "./DataExportSection";
 import ConnectionSettings from "./ConnectionSettings";
 import BlockedMembers from "./BlockedMembers";
 import { myConnectionSettings } from "@/lib/data/connections";
+import { myEducation } from "@/lib/data/opportunities";
+import { anyAiModeEnabled, listConcepts, myAiSettings } from "@/lib/ai/data";
+import { EducationForm } from "@/components/forms/EducationForm";
+import AiSettingsCard from "./AiSettingsCard";
 
-export default async function SettingsPage() {
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+// Fetches the settings page's cascading, approval-gated data (connections,
+// education, AI settings only load once we know the member is approved, and
+// AI settings only once we know an AI mode is on) and applies the auth and
+// onboarding gates. Pulled out so the page component's job is rendering.
+async function loadSettingsPageData(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { user, error: authError } = await currentUser(supabase);
   throwIfAuthUnreachable("session", authError);
   if (!user) redirect("/login");
 
@@ -33,8 +41,14 @@ export default async function SettingsPage() {
   // Read after the gate rather than alongside it: the RPC requires an
   // approved member, and a member still in review has no connections
   // surface to configure.
-  const connectionSettings =
-    profileRes.data?.status === "approved" ? await myConnectionSettings(supabase) : null;
+  const approved = profileRes.data?.status === "approved";
+  const connectionSettings = approved ? await myConnectionSettings(supabase) : null;
+  const [education, aiOn] = approved
+    ? await Promise.all([myEducation(supabase), anyAiModeEnabled(supabase)])
+    : [null, false];
+  const [aiSettings, concepts] = aiOn
+    ? await Promise.all([myAiSettings(supabase), listConcepts(supabase, ["tool", "method", "area", "language", "interest"])])
+    : [null, []];
 
   const profile = profileRes.data;
   const isAdmin = !!isAdminRes.data;
@@ -43,7 +57,16 @@ export default async function SettingsPage() {
   if (!isAdmin && profile.status === "pending_onboarding") redirect("/onboarding");
 
   // OAuth-only users have no password to change. Surfaced in the password card.
-  const hasPassword = (user.identities ?? []).some((i) => i.provider === "email");
+  const hasPassword = (user.providers ?? []).includes("email");
+
+  return { user, profile, isAdmin, connectionSettings, education, aiSettings, concepts, hasPassword };
+}
+
+export default async function SettingsPage() {
+  const supabase = await createClient();
+  const {
+    user, profile, isAdmin, connectionSettings, education, aiSettings, concepts, hasPassword,
+  } = await loadSettingsPageData(supabase);
 
   return (
     <AppShell
@@ -111,11 +134,23 @@ export default async function SettingsPage() {
 
             {connectionSettings && <BlockedMembers />}
 
+            {education && (
+              <section id="education" className="rounded-2xl border border-border bg-bg-card p-6">
+                <h2 className="text-[0.95rem] font-medium text-text-primary">Education status</h2>
+                <p className="mt-1 mb-4 text-[0.75rem] text-text-muted">Jobs are for students, graduates or both; this decides which you see.</p>
+                <EducationForm initialEnrolled={education.enrolled} initialGraduated={education.graduated} />
+              </section>
+            )}
+
+            {aiSettings && <AiSettingsCard initial={aiSettings} concepts={concepts} />}
+
             <EmailChangeForm currentEmail={user.email ?? ""} role={profile.role} />
 
             <PasswordChangeForm hasPassword={hasPassword} email={user.email ?? ""} />
 
             <SessionsSection />
+
+            <DataExportSection />
 
             <DeleteAccountSection email={user.email ?? ""} />
           </div>

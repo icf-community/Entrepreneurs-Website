@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import AppShell from "@/components/app/AppShell";
+import { redirect } from "next/navigation";
 import { requireApprovedUser } from "@/lib/auth/guard";
+import { MESSAGING_ENABLED } from "@/lib/features";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Messaging (not yet)
@@ -21,6 +23,9 @@ export const metadata: Metadata = {
 };
 
 export default async function MessagingPage() {
+  // Hidden until messaging is built (B18). 307 via redirect(), so nothing
+  // caches the hop and restoring the page needs no cache purge.
+  if (!MESSAGING_ENABLED) redirect("/home");
   const { isAdmin, displayName } = await requireApprovedUser();
 
   return (

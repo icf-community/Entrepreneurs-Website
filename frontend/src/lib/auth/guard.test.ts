@@ -14,6 +14,11 @@ type Res = { data: unknown; error: unknown; status?: number };
 const ok = (data: unknown): Res => ({ data, error: null, status: 200 });
 const fail = (status: number, code = ""): Res => ({ data: null, error: { message: "x", code }, status });
 
+function claimsFor(user: unknown, error: unknown) {
+  const u = user as { id: string; email?: string } | null;
+  return { data: u ? { claims: { sub: u.id, email: u.email } } : null, error };
+}
+
 function setup(opts: { auth: { user: unknown; error: unknown }; isAdmin?: Res; profile?: Res }) {
   vi.doMock("next/navigation", () => ({
     redirect: (to: string) => { throw new Redirect(to); },
@@ -29,8 +34,17 @@ function setup(opts: { auth: { user: unknown; error: unknown }; isAdmin?: Res; p
   };
   vi.doMock("@/lib/supabase/server", () => ({
     createClient: async () => ({
-      auth: { getUser: async () => ({ data: { user: opts.auth.user }, error: opts.auth.error }) },
-      rpc: async () => opts.isAdmin ?? ok(false),
+      // B26: the guard verifies the JWT locally (getClaims), not via getUser.
+      auth: { getClaims: async () => claimsFor(opts.auth.user, opts.auth.error) },
+      // B26: is_admin and the profile arrive together from my_gate_state.
+      rpc: async (fn: string) => {
+        if (fn !== "my_gate_state") throw new Error(`unexpected rpc ${fn}`);
+        const admin = opts.isAdmin ?? ok(false);
+        if (admin.error) return admin;
+        const profile = await profileQuery.single();
+        if (profile.error && (profile.error as { code?: string }).code !== "PGRST116") return profile;
+        return ok([{ is_admin: admin.data, ...(profile.error ? { status: null } : (profile.data as object)) }]);
+      },
       from: () => profileQuery,
     }),
   }));

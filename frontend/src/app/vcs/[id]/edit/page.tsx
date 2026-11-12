@@ -1,26 +1,30 @@
+import { isUuid } from "@/lib/uuid";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/app/AppShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
-import { vcForEdit } from "@/lib/data/vcs";
+import { listingEditSnapshot } from "@/lib/listings/editSnapshot";
 import VcForm, { type VcInitialValues } from "../../new/VcForm";
 import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditStatusNote";
-import { pendingRevision } from "@/lib/listings/pendingRevision";
 
 type Params = { id: string };
 
 export default async function EditVcGrantPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
+  const [{ id }, { supabase, user, isAdmin, displayName }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
 
-  const row = await vcForEdit(supabase, id);
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
+
+  const snapshot = await listingEditSnapshot(supabase, "vc_grant", id);
+  const row = snapshot?.row;
   if (!row) notFound();
   if (row.posted_by !== user.id) notFound();
   if (row.status !== "pending" && row.status !== "approved") notFound();
 
-  const revision = row.status === "approved"
-    ? await pendingRevision(supabase, "vc_grant", id)
-    : null;
+  const revision = snapshot?.revision;
   const src = { ...row, ...(revision?.proposed ?? {}) };
 
   const initialValues: VcInitialValues = {
@@ -51,6 +55,7 @@ export default async function EditVcGrantPage({ params }: { params: Promise<Para
           <VcForm
             mode="user"
             editingId={id}
+            editVersion={row.edit_version}
             initialValues={initialValues}
             reviewOnSave={row.status === "approved"}
           />

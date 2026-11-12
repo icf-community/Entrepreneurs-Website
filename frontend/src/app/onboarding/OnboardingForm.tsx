@@ -14,7 +14,7 @@ import { destinationForStatus } from "@/lib/auth/status";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
 import { Button } from "@/components/ui/Button";
 import { invalidateDirectoryCache } from "@/app/profile/actions";
-import { track } from "@/components/analytics/PostHogProvider";
+import { track } from "@/lib/analytics/track";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Onboarding — identity only
@@ -102,16 +102,20 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
     }
 
     setIsLoading(true);
-    const { error: rpcError } = await supabase.rpc("submit_onboarding", {
-      p_course:        cleanText(course),
-      p_grad_year:     parseInt(gradYear, 10),
-      p_linkedin_url:  cleanText(linkedin) || null,
-      p_github_url:    cleanText(github) || null,
-      p_portfolio_url: cleanText(portfolio) || null,
-    });
+    let rpcError: Awaited<ReturnType<typeof supabase.rpc>>["error"];
+    try {
+      ({ error: rpcError } = await supabase.rpc("submit_onboarding", {
+        p_course:        cleanText(course),
+        p_grad_year:     parseInt(gradYear, 10),
+        p_linkedin_url:  cleanText(linkedin) || null,
+        p_github_url:    cleanText(github) || null,
+        p_portfolio_url: cleanText(portfolio) || null,
+      }));
+    } finally {
+      setIsLoading(false);
+    }
     if (rpcError) {
       setError(describeSupabaseError(rpcError));
-      setIsLoading(false);
       return;
     }
     track("onboarding_completed", { role });
@@ -308,7 +312,7 @@ function LinksStep({
           LinkedIn URL{" "}
           {role !== "student"
             ? <span className="text-[#ff6b6b]">*</span>
-            : <span className="text-text-muted/70 ml-1">— optional</span>}
+            : <span className="text-text-muted ml-1">— optional</span>}
         </label>
         <input
           id="linkedin"
@@ -323,7 +327,7 @@ function LinksStep({
       </div>
       <div>
         <label htmlFor="github" className="block text-[0.75rem] text-text-muted mb-1.5">
-          GitHub URL <span className="text-text-muted/70 ml-1">— optional</span>
+          GitHub URL <span className="text-text-muted ml-1">— optional</span>
         </label>
         <input
           id="github"
@@ -337,7 +341,7 @@ function LinksStep({
       </div>
       <div>
         <label htmlFor="portfolio" className="block text-[0.75rem] text-text-muted mb-1.5">
-          Portfolio URL <span className="text-text-muted/70 ml-1">— optional</span>
+          Portfolio URL <span className="text-text-muted ml-1">— optional</span>
         </label>
         <input
           id="portfolio"

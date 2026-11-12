@@ -54,6 +54,22 @@ for unit in $WORKERS; do
 done
 
 if [ -z "$FAILED" ]; then
+  # Active is not the same as "running $REF": each unit runs :latest and
+  # re-pulls it on start, so a rollback to an older ref used to report
+  # success while the current build kept running (D5). Compare the image
+  # each instance's container is actually running.
+  want="$(docker image inspect --format '{{.Id}}' "$REF")"
+  WRONG=""
+  for unit in $WORKERS; do
+    inst="${unit#foundry-worker@}"; inst="${inst%.service}"
+    got="$(docker inspect --format '{{.Image}}' "foundry-worker-$inst" 2>/dev/null || true)"
+    [ "$want" = "$got" ] || WRONG="$WRONG $unit(${got:-none})"
+  done
+  if [ -n "$WRONG" ]; then
+    echo "not running $REF ($want):$WRONG" >&2
+    echo "The units run :latest. To roll back, point :latest at $REF first — see infra/README.md, Rollback." >&2
+    exit 1
+  fi
   echo "FOUNDRY_DEPLOY_OK $REF"
   exit 0
 fi

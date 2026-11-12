@@ -24,10 +24,12 @@ from __future__ import annotations
 import hashlib
 import io
 import unicodedata
+import zipfile
 from dataclasses import dataclass, field
 
 import pymupdf as fitz  # PyMuPDF; "import fitz" is deprecated as of pymupdf 1.28
 from docx import Document as DocxDocument
+from docx.opc.exceptions import PackageNotFoundError
 
 from .storage import get_blob
 
@@ -64,7 +66,9 @@ PAGE_CLIP_MARGIN = 5000
 
 
 class ExtractionFailed(Exception):
-    """The file yielded no usable text — most likely a scanned image."""
+    """The file yielded no usable text — most likely a scanned image, or a
+    file too damaged to read. Either way it is permanent and the member can
+    act on the message, so the worker fails the CV at once instead of retrying."""
 
 
 class UnsupportedContentType(Exception):
@@ -172,13 +176,36 @@ def _extract_docx_text(data: bytes) -> str:
     return "\n".join(paragraph.text for paragraph in document.paragraphs)
 
 
+# What the parsers raise for a file that has the right magic bytes and plausible
+# structure but cannot actually be read (cut off, mangled, not the format its
+# first bytes claim). Deliberately a narrow set: a bug in this module should
+# still surface as a bug, not be reported to the member as a damaged file.
+#   PDF:  pymupdf.FileDataError (a RuntimeError), and RuntimeError/ValueError from
+#         page iteration on a file that opened but is broken further in.
+#   DOCX: BadZipFile (truncated or not a zip), KeyError / PackageNotFoundError (a
+#         zip without the document parts), SyntaxError (lxml's XMLSyntaxError).
+_DAMAGED_PDF = (RuntimeError, ValueError)
+_DAMAGED_DOCX = (zipfile.BadZipFile, KeyError, ValueError, SyntaxError, PackageNotFoundError)
+_DAMAGED_MESSAGE = (
+    "That file couldn't be read \u2014 it may be damaged. "
+    "Please re-export it as a PDF or Word document and upload it again."
+)
+
+
 def extract_text(data: bytes, content_type: str) -> tuple[str, list[HiddenTextFinding]]:
     """Step 2: text extraction. Returns raw text plus any hidden-text
-    findings (PDF only — see _extract_docx_text)."""
+    findings (PDF only — see _extract_docx_text). A file the parser cannot
+    read raises ExtractionFailed."""
     if content_type == PDF_CONTENT_TYPE:
-        return _extract_pdf_text(data)
+        try:
+            return _extract_pdf_text(data)
+        except _DAMAGED_PDF as exc:
+            raise ExtractionFailed(_DAMAGED_MESSAGE) from exc
     if content_type == DOCX_CONTENT_TYPE:
-        return _extract_docx_text(data), []
+        try:
+            return _extract_docx_text(data), []
+        except _DAMAGED_DOCX as exc:
+            raise ExtractionFailed(_DAMAGED_MESSAGE) from exc
     raise UnsupportedContentType(content_type)
 
 

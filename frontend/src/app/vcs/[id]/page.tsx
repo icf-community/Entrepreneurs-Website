@@ -1,3 +1,5 @@
+import { isUuid } from "@/lib/uuid";
+import { notFound } from "next/navigation";
 import ListingDetailShell, {
   ListingGone, Fact, Description,
 } from "@/components/ListingDetailShell";
@@ -6,7 +8,8 @@ import { markedIds } from "@/lib/data/activity";
 import { approvedVc } from "@/lib/data/vcs";
 import { formatDate } from "@/lib/dates";
 import VcActions from "./VcActions";
-import { hasPendingRevision, PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
+import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One VC or grant
@@ -24,8 +27,13 @@ const BACK = { href: "/vcs", label: "All grants & VCs" };
 type Params = { id: string };
 
 export default async function VcPage({ params }: { params: Promise<Params> }) {
-  const { id } = await params;
-  const { supabase, isAdmin } = await requireApprovedUser();
+  const [{ id }, { supabase, isAdmin }] = await Promise.all([
+    params,
+    requireApprovedUser(),
+  ]);
+
+  // A malformed id is a 404, not an RPC call that raises 22P02.
+  if (!isUuid(id)) notFound();
 
   const v = await approvedVc(supabase, id);
 

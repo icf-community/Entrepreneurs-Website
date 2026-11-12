@@ -1,5 +1,5 @@
 import "server-only";
-import { rows, type Db } from "./query";
+import { rows, rowsOrThrow, type Db } from "./query";
 import { cached } from "@/lib/cache";
 
 // ════════════════════════════════════════════════════════════════════
@@ -77,14 +77,21 @@ export async function listTaxonomy(db: Db): Promise<{ skills: Taxon[]; sectors: 
   return { skills, sectors };
 }
 
+// D3: the reads below prefill edit forms, and every save of those forms
+// REPLACES the rows (update_profile/_apply_intake_fields and the listing
+// update RPCs delete then re-insert). So a read that failed must not look
+// like "none selected": saving that form would erase the member's skills,
+// sectors, interests and intents. They throw to the segment's error page
+// instead of degrading to [] like rows().
+
 /** The ids a chip picker should start with, for the two junction shapes. */
 export type SelectedTaxonomy = { skillIds: number[]; sectorIds: number[] };
 
 /** Which skills and sectors a member has on their profile. */
 export async function profileTaxonomy(db: Db, profileId: string): Promise<SelectedTaxonomy> {
   const [skills, sectors] = await Promise.all([
-    rows("profile_skills", () => db.from("profile_skills").select("skill_id").eq("profile_id", profileId)),
-    rows("profile_sectors", () => db.from("profile_sectors").select("sector_id").eq("profile_id", profileId)),
+    rowsOrThrow("profile_skills", () => db.from("profile_skills").select("skill_id").eq("profile_id", profileId)),
+    rowsOrThrow("profile_sectors", () => db.from("profile_sectors").select("sector_id").eq("profile_id", profileId)),
   ]);
   return {
     skillIds:  skills.map((r) => r.skill_id),
@@ -105,14 +112,14 @@ export type ProfileIntakeData = {
 
 export async function profileIntakeData(db: Db, profileId: string): Promise<ProfileIntakeData> {
   const [skills, sectors, interests, intents] = await Promise.all([
-    rows("profile_skills", () =>
+    rowsOrThrow("profile_skills", () =>
       db.from("profile_skills").select("skill_id, is_core").eq("profile_id", profileId),
     ),
-    rows("profile_sectors", () => db.from("profile_sectors").select("sector_id").eq("profile_id", profileId)),
-    rows("profile_interests", () =>
+    rowsOrThrow("profile_sectors", () => db.from("profile_sectors").select("sector_id").eq("profile_id", profileId)),
+    rowsOrThrow("profile_interests", () =>
       db.from("profile_interests").select("kind, label").eq("profile_id", profileId),
     ),
-    rows("profile_intents", () =>
+    rowsOrThrow("profile_intents", () =>
       db.from("profile_intents").select("intent, rank").eq("profile_id", profileId).order("rank"),
     ),
   ]);
@@ -130,8 +137,8 @@ export async function profileIntakeData(db: Db, profileId: string): Promise<Prof
 /** Which skills and sectors are tagged on one opportunity. */
 export async function opportunityTaxonomy(db: Db, opportunityId: string): Promise<SelectedTaxonomy> {
   const [skills, sectors] = await Promise.all([
-    rows("opportunity_skills", () => db.from("opportunity_skills").select("skill_id").eq("opportunity_id", opportunityId)),
-    rows("opportunity_sectors", () => db.from("opportunity_sectors").select("sector_id").eq("opportunity_id", opportunityId)),
+    rowsOrThrow("opportunity_skills", () => db.from("opportunity_skills").select("skill_id").eq("opportunity_id", opportunityId)),
+    rowsOrThrow("opportunity_sectors", () => db.from("opportunity_sectors").select("sector_id").eq("opportunity_id", opportunityId)),
   ]);
   return {
     skillIds:  skills.map((r) => r.skill_id),

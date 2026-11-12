@@ -42,6 +42,10 @@ contained, assessed, reported and recovered from.
 
 Rotate the moment exposure of a secret is suspected (P1/P2). Order by blast radius:
 
+**The full inventory (15 secrets, where every copy lives, and the safe order for paired
+secrets) is `docs/ops/secret-rotation.md`. Use that; the list below is the short form.**
+
+
 1. **Supabase `service_role` key** (bypasses RLS — highest impact): rotate in Supabase →
    Settings → API; update the value in Vercel env; redeploy.
 2. **Supabase `anon` key / JWT secret** if auth tokens may be compromised.

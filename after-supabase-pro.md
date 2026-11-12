@@ -152,7 +152,15 @@ Pro is $25 a month including $10 of compute credit.
       it must be refused.
 - [ ] **Raise Auth rate limits for campus** (`todo.md` O3: Authentication →
       Rate Limits). Everyone on campus Wi-Fi shares one public IP, so per-IP
-      sign-in limits are effectively per-campus limits.
+      sign-in limits are effectively per-campus limits. Sign-in calls run in
+      the member's browser, so Supabase sees the campus IP; leave *IP address
+      forwarding* off. As of 2026-09-24: sign-ins 60 and token verifications
+      30 per 5 min; raise both to **500** (updated 2026-09-28, launch programme
+      E1d: 500 students signing up in the same hour share one campus IP; CAPTCHA
+      is the abuse control that makes this safe, so turn it on first). Refreshes
+      150 are fine. **Emails 300/h is not fine at launch**: everyone is new, so
+      everyone needs a code. Raise it to at least **1000/h** once Resend Pro is
+      active, and confirm Resend's send rate covers about 2 codes a second.
       **Check:** several sign-ins from one network in a minute all succeed.
 - [ ] **CAPTCHA on login** (Authentication → Attack Protection → CAPTCHA →
       Turnstile). This doesn't need Pro, but it's still switched off, and the
@@ -163,15 +171,13 @@ Pro is $25 a month including $10 of compute credit.
   - `supabase/checks/launch_capacity.sql` for a read-only snapshot.
   - `supabase/tests/verify_prod_schema.sql` for all four crons registered and active.
   - The next day, `cron.job_run_details` to see that all four actually fired.
-- [ ] **The staging load test** (`todo.md` S4, C6 "Launch gate"): 100 → 250 → 500
-      signed-in users, a 10-minute hold at 500, then a burst. Pro makes a
-      staging copy possible (a Supabase branch, or a second small project).
-      **Never point the 500-user test at the live site.**
-      Pass means:
-      - zero failed or wrong pages
-      - no unexpected 429s
-      - p95 under 5 seconds per route
-      - no growing email queue
+- [ ] **The load test.** Replaced 2026-09-28 by the launch programme
+      (`docs/launch-readiness-programme.md` E1b/E3/E5): 250 users first, then 500,
+      measured locally against a Medium-sized database, then confirmed once in
+      the owner-approved **pre-launch** prod window with synthetic users and a
+      verified cleanup. The gates there (p95 < 1 s at 250, < 2 s at 500) replace
+      the old "p95 under 5 seconds". **After launch, never point a load test at
+      the live site**; any retest needs a staging project.
 - [ ] **Uptime monitoring can now mean something.** Pro projects don't pause,
       but point any external monitor at `/api/health` (which touches the
       database), not at `/`. A homepage ping stays green through a dead
@@ -181,7 +187,10 @@ Pro is $25 a month including $10 of compute credit.
 
 ## 3 · Vercel Pro (planned alongside)
 
-Listed so it isn't forgotten; nothing in the code waits on it.
+Listed so it isn't forgotten. **Needed before the pre-launch load window**
+(programme E1d): Hobby pauses the project when a usage quota is exceeded, and
+the k6 programme (30-minute holds, a 2-hour soak) could trip that. Confirm the
+current plan and upgrade first if it is Hobby.
 
 - [ ] After upgrading, confirm the cron routes (`/api/cron/*`) still answer
       within their time limits, and that the Sentry source-map env vars are

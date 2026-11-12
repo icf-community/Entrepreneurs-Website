@@ -8,9 +8,12 @@ import { markedIds } from "@/lib/data/activity";
 import {
   listApprovedOpportunities,
   bookmarkedOpportunityIds,
+  myEducation,
   type Opportunity,
 } from "@/lib/data/opportunities";
+import { EducationForm } from "@/components/forms/EducationForm";
 import type { Db } from "@/lib/data/query";
+import { aiModeEnabled } from "@/lib/ai/data";
 import OpportunitiesClient from "./OpportunitiesClient";
 
 export default async function OpportunitiesPage({
@@ -32,7 +35,12 @@ export default async function OpportunitiesPage({
   const justSubmitted = sp?.submitted === "1";
 
   // Started, not awaited — see the note in app/vcs/page.tsx.
-  const data = loadOpportunities(supabase, user.id);
+  const data = loadOpportunities(supabase, user.id, isAdmin);
+  const aiEnabled = aiModeEnabled(supabase, "opportunities");
+  // Jobs are for students, graduates or both (AI-plan §7.2). Until a member
+  // says which they are, they see none, so ask rather than show an empty
+  // board (F29). Admins see every job anyway.
+  const education = isAdmin ? null : await myEducation(supabase);
 
   return (
     <ListingPageShell
@@ -54,6 +62,13 @@ export default async function OpportunitiesPage({
         </Suspense>
       }
     >
+      {education && !education.known && (
+        <section className="mb-8 rounded-2xl border border-border bg-bg-card p-6" aria-labelledby="confirm-status">
+          <h2 id="confirm-status" className="text-[0.95rem] font-medium text-text-primary">Confirm your status to see jobs</h2>
+          <p className="mt-1 mb-4 text-[0.8rem] text-text-muted">Each job is for students, graduates or both.</p>
+          <EducationForm initialEnrolled={null} initialGraduated={null} compact />
+        </section>
+      )}
       <Suspense
         fallback={
           <>
@@ -62,7 +77,7 @@ export default async function OpportunitiesPage({
           </>
         }
       >
-        <OpportunityList data={data} />
+        <OpportunityList data={data} aiEnabled={aiEnabled} />
       </Suspense>
     </ListingPageShell>
   );
@@ -74,9 +89,9 @@ type OpportunitiesData = {
   appliedIds: string[];
 };
 
-async function loadOpportunities(supabase: Db, userId: string): Promise<OpportunitiesData> {
+async function loadOpportunities(supabase: Db, userId: string, isAdmin: boolean): Promise<OpportunitiesData> {
   const [items, bookmarkedIds, appliedIds] = await Promise.all([
-    listApprovedOpportunities(supabase),
+    listApprovedOpportunities(supabase, { userId, isAdmin }),
     bookmarkedOpportunityIds(supabase, userId),
     markedIds(supabase, "opportunity", "applied"),
   ]);
@@ -103,7 +118,14 @@ async function BookmarksLink({ data }: { data: Promise<OpportunitiesData> }) {
   );
 }
 
-async function OpportunityList({ data }: { data: Promise<OpportunitiesData> }) {
-  const { items, bookmarkedIds, appliedIds } = await data;
-  return <OpportunitiesClient items={items} bookmarkedIds={bookmarkedIds} appliedIds={appliedIds} />;
+async function OpportunityList({ data, aiEnabled }: { data: Promise<OpportunitiesData>; aiEnabled: Promise<boolean> }) {
+  const [{ items, bookmarkedIds, appliedIds }, enabled] = await Promise.all([data, aiEnabled]);
+  return (
+    <OpportunitiesClient
+      items={items}
+      bookmarkedIds={bookmarkedIds}
+      appliedIds={appliedIds}
+      aiEnabled={enabled}
+    />
+  );
 }

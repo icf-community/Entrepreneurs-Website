@@ -11,7 +11,7 @@ import {
 import { createPost, requestUploadTicket } from "./actions";
 import type { FeedPostView } from "./feedView";
 import { ErrorBanner } from "@/components/forms/Banners";
-import { track } from "@/components/analytics/PostHogProvider";
+import { track } from "@/lib/analytics/track";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · The composer
@@ -191,6 +191,7 @@ export default function PostComposer({
               id="post-image"
               type="file"
               accept={ACCEPT}
+              aria-label="Add an image"
               className="sr-only"
               onChange={(e) => {
                 const file = e.target.files?.[0];
