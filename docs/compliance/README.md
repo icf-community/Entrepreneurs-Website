@@ -30,6 +30,11 @@ portfolio.
 | 09 | [OSA Illegal Content Risk Assessment](./09-osa-illegal-content-risk-assessment.md) | Online Safety Act duty — separate from, and additional to, the Art. 35 screening in 07 |
 | 10 | [Moderation Response Standard](./10-moderation-response-standard.md) | Who reads reports, how fast, and what happens automatically |
 | 11 | [DPIA — Foundry AI](./11-dpia-ai-matching.md) | Full Art. 35 DPIA for AI search, matching and assessment (profiling); gates every AI flag |
+| 12 | [UK Legal Gap Analysis](./12-uk-legal-gap-analysis.md) | Every UK law tested against the code and live copy; gaps, severities, action plan (2026-11-12) |
+| 13 | [OSA Children's Access Assessment](./13-osa-childrens-access-assessment.md) | Mandatory two-stage OSA test; draft conclusion "child user condition not met", solicitor to confirm |
+| 14 | [Legitimate Interests Assessments](./14-legitimate-interests-assessments.md) | One three-part test per legitimate-interests purpose in Privacy §3 |
+| 15 | [Admin Confidentiality Undertaking](./15-admin-confidentiality-undertaking.md) | Signed by every admin before access is granted |
+| 16 | [Member notice: Terms and Privacy update](./16-member-notice-terms-privacy-2026-11.md) | Draft email; 30 days' notice to existing members |
 
 ## Sign-off register (every decision that needs the controller, 12 Nov 2026)
 

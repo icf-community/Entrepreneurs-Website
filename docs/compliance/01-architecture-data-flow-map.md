@@ -139,7 +139,7 @@ Gmail inbox. (This is a forward, not a Google Workspace "delegated access" model
 > Standard Contractual Clauses. The statement that nothing leaves the UK/EEA must not be made
 > for the AI and CV/GitHub features. The remaining ⚠ vendor regions (Upstash, Resend) are still
 > to be confirmed. Cloudflare operates a global edge network (DNS/WAF) — its role and transfer
-> mechanism (UK IDTA / SCCs) should be noted to the DPO.
+> mechanism (UK IDTA / SCCs) should be noted to the data protection lead.
 
 ## 6. Security controls (defence in depth)
 
