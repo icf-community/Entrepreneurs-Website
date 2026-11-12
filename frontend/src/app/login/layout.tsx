@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 // Component, so it lives here instead.
 export const metadata: Metadata = {
   title: "Sign in",
-  description: "Sign in or join Foundry, the founder community at Imperial College London.",
+  description: "Sign in or join Foundry, the founder community for Imperial College London students and alumni.",
 };
 
 export default function LoginLayout({ children }: { children: React.ReactNode }) {

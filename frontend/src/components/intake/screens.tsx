@@ -411,7 +411,8 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
             <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
               Read my CV to suggest skills to add on the next screen and generate a summary
               recruiters can search to find me. The extracted text and summary are stored and used
-              to help match me to relevant opportunities. You can leave this unticked and add
+              to help match me to relevant opportunities. Before the text is analysed by our AI
+              provider (OpenAI), we remove your name, contact details and links. You can leave this unticked and add
               skills yourself instead — but recruiters won&apos;t be able to find you through CV
               matching.
             </span>

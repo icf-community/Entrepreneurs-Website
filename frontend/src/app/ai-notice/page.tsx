@@ -15,7 +15,7 @@ export const metadata = {
   title: "How AI search works · Foundry",
 };
 
-const LAST_UPDATED = "6 October 2026";
+const LAST_UPDATED = "12 November 2026";
 
 export default function AiNoticePage() {
   return (
@@ -60,9 +60,12 @@ export default function AiNoticePage() {
               <li>The GitHub languages and projects you chose to show, if you connected GitHub.</li>
             </ul>
             <p className="mt-2">
-              It never uses your name, email, photo, links or contact details to match, and never your age, gender,
-              ethnicity, nationality, religion, health, disability, sexuality or politics. It does not use who you are
-              connected to, or how often anyone has viewed you.
+              It never uses your name, email, photo, links or contact details to match. Profiles have no field for
+              age, gender, ethnicity, nationality, religion, health, disability, sexuality or politics, and it refuses
+              searches for people by any of them, with one exception: in network suggestions only, members can look
+              for people by gender or nationality (for example &ldquo;women in robotics&rdquo;), which matches what
+              people have written about themselves. It does not use who you are connected to, or how often anyone
+              has viewed you.
             </p>
             <p className="mt-2">
               You can see exactly what it uses in <Link href="/settings#ai" className="underline">Settings</Link>, under
@@ -82,7 +85,9 @@ export default function AiNoticePage() {
           <Section title="Where processing happens">
             <p>
               Matching runs on Foundry&apos;s own servers. To read a search and check evidence, short extracts are sent to
-              OpenAI with names, contact details and links removed first, and with storage turned off on each request.
+              OpenAI with names, contact details and links removed first. Each request asks OpenAI not to store it;
+              under its standard terms OpenAI may still keep request data for up to 30 days to detect abuse, then
+              deletes it, and it does not use the data to train its models.
               We set daily spending and usage limits, so AI search can pause for the rest of a day.
             </p>
           </Section>

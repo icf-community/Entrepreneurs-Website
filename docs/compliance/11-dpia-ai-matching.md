@@ -102,7 +102,9 @@ community. No consultation has been carried out as of this draft.
   fixed vocabulary can't express.
 - **Could it be done with less data, or less automated evaluation?** Two design choices already
   narrow this: (a) protected characteristics are excluded from the evidence entirely rather than
-  included-but-downweighted (`/ai-notice`, "What it uses"); (b) the model judges only free-text
+  included-but-downweighted (`/ai-notice`, "What it uses") — with one limit, stated in the risk
+  table: free text a member wrote about themselves (`bio_hobbies` in network mode) can mention one,
+  which is why searches *for* Art 9 categories are refused in every mode; (b) the model judges only free-text
   criteria, never concept criteria, which keeps the one part of the pipeline that could introduce
   model bias to the smallest possible surface. A simpler keyword/concept-only matcher (no free-text
   judgement at all) was considered, implicitly, as the status quo this feature replaces — rejected
@@ -123,18 +125,26 @@ community. No consultation has been carried out as of this draft.
 
 | Risk | Mitigation |
 |---|---|
-| The AI infers or acts on a protected characteristic it was never meant to see | Protected characteristics are excluded from the evidence sent to the model by construction (`/ai-notice`), and the pre-model policy screen separately refuses a *searcher* from asking for one directly (`policy.py` `_ALWAYS_SENSITIVE` / `_AFFINITY`) — two independent layers, not one |
+| The AI infers or acts on a protected characteristic it was never meant to see | The profile has no field for any protected characteristic, so none is sent as structured data. Free text a member wrote can still mention one (network mode uses `bio_hobbies`), so this is **not** excluded by construction. The second layer carries the weight: the pre-model screen, the database's `is_sensitive()` and the interpreter prompt refuse searches on ethnicity/race, religion and sexuality (**Art 9 special categories**) in every mode, and on every protected characteristic in recruiter/opportunities mode. Network mode alone allows gender and nationality, which are not Art 9 categories (`policy.py` `_SPECIAL_CATEGORY` / `_AFFINITY`, migration 20261112000001). The 10 Nov carve-out that also allowed Art 9 categories in network mode was withdrawn on 12 Nov: a search on them works only by inferring them from members' text, and the network toggle is not an explicit Art 9(2)(a) consent ([12](./12-uk-legal-gap-analysis.md) §2.3) |
 | A candidate is scored down by filler/incidental details unrelated to the actual criteria (indirect discrimination via proxy) | `assess-fairness` eval family exists specifically to catch this; the assessor prompt instructs against it; **residual risk**: this is evaluated by sample eval cases, not a mathematical guarantee, and should be monitored on an ongoing basis once live, not just at the pre-launch gate |
 | Model hallucinates a "met" verdict from no real evidence | `Turn._bind` demotes any claimed "met" with no supporting evidence reference to "unknown" server-side — the model's unsupported claim is structurally incapable of reaching the job poster (`pipeline.py` L514-515) |
 | A prompt-injection attempt inside a candidate's own profile/CV text manipulates the assessor into a false "met" for every criterion | `_INJECTION` phrase detection in the policy screen, plus the grounding defense above, plus a dedicated adversarial eval suite (`adversarial_assess`, `score_assess` in `server/evals/harness.py`) that exists specifically to test this attack and is unrelated to model quality |
 | Being excluded from a recruiter's results (because of an opt-out, or a true-negative evaluation) is treated as a judgement about the person, if the output is misread | `/ai-notice`: "Something missing from a profile isn't the same as someone lacking it" — results explicitly separate "not shown" from "doesn't meet," and nothing is phrased as a rejection or a rating of the person |
-| Job poster re-identifies a candidate's protected characteristic from an evidence excerpt even though it wasn't a search criterion | Not separately mitigated beyond the general exclusion of protected-characteristic evidence from the pipeline; ⚠ **CONFIRM with DPO** whether the ≤2 CV-excerpt lines shown to recruiters (gated by `evidence_sharing` consent) need an additional review step before this is considered closed |
+| Job poster re-identifies a candidate's protected characteristic from an evidence excerpt even though it wasn't a search criterion | Not separately mitigated beyond the general exclusion of protected-characteristic evidence from the pipeline; ⚠ **CONFIRM with data protection lead** whether the ≤2 CV-excerpt lines shown to recruiters (gated by `evidence_sharing` consent) need an additional review step before this is considered closed |
 | CV/profile data retained indefinitely, growing the blast radius of a future breach | 7-day retention on chats/criteria/results and saved matches, 30-day cap on cached evidence checks, both enforced by an hourly cron (`cron_purge()`, `supabase/migrations/20261006000004_ai_turns.sql:2179, 2192, 2208`) — not a policy on paper, a scheduled deletion |
 | Runaway spend turns into a de facto denial-of-service on the feature, or masks a bug that's sending more data than intended | Hard-capped at $5/day (matching), $0.50/day per member, 20 active turns, with an admin-only kill switch that is itself audit-logged (`ai_private.settings`, `supabase/migrations/20261006000001_ai_foundations.sql:106-116`; kill switch `app_config.ai_enabled`, audited via `admin_actions` on every flip) |
 | A member who opted in to being found later wants out, and stale results linger | Withdrawing `recruiter_discoverable` / `network_discoverable` / `evidence_sharing` deletes that purpose's projection and cached assessments in the same transaction (migration header, `20261006000003_ai_consent_and_projections.sql:5-10`) — not just a future-search exclusion |
 | A candidate outside a job's intended audience (student-only or graduate-only role) is still surfaced to the recruiter | Confirmed enforced in the candidate-search direction, not just the member's-own-feed direction (§1 above) |
 
 ## 5. Art. 22 — is this solely automated decision-making with legal/significant effect?
+
+> **DUAA 2025 note (12 Nov 2026).** Since 5 Feb 2026, Art 22 UK GDPR has been replaced by
+> Arts 22A–22D (Data (Use and Access) Act 2025, s.80). A significant decision based solely on
+> automated processing is now allowed with safeguards (Art 22C: tell the person, let them make
+> representations, obtain human intervention and contest it), and is restricted only where special
+> category data is used (Art 22B). The conclusion below (not solely automated, and not a
+> significant decision) is unchanged under the new test. If either fact changes, the Art 22C
+> safeguards apply. Read references to "Art. 22(3)" as Art 22C.
 
 **No**, on the facts above, but the reasoning matters more than the "no," so it is stated in full
 rather than asserted:
@@ -158,20 +168,20 @@ see (today, nothing is hidden — only reordered); a rejection, auto-reply, or a
 ever added; or the scoring is ever surfaced to the *candidate* in a way that reads as a verdict
 rather than an explanation of what the recruiter saw.
 
-## 6. Open points for the DPO
+## 6. Open points for the data protection lead
 
 1. **Is a full external DPIA still required, given this internal assessment?** This document is
    built to the ICO's structure and grounded in the live code, but it is not independent legal
    advice. The controller should confirm whether this, once reviewed, satisfies the Art. 35
-   obligation, or whether external counsel/DPO sign-off needs to produce its own version.
+   obligation, or whether external counsel or the data protection lead sign-off needs to produce its own version.
 2. **The CV-excerpt re-identification risk** (§4, table row 6) — whether the ≤2-line excerpt shown
    to recruiters needs a further safeguard beyond the existing consent gate.
 3. **Whether prior Information Commissioner consultation (Art. 36) is triggered.** On the mitigations
    above, residual risk is assessed as not "high" after mitigation, so Art. 36 consultation is not
-   expected to be required — but this is the DPO's call, not an engineering one.
+   expected to be required — but this is the data protection lead's call, not an engineering one.
 4. **Monitoring cadence for the fairness eval**, not just a one-time pre-launch pass — e.g. re-run
    `assess_quality --live` on a schedule (quarterly, or after any prompt/model change) and keep the
-   results somewhere the DPO can see them.
+   results somewhere the data protection lead can see them.
 
 ## 7. Related duties
 

@@ -49,10 +49,10 @@ None of the three mandatory triggers is met.
 | PDF embedded JavaScript reaches another member | It cannot: the file is served `Content-Disposition: attachment` from a separate origin (`blob.core.windows.net`), so it is inert unless the CV's own owner or an admin chooses to download and open it in a desktop reader |
 | A member's face is treated as biometric data | It is not processed for unique identification anywhere — only displayed — so Art. 9 is not engaged (recorded explicitly in ROPA item M) |
 
-### Open point for the DPO
+### Open point for the data protection lead
 
 None specific to this feature beyond the standing controller/IAO/IAA confirmations already open at
-the top of `02-ropa.md`. The one design decision worth the DPO's attention is **PDF embedded
+the top of `02-ropa.md`. The one design decision worth the data protection lead's attention is **PDF embedded
 JavaScript is accepted, not stripped** (ROPA item N) — a deliberate trade-off (stripping would
 require re-encoding, which breaks the "re-runnable from original bytes" property the matcher
 depends on) rather than an oversight, but it is a judgement call about acceptable residual risk that
@@ -125,7 +125,7 @@ the mitigations are the reason the residual risk is low, not because the risk wa
 | Unbounded retention creeping in | Both windows are stored as data (`expires_at`, `purge_after`), enforced by cron, and stated in the privacy policy. `legal_hold` lets one record outlive the window without disabling the purge for everyone |
 | Retention of a moderation record after an erasure request | Bounded to 12 months, minimised to what a challenge would need, disclosed in Privacy §8 and Terms §6. **See the open point below.** |
 
-## Open point for the DPO
+## Open point for the data protection lead
 
 The `post_moderation_log` deliberately survives account deletion: `author_id` carries no foreign
 key, so a member cannot erase the record of their own moderation by closing their account. The
@@ -257,6 +257,14 @@ un-send what someone already has.
 
 ## The automatic throttle, against Art. 22
 
+> **DUAA 2025 note (12 Nov 2026).** Since 5 Feb 2026, Art 22 UK GDPR has been replaced by
+> Arts 22A–22D (Data (Use and Access) Act 2025, s.80). A significant decision based solely on
+> automated processing is now allowed with safeguards (Art 22C: tell the person, let them make
+> representations, obtain human intervention and contest it), and is restricted only where special
+> category data is used (Art 22B). The conclusion below (not solely automated, and not a
+> significant decision) is unchanged under the new test. If either fact changes, the Art 22C
+> safeguards apply. Read references to "Art. 22(3)" as Art 22C.
+
 A member's daily request cap drops from 10 to 3 for 30 days once **five distinct** other members
 have blocked them or had a report upheld against them. This is the one automated measure in the
 feature and it is reasoned through rather than waved past.
@@ -295,7 +303,7 @@ is instead.
 | Digest mail **degrading sign-in deliverability** | Auth mail and digests leave on the same sending domain, so a spam complaint about a digest costs sign-in codes. Hence the per-member opt-out, one digest per day maximum, only when something is actually waiting, and exactly-once claiming so a cron misfire cannot double-send |
 | Unbounded retention creeping in | Every window is enforced by cron: pending expires at 6 months and the expired row is then deleted outright; a removed, declined or withdrawn connection is hard-deleted 21 days after it settled, when the cooldown it was holding lapses; reports and events purge at 12 months, except a report still open, which is kept until a human closes it rather than silently deleted |
 
-## Open point for the DPO
+## Open point for the data protection lead
 
 `connection_events` deliberately survives account deletion — the connection id and the actor and
 subject ids carry no foreign key, so a member cannot erase the record of their own conduct by
@@ -308,7 +316,7 @@ survive erasure, the change is small in both cases: add the foreign key and let 
 One thing is worth flagging alongside it. Unlike a moderation log, `connection_events` also records
 ordinary, unremarkable behaviour — that A asked B to connect and B accepted — and it keeps that for
 12 months after the connection itself is gone. The retention is justified by the throttle (which
-reads a 90-day window) and by report adjudication, but the DPO may take the view that
+reads a 90-day window) and by report adjudication, but the data protection lead may take the view that
 `requested` / `accepted` / `withdrawn` events should age out faster than `blocked` /
 `report_upheld` ones. That would be a straightforward change to `purge_connection_records()` and is
 raised now rather than after launch.
@@ -333,3 +341,37 @@ and **should be extended to cover member-to-member connection notes**.
 - any email carries note text;
 - a contact detail beyond the login email address is exchanged;
 - membership grows by an order of magnitude.
+
+---
+
+## Re-screen — CV worker pipeline and GitHub connection (12 Nov 2026)
+
+**Status: DRAFT for the controller's decision.** The first screening above concluded that no full
+DPIA was needed because the CV matcher was a fixed string comparison, held the text in memory for
+one request, and sent nothing to a third party. Its own "re-run if" list names three triggers:
+the matcher being replaced by an LLM, the text being retained, and the text being sent to a third
+party. **All three have occurred** (audit D6-1; ROPA item T). This section is the re-screen.
+
+**What changed.** When a member ticks the CV consent, the worker (a) extracts and **stores** the
+text, (b) removes names, contact details, links, addresses, postcodes and dates of birth, (c) sends
+the remainder to **OpenAI** for a moderation check, structured extraction and embeddings, and
+(d) stores the resulting profile, summary and embeddings until the CV is replaced or removed. A
+member who connects GitHub has their public repositories read, analysed by OpenAI and summarised
+(ROPA item U). The in-request matcher (ROPA item O) still exists alongside this.
+
+| Screening question | Answer | Reasoning |
+|---|---|---|
+| Systematic and extensive automated evaluation or profiling with legal or similarly significant effects | **Not met by this pipeline on its own** | It produces a descriptive summary and search data; it ranks, scores and decides nothing. The evaluation of a person against a recruiter's criteria happens only in Foundry AI, which has its own full DPIA (`11-dpia-ai-matching.md`) and is **off in production**. |
+| Large-scale processing of special-category data | **Considered, not met** | A CV can contain data from which special categories are inferable. Nothing in the pipeline asks for, infers or acts on them, and identifiers are stripped before the text leaves our systems. The extraction schema (`cv_pipeline._PROFILE_SCHEMA`) has fields for education, roles, projects, skills, languages, links and a free-text summary; none is a protected characteristic, but **`languages` and the free-text summary could reveal one** (⚠ CONFIRM with the data protection lead whether that needs a further safeguard). Residual risk: the model sees the remaining free text. |
+| Innovative technology | **Met** | A third-party language model reads personal documents. |
+| Data transferred outside the UK/EEA | **Yes** | OpenAI, Global residency, under the UK Addendum to its Standard Contractual Clauses (in force by incorporation, 12 Nov 2026). |
+| Consent informed and specific | **Corrected 12 Nov 2026** | The upload checkbox and the privacy page now say the text is stored and analysed by OpenAI after identifiers are removed. Members who ticked the earlier wording (31 CVs stored in production at the time of writing) were told the text is stored but not that OpenAI processes it. |
+
+**Draft conclusion.** A full DPIA for this pipeline in isolation is not required, **provided** that
+(1) its output only feeds features already covered by `11-dpia-ai-matching.md`, and (2) the
+members who consented under the earlier wording are handled as the controller decides (re-prompt,
+or accept with a record of the reasoning). **The controller must confirm both** and record the date
+below. The ICO's guidance treats the combination of new technology and a third-party processor
+as a reason to document the decision, not to skip it.
+
+**Controller decision:** ______________________  **Name / role:** ______________________  **Date:** ____________

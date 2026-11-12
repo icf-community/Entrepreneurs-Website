@@ -45,6 +45,14 @@ transactional email (see §4).
 | Contact / appeal messages (free text + email) | Email outbox + forwarded inbox | User |
 | Queued outbound email (recipient + body) | Supabase (`outbound_email`), transiently | System |
 | Admin audit log (who approved/rejected what) | Supabase (`admin_actions`) | System |
+| Profile photograph (re-encoded, metadata stripped) | Azure Blob Storage, UK South | User |
+| CV file (original bytes, optional) | Azure Blob Storage, UK South | User |
+| CV extracted text, structured profile, summary, embeddings (if the member ticked the CV consent) | Supabase (`cvs.raw_text`, `cv_profiles`, `cv_chunks`); minimised text also processed by **OpenAI** | Derived from the CV |
+| GitHub connection: user id, username, encrypted access token, public repo details and README excerpts, chosen showcase | Supabase (`github_connections`); repo details also processed by **OpenAI** | GitHub, with the member's consent |
+| Community posts (7-day), reports, moderation log | Supabase | User / system |
+| Connections, request notes, connection reports and event log | Supabase | User / system |
+| Foundry AI sessions, criteria, results, per-purpose projections and consent toggles (**off in production at the time of writing**) | Supabase (`ai_private`); minimised extracts processed by **OpenAI** | User / derived |
+| In-app notifications, email-change log, listing views and clicks | Supabase | System |
 
 **Not collected:** Student ID / CID, date of birth, address, phone, payment data, and any
 special-category data (health, ethnicity, biometrics, etc.). If a user volunteers such data
@@ -76,6 +84,27 @@ in a free-text contact message it is incidental — the platform never requests 
   Supabase Auth ──► its own SMTP                 [magic-link / signup confirmation email]
 ```
 
+**Background processing (added 12 Nov 2026).** Three further components run outside Vercel:
+
+```
+  Gateway VM (Azure UK South)   ── FastAPI upload gateway: images and CVs go to
+        │                           Azure Blob Storage (UK South), scoped SAS tokens
+        │
+  Worker VM (Azure UK South)    ── polls the Supabase job queue (as the least-privilege
+        │                           `cv_worker` role) for CV and GitHub jobs:
+        ├──► Azure Blob (read the member's CV file)
+        ├──► GitHub API (public, non-fork repos of a member who connected GitHub)
+        ├──► OpenAI  (moderation, structured extraction, embeddings, GitHub summary;
+        │             names, contact details and links removed from CV text first)
+        └──► Supabase (writes `cvs.raw_text`, `cv_profiles`, `cv_chunks`, skills)
+
+  AI executor (Azure Container Apps, UK South) ── no inbound traffic; reads and writes
+        │                           Supabase as the `ai_service` role; holds its OpenAI key
+        │                           and DSN as Key Vault references. Does nothing unless an
+        │                           admin turns an AI mode on (all off in production).
+        └──► OpenAI  (Responses API, `store=False`; minimised extracts only)
+```
+
 **Email — two distinct paths (important):**
 1. **Application email** (acceptance, rejection, contact replies) is enqueued to a Supabase
    `outbound_email` table and drained by a cron-triggered route (`/api/cron/drain-email`,
@@ -93,17 +122,24 @@ Gmail inbox. (This is a forward, not a Google Workspace "delegated access" model
 | Layer | Provider | Region | Notes |
 |-------|----------|--------|-------|
 | Frontend / compute | Vercel | **Frankfurt (`fra1`), EU** | Pinned in `vercel.json` |
-| Database & auth | Supabase | **⚠ CONFIRM** (DART draft assumes UK) | Encrypted at rest; TLS in transit |
+| Database & auth | Supabase | **UK (London, `eu-west-2`) — confirmed 12 Nov 2026** | Encrypted at rest; TLS in transit |
 | Rate-limit counters | Upstash Redis | EU (⚠ confirm DB region) | No personal data — short-lived counters keyed to user-id/IP |
 | Transactional email | Resend | EU (⚠ confirm account region) | Recipient address + message body |
-| Error monitoring | Sentry | EU via DSN (⚠ confirm org region) | Errors only; no tracing, no session replay |
+| Error monitoring | Sentry | **EU (org `imperial-entrepreneurs`) — confirmed 12 Nov 2026** | Errors only; no tracing, no session replay |
 | Product analytics | PostHog | EU (`eu.i.posthog.com`) | Cookieless (in-memory only); autocapture off; no session recording |
 | DNS / WAF / email routing / bot-check | Cloudflare | Global edge | Turnstile token; inbound mail forwarding |
+| File storage, upload gateway, CV/GitHub worker | Microsoft Azure | UK South | Blob Storage (private); two VMs |
+| AI executor | Microsoft Azure Container Apps | UK South | Secrets in Key Vault; no inbound traffic |
+| Language-model processing | OpenAI | Project data residency **Global** (two projects: CV/GitHub worker, AI executor) | Minimised text only; see `03-third-party-dpa-register.md` for the DPA and retention position |
+| GitHub integration | GitHub | Global | Read-only API use on behalf of a member who connected it |
 
 > **Transfers outside the UK/EEA:** The design intent is to keep storage and compute within
-> the UK/EEA. This can only be asserted once every vendor account region in the ⚠ rows above
-> is confirmed. Cloudflare operates a global edge network (DNS/WAF) — its role and transfer
-> mechanism (UK IDTA / SCCs) should be noted to the DPO.
+> the UK/EEA. **OpenAI and GitHub are not within that intent**: OpenAI processes minimised CV,
+> GitHub and (when enabled) matching extracts with Global residency, under the UK Addendum to its
+> Standard Contractual Clauses. The statement that nothing leaves the UK/EEA must not be made
+> for the AI and CV/GitHub features. The remaining ⚠ vendor regions (Upstash, Resend) are still
+> to be confirmed. Cloudflare operates a global edge network (DNS/WAF) — its role and transfer
+> mechanism (UK IDTA / SCCs) should be noted to the data protection lead.
 
 ## 6. Security controls (defence in depth)
 

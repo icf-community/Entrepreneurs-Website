@@ -104,12 +104,31 @@ the failing migration is one of those. Restore from the Phase 2 backup only if d
 | 5.4 | YOU | Rehearse a rollback of the gateway and worker to the previous GHCR digest. | Both come back healthy |
 | 5.5 | YOU | Verify the production `ai_*` flags read off in `/admin/ai`. | All off |
 
+## Status at 12 Nov 2026 (end of launch day)
+
+Phases 0–3 done: release live (70 migrations, merge commit `fbac651`), prod smoke 19/19, counts and grants match the baseline.
+Phase 4–5 results:
+
+| Step | Result |
+|---|---|
+| 4.1–4.5, 4.7 | Done. Vault is `icf-foundry-ai-kv` (not the script default `foundry-ai-kv`, which belongs to someone else). |
+| 4.6 | Done. Workers run as `cv_worker` (session pooler user `cv_worker.<ref>`). A real CV processed on it. Old login kept in `/etc/foundry/worker.env.bak-20261112` on the worker VM until the Phase 7 clean-up. |
+| 4.8 | **Polling fallback, not realtime.** Joining the private channel fails with `MissingPartition: Realtime was unable to find the expected messages partition`, although `realtime.messages` has contiguous daily partitions covering today and our one policy is correct. Supabase ticket filed 12 Nov (replies go to imperial.founders@gmail.com). The app falls back to the old poller by design and retries once per wait, so it self-heals when Supabase fixes it. Re-test: DevTools → Network → Socket filter, upload a CV, expect a row with status 101. |
+| 5.1 | Done. |
+| 5.2 | Done after a fix. The executor's check-ins were rejected because `scrub` redacted the 32-hex `trace_id` to `[hex]` (PR #118). `production` is green on the `ai-executor` monitor. The `probe-*` environments from debugging are stale and can be deleted. The web scrubber (`frontend/src/lib/observability/scrubEvent.ts`) has the same hex rule and still needs the same exemption. |
+| 5.3 | Done. `main-protection` requires 13 checks. |
+| 5.4 | Not rehearsed. Prerequisites checked: the previous gateway image `4246ac6…` exists in GHCR and the procedure is in `infra/README.md`. |
+| 5.5 | Done. All AI flags off. |
+
 ## Phase 6 — Go-live (separate decision)
 
 **Gate: these owner-only items must be done before ANY AI flag is turned on** (they do not block Phases 0–5):
 OpenAI data region and DPA with the transfer mechanism; lawful basis (consent for discoverability; legitimate interests
 plus a balancing test for a member's own matching); `/ai-notice` wording sign-off; DPIA sign-off. Also decide
 owner-decisions item 21 (the strict protected-characteristic screen) and confirm the item-20 spend caps.
+
+Gate status, 12 Nov 2026: **cleared** — Sentry monitoring of the executor (5.2), flags verified off (5.5), prices confirmed (4.1), OpenAI DPA in force by incorporation.
+**Still open (owner decisions or actions):** swap the vault key for a service-account key (Phase 7 below, must precede any flag); OpenAI data-residency stance (both projects are Global today); lawful basis and balancing test; `/ai-notice` wording; DPIA; items 20 and 21; the capped live smoke below.
 
 1. Capped live smoke (executor, small spend cap).
 2. Flip **one** mode in `/admin/ai`, smoke it, watch Sentry and spend, then the next. Flags are the rollback.
@@ -118,7 +137,14 @@ owner-decisions item 21 (the strict protected-characteristic screen) and confirm
 
 - After 24 h clean: `rm -rf backups/<UTC>` (the dump contains auth tokens). Keep the old `cv_worker` DSN until then.
 - Full Playwright pass against prod to find flaws (owner plan), on own/test accounts only.
-- Docs: tick the Sentry EU and Supabase London items in `docs/compliance/03-third-party-dpa-register.md`.
+- Docs: tick the Sentry EU and Supabase London items in `docs/compliance/03-third-party-dpa-register.md`; also record OpenAI as "DPA in force by incorporation into the Services Agreement (12 Nov 2026)", and add the `foundry-ai` GHCR pull credential to `docs/ops/secret-rotation.md`.
+- **Replace the temporary GHCR pull token before it expires (30 days from creation, so by about 12 Dec 2026):** the `foundry-ai` container app pulls its private image with a `read:packages` token from the owner's personal GitHub account (named `foundry-ai-pull-TEMP`). When the society account has org access: (1) create a `read:packages`-only token on the society account; (2) `az containerapp registry set -g foundry-rg -n foundry-ai --server ghcr.io --username <society-account> --password <token>`; (3) confirm the app is still healthy; (4) delete the personal token on GitHub. Do the same for the gateway and worker VMs' `/etc/foundry/ghcr-pull.env` so nothing depends on a personal login.
+- **Replace the existing VM pull token `foundry-gateway-ghcr-pull`** (a `read:packages` token on the owner's personal GitHub account, expires **31 Aug 2027**, used by both VMs): create a `read:packages`-only token on the society account, write it to `/etc/foundry/ghcr-pull.env` on **both** VMs (gateway and worker; `GHCR_USERNAME` and `GHCR_TOKEN`), confirm each VM can still pull by running its release script against the current image (`foundry-release` / `foundry-worker-release`), then delete the personal token on GitHub. Do this together with the `foundry-ai` token above so one account change covers all three. The 2027 expiry is a hard deadline either way: if it lapses, both VMs fail to pull on their next deploy or restart. Longer term, consider Azure Container Registry with a managed identity, which removes the token entirely.
+- **Replace the person-owned OpenAI key in the vault with a service-account key:** `ai-openai-api-key` in `icf-foundry-ai-kv` holds the key named "Azure key" (ends `dLsA`, created 11 Nov 2026 by the society president's OpenAI account). A key tied to a person can stop working if that person leaves the organisation. In the AI executor's OpenAI project, create a **service account**, give it a restricted key (Responses/Chat and Embeddings only), set it with `az keyvault secret set --vault-name icf-foundry-ai-kv --name ai-openai-api-key --value ...` (use `read -s`; add `--query id -o tsv` so the value is not echoed), restart the `foundry-ai` revision, confirm the "AI executor starting" log line, then delete the old key. Also confirm the key's project is the AI executor's, not the CV pipeline's. Must be done before any AI flag is turned on in Phase 6.
+- Delete `/etc/foundry/worker.env.bak-20261112` on the worker VM after 24 h clean (it holds the old superuser login).
+- Sentry tidy-up: delete the `probe-a` to `probe-g` environments from the `ai-executor` monitor; archive `elm.events.push is not a function` in `javascript-nextjs` (browser-extension noise, 0 users); exempt trace/span ids in `scrubEvent.ts`.
+- Check for Supabase's reply on the Realtime `MissingPartition` ticket; once fixed, re-test 4.8.
+- Sign the OpenAI DPA form (the "Execute Data Processing Agreement" link on openai.com/policies/data-processing-addendum) for a countersigned copy, within a week.
 
 ## Rollback summary
 

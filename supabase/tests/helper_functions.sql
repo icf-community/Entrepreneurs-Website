@@ -97,14 +97,11 @@ begin
     raise exception 'FAIL(sensitive): null/empty must not be sensitive';
   end if;
 
-  -- ── is_sensitive: network-mode affinity carve-out (20261110000001) ──
-  -- Owner decision 2026-11-10: nobody is screened out of a job in
-  -- network mode, two members only connect on mutual accept, and the
-  -- schema stores no gender/ethnicity/sexuality field at all — so
-  -- identity/affinity terms are allowed through there.
+  -- ── is_sensitive: network-mode affinity carve-out (20261110000001,
+  -- narrowed 20261112000001) ── gender and nationality are allowed as
+  -- affinity search in network mode; Art 9 special categories are not.
   foreach v in array array[
-    'women who code', 'muslim founders', 'gay founders building apps', 'christian co-founder',
-    'indian founders working on fintech', 'black founders in climate tech', 'male engineers', 'transgender people in data science'
+    'women who code', 'indian founders working on fintech', 'male engineers', 'transgender people in data science'
   ] loop
     if ai_private.is_sensitive(v, 'network') then
       raise exception 'FAIL(sensitive): "%" should be allowed in network mode', v;
@@ -115,6 +112,16 @@ begin
     end if;
     if not ai_private.is_sensitive(v, 'opportunities') then
       raise exception 'FAIL(sensitive): "%" must still be screened in opportunities mode', v;
+    end if;
+  end loop;
+  -- Ethnicity, religion and sexuality are refused in network mode too: a
+  -- search on them only works by inferring them from members' own text.
+  foreach v in array array[
+    'muslim founders', 'gay founders building apps', 'christian co-founder', 'black founders in climate tech',
+    'lgbtq founders', 'queer founders', 'bisexual members'
+  ] loop
+    if not ai_private.is_sensitive(v, 'network') then
+      raise exception 'FAIL(sensitive): "%" must be screened in network mode (Art 9)', v;
     end if;
   end loop;
   -- Categories with no affinity-search reading stay screened in every

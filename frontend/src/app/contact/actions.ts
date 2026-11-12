@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/currentUser";
 import { sendContactConfirmation, sendContactTicket } from "@/lib/email";
-import { contactSchema } from "@/lib/validation/contact";
+import { CONTACT_TOPICS, contactSchema } from "@/lib/validation/contact";
 import { validate } from "@/lib/validation/listings";
 import * as Sentry from "@sentry/nextjs";
 import { check, clientIp } from "@/lib/ratelimit";
@@ -19,7 +19,11 @@ type Result = { ok: true } | { ok: false; error: string };
 export async function submitContactTicket(input: unknown): Promise<Result> {
   const parsed = validate(contactSchema, input);
   if (!parsed.ok) return parsed;
-  const { name, email, subject, message } = parsed.data;
+  const { name, email, message } = parsed.data;
+  // Tag the ticket so a content report or data-protection request is visible
+  // in the inbox subject line, not buried in the body.
+  const topic = CONTACT_TOPICS.find((t) => t.value === parsed.data.topic);
+  const subject = topic && topic.value !== "general" ? `[${topic.label}] ${parsed.data.subject}` : parsed.data.subject;
   const token = (input as { turnstileToken?: string } | null)?.turnstileToken;
 
   if (!(await verifyTurnstile(token))) {

@@ -68,7 +68,7 @@ practices the team commits to.
   listings and joins) themselves from Settings.
 - Access / portability requests are currently fulfilled **manually** by an operator exporting
   the user's rows from Supabase. ⚠ This manual procedure should be written up and a response
-  SLA agreed with the DPO.
+  SLA agreed with the data protection lead.
 
 ## 7. Change management
 

@@ -21,22 +21,25 @@ phrase goes: "women's health women founders" still leaves "women" behind
 and is refused. The same list lives in ai_private.is_sensitive (migration
 20261108000001); change them together.
 
-Owner decision 2026-11-10: `mode == "network"` is different in kind from
-recruiter/opportunities — nobody is screening candidates for a job or a
-benefit there, two members only connect on mutual accept, and the profile
-schema stores no gender/ethnicity/sexuality field at all, so there is
-nothing for the model to filter ON even if it tried. Blocking "find other
-LGBTQ+ founders to connect with" there was itself the wrong kind of
-caution: a platform refusing to let members find each other by shared
-identity reads as hostile to exactly the groups it should not be
-discriminating against. So _AFFINITY (gender, sexuality, ethnicity,
-nationality, religion — the categories with a real community/support
-framing) is exempt in network mode only. _ALWAYS_SENSITIVE (age,
-disability, pregnancy/marital status, political affiliation, criminal
-history, visa/accent) stays refused in every mode: none of those have an
-affinity-search reading, they only ever read as an eligibility filter,
-and recruiter/opportunities keep the full original list unchanged — this
-is a single, deliberately narrow carve-out, not a general loosening.
+Owner decision 2026-11-10, narrowed 2026-11-12: `mode == "network"` is
+different in kind from recruiter/opportunities — nobody is screened for a
+job or a benefit, and two members only connect on mutual accept — so
+gender and nationality (_AFFINITY) are allowed as network criteria:
+"women in STEM", "Indian students in robotics".
+
+Ethnicity/race, religion and sexuality (_SPECIAL_CATEGORY) are refused in
+every mode, network included. Those are Article 9 UK GDPR special
+categories, and the profile has no field for them, so the only way a
+search on them can work is for the model to INFER them from what members
+wrote in free text (bio_hobbies is network evidence) and surface people
+on that basis. That is processing special category data, and the network
+discovery toggle is not the explicit Art 9 consent it would need
+(docs/compliance/12-uk-legal-gap-analysis.md §2.3). Gender and
+nationality are Equality Act characteristics but not Art 9 categories.
+
+_ALWAYS_SENSITIVE (age, disability, pregnancy/marital status, visa,
+accent) stays refused in every mode: those only read as an eligibility
+filter. recruiter/opportunities refuse all three lists.
 """
 
 from __future__ import annotations
@@ -50,15 +53,19 @@ DOMAIN_TERMS = re.compile(
     re.I,
 )
 
-# Identity/affinity categories: a real "find my community" framing exists
-# for these in network mode (see module docstring), so they are exempt
-# there — but still refused in recruiter/opportunities, where the same
-# words can only ever mean filtering candidates by a protected trait.
+# Equality Act characteristics that are NOT Art 9 special categories:
+# allowed in network mode as affinity search, refused elsewhere.
 _AFFINITY = re.compile(
-    r"\b(citizens?|citizenship|nationality|nationals?|british|english|indian|chinese|african|european|american|"
-    r"ethnicit\w*|races?|racial|white|black|asian|religio\w*|muslims?|christians?|jewish|jews|hindus?|sikhs?|"
-    r"buddhists?|atheists?|gay|lesbians?|bisexual|straight|transgender|trans|sexuality|women|woman|men|man|"
-    r"females?|males?|girls?|boys?|gender)\b",
+    r"\b(citizens?|citizenship|nationality|nationals?|british|english|indian|chinese|european|american|"
+    r"transgender|trans|women|woman|men|man|females?|males?|girls?|boys?|gender)\b",
+    re.I,
+)
+# Article 9 special categories (racial or ethnic origin, religious belief,
+# sexual orientation): refused in EVERY mode — see the module docstring.
+_SPECIAL_CATEGORY = re.compile(
+    r"\b(ethnicit\w*|ethnic|races?|racial|white|black|asian|african|"
+    r"religio\w*|muslims?|christians?|jewish|jews|hindus?|sikhs?|buddhists?|atheists?|"
+    r"gay|lesbians?|bisexual|pansexual|asexual|queer|lgbt\w*|straight|sexuality|sexual orientation)\b",
     re.I,
 )
 # No plausible non-exclusionary reading in any mode — these are either a
@@ -83,7 +90,7 @@ def screen(message: str, mode: str = "recruiter") -> str | None:
     if _INJECTION.search(message):
         return "injection"
     stripped = DOMAIN_TERMS.sub(" ", message)
-    if _ALWAYS_SENSITIVE.search(stripped):
+    if _ALWAYS_SENSITIVE.search(stripped) or _SPECIAL_CATEGORY.search(stripped):
         return "sensitive"
     if mode != "network" and _AFFINITY.search(stripped):
         return "sensitive"

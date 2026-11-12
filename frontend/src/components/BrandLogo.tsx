@@ -32,13 +32,10 @@ const WORDMARK_TEXT: Record<Size, string> = {
 export function BrandLogo({
   size = "sm",
   showWordmark = true,
-  showAffiliation = false,
   priority = false,
 }: {
   size?: Size;
   showWordmark?: boolean;
-  /** Append "Imperial College London" after the wordmark. Used in the footer. */
-  showAffiliation?: boolean;
   /**
    * Preload the mark. Opt-in, because this renders in the footer of every page
    * as well as the header — `priority` there preloaded a below-the-fold image
@@ -65,9 +62,6 @@ export function BrandLogo({
         >
           Foundry
         </span>
-      )}
-      {showAffiliation && (
-        <span className="text-[0.75rem] text-text-muted">Imperial College London</span>
       )}
     </div>
   );

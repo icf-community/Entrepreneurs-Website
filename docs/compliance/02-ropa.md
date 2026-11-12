@@ -13,7 +13,8 @@ Prepared under **Article 30, UK GDPR**. DRAFT for the controller's review.
 - **Categories of data subject:** Imperial students and verified Imperial alumni who register;
   individuals who contact the platform via the contact/appeals forms.
 - **Special-category data:** None collected by design (Art. 9 not engaged).
-- **Automated decision-making / profiling (Art. 22):** No *solely automated* decision producing
+- **Automated decision-making / profiling (Art. 22, now Arts 22A–22D since 5 Feb 2026 under the
+  DUAA 2025; the conclusions below are unchanged under the new test):** No *solely automated* decision producing
   legal or similarly significant effects. Two automated measures exist and are disclosed rather
   than omitted: the connections sending throttle in item R (a rate limit, reasoned through against
   Art. 22 in item R and in `07-dpia-screening.md`), and the **Foundry AI candidate scoring/ranking**
@@ -22,7 +23,7 @@ Prepared under **Article 30, UK GDPR**. DRAFT for the controller's review.
   itself is not engaged, but the evaluation is substantial enough that a screening alone was judged
   insufficient.
 
-> **Lawful basis** below is a *suggested* mapping for the DPO to confirm. For a voluntary
+> **Lawful basis** below is a *suggested* mapping for the data protection lead to confirm. For a voluntary
 > membership community the realistic candidates are **performance of a contract / service**
 > (Art. 6(1)(b)) for account and core features, and **legitimate interests** (Art. 6(1)(f))
 > for security and cookieless analytics. The controller's data protection contact decides the final basis.
@@ -78,7 +79,7 @@ Prepared under **Article 30, UK GDPR**. DRAFT for the controller's review.
 | **Purpose** | Respond to enquiries and membership appeals |
 | **Suggested basis** | Legitimate interests (handling enquiries) |
 | **Recipients** | Resend (confirmation/ticket email); Cloudflare email routing → monitored inbox |
-| **Retention** | ⚠ POLICY NEEDED — recommend "archived on resolution, purged at end of the following academic year unless needed for an ongoing dispute" (consistent with the DART draft). Not currently automated. |
+| **Retention** | **Set 12 Nov 2026 (Privacy §8):** until the end of the academic year after the matter closes, unless needed for a dispute that is still live. A manual deletion, done each September by the data protection lead; not automated. |
 | **Location** | Resend / Cloudflare / inbox provider |
 
 ### F. Abuse prevention (rate limiting & bot-check)
@@ -118,7 +119,7 @@ Prepared under **Article 30, UK GDPR**. DRAFT for the controller's review.
 | **Purpose** | Accountability and operational audit |
 | **Suggested basis** | Legitimate interests |
 | **Recipients** | Supabase only (admin-readable) |
-| **Retention** | Retained as an audit record; admin's own authored actions removed if that admin deletes their account |
+| **Retention** | **6 years** (Limitation Act 1980 period), then deleted by `purge_old_admin_actions()` daily at 02:55 (20261112000002). If an admin deletes their account sooner, their identity is removed and the entry stays. Previously: indefinite; superseded |
 | **Location** | Supabase (⚠ confirm region) |
 
 ### J. Community posts (member-to-member feed)
@@ -159,7 +160,7 @@ The reporter is never disclosed to the author of the reported post.
 ⚠ **This is the one record that deliberately survives account deletion.** `author_id` carries no
 foreign key precisely so that a member cannot erase the record of their own moderation by closing
 their account — the record exists for the case where that matters. The member is told this in
-Privacy §8 and Terms §6. **This design decision should be confirmed with the DPO before launch.**
+Privacy §8 and Terms §6. **This design decision should be confirmed with the data protection lead before launch.**
 
 ### M. Profile photographs
 | Field | Detail |
@@ -195,7 +196,9 @@ is the CV's own owner or an admin who chose to open it. Stripping it would requi
 document, which would break the "re-runnable from the original bytes" property the skill-suggestion
 matcher in item O depends on.
 
-### O. CV text extraction for skill suggestion
+### O. CV text extraction for skill suggestion (in-request matcher)
+
+> **Scope, updated 12 Nov 2026:** this item describes only the in-request matcher (Next.js server action, `lib/cv/matchSkills.ts`). It is **not** the whole of what happens to a CV a member lets us read: the worker pipeline in item T also extracts, **stores** and **sends to OpenAI** the CV text. The "never sent to a third party / not retained" statements below are true of this matcher only.
 | Field | Detail |
 |-------|--------|
 | **Data** | Plain text extracted from the CV in item N, held only in memory for the duration of one request |
@@ -210,6 +213,33 @@ against a controlled vocabulary, and every suggestion requires the member's own 
 part of their profile. This is a materially weaker processing claim than an LLM-based version would
 be — see `07-dpia-screening.md` for the corresponding re-screen.
 
+### T. CV reading and profile summary (worker pipeline) — added 12 Nov 2026
+| Field | Detail |
+|-------|--------|
+| **Data** | Text extracted from the member's CV (`cvs.raw_text`); a structured profile (skills, projects, roles) and a short summary (`cv_profiles`); text chunks and their embeddings (`cv_chunks`). Names, email addresses, phone numbers, links, street addresses, postcodes and dates of birth are removed from the text **before** it leaves our systems (`server/app/privacy.py` `minimise`) |
+| **Purpose** | Suggest skills for the member to confirm; generate the profile summary and search data used to match the member to opportunities and, if they opt in, to be found by recruiters (item S) |
+| **Suggested basis** | **Consent** — the separate, unticked-by-default "read my CV" checkbox at upload, whose wording (updated 12 Nov 2026) states that the text is stored and analysed by OpenAI after identifiers are removed. ⚠ **CONFIRM with the data protection lead** whether existing members who ticked the older wording need a re-prompt |
+| **Recipients (processors)** | **OpenAI** (moderation check, structured extraction and embeddings, via the Chat Completions, Moderations and Embeddings endpoints; the minimised text only). These calls do **not** use the executor's `store=False` Responses setting: OpenAI's standard API retention for abuse monitoring applies (⚠ CONFIRM the current period; historically up to 30 days) and no zero-retention agreement is in place; data sharing for training is disabled org-wide Microsoft Azure UK South (the VM that runs the worker; the CV file). Supabase (all stored data) |
+| **Retention** | Until the CV is replaced or removed, or the account is deleted: the text, profile, summary and embeddings are deleted with it (`remove_my_cv`, `worker_purge_superseded_cvs`, `delete_my_account`). Identical re-uploads reuse the stored data. The extracted text is included in the member's data export (`export_my_data`) |
+| **Location** | Supabase (UK, London); Azure UK South (worker); OpenAI (project data residency Global; no zero-retention agreement — see `03-third-party-dpa-register.md`) |
+
+This is the processing the public privacy page previously described as "never stored, never sent to
+a third party" (audit D6-1, F15); the page was corrected in the same release as this entry. It is
+**profiling-adjacent** (it builds a searchable summary of a person) but makes no decision about them;
+see the re-screen in `07-dpia-screening.md`.
+
+---
+### U. GitHub connection and signal — added 12 Nov 2026
+| Field | Detail |
+|-------|--------|
+| **Data** | The member's GitHub user id and username; an access token (**stored encrypted**); the member's **public, non-fork** repositories (name, description, language, stars, dates), a README excerpt per repository and the profile README if present; the member's chosen showcase (up to three projects, with an optional one-line note each); a summary combining CV and GitHub evidence |
+| **Purpose** | Let the member show real work to recruiters alongside their CV; add skills to their profile |
+| **Suggested basis** | **Consent** — connecting GitHub is optional and member-initiated; disconnecting withdraws it |
+| **Recipients (processors)** | GitHub (the member's own account, read through its API); **OpenAI** (selects the projects and themes that stand out and writes the project part of the summary); Microsoft Azure UK South (worker VM); Supabase |
+| **Retention** | Until the member disconnects (`disconnect_github` deletes the connection and the skills taken from it) or deletes the account. The account is re-checked periodically; an unchanged account is not re-analysed |
+| **Location** | Supabase (UK, London); Azure UK South (worker); OpenAI (Global; see the register) |
+
+---
 ### P. Connections — the mutual connection graph
 | Field | Detail |
 |-------|--------|
@@ -266,7 +296,7 @@ report pointing at a deleted connection would otherwise be unadjudicable.
 ⚠ **`connection_events` deliberately survives account deletion**, exactly as the post moderation
 log does and for the same reason: `connection_id` and the actor/subject ids carry no foreign key,
 so a member cannot erase the record of their own conduct by closing their account. Art. 17(3)(e),
-bounded to 12 months. **Confirm with the DPO alongside item L.**
+bounded to 12 months. **Confirm with the data protection lead alongside item L.**
 
 **On Art. 22.** The automatic throttle drops a member's daily request cap from 10 to 3 for 30 days once five
 *distinct* other members have blocked them or had a report upheld against them. It is reasoned
@@ -282,10 +312,16 @@ asks for. It is a rate limit with a trigger, not a decision about a person, and 
 |-------|--------|
 | **Data** | *Per-purpose projections* of an opted-in member's profile (skills, sectors, course, "working on", "can help with"/"wants help with"; interests/hobbies for network mode only), CV-derived skills/projects/roles (only with `evidence_sharing` consent), chosen GitHub languages/repos. *Search sessions:* the searcher's messages, the criteria derived from them, the ranked results (member id, 0–100 score, tier, per-criterion states, evidence references). *Cached evidence checks:* per-candidate, per-criterion assessments. Never: name, email, photo, contact links, or protected characteristics |
 | **Purpose** | Helping job posters find relevant candidates, members build their network, and members find open opportunities, each opt-in from the evaluated person's side |
-| **Suggested basis** | **Consent** (Art. 6(1)(a)) for being found as a candidate/in network search and for CV evidence sharing — three separate toggles, all off by default (`ai_private.member_settings`); **contract / performance of a service** (Art. 6(1)(b)) for a member's own job matches. ⚠ **CONFIRM with the DPO** — consent is the cleanest basis for the opt-in surfaces, but whether the member's-own-matches purpose is contract or legitimate interests is the controller's call |
+| **Suggested basis** | **Consent** (Art. 6(1)(a)) for being found as a candidate/in network search and for CV evidence sharing — three separate toggles, all off by default (`ai_private.member_settings`); **contract / performance of a service** (Art. 6(1)(b)) for a member's own job matches. ⚠ **CONFIRM with the data protection lead** — consent is the cleanest basis for the opt-in surfaces, but whether the member's-own-matches purpose is contract or legitimate interests is the controller's call |
 | **Recipients (processors)** | OpenAI (short extracts to read a query and check evidence, with names, contact details and links removed first, and storage turned off per request); Microsoft Azure UK South (the executor's compute); Supabase (all stored data) |
 | **Retention** | Chats, criteria and results: 7 days from each message. Saved candidate matches: 7 days from the search. Cached evidence checks: capped at 30 days, and deleted as soon as the profile changes or the member withdraws the relevant toggle. Enforced by the hourly `ai-purge` cron (`ai_private.cron_purge()`) |
 | **Location** | Supabase; Azure UK South (executor); OpenAI (⚠ CONFIRM processing region and zero-retention terms on the matching project) |
+
+**Special category data (Art 9).** No field holds any. Searches on ethnicity/race, religion or
+sexuality are refused in every mode, network included (20261112000001), because a search on them
+can only work by inferring them from members' own free text. Network mode allows gender and
+nationality, which are not Art 9 categories. Withdrawn: the 10 Nov 2026 carve-out that allowed all
+five in network mode.
 
 **Automated evaluation.** This is substantive profiling: candidates are evaluated against a
 searcher's criteria and ranked by a deterministic 0–100 score (the model judges free-text criteria
@@ -312,7 +348,12 @@ same transaction, not just from future searches.
 | Image bytes in Azure Blob | Follows the post; queued on delete | `blob_deletion_queue` → drained every 5 min; 30-day account lifecycle rule as backstop |
 | Profile photograph | Follows the profile; queued on replace/remove/delete | `blob_deletion_queue` → drained every 5 min; 30-day account lifecycle rule as backstop |
 | CV / résumé | One per member, no versions; queued on replace/remove/delete | `blob_deletion_queue` → drained every 5 min; 30-day account lifecycle rule as backstop |
-| CV extracted text (skill suggestion) | Not retained — discarded within the same request | Held in memory only, never written to a table or a log |
+| CV extracted text (in-request skill suggestion, item O) | Not retained — discarded within the same request | Held in memory only, never written to a table or a log |
+| CV extracted text, profile, summary and embeddings (worker, item T) | Until the CV is replaced or removed, or the account is deleted | `remove_my_cv()`, `worker_purge_superseded_cvs()`, `delete_my_account()` |
+| GitHub connection and signal (item U) | Until the member disconnects or deletes the account | `disconnect_github()`, `delete_my_account()` |
+| In-app notifications | 90 days | `purge_old_notifications()` |
+| Email-change log | For the life of the account (in the data export) | `delete_my_account()` (cascade) |
+| Listing views and clicks (`listing_events`) | For the life of the account; **no purge job** (audit D6-9) | `delete_my_account()` (cascade) |
 | Post reports | 12 months | `purge_moderation_records()` daily (02:35) |
 | Post moderation log (takedowns) | 12 months, unless `legal_hold` | `purge_moderation_records()` daily (02:35) |
 | Connections (accepted) | For the life of the relationship | Removed on either party's action, or on account deletion (FK cascade) |
@@ -327,10 +368,12 @@ same transaction, not just from future searches.
 | AI saved candidate matches | 7 days from the search | `ai_private.cron_purge()` hourly (:17) |
 | AI cached evidence checks | Up to 30 days; gone on profile change or toggle withdrawal | `ai_private.cron_purge()` hourly (:17); withdrawal deletes in the same transaction |
 | Account & all user-owned data | Immediate on request | `delete_my_account()` (user-initiated) |
-| Contact/appeals messages | ⚠ Policy to be set (proposed: end of following academic year) | Manual / not yet automated |
+| Contact/appeals messages | End of the academic year after the matter closes, unless a dispute is live | Manual: each September, by the data protection lead |
+| Admin audit log (`admin_actions`) | 6 years | `purge_old_admin_actions()` daily (02:55) |
+| Age confirmation and Terms acceptance | For the life of the account | Signup metadata in `auth.users` (`terms_version`, `terms_accepted_at`, `age_18_confirmed`); deleted with the account |
 | Inactive accounts | ⚠ **Proposed, not implemented** (DART draft's "24 months" is aspirational) | Would require a new cron |
 
 **Data-subject rights:** account holders can edit their profile in-app and erase their entire
 account (and all owned listings/joins) themselves via Settings → Delete account. This operationally
 supports the rights of rectification and erasure. Access/portability requests would currently be
-handled manually by export from Supabase — a documented manual procedure should be agreed with the DPO.
+handled manually by export from Supabase — a documented manual procedure should be agreed with the data protection lead.

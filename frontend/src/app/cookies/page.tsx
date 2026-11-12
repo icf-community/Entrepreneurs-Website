@@ -3,13 +3,14 @@ import Link from "next/link";
 // Cookie Policy — PECR / UK GDPR. Foundry sets strictly-necessary cookies
 // only (Supabase auth session, password-recovery marker, Cloudflare
 // security) and runs PostHog analytics cookielessly (persistence: memory),
-// so no consent banner is required. Table reflects the cookies actually set.
+// so no consent banner is required. Tables reflect the cookies and browser
+// storage keys actually set (Sidebar, SiteBanner, useIntakeDraft, analytics/track).
 
 export const metadata = {
   title: "Cookie Policy · Foundry",
 };
 
-const LAST_UPDATED = "29 August 2026";
+const LAST_UPDATED = "12 November 2026";
 
 type Cookie = { name: string; provider: string; purpose: string; duration: string };
 
@@ -40,6 +41,34 @@ const COOKIES: Cookie[] = [
   },
 ];
 
+// PECR covers any storage on your device, not just cookies.
+const STORAGE: Cookie[] = [
+  {
+    name: "foundry:intake:draft:…",
+    provider: "Foundry",
+    purpose: "Saves the answers you have typed into the post-approval intake so you don't lose them if you leave the page. Holds what you typed, on this device only.",
+    duration: "Until you finish the intake",
+  },
+  {
+    name: "foundry.nav.collapsed",
+    provider: "Foundry",
+    purpose: "Remembers whether you collapsed the side menu.",
+    duration: "Until you clear your browser storage",
+  },
+  {
+    name: "foundry:banner-dismissed",
+    provider: "Foundry",
+    purpose: "Remembers that you closed a site notice, so it isn't shown again.",
+    duration: "Until you clear your browser storage",
+  },
+  {
+    name: "foundry-analytics-off",
+    provider: "Foundry",
+    purpose: "Remembers that you turned analytics off in Settings.",
+    duration: "Until you turn analytics back on",
+  },
+];
+
 export default function CookiesPage() {
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-16">
@@ -66,9 +95,10 @@ export default function CookiesPage() {
             </p>
             <p className="mt-2">
               Foundry uses only <strong>strictly necessary</strong> cookies — the ones required to sign you in and
-              keep the site secure — and our product analytics run <strong>without cookies</strong>. Because we set
-              no advertising, marketing, or non-essential tracking cookies, UK law (PECR) does not require us to ask
-              for your consent or show a cookie banner.
+              keep the site secure — plus a few items in your browser&rsquo;s storage that remember things you did
+              on the site, and our product analytics run <strong>without cookies</strong>. Because we set no
+              advertising, marketing, or non-essential tracking cookies, UK law (PECR) does not require us to ask for
+              your consent or show a cookie banner.
             </p>
           </Section>
 
@@ -111,12 +141,44 @@ export default function CookiesPage() {
             </p>
           </Section>
 
+          <Section title="3a. What we keep in your browser&rsquo;s storage">
+            <div tabIndex={0} role="region" aria-label="What we keep in your browser's storage" className="overflow-x-auto mt-2 rounded-xl border border-border-subtle">
+              <table className="w-full text-left text-[0.8rem] border-collapse">
+                <thead>
+                  <tr className="bg-bg-card text-text-primary">
+                    <th className="px-3 py-2 font-medium border-b border-border-subtle">Key</th>
+                    <th className="px-3 py-2 font-medium border-b border-border-subtle">Set by</th>
+                    <th className="px-3 py-2 font-medium border-b border-border-subtle">Purpose</th>
+                    <th className="px-3 py-2 font-medium border-b border-border-subtle">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {STORAGE.map((c) => (
+                    <tr key={c.name} className="align-top">
+                      <td className="px-3 py-2 border-b border-border-subtle font-mono text-[0.75rem] text-text-primary whitespace-nowrap">{c.name}</td>
+                      <td className="px-3 py-2 border-b border-border-subtle whitespace-nowrap">{c.provider}</td>
+                      <td className="px-3 py-2 border-b border-border-subtle">{c.purpose}</td>
+                      <td className="px-3 py-2 border-b border-border-subtle">{c.duration}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-[0.8rem] text-text-muted">
+              Each of these is there because you did something on the site, and none is sent to us or to anyone
+              else. If you use a shared computer, finish the intake, or clear the browser&rsquo;s site data, so your
+              draft answers are not left behind.
+            </p>
+          </Section>
+
           <Section title="4. Analytics without cookies">
             <p>
               We use PostHog to understand which pages and features are used so we can improve Foundry. We have
               configured it to run <strong>cookielessly</strong> — it keeps no cookie and no device identifier on
-              your browser, and events are tied only to a pseudonymous account ID. We do not use session recording,
-              autocapture of form contents, or any advertising analytics.
+              your browser, and events are tied to a pseudonymous account ID rather than your name or email. We do
+              not use session recording, autocapture of form contents, or any advertising analytics. You can turn
+              analytics off at any time in <strong>Settings → Usage analytics</strong>; that choice applies to the
+              device you make it on.
             </p>
           </Section>
 

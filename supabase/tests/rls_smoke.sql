@@ -5332,6 +5332,35 @@ begin
 end;
 $$;
 
+-- ─── L1. The admin log keeps 6 years and no more ────────────────────
+-- Privacy §8: "delete each entry after 6 years" (20261112000002). Only the
+-- cron owner may run the purge.
+do $$
+declare
+  v_old uuid := gen_random_uuid();
+  v_new uuid := gen_random_uuid();
+  v_admin uuid := (select id from auth.users limit 1);
+begin
+  set local role postgres;
+  insert into public.admin_actions (id, admin_id, action, target_table, target_id, created_at)
+  values (v_old, v_admin, 'l1_old', 'profiles', gen_random_uuid(), now() - interval '6 years 1 day'),
+         (v_new, v_admin, 'l1_recent', 'profiles', gen_random_uuid(), now() - interval '5 years 11 months');
+
+  perform public.purge_old_admin_actions();
+
+  if exists (select 1 from public.admin_actions where id = v_old) then
+    raise exception 'FAIL: an admin_actions row older than 6 years survived the purge';
+  end if;
+  if not exists (select 1 from public.admin_actions where id = v_new) then
+    raise exception 'FAIL: an admin_actions row under 6 years old was purged';
+  end if;
+  if has_function_privilege('authenticated', 'public.purge_old_admin_actions()', 'execute')
+     or has_function_privilege('anon', 'public.purge_old_admin_actions()', 'execute') then
+    raise exception 'FAIL: purge_old_admin_actions is callable by anon/authenticated';
+  end if;
+end;
+$$;
+
 -- ─── S0. A decider can leave: approvals and resolutions survive it ──
 -- (20261011000001). approved_by / resolved_by are ON DELETE SET NULL, and
 -- CHECKs demanded them non-null, so an admin who had approved a listing or

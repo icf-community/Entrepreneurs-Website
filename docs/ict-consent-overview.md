@@ -1,3 +1,10 @@
+> ⚠ **Correct before sending (12 Nov 2026).** This draft predates the legal reconciliation. Before
+> it goes to ICT: the data controller is **IC Founders Ltd** (Companies House 17171277), which runs
+> Foundry for Imperial Entrepreneurs, an Imperial College Union society — not the society itself;
+> the lawful basis for accounts and the directory is **contract**, not consent (Privacy §3); and
+> the "What data Foundry collects" table is incomplete (CVs, connections, AI, analytics; see
+> `docs/compliance/02-ropa.md`). The Microsoft sign-in work is parked.
+
 # Foundry — Imperial Microsoft Sign-In Consent Request
 
 **Prepared by:** [SOCIETY NAME], a registered Imperial College Union society
