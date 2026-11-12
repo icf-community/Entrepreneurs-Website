@@ -1141,7 +1141,9 @@ function CvUploadForm({
                 Read my CV to suggest skills to add above and generate a
                 searchable summary of my background. The extracted text
                 and summary are stored and used to help match me to
-                relevant opportunities.
+                relevant opportunities. Before the text is analysed by our
+                AI provider (OpenAI), we remove my name, contact details
+                and links.
               </span>
             </label>
           ) : (

@@ -9,7 +9,7 @@ export const metadata = {
   title: "Privacy Policy · Foundry",
 };
 
-const LAST_UPDATED = "3 November 2026";
+const LAST_UPDATED = "12 November 2026";
 
 export default function PrivacyPage() {
   return (
@@ -70,15 +70,28 @@ export default function PrivacyPage() {
           <Section title="2a. Your CV: what we do, and don&rsquo;t do, with it">
             <p>
               Uploading a CV is optional, and so is letting us read it. If you tick the separate consent checkbox
-              on upload, we extract the plain text from your CV once, compare it against a fixed list of around 180
-              skills, and show you the matches as suggestions you can tap to add to your profile. Nothing is added
-              without you choosing to add it.
+              on upload, we read your CV to build a searchable summary of your background and to suggest skills
+              for you to confirm. Nothing is added to your profile without you choosing to add it.
             </p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
-              <li>The extracted text is <strong>never stored</strong> — it exists only for the moment it takes to run that comparison, and is then discarded.</li>
-              <li>The extracted text is <strong>never shown back to you or anyone else</strong>, sent to a third party, or used for anything except that one comparison.</li>
-              <li>The match is a fixed string comparison, not a model — it can only ever suggest one of the ~180 skills on our list, never anything else.</li>
-              <li>Your CV file itself is kept as you uploaded it (see sections 5 and 8), separately from this suggestion feature, so you can share it or remove it whenever you like.</li>
+              <li>We extract the plain text from your CV and <strong>store it</strong>, together with the structured summary (skills, projects, roles) and search data derived from it, for as long as that CV is your current one. Replacing or removing the CV, or deleting your account, deletes the text and the data derived from it.</li>
+              <li>Before anything leaves our systems, we remove your name, email addresses, phone numbers, links, street addresses, postcodes and dates of birth from the text. The remaining text is sent to <strong>OpenAI</strong>, our AI provider, to check it for unsafe content, to turn it into the structured summary, and to create the search data. OpenAI processes it for us under a data processing agreement. See sections 5 and 6.</li>
+              <li>The extracted text is never shown to other members; it is included in the copy of your data you can download. Your CV file itself is kept as you uploaded it (see sections 5 and 8) and is visible only to you and our admins.</li>
+              <li>Skill suggestions are checked against a fixed list of around 180 skills, so only skills from that list are ever offered to you to add.</li>
+            </ul>
+          </Section>
+
+          <Section title="2b. GitHub, if you connect it">
+            <p>
+              Connecting GitHub is optional. If you do, we use GitHub&rsquo;s sign-in to read your <strong>public,
+              non-fork repositories</strong>: their names, descriptions, languages, star counts and dates, an excerpt
+              of each README, and your profile README if you have one. We store an access token (encrypted) and the
+              repository details we read, and we check again periodically, analysing only what has changed.
+            </p>
+            <ul className="list-disc pl-5 space-y-1 mt-2">
+              <li>That material is sent to <strong>OpenAI</strong> to judge which of your projects stand out and to write the project part of your profile summary. See sections 5 and 6.</li>
+              <li>You choose which projects (up to three) are shown with your profile.</li>
+              <li>Disconnecting GitHub deletes the stored connection and the skills we took from it, and your summary is regenerated from your CV alone.</li>
             </ul>
           </Section>
 
@@ -121,6 +134,7 @@ export default function PrivacyPage() {
               <li><strong>Supabase</strong> (EU / London) — database, authentication, and storage. Holds your profile and the content you post.</li>
               <li><strong>Vercel</strong> (EU / Frankfurt) — application hosting and serving.</li>
               <li><strong>Microsoft Azure</strong> (UK South) — image and document storage. Holds images you attach to community posts and any profile photo you upload; these are re-processed on upload, which strips embedded metadata including any location recorded by your camera. It also holds any CV you upload, kept as the file you gave us rather than reprocessed, in a separate, more tightly restricted location that only you and our admins can read.</li>
+              <li><strong>OpenAI</strong> (United States and other regions) — AI processing, only for features you opt in to. It receives the text of a CV you chose to have us read (with your name, contact details and links removed first) and public details of a GitHub account you chose to connect, in order to create your structured summary and search data. It does not receive your name, email address or photo. We have turned off OpenAI&rsquo;s use of this data to train its models. Under its standard terms OpenAI may keep API data for a limited period, historically up to 30 days, to detect abuse, and then deletes it.</li>
               <li><strong>Resend</strong> (EU) — sending our service emails; processes the recipient address and message content in transit.</li>
               <li><strong>Cloudflare</strong> (EU) — DNS, inbound contact-email routing, edge security, and the Turnstile anti-bot challenge on our forms. Processes request metadata such as your IP address to block abuse.</li>
               <li><strong>Upstash</strong> (EU) — rate limiting. Stores only short-lived request counters keyed to your user ID or IP; no profile data.</li>
@@ -134,7 +148,9 @@ export default function PrivacyPage() {
               We aim to keep your data within the UK and EU. Some of our providers are headquartered outside the
               UK / EU; where any transfer of personal data outside the UK takes place, it is protected by an
               appropriate safeguard recognised under UK law (such as UK adequacy regulations or the International
-              Data Transfer Agreement / Standard Contractual Clauses).
+              Data Transfer Agreement / Standard Contractual Clauses). In particular, OpenAI processes data in the
+              United States and other regions; that transfer is covered by the UK Addendum to its Standard Contractual
+              Clauses, which forms part of its data processing agreement with us.
             </p>
           </Section>
 
@@ -212,7 +228,11 @@ export default function PrivacyPage() {
               <li><strong>Moderation records — 12 months.</strong> If an admin removes one of your posts, we keep a record of the removal: the post&rsquo;s title and text, the reason given, and who removed it and when. We keep this so that a removal can be explained, reviewed, or defended if it is challenged, which is a legitimate interest and, where the record relates to a potential legal claim, is permitted under Article 17(3)(e) UK GDPR even if you ask us to erase your data. It is deleted after 12 months unless a specific dispute is still live.</li>
               <li><strong>Reports — 12 months.</strong> If you report a post or a connection, we keep your report, what you told us, and the outcome, on the same 12-month clock. A report that is still open when the 12 months are up is kept until it is resolved, so that nothing is deleted out from under an investigation.</li>
               <li><strong>Connections — while they last.</strong> A connection you remove is deleted permanently within a day. A request that is withdrawn or declined is deleted permanently three weeks later, along with any note that was sent with it. The three weeks are not storage for its own sake: that is the period during which the member who sent the request cannot send another to the same person, and the record is what enforces it. A request nobody answers expires after six months and is deleted at that point. A block is kept until you lift it, because the block is the record. If the person you blocked deletes their account, we keep your member ID and a one-way hash of their email address for 12 months, so that if that address signs up again the block is put back; it is removed once it has been used, when you delete your account, or after 12 months. The hash cannot be turned back into the address. We also keep a record of connection activity (a request sent, accepted, declined, blocked) for 12 months, which is what lets us spot someone sending unwanted requests to many people. As with moderation records, that activity log is kept even if you delete your account, for the same reason and under the same Article 17(3)(e) basis.</li>
-              <li><strong>Emails we send you — 7 days.</strong> Mail leaves Foundry through a short queue, and we delete the queued copy a week after it is sent. We keep it that long only so we can tell you whether something actually went out if you say you never received it. This matters for one email in particular: when someone accepts your connection request, the email telling you so contains their address, and that copy goes with the rest. The email in your own inbox is yours and stays there.</li>
+              <li><strong>Emails we send you — 7 days.</strong> Mail leaves Foundry through a short queue, and we delete the queued copy a week after it is sent. We keep it that long only so we can tell you whether something actually went out if you say you never received it. This matters for one email in particular: when someone accepts your connection request, the email telling you so contains their address, and that copy goes with the rest. The email in your own inbox is yours and stays there. A message that could not be delivered at all is kept for 30 days instead, so we can work out why.</li>
+              <li><strong>Notifications in the app — 90 days.</strong> The notices shown in your account (for example a connection request or a decision on a listing) are deleted automatically after 90 days.</li>
+              <li><strong>Email changes — as long as your account.</strong> When you change your sign-in email we record the old address, the new address and the time, as a security record, and delete it with your account.</li>
+              <li><strong>Which listings you view or click — as long as your account.</strong> We record which opportunities, events and grants you open or click through, to understand how much interest each listing gets, and delete it with your account.</li>
+              <li><strong>Admin actions — indefinitely, without the admin&rsquo;s identity once they leave.</strong> When an admin approves, rejects, removes or edits something, we log what was done and by whom, for accountability. If that admin later deletes their account, their identity is removed and the entry stays.</li>
             </ul>
           </Section>
 
