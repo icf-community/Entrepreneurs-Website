@@ -137,3 +137,17 @@ def test_without_dsn_nothing_initialises(monkeypatch):
     # Both are silent no-ops when Sentry is off.
     observability.capture(RuntimeError("x"))
     observability.heartbeat("cv-worker", 5)
+
+
+def test_scrub_keeps_trace_ids_so_a_check_in_is_not_rejected():
+    # 32 hex characters is the shape _HEX_SECRET redacts; "[hex]" as a trace_id
+    # made Sentry refuse every executor heartbeat.
+    trace = {"trace_id": "b99c80af5674479e834fa6bfac1bc60e", "span_id": "a9f4f01c3b44d8b8", "parent_span_id": None}
+    out = scrub({"type": "check_in", "contexts": {"trace": dict(trace), "runtime": {"note": "a@b.com"}}})
+    assert out["contexts"]["trace"] == trace
+    assert out["contexts"]["runtime"]["note"] == "[email]"
+
+
+def test_scrub_without_a_trace_context_is_unchanged():
+    assert scrub({"contexts": {"runtime": {"name": "CPython"}}}) == {"contexts": {"runtime": {"name": "CPython"}}}
+    assert scrub({"contexts": {"trace": "oddly a string"}}) == {"contexts": {"trace": "oddly a string"}}
