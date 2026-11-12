@@ -6,7 +6,7 @@ import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
 import { FieldError } from "@/components/forms/Field";
-import { contactSchema } from "@/lib/validation/contact";
+import { CONTACT_TOPICS, contactSchema } from "@/lib/validation/contact";
 import { collectFieldErrors, showFieldErrors, FORM_ERROR, type FieldErrors } from "@/lib/validation/fields";
 import { Button } from "@/components/ui/Button";
 
@@ -23,6 +23,7 @@ export default function ContactForm({
 }) {
   const [name, setName] = useState(defaultName);
   const [email, setEmail] = useState(defaultEmail);
+  const [topic, setTopic] = useState<string>("general");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
@@ -48,7 +49,7 @@ export default function ContactForm({
     // The action validates with this same schema; running it here first means
     // a typo is caught beside the field instead of round-tripping and coming
     // back as a single banner.
-    const parsed = collectFieldErrors(contactSchema, { name, email, subject, message });
+    const parsed = collectFieldErrors(contactSchema, { name, email, topic, subject, message });
     if (!parsed.ok) {
       // With lockEmail the name/email inputs aren't rendered, so an error on
       // them would have nowhere to show. Send it to the banner instead.
@@ -59,7 +60,7 @@ export default function ContactForm({
     }
 
     startTransition(async () => {
-      const res = await submitContactTicket({ name, email, subject, message, turnstileToken });
+      const res = await submitContactTicket({ name, email, topic, subject, message, turnstileToken });
       if (!res.ok) {
         setError(res.error);
         return;
@@ -112,6 +113,15 @@ export default function ContactForm({
           </div>
         </>
       )}
+
+      <div>
+        <label htmlFor="topic" className="block text-[0.75rem] text-text-muted mb-1.5">What&apos;s this about?</label>
+        <select id="topic" value={topic} onChange={(e) => setTopic(e.target.value)} className={inputCls}>
+          {CONTACT_TOPICS.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
+      </div>
 
       <div data-invalid={fieldErrors.subject ? "" : undefined}>
         <label htmlFor="subject" className="block text-[0.75rem] text-text-muted mb-1.5">Subject</label>

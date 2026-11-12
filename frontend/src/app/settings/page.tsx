@@ -10,6 +10,7 @@ import PasswordChangeForm from "./PasswordChangeForm";
 import DeleteAccountSection from "./DeleteAccountSection";
 import SessionsSection from "./SessionsSection";
 import DataExportSection from "./DataExportSection";
+import AnalyticsSection from "./AnalyticsSection";
 import ConnectionSettings from "./ConnectionSettings";
 import BlockedMembers from "./BlockedMembers";
 import { myConnectionSettings } from "@/lib/data/connections";
@@ -151,6 +152,7 @@ export default async function SettingsPage() {
             <SessionsSection />
 
             <DataExportSection />
+            <AnalyticsSection />
 
             <DeleteAccountSection email={user.email ?? ""} />
           </div>

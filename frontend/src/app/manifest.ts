@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Imperial Entrepreneurs — Foundry",
     short_name: "Foundry",
     description:
-      "Foundry is the founder community at Imperial College London — student founders, alumni, mentors, and investors.",
+      "Foundry is the founder community for Imperial College London students and alumni — student founders, alumni, mentors, and investors.",
     start_url: "/",
     display: "standalone",
     background_color: "#08080a",

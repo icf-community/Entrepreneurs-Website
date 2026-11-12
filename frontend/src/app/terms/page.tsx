@@ -9,7 +9,7 @@ export const metadata = {
   title: "Terms & Conditions · Foundry",
 };
 
-const LAST_UPDATED = "20 September 2026";
+const LAST_UPDATED = "12 November 2026";
 
 export default function TermsPage() {
   return (
@@ -34,16 +34,20 @@ export default function TermsPage() {
               Foundry is operated under the name &ldquo;Imperial Entrepreneurs&rdquo; by <strong>IC Founders Ltd</strong>,
               a company limited by guarantee registered in England and Wales (company number <strong>17171277</strong>),
               registered office 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ (&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;).
+              IC Founders Ltd runs Foundry for Imperial Entrepreneurs, an Imperial College Union society. Foundry is not
+              operated or endorsed by Imperial College London.
               These Terms and Conditions govern your access to and use of Foundry. By creating an account or using
-              Foundry you agree to these terms and to our{" "}
-              <Link href="/privacy" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Privacy Policy</Link>. If you
-              do not agree, please do not use Foundry.
+              Foundry you agree to these terms. Our{" "}
+              <Link href="/privacy" className="text-accent underline underline-offset-[3px] hover:text-accent-light">Privacy Policy</Link> explains
+              how we use your data. If you do not agree to these terms, please do not use Foundry.
             </p>
           </Section>
 
           <Section title="2. Eligibility and your account">
             <p>
-              Foundry is for current Imperial College London students and alumni aged 18 or over. To join as a
+              Foundry is for current Imperial College London students and alumni aged 18 or over, and you confirm
+              your age when you join. If we learn that a member is under 18, we will close the account; they are
+              welcome to join again at 18. To join as a
               current student you need a valid Imperial email address (@imperial.ac.uk or @ic.ac.uk). To join as an
               alum you confirm you have studied at Imperial; our admins review alumni applications before granting
               access. You agree to provide accurate information, to keep your account secure, and not to share your
@@ -60,7 +64,10 @@ export default function TermsPage() {
               <li>impersonate any person or organisation, or misstate your affiliation with Imperial;</li>
               <li>collect, scrape, or harvest other members&rsquo; data, or use the member directory for spam or unsolicited marketing;</li>
               <li>upload malware, attempt to bypass our security or access controls, probe or disrupt the service, or use it other than through the interface we provide;</li>
-              <li>use Foundry for any commercial purpose unrelated to its community aims without our permission.</li>
+              <li>use Foundry for any commercial purpose unrelated to its community aims without our permission;</li>
+              <li>invite or encourage other members to invest — to buy shares, lend money, or put money into any other investment — anywhere on Foundry, including listings, posts, profiles and connection notes. Pointing founders to an accelerator, grant or investor that they apply to is fine; offering members a stake in your company is not;</li>
+              <li>post a job or opportunity that discriminates unlawfully (for example by asking for applicants of a particular sex, race, age or religion, unless the law allows it), or an unpaid role that the law requires to be paid. An unpaid role is allowed only if it is genuine volunteering, a placement required by a course, or work-shadowing, and the listing must say which;</li>
+              <li>post anything that infringes someone else&rsquo;s copyright, trade mark or other rights.</li>
             </ul>
             <p className="mt-3">
               <strong>Connections and the email addresses they release.</strong> Connecting with another member
@@ -163,10 +170,38 @@ export default function TermsPage() {
             </p>
           </Section>
 
+          <Section title="6a. Online safety, reporting and complaints">
+            <p>
+              How we protect members from illegal and harmful content: everyone on Foundry is a checked Imperial
+              student or alum; listings are reviewed by an admin before anyone else sees them; community posts are
+              deleted after seven days; every post, connection and request can be reported; and we remove illegal
+              content and the accounts that post it. We do not use automated tools to scan posts or messages. We
+              do run automated checks in two places: a CV you let us read is checked for unsafe content before it is
+              processed, and Foundry AI refuses searches that target people by protected traits.
+            </p>
+            <p className="mt-3">
+              <strong>Reporting.</strong> Members can use the Report control on a post, connection or request.
+              Anyone else — including someone who is not a member, for example if a post is about you or uses your
+              work — can report content through our{" "}
+              <Link href="/contact" className="text-accent underline underline-offset-[3px] hover:text-accent-light">contact form</Link> by choosing &ldquo;Report content&rdquo;. Tell us where the
+              content is, what is wrong with it, and, for a defamation or copyright complaint, why it is unlawful
+              and how to contact you. We aim to act on the most serious reports immediately and on most others
+              within three days, and we tell the person who reported it what we decided.
+            </p>
+            <p className="mt-3">
+              <strong>Complaints.</strong> You can complain about content, about a decision we made (such as
+              removing your content, restricting your account or rejecting your application), or about how we run
+              Foundry, by emailing <strong>appeals@imperialentrepreneurs.com</strong> or using the contact form. A
+              person will look at it — where we can, someone who was not involved in the original decision — and we
+              will reply with the outcome. Complaints about how we use your data are covered in section 14 of the Privacy Policy.
+            </p>
+          </Section>
+
           <Section title="7. Our intellectual property">
             <p>
-              Foundry, the &ldquo;Imperial Entrepreneurs&rdquo; and &ldquo;Foundry&rdquo; names, the platform, and its design and
-              code are owned by or licensed to us. These terms do not grant you any right to use our branding or
+              The Foundry platform, its design and its code are owned by or licensed to us. The &ldquo;Imperial
+              Entrepreneurs&rdquo; name belongs to the society, and &ldquo;Imperial&rdquo; and &ldquo;Imperial College London&rdquo;
+              belong to Imperial College London. These terms do not give you any right to use this branding or
               reproduce the platform except as needed to use Foundry normally.
             </p>
           </Section>
@@ -174,7 +209,8 @@ export default function TermsPage() {
           <Section title="8. Availability and changes to the service">
             <p>
               Foundry is provided free of charge and on an &ldquo;as is&rdquo; and &ldquo;as available&rdquo; basis. We may change,
-              suspend, or discontinue features, or the whole service, at any time. We do not guarantee that Foundry
+              suspend, or discontinue features, or the whole service. We will give you reasonable notice where we can,
+              unless the change is needed urgently for security or legal reasons. We do not guarantee that Foundry
               will be uninterrupted or error-free.
             </p>
           </Section>
@@ -191,29 +227,38 @@ export default function TermsPage() {
               third parties, from your reliance on any content on Foundry, or from any interruption, error, or
               unavailability of the service; and we are not liable for indirect or consequential loss, or for loss
               of profit, opportunity, data, or goodwill. Because Foundry is provided free of charge, our total
-              liability to you for any claim connected with the service is limited to £100.
+              liability to you for any other claim connected with the service is limited to £100.
+            </p>
+            <p className="mt-2">
+              None of this limits your statutory rights, including your rights under data protection law and any
+              right to compensation it gives you, or any liability for breaking those laws.
             </p>
           </Section>
 
           <Section title="10. Indemnity">
             <p>
-              You agree to indemnify us against reasonable losses and costs we incur as a result of content you post
-              in breach of these terms or of your misuse of Foundry.
+              If you use Foundry for a business, for example to post a job or listing for a company or organisation,
+              that business agrees to compensate us for reasonable losses and costs we incur because of content it
+              posts in breach of these terms. This section does not apply to you when you use Foundry as an
+              individual.
             </p>
           </Section>
 
           <Section title="11. Changes to these terms">
             <p>
-              We may update these terms. If we make a material change we will notify members by email at their
-              registered address. Continued use of Foundry after notification constitutes acceptance of the updated
-              terms.
+              We may update these terms. If we make a material change we will email members at their registered
+              address at least 30 days before it takes effect, unless the change is needed sooner for legal or
+              security reasons. If you do not agree to the change, you can delete your account before it takes
+              effect; if you keep using Foundry after that, the updated terms apply.
             </p>
           </Section>
 
           <Section title="12. Governing law and jurisdiction">
             <p>
               These terms and any dispute arising out of or in connection with them are governed by the laws of
-              England and Wales, and the courts of England and Wales have exclusive jurisdiction.
+              England and Wales, and the courts of England and Wales have jurisdiction. If you live in Scotland or
+              Northern Ireland, you can also bring proceedings in your local courts, and the mandatory consumer laws
+              of the place where you live still protect you.
             </p>
           </Section>
 

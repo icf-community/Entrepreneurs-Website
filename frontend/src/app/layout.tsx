@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     template: "%s | Imperial Entrepreneurs",
   },
   description:
-    "Imperial Entrepreneurs is the founder community at Imperial College London — connect with student founders, alumni, mentors, and investors through Foundry.",
+    "Imperial Entrepreneurs is the founder community for Imperial College London students and alumni — connect with student founders, alumni, mentors, and investors through Foundry.",
   applicationName: SITE_NAME,
   keywords: ["Imperial Entrepreneurs", "Imperial College", "Foundry", "student founders", "startup community", "Imperial startups"],
   alternates: { canonical: "/" },
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: "Imperial Entrepreneurs — Foundry",
     description:
-      "The founder community at Imperial College London. Connect with student founders, alumni, mentors, and investors through Foundry.",
+      "The founder community for Imperial College London students and alumni. Connect with student founders, alumni, mentors, and investors through Foundry.",
     url: SITE_URL,
     locale: "en_GB",
     // Dedicated 1200x630 export. This file is served RAW to every scraper —
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Imperial Entrepreneurs — Foundry",
-    description: "The founder community at Imperial College London.",
+    description: "The founder community for Imperial College London students and alumni.",
     images: ["/og-image.png"],
   },
 };

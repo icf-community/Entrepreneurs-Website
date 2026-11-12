@@ -133,8 +133,13 @@ export default function Community() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2">
-            {PROFILES.map((p) => <ProfileCell key={p.name} {...p} />)}
+          {/* Placeholders, not real members (PRODUCT.md): labelled so the
+              homepage never reads as showing who is in the directory. */}
+          <div>
+            <p className="label-wide mb-3 text-text-muted">Example profiles</p>
+            <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-2">
+              {PROFILES.map((p) => <ProfileCell key={p.name} {...p} />)}
+            </div>
           </div>
         </div>
       </div>

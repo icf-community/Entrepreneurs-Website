@@ -74,7 +74,7 @@ export const structuredData = {
       // square in knowledge panels and chat unfurls, and is also served raw.
       logo: `${SITE_URL}/logo-square.png`,
       description:
-        "The founder community at Imperial College London, connecting student founders, alumni, mentors, and investors through Foundry.",
+        "The founder community for Imperial College London students and alumni, connecting student founders, alumni, mentors, and investors through Foundry.",
       sameAs: [
         "https://www.linkedin.com/company/imperial-entrepreneurs/",
         "https://www.instagram.com/imperialentrepreneurs/",

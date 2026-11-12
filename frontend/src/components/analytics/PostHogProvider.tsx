@@ -16,11 +16,12 @@ import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
 import { isSyntheticEmail } from "@/lib/observability/synthetic";
 import { sanitiseAnalyticsEvent } from "@/lib/observability/analyticsUrls";
-import { POSTHOG_KEY, POSTHOG_HOST, flushQueuedTracking } from "@/lib/analytics/track";
+import { POSTHOG_KEY, POSTHOG_HOST, flushQueuedTracking, analyticsOptedOut, ANALYTICS_CHANGE_EVENT } from "@/lib/analytics/track";
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    if (!POSTHOG_KEY) return;
+    // Opted out on this device (Settings): posthog-js is never loaded.
+    if (!POSTHOG_KEY || analyticsOptedOut()) return;
     let cancelled = false;
     let unsubscribe = () => {};
 
@@ -80,7 +81,16 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         // first identify, so queued events are attributed to the member.
         flushQueuedTracking(posthog);
       });
-      unsubscribe = () => sub.subscription.unsubscribe();
+      // Opting out (or back in) mid-session takes effect immediately.
+      const onChange = () => {
+        if (analyticsOptedOut()) posthog.opt_out_capturing();
+        else posthog.opt_in_capturing();
+      };
+      window.addEventListener(ANALYTICS_CHANGE_EVENT, onChange);
+      unsubscribe = () => {
+        sub.subscription.unsubscribe();
+        window.removeEventListener(ANALYTICS_CHANGE_EVENT, onChange);
+      };
     })();
 
     return () => {

@@ -53,11 +53,11 @@ function toCommitteeMember(r: CommitteeRow): Omit<CommitteeMember, "avatarUrl"> 
 }
 
 /**
- * /committee is the one gallery visible to a signed-out visitor, so unlike
- * the members-only directory (withAvatarUrls, an hourly-expiring Azure SAS
- * minted per render) this points at the stable /api/img redirect
- * (B3.4) — no Azure round trip here, and the URL itself is cacheable
- * since it never changes for a given avatar.
+ * /committee is members-only (requireApprovedUser; list_committee_cards is
+ * revoked from anon). Unlike the directory (withAvatarUrls, an hourly-
+ * expiring Azure SAS minted per render) this points at the stable /api/img
+ * redirect (B3.4), which also requires an approved session: no Azure round
+ * trip here, and the URL never changes for a given avatar.
  */
 function withStableAvatarUrls(members: Omit<CommitteeMember, "avatarUrl">[]): CommitteeMember[] {
   return members.map((m) => ({

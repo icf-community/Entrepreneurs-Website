@@ -11,7 +11,7 @@ export default function Footer() {
     // the page.
     <footer className="border-t border-border bg-bg-secondary pt-12 pb-28 px-8 md:py-12">
       <div className="max-w-[1200px] mx-auto flex flex-wrap justify-between items-center gap-6">
-        <BrandLogo size="xs" showAffiliation />
+        <BrandLogo size="xs" />
 
         <nav className="flex flex-wrap items-center gap-4">
           {/* Social logos */}
@@ -45,9 +45,17 @@ export default function Footer() {
           </div>
         </nav>
 
-        <p className="text-[0.75rem] text-text-muted">
-          © 2026 Foundry · Built by students, for founders
-        </p>
+        <div className="w-full space-y-1.5 text-[0.75rem] text-text-muted">
+          <p>© 2026 IC Founders Ltd · Built by students, for founders</p>
+          {/* Trading disclosures (Companies Act 2006 / 2015 Regs) and the
+              E-Commerce Regs reg 6 identity, on every public page. */}
+          <p className="max-w-[760px] text-[0.7rem] leading-relaxed">
+            Foundry is run by IC Founders Ltd for Imperial Entrepreneurs, an Imperial College Union society, and is
+            not operated or endorsed by Imperial College London. IC Founders Ltd, registered in England and Wales,
+            company number 17171277, registered office 71–75 Shelton Street, London WC2H 9JQ ·
+            contact@imperialentrepreneurs.com
+          </p>
+        </div>
       </div>
     </footer>
   );

@@ -8,7 +8,7 @@ import ContactForm from "./ContactForm";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: "Get in touch with Foundry, the founder community at Imperial College London.",
+  description: "Get in touch with Foundry, the founder community for Imperial College London students and alumni.",
 };
 
 // Public front door: reachable by anyone (prospective members, alumni,

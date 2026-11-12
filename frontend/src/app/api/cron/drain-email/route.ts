@@ -5,6 +5,7 @@ import { timingSafeEqual } from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/lib/supabase/service";
 import { errorSummary } from "@/lib/errorSummary";
+import { withCompanyFooter } from "@/lib/emailFooter";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Outbound email drain
@@ -191,8 +192,7 @@ async function sendOne(
         from:    fromAddress,
         to:      row.to_address,
         subject: row.subject,
-        text:    row.text_body,
-        html:    row.html_body,
+        ...withCompanyFooter(row.text_body, row.html_body),
         ...(row.reply_to ? { replyTo: row.reply_to } : {}),
       }, { idempotencyKey: row.id }),
       new Promise<never>((_, reject) =>
