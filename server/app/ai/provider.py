@@ -20,7 +20,7 @@ import uuid
 from dataclasses import dataclass
 
 from .. import fake_provider
-from .policy import _AFFINITY, _ALWAYS_SENSITIVE, DOMAIN_TERMS
+from .policy import _AFFINITY, _ALWAYS_SENSITIVE, _SPECIAL_CATEGORY, DOMAIN_TERMS
 from ..schema_validate import SchemaError, validate
 
 
@@ -197,7 +197,8 @@ def _fake_interpret(payload: dict) -> dict:
     if _INJECTION.search(message):
         return {"decision": "injection", "ops": []}
     stripped = DOMAIN_TERMS.sub(" ", message)
-    if _ALWAYS_SENSITIVE.search(stripped) or (mode != "network" and _AFFINITY.search(stripped)):
+    if (_ALWAYS_SENSITIVE.search(stripped) or _SPECIAL_CATEGORY.search(stripped)
+            or (mode != "network" and _AFFINITY.search(stripped))):
         return {"decision": "sensitive", "ops": []}
     ops = []
     lower = message.lower()
