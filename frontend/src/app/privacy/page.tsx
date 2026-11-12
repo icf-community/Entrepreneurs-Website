@@ -9,7 +9,7 @@ export const metadata = {
   title: "Privacy Policy · Foundry",
 };
 
-const LAST_UPDATED = "3 November 2026";
+const LAST_UPDATED = "12 November 2026";
 
 export default function PrivacyPage() {
   return (
@@ -70,15 +70,14 @@ export default function PrivacyPage() {
           <Section title="2a. Your CV: what we do, and don&rsquo;t do, with it">
             <p>
               Uploading a CV is optional, and so is letting us read it. If you tick the separate consent checkbox
-              on upload, we extract the plain text from your CV once, compare it against a fixed list of around 180
-              skills, and show you the matches as suggestions you can tap to add to your profile. Nothing is added
-              without you choosing to add it.
+              on upload, we read your CV to build a searchable summary of your background and to suggest skills
+              for you to confirm. Nothing is added to your profile without you choosing to add it.
             </p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
-              <li>The extracted text is <strong>never stored</strong> — it exists only for the moment it takes to run that comparison, and is then discarded.</li>
-              <li>The extracted text is <strong>never shown back to you or anyone else</strong>, sent to a third party, or used for anything except that one comparison.</li>
-              <li>The match is a fixed string comparison, not a model — it can only ever suggest one of the ~180 skills on our list, never anything else.</li>
-              <li>Your CV file itself is kept as you uploaded it (see sections 5 and 8), separately from this suggestion feature, so you can share it or remove it whenever you like.</li>
+              <li>We extract the plain text from your CV and <strong>store it</strong>, together with the structured summary (skills, projects, roles) and search data derived from it, for as long as that CV is your current one. Replacing or removing the CV, or deleting your account, deletes the text and the data derived from it.</li>
+              <li>Before anything leaves our systems, we remove your name, email addresses, phone numbers, links, street addresses, postcodes and dates of birth from the text. The remaining text is sent to <strong>OpenAI</strong>, our AI provider, to check it for unsafe content, to turn it into the structured summary, and to create the search data. OpenAI processes it for us under a data processing agreement. See sections 5 and 6.</li>
+              <li>The extracted text is never shown to other members; it is included in the copy of your data you can download. Your CV file itself is kept as you uploaded it (see sections 5 and 8) and is visible only to you and our admins.</li>
+              <li>Skill suggestions are checked against a fixed list of around 180 skills, so only skills from that list are ever offered to you to add.</li>
             </ul>
           </Section>
 
@@ -121,6 +120,7 @@ export default function PrivacyPage() {
               <li><strong>Supabase</strong> (EU / London) — database, authentication, and storage. Holds your profile and the content you post.</li>
               <li><strong>Vercel</strong> (EU / Frankfurt) — application hosting and serving.</li>
               <li><strong>Microsoft Azure</strong> (UK South) — image and document storage. Holds images you attach to community posts and any profile photo you upload; these are re-processed on upload, which strips embedded metadata including any location recorded by your camera. It also holds any CV you upload, kept as the file you gave us rather than reprocessed, in a separate, more tightly restricted location that only you and our admins can read.</li>
+              <li><strong>OpenAI</strong> (United States and other regions) — AI processing, only for features you opt in to. It receives the text of a CV you chose to have us read (with your name, contact details and links removed first) and public details of a GitHub account you chose to connect, in order to create your structured summary and search data. It does not receive your name, email address or photo. We do not allow OpenAI to use this data to train its models.</li>
               <li><strong>Resend</strong> (EU) — sending our service emails; processes the recipient address and message content in transit.</li>
               <li><strong>Cloudflare</strong> (EU) — DNS, inbound contact-email routing, edge security, and the Turnstile anti-bot challenge on our forms. Processes request metadata such as your IP address to block abuse.</li>
               <li><strong>Upstash</strong> (EU) — rate limiting. Stores only short-lived request counters keyed to your user ID or IP; no profile data.</li>
@@ -134,7 +134,9 @@ export default function PrivacyPage() {
               We aim to keep your data within the UK and EU. Some of our providers are headquartered outside the
               UK / EU; where any transfer of personal data outside the UK takes place, it is protected by an
               appropriate safeguard recognised under UK law (such as UK adequacy regulations or the International
-              Data Transfer Agreement / Standard Contractual Clauses).
+              Data Transfer Agreement / Standard Contractual Clauses). In particular, OpenAI processes data in the
+              United States and other regions; that transfer is covered by the UK Addendum to its Standard Contractual
+              Clauses, which forms part of its data processing agreement with us.
             </p>
           </Section>
 
