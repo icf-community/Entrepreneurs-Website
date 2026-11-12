@@ -333,3 +333,37 @@ and **should be extended to cover member-to-member connection notes**.
 - any email carries note text;
 - a contact detail beyond the login email address is exchanged;
 - membership grows by an order of magnitude.
+
+---
+
+## Re-screen — CV worker pipeline and GitHub connection (12 Nov 2026)
+
+**Status: DRAFT for the controller's decision.** The first screening above concluded that no full
+DPIA was needed because the CV matcher was a fixed string comparison, held the text in memory for
+one request, and sent nothing to a third party. Its own "re-run if" list names three triggers:
+the matcher being replaced by an LLM, the text being retained, and the text being sent to a third
+party. **All three have occurred** (audit D6-1; ROPA item T). This section is the re-screen.
+
+**What changed.** When a member ticks the CV consent, the worker (a) extracts and **stores** the
+text, (b) removes names, contact details, links, addresses, postcodes and dates of birth, (c) sends
+the remainder to **OpenAI** for a moderation check, structured extraction and embeddings, and
+(d) stores the resulting profile, summary and embeddings until the CV is replaced or removed. A
+member who connects GitHub has their public repositories read, analysed by OpenAI and summarised
+(ROPA item U). The in-request matcher (ROPA item O) still exists alongside this.
+
+| Screening question | Answer | Reasoning |
+|---|---|---|
+| Systematic and extensive automated evaluation or profiling with legal or similarly significant effects | **Not met by this pipeline on its own** | It produces a descriptive summary and search data; it ranks, scores and decides nothing. The evaluation of a person against a recruiter's criteria happens only in Foundry AI, which has its own full DPIA (`11-dpia-ai-matching.md`) and is **off in production**. |
+| Large-scale processing of special-category data | **Considered, not met** | A CV can contain data from which special categories are inferable. Nothing in the pipeline asks for, infers or acts on them; identifiers are stripped before the text leaves our systems and the extraction schema has no field for them. Residual risk: the model sees the remaining free text. |
+| Innovative technology | **Met** | A third-party language model reads personal documents. |
+| Data transferred outside the UK/EEA | **Yes** | OpenAI, Global residency, under the UK Addendum to its Standard Contractual Clauses (in force by incorporation, 12 Nov 2026). |
+| Consent informed and specific | **Corrected 12 Nov 2026** | The upload checkbox and the privacy page now say the text is stored and analysed by OpenAI after identifiers are removed. Members who ticked the earlier wording (31 CVs stored in production at the time of writing) were told the text is stored but not that OpenAI processes it. |
+
+**Draft conclusion.** A full DPIA for this pipeline in isolation is not required, **provided** that
+(1) its output only feeds features already covered by `11-dpia-ai-matching.md`, and (2) the
+members who consented under the earlier wording are handled as the controller decides (re-prompt,
+or accept with a record of the reasoning). **The controller must confirm both** and record the date
+below. The ICO's guidance treats the combination of new technology and a third-party processor
+as a reason to document the decision, not to skip it.
+
+**Controller decision:** ______________________  **Name / role:** ______________________  **Date:** ____________

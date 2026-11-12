@@ -25,13 +25,34 @@ portfolio.
 | 04 | [Internal Data Handling Protocol](./04-internal-data-handling-protocol.md) | How the team accesses, secures, and minimises data |
 | 05 | [Data Breach Incident Response Plan](./05-data-breach-incident-response-plan.md) | Detection, containment, ICO/Imperial notification, recovery |
 | 06 | [Information Items Checklist](./06-info-items-checklist.md) | Outstanding factual inputs |
-| 07 | [DPIA Screening — Community posts](./07-dpia-screening.md) | Art. 35 screening for the member-to-member feed, and why a full DPIA is not required |
+| 07 | [DPIA Screening — Community, Connections, CV intake](./07-dpia-screening.md) | Art. 35 screenings, and why a full DPIA is not required for each; includes the 12 Nov 2026 re-screen of the CV worker pipeline and GitHub connection |
 | 08 | [Retention Decision — Moderation Log](./08-retention-decision-moderation-log.md) | Why a takedown record survives account deletion, and the sign-off that decision needs |
 | 09 | [OSA Illegal Content Risk Assessment](./09-osa-illegal-content-risk-assessment.md) | Online Safety Act duty — separate from, and additional to, the Art. 35 screening in 07 |
 | 10 | [Moderation Response Standard](./10-moderation-response-standard.md) | Who reads reports, how fast, and what happens automatically |
 | 11 | [DPIA — Foundry AI](./11-dpia-ai-matching.md) | Full Art. 35 DPIA for AI search, matching and assessment (profiling); gates every AI flag |
 
-## Blocking sign-offs before Community goes live
+## Sign-off register (every decision that needs the controller, 12 Nov 2026)
+
+Community and Connections are **already live**, so the first four rows are overdue rather than
+"before go-live". None of these can be completed by engineering. Leave a row blank until it is
+genuinely decided.
+
+| # | Decision | Document | Needed before | Decided by / date |
+|---|----------|----------|---------------|-------------------|
+| 1 | Approve the moderation log surviving erasure (Art. 17(3)(e)) | 08 §7 | Already live | |
+| 2 | Adopt the OSA illegal-content risk assessment; name the escalation decision-maker for CSAM and credible threats | 09 §6, §8 | Already live | |
+| 3 | Name a primary moderator and a deputy; agree response times | 10 §2, §3 | Already live | |
+| 4 | Approve the corrected privacy page (CV text stored and sent to OpenAI; GitHub; retention lines; OpenAI as processor) | PR #120 / `privacy/page.tsx` | Already live: the old page is inaccurate | |
+| 5 | Decide how to treat members who ticked the older CV consent wording | 07 re-screen; ROPA T | Soon | |
+| 6 | Confirm or amend the CV worker pipeline re-screen conclusion | 07 re-screen | Soon | |
+| 7 | Sign off the Foundry AI DPIA and its open points (1 to 4), including consulting members | 11 §2, §6 | **Any AI flag** | |
+| 8 | Lawful basis for a member's own job matches (contract or legitimate interests) | 02 item S | **Any AI flag** | |
+| 9 | Approve the `/ai-notice` wording | `ai-notice/page.tsx` | **Any AI flag** | |
+| 10 | Items 20 and 21 of `owner-decisions.md` (spend caps; strictness of the protected-characteristic screen) | owner-decisions | **Any AI flag** | |
+| 11 | Signed copy of the OpenAI DPA | 03 | 19 Nov 2026 | |
+| 12 | Confirm the Imperial relationship (independent controller vs joint) is acceptable for DART 2.0 | 02 §1 | Before DART submission | |
+
+## Blocking sign-offs before Community goes live (original list)
 
 Documents 08, 09 and 10 each end with a sign-off block. All three are decisions
 a human with authority has to make, not engineering work:
@@ -44,11 +65,8 @@ a human with authority has to make, not engineering work:
 
 ## Three inputs needed before these are presentation-ready
 
-1. **Supabase project region** — confirm in the Supabase dashboard (Settings → General).
-   The DART draft assumes UK; this must be verified, not assumed.
-2. **Vendor data-residency settings** — confirm the **Sentry** org is an EU-region org,
-   the **Upstash** Redis database region, and the **Resend** account region. Each supports
-   EU residency; the configuration choice must be confirmed per account.
+1. ~~**Supabase project region**~~ — confirmed UK (London) on 12 Nov 2026.
+2. **Vendor data-residency settings** — **Sentry** is confirmed EU (12 Nov 2026). Still to confirm: the **Upstash** Redis database region and the **Resend** account region.
 3. **Named role-holders** — the **Information Asset Owner (IAO)** (the staff member /
    faculty sponsor / Union officer legally accountable) and the **Information Asset
    Administrator (IAA)** (the student running day-to-day operations).
