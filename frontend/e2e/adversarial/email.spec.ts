@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { expect, test } from "@playwright/test";
 import { psql, service } from "./helpers";
+import { withCompanyFooter } from "../../src/lib/emailFooter";
 
 // ════════════════════════════════════════════════════════════════════
 // Outbound email: the real drain route against a fake Resend.
@@ -113,7 +114,10 @@ test("a pending row is sent once, with the row id as the idempotency key, and re
 
   const mine = seen.filter((s) => s.to === to);
   expect(mine).toHaveLength(1);
-  expect(mine[0]).toMatchObject({ subject: "Hello <b>there</b>", text: "plain body", html: "<p>Hi &amp; welcome</p>", replyTo: "reply@example.test", idempotencyKey: data!.id });
+  // The drain adds the company particulars to every message (lib/emailFooter.ts),
+  // so the body sent is the queued body plus that footer, and nothing else.
+  const sent = withCompanyFooter("plain body", "<p>Hi &amp; welcome</p>");
+  expect(mine[0]).toMatchObject({ subject: "Hello <b>there</b>", text: sent.text, html: sent.html, replyTo: "reply@example.test", idempotencyKey: data!.id });
 
   const row = await rowOf(to);
   expect(row.sent_at).not.toBeNull();
