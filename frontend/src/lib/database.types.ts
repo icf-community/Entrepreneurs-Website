@@ -3277,6 +3277,7 @@ export type Database = {
       purge_expired_posts: { Args: never; Returns: number }
       purge_finished_jobs: { Args: never; Returns: number }
       purge_moderation_records: { Args: never; Returns: number }
+      purge_old_admin_actions: { Args: never; Returns: number }
       purge_old_notifications: { Args: never; Returns: number }
       purge_rejected_listings: { Args: never; Returns: number }
       purge_removed_connections: { Args: never; Returns: number }
