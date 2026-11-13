@@ -204,6 +204,14 @@
     .lm-rail { transition: none; }
   }
 
+  /* Windows high-contrast: the UA paints transparent borders in a system colour, so every row's ring would show and the current page would
+     be lost among them. Draw the rings ourselves: none at rest, the highlight colour on the current page. */
+  @media (forced-colors: active) {
+    .lm-navitem__mark { forced-color-adjust: none; border-color: transparent; }
+    .lm-navitem[aria-current="page"] .lm-navitem__mark { border-color: Highlight; }
+    .lm-navitem[aria-current="page"] { outline: 1px solid Highlight; }
+  }
+
   /* ── The phone: an app bar and a drawer ─────────────────────────────────────────────────────────────────── */
   /* A 45 px ring is the smallest the roundel may be, and a quarter of its height must stay clear: the bar is as tall as that needs. */
   .lm-appbar {
