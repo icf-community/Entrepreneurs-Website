@@ -196,3 +196,29 @@ describe("no purple (the brand's rule: OKLCH hue 285–345° at chroma ≥ 0.03)
     expect(offenders).toEqual([]);
   });
 });
+
+describe("DESIGN.md states the colours tokens.css has", () => {
+  // DESIGN.md's frontmatter is the portable statement of the system; it must not drift from the one place the values live.
+  const doc = readFileSync(join(__dirname, "..", "..", "..", "DESIGN.md"), "utf8");
+  const block = doc.match(/\ncolors:\n((?:  [a-z0-9-]+: "[^"]+"\n)+)/)?.[1] ?? "";
+  const NAME: Record<string, string> = {
+    void: "void", ink: "ink", star: "star", sun: "sun", warm: "warm", cool: "cool",
+    "surface-secondary": "bg-secondary", "surface-card": "bg-card", "surface-card-hover": "bg-card-hover", "surface-raised": "bg-raised",
+    "text-secondary": "text-secondary", "text-muted": "text-muted", border: "border", "border-subtle": "border-subtle", "border-strong": "border-strong",
+    "accent-light": "accent-light", "accent-dim": "accent-dim", danger: "danger", success: "success",
+  };
+  const entries = [...block.matchAll(/  ([a-z0-9-]+): "([^"]+)"/g)];
+
+  it("lists every colour it claims", () => {
+    expect(entries.length).toBe(Object.keys(NAME).length);
+  });
+
+  for (const [, key, value] of entries) {
+    it(`${key} is the token's colour`, () => {
+      expect(NAME[key], `${key} has no token mapping`).toBeDefined();
+      const doc_ = evalColor(value), tok = token(NAME[key]);
+      const d = Math.hypot(doc_.L - tok.L, doc_.a - tok.a, doc_.b - tok.b);
+      expect(d, `DESIGN.md says ${value} but tokens.css gives a different colour`).toBeLessThan(0.004);
+    });
+  }
+});
