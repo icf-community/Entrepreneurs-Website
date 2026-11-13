@@ -14,5 +14,7 @@ export const ICON_NAMES = [
   "info", "warning", "error", "success",
   // things
   "clock", "pin", "globe", "user", "users", "github", "image", "file", "star", "spark", "tag",
+  // appended by the icon pass: the screens needed these and the list had no name for them (what each replaces: docs/design-system/icons.md)
+  "video", "pound", "pointer", "ring", "approx", "help", "star-filled", "linkedin", "instagram",
 ] as const;
 export type IconName = (typeof ICON_NAMES)[number];
