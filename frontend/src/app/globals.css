@@ -26,11 +26,3 @@
 @import "../design-system/forms.css";
 @import "../design-system/overlays.css";
 @import "../design-system/data.css";
-
-/* The flat mark shows until the point cloud has been sampled out of its alpha channel, and stays if WebGL is unavailable. HeroScene sets
-   data-live on its canvas once the cloud is in the scene. (Goes away with the landing port.) */
-.hero-mark-fallback {
-  opacity: 1;
-  transition: opacity 600ms ease;
-}
-canvas[data-live] ~ * .hero-mark-fallback { opacity: 0; }

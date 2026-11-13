@@ -43,12 +43,14 @@ export function generateNonce(): string {
 // "/" joined the list on 2026-09-08 (C2 Finding 6). It is the app's
 // most-requested route and measured its slowest — 12.3 s p95 at 500 VUs,
 // all of it render cost, none of it data. Its whole component tree
-// (Navbar, Hero, WhoWeAre, Community, Opportunities, Events, Apply,
-// Footer) was checked against the three criteria above before adding it:
-// no component reads a session or the database, and not one renders a
-// form, an input, or a search param, so there is no path by which
-// attacker-controlled bytes reach the HTML. Navbar is a client component
-// holding nothing but scroll and menu-open state.
+// (everything under components/landing and lib/landing) was checked against
+// the three criteria above before adding it: no component reads a session or
+// the database, and none renders a form or an input, so there is no path by
+// which attacker-controlled bytes reach the HTML. (The scene reads the query
+// string in client code only, as flags and numbers, never as a string into
+// the DOM; staticRoutes.test.ts pins that to one file.) LandingFrame is the
+// one client component holding state, and the WebGL scene is a lazily
+// imported chunk that draws a canvas.
 //
 // This is the whole of what "static rendering" costs, and it is worth
 // being explicit that the two are inseparable: a statically rendered page

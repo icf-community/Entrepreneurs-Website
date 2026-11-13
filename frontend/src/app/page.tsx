@@ -1,11 +1,4 @@
-import Navbar from "@/components/Navbar";
-import Hero from "@/components/Hero";
-import WhoWeAre from "@/components/WhoWeAre";
-import Community from "@/components/Community";
-import Opportunities from "@/components/Opportunities";
-import Events from "@/components/Events";
-import Apply from "@/components/Apply";
-import Footer from "@/components/Footer";
+import { Landing } from "@/components/landing/Landing";
 import { structuredData, serialiseJsonLd } from "@/lib/structuredData";
 
 // Statically rendered, and it must stay that way — this is the app's
@@ -17,7 +10,7 @@ import { structuredData, serialiseJsonLd } from "@/lib/structuredData";
 // which is what lets the JSON-LD below render without a nonce.
 export default function Home() {
   return (
-    <main id="main-content" tabIndex={-1} style={{ position: "relative", zIndex: 1 }}>
+    <>
       {/* Site-level schema, moved here from the root layout. No nonce and
           no suppressHydrationWarning needed: the page is static, so the
           markup the browser receives is the markup React rendered.
@@ -28,14 +21,7 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serialiseJsonLd(structuredData) }}
       />
-      <Navbar />
-      <Hero />
-      <WhoWeAre />
-      <Community />
-      <Opportunities />
-      <Events />
-      <Apply />
-      <Footer />
-    </main>
+      <Landing />
+    </>
   );
 }
