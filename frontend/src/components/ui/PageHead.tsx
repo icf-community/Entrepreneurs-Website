@@ -36,7 +36,8 @@ export function PageHead({
       <div className="lm-pagehead__row">
         <div className="grid min-w-0 gap-3">
           <Heading className="lm-pagehead__title">{title}</Heading>
-          {lede ? <p className="lm-pagehead__lede">{lede}</p> : null}
+          {/* a sentence is a paragraph; anything richer (a Suspense count streaming in, a skeleton <div>) cannot sit inside a <p> without breaking hydration */}
+          {lede ? (typeof lede === "string" ? <p className="lm-pagehead__lede">{lede}</p> : <div className="lm-pagehead__lede">{lede}</div>) : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-3">{actions}</div> : null}
       </div>
