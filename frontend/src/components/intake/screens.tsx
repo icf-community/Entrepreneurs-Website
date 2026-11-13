@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { inputCls } from "@/components/forms/styles";
 import { ChipGroup, type ChipItem } from "@/components/forms/ChipGroup";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { AvatarCropper } from "@/components/media/AvatarCropper";
@@ -22,9 +21,19 @@ import {
   addressAs,
   type IntakeState,
 } from "@/lib/intake/state";
-import { Field, ChoiceCards, PillChoice, TagInput, FilePicker, RankPicker, SkillPicker, type SkillOption } from "./controls";
+import { Field, ChoiceCards, PillChoice, TagInput, FilePicker, FileTile, RankPicker, SkillPicker, type SkillOption } from "./controls";
+import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { Panel } from "@/components/ui/Panel";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Spinner } from "@/components/ui/Spinner";
+import { Textarea } from "@/components/ui/Textarea";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
 import { RepoPicker } from "@/components/github/RepoPicker";
 import type { AvailableRepo, ShowcaseRepo } from "@/lib/github/showcase";
 import type { Affiliation } from "@/lib/intake/steps";
@@ -91,8 +100,11 @@ export type ExistingCv = { blobKey: string; filename: string; downloadUrl: strin
 
 /** Shared lead paragraph under a screen heading. */
 function Lead({ children }: { children: React.ReactNode }) {
-  return <p className="mb-7 text-lead leading-[1.65] text-text-secondary">{children}</p>;
+  return <p className="max-w-[62ch] text-body leading-[1.6] text-text-secondary">{children}</p>;
 }
+
+/** A photo, a file or a document that is already in: the quiet row (a tinted band, no border of its own inside the card). */
+const ROW = "flex flex-wrap items-center gap-4 rounded-xl bg-tint-2 p-4";
 
 // ─── 01 · Face & bio ─────────────────────────────────────────────────
 
@@ -104,7 +116,7 @@ export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, 
   const replaceRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-8">
       <Lead>
         A face and a couple of lines — genuinely optional, but a directory of
         grey circles doesn&apos;t get anyone a reply. Skip anything here and
@@ -112,14 +124,13 @@ export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, 
       </Lead>
 
       <Field label="What should we call you?" htmlFor={nameId}>
-        <input
+        <Input
           id={nameId}
           type="text"
           value={s.preferredName}
           onChange={(e) => patch({ preferredName: e.target.value })}
           maxLength={MAX_NAME_LENGTH}
           placeholder={firstName}
-          className={inputCls}
         />
       </Field>
 
@@ -134,21 +145,17 @@ export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, 
             onCancel={() => setPendingFile(null)}
           />
         ) : s.photoPreview ? (
-          <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-tint-2 p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element -- object URL, not a remote asset */}
-            <img src={s.photoPreview} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover" />
+          <div className={ROW}>
+            <Avatar src={s.photoPreview} name={s.preferredName || firstName} size="lg" />
             <span className="min-w-0 flex-1 text-body text-text-primary">Great! You can change your profile picture in your settings at any time.</span>
-            <button
-              type="button"
-              onClick={() => replaceRef.current?.click()}
-              className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
-            >
+            <Button type="button" variant="ghost" size="sm" onClick={() => replaceRef.current?.click()}>
               Replace
-            </button>
+            </Button>
             <input
               ref={replaceRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
+              tabIndex={-1}
               className="sr-only"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -167,8 +174,18 @@ export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, 
             onClear={() => {}}
           />
         )}
-        {avatarUploading && <p className="mt-2 text-body text-text-muted">Uploading…</p>}
-        {avatarError && <p className="mt-2 text-body text-danger">{avatarError}</p>}
+        {avatarUploading && (
+          <p className="mt-3 inline-flex items-center gap-2 text-small text-text-muted">
+            <Spinner size="sm" />
+            Uploading…
+          </p>
+        )}
+        {avatarError && (
+          <p className="lm-error">
+            <Icon name="error" size={18} />
+            {avatarError}
+          </p>
+        )}
       </Field>
 
       <Field
@@ -176,14 +193,14 @@ export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, 
         htmlFor={focusId}
         hint="A project, a research direction, a thing you won't shut up about. Two sentences is plenty."
       >
-        <textarea
+        <Textarea
           id={focusId}
           rows={3}
           maxLength={500}
           value={s.bioFocus}
           onChange={(e) => patch({ bioFocus: e.target.value })}
           placeholder="Building a computer-vision tool for surgical training. Interested in medical devices, regulation, and anything that gets research out of the lab."
-          className={`${inputCls} resize-y`}
+          className="resize-y"
         />
       </Field>
 
@@ -192,14 +209,14 @@ export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, 
         htmlFor={hobbiesId}
         hint="Hobbies, in your own words. This is the half of a profile that actually gets people to a coffee."
       >
-        <textarea
+        <Textarea
           id={hobbiesId}
           rows={2}
           maxLength={500}
           value={s.bioHobbies}
           onChange={(e) => patch({ bioHobbies: e.target.value })}
           placeholder="Long-distance running, cooking for too many people, and losing at chess."
-          className={`${inputCls} resize-y`}
+          className="resize-y"
         />
       </Field>
     </div>
@@ -224,7 +241,10 @@ function becauseLine(m: DirectoryMember): string {
  *  row of "most recent members" (self, then matches — matches already
  *  arrive newest-first from newestMembers()) reads as one continuous
  *  strip rather than a mismatched pair of layouts. */
-const CARD_WIDTH = "w-[220px] shrink-0";
+const CARD_WIDTH = "w-[200px] shrink-0";
+
+/** The band at the top of a member card: their photo, or their initials on a quiet tint. */
+const CARD_BAND = "flex h-28 w-full items-center justify-center bg-tint-2 font-display text-heading text-text-secondary";
 
 function roleSubtitle(role: Affiliation, gradYear: number | null): string {
   if (role === "alum") return `Alum · ${gradYear ?? "—"}`;
@@ -234,31 +254,28 @@ function roleSubtitle(role: Affiliation, gradYear: number | null): string {
 function MatchCard({ member: m, onOpen }: { member: DirectoryMember; onOpen: () => void }) {
   return (
     <li className={CARD_WIDTH}>
-      <button
-        type="button"
-        onClick={onOpen}
-        className="block w-full cursor-pointer overflow-hidden rounded-lg border border-border bg-tint-1 text-left transition-colors duration-150 hover:border-accent"
-      >
-        {m.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- signed blob URL, not a static asset
-          <img src={m.avatarUrl} alt="" className="h-28 w-full object-cover" />
-        ) : (
-          <div className="flex h-28 w-full items-center justify-center bg-tint-3 font-display text-heading text-text-secondary">
-            {initialsOf(m)}
+      <Panel interactive size="sm" className="h-full overflow-hidden">
+        {/* the focus ring is drawn inside the card's edge, so the Panel's clipping never cuts it */}
+        <button type="button" onClick={onOpen} className="block h-full w-full cursor-pointer text-left [--focus-offset:-4px]">
+          {m.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- signed blob URL, not a static asset
+            <img src={m.avatarUrl} alt="" className="h-28 w-full object-cover" />
+          ) : (
+            <div className={CARD_BAND}>{initialsOf(m)}</div>
+          )}
+          <div className="p-4">
+            <span className="block text-body font-medium text-text-primary">
+              {m.firstName} {m.surname}
+            </span>
+            <span className="mt-0.5 block text-small leading-[1.5] text-text-muted">
+              {memberSubtitle(m)}
+            </span>
+            <span className="mt-3 block border-t border-border-subtle pt-3 text-small leading-[1.5] text-text-secondary">
+              {becauseLine(m)}
+            </span>
           </div>
-        )}
-        <div className="p-4">
-          <span className="block text-body font-medium text-text-primary">
-            {m.firstName} {m.surname}
-          </span>
-          <span className="mt-0.5 block text-body leading-[1.5] text-text-muted">
-            {memberSubtitle(m)}
-          </span>
-          <span className="mt-3 block border-t border-border-subtle pt-3 text-body leading-[1.5] text-text-secondary">
-            {becauseLine(m)}
-          </span>
-        </div>
-      </button>
+        </button>
+      </Panel>
     </li>
   );
 }
@@ -279,22 +296,21 @@ function SelfCard({ name, photoPreview, role, gradYear }: {
 }) {
   return (
     <li className={CARD_WIDTH}>
-      <div className="overflow-hidden rounded-lg border border-signal/50 bg-tint-1 text-left">
+      {/* the one lit card on the screen: this is you */}
+      <Panel tone="lit" size="sm" className="h-full overflow-hidden text-left">
         {photoPreview ? (
           // eslint-disable-next-line @next/next/no-img-element -- local object URL, not a static asset
           <img src={photoPreview} alt="" className="h-28 w-full object-cover" />
         ) : (
-          <div className="flex h-28 w-full items-center justify-center bg-tint-3 font-display text-heading text-text-secondary">
-            {name[0]?.toUpperCase() ?? "?"}
-          </div>
+          <div className={CARD_BAND}>{name[0]?.toUpperCase() ?? "?"}</div>
         )}
         <div className="p-4">
           <span className="block text-body font-medium text-text-primary">{name}</span>
-          <span className="mt-0.5 block text-body leading-[1.5] text-text-muted">
+          <span className="mt-0.5 block text-small leading-[1.5] text-text-muted">
             {roleSubtitle(role, gradYear)}
           </span>
         </div>
-      </div>
+      </Panel>
     </li>
   );
 }
@@ -305,35 +321,34 @@ export function YoureInScreen({ s, firstName, role, gradYear, matches }: ScreenP
 
   return (
     <div className="text-center">
-      <span
-        aria-hidden
-        className="mx-auto mb-6 block h-3 w-3 rotate-45 rounded-[1px] bg-signal"
-      />
-      <p className="mb-2 text-small font-medium tracking-[0.14em] text-signal">
+      <div className="mb-6 flex justify-center">
+        <Disc size="lg" lit>
+          <Icon name="spark" size={24} />
+        </Disc>
+      </div>
+      <p className="mb-2 text-small font-medium text-accent-light">
         Welcome
       </p>
-      <h2 className="mb-4 font-display text-display leading-[1.1] tracking-tight text-text-primary">
+      <h2 className="mb-4 font-display text-display text-text-primary">
         Good to have you, {name}.
       </h2>
-      <p className="mx-auto mb-9 max-w-[46ch] text-lead leading-[1.65] text-text-secondary">
+      <p className="mx-auto mb-10 max-w-[46ch] text-body leading-[1.6] text-text-secondary">
         A few more optional questions, and you&apos;re genuinely findable —
         not just a name in a list.
       </p>
 
-      <ul className="flex gap-3 overflow-x-auto pb-1 text-left">
+      <ul className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-7 pt-1 text-left">
         <SelfCard name={name} photoPreview={s.photoPreview} role={role} gradYear={gradYear} />
         {matches.map((m) => (
           <MatchCard key={m.id} member={m} onOpen={() => setOpenMember(m)} />
         ))}
       </ul>
       {matches.length === 0 && (
-        <div className="mt-3 rounded-lg border border-border bg-tint-1 p-6 text-left">
-          <p className="text-body leading-[1.65] text-text-secondary">
-            No one else to show yet — you are early, and the directory is
-            still filling up. Adding your skills and interests on the next
-            screens is what makes you findable when the next person joins.
-          </p>
-        </div>
+        <Notice tone="info" icon="users" className="text-left">
+          No one else to show yet — you are early, and the directory is
+          still filling up. Adding your skills and interests on the next
+          screens is what makes you findable when the next person joins.
+        </Notice>
       )}
 
       {openMember && <MemberDialog member={openMember} onClose={() => setOpenMember(null)} />}
@@ -351,7 +366,7 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
   const linkedinPrefilled = role !== "student" && !!existingLinkedin;
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-8">
       <Lead>
         {cvRequired
           ? "We use your CV to match you with recruiters for relevant opportunities — it's required to finish setting up your profile."
@@ -360,31 +375,31 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
 
       <Field label={cvRequired ? "Your CV" : "Your CV, if you have one"} hint="PDF or DOCX · 8 MB maximum.">
         {alreadyUploaded ? (
-          <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-tint-2 p-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-tint-1 font-mono text-caption text-text-secondary">
-              {(s.cvOriginalFilename?.split(".").pop() ?? "file").slice(0, 4).toUpperCase()}
-            </span>
+          <div className={ROW}>
+            <FileTile filename={s.cvOriginalFilename ?? "file"} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-body text-text-primary">{s.cvOriginalFilename}</span>
               <span className="block text-small text-text-muted">Already uploaded</span>
             </span>
             {existingCv?.downloadUrl && (
-              <a
+              <ButtonLink
                 href={existingCv.downloadUrl}
+                variant="ghost"
+                size="sm"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary no-underline transition-colors duration-150 hover:border-accent hover:text-text-primary"
               >
                 View
-              </a>
+              </ButtonLink>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => patch({ cvUploadedKey: null, cvOriginalFilename: null, suggestedSkillIds: [] })}
-              className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
             >
               Replace
-            </button>
+            </Button>
           </div>
         ) : (
           <FilePicker
@@ -400,49 +415,50 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
 
       {s.cvFile && (
         ingestionEnabled ? (
-          <label htmlFor={consentId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-tint-1 p-4">
-            <input
-              id={consentId}
-              type="checkbox"
-              checked={s.cvConsent}
-              onChange={(e) => patch({ cvConsent: e.target.checked })}
-              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
-            />
-            <span className="text-body leading-[1.6] text-text-secondary">
-              Read my CV to suggest skills to add on the next screen and generate a summary
-              recruiters can search to find me. The extracted text and summary are stored and used
-              to help match me to relevant opportunities. Before the text is analysed by our AI
-              provider (OpenAI), we remove your name, contact details and links. You can leave this unticked and add
-              skills yourself instead — but recruiters won&apos;t be able to find you through CV
-              matching.
-            </span>
-          </label>
+          <Checkbox
+            card
+            id={consentId}
+            checked={s.cvConsent}
+            onChange={(e) => patch({ cvConsent: e.target.checked })}
+            className="items-start"
+            label={
+              <span className="text-body leading-[1.6]">
+                Read my CV to suggest skills to add on the next screen and generate a summary
+                recruiters can search to find me. The extracted text and summary are stored and used
+                to help match me to relevant opportunities. Before the text is analysed by our AI
+                provider (OpenAI), we remove your name, contact details and links. You can leave this unticked and add
+                skills yourself instead — but recruiters won&apos;t be able to find you through CV
+                matching.
+              </span>
+            }
+          />
         ) : (
-          <p className="rounded-lg border border-border-strong bg-tint-1 p-4 text-body leading-[1.6] text-text-muted">
+          <Notice tone="info">
             CV-based skill matching is temporarily paused — your file is still saved, and you can
             add skills yourself on the next screen instead.
-          </p>
+          </Notice>
         )
       )}
 
-      <Field
-        label={linkedinPrefilled ? "Confirm your LinkedIn" : "Your LinkedIn profile"}
-        htmlFor={linkedinId}
-        hint={
-          linkedinPrefilled
-            ? "This is what you gave us when you joined — update it if it's changed."
-            : "Recruiters and mentors use this to find you."
-        }
-      >
-        <input
-          id={linkedinId}
-          type="url"
-          value={s.linkedin}
-          onChange={(e) => patch({ linkedin: e.target.value })}
-          placeholder="https://linkedin.com/in/…"
-          className={inputCls}
-        />
-      </Field>
+      <div className="border-t border-border-subtle pt-8">
+        <Field
+          label={linkedinPrefilled ? "Confirm your LinkedIn" : "Your LinkedIn profile"}
+          htmlFor={linkedinId}
+          hint={
+            linkedinPrefilled
+              ? "This is what you gave us when you joined — update it if it's changed."
+              : "Recruiters and mentors use this to find you."
+          }
+        >
+          <Input
+            id={linkedinId}
+            type="url"
+            value={s.linkedin}
+            onChange={(e) => patch({ linkedin: e.target.value })}
+            placeholder="https://linkedin.com/in/…"
+          />
+        </Field>
+      </div>
     </div>
   );
 }
@@ -470,12 +486,9 @@ export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: Sc
 
   if (github.connected && github.saved) {
     return (
-      <div className="space-y-4">
-        <Lead>Saved — these are the projects recruiters will see first.</Lead>
-        <p className="text-body text-text-muted">
-          You can change them any time from your profile.
-        </p>
-      </div>
+      <Notice tone="success" title="Saved — these are the projects recruiters will see first.">
+        You can change them any time from your profile.
+      </Notice>
     );
   }
 
@@ -486,7 +499,7 @@ export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: Sc
         <Skeleton className="h-3 w-full" />
         <Skeleton className="h-3 w-5/6" />
         <Skeleton className="h-3 w-2/3" />
-        <p className="text-body text-text-muted">
+        <p className="text-small text-text-muted">
           This usually takes a few seconds. You can keep going and choose your projects later from
           your profile.
         </p>
@@ -513,50 +526,56 @@ export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: Sc
 
   if (!ingestionEnabled) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <Lead>
           Optional. If you write code, connecting GitHub lets recruiters see what you&apos;ve actually
           built — not just what your CV says.
         </Lead>
-        <p className="text-body text-text-muted">
+        <Notice tone="info">
           GitHub connections are temporarily paused — check back soon, or connect any time later
           from your profile.
-        </p>
+        </Notice>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Lead>
         Optional. If you write code, connecting GitHub lets recruiters see what you&apos;ve actually
         built — not just what your CV says. You&apos;ll pick which projects to spotlight, and nothing
         private is ever read.
       </Lead>
 
-      {knownHandle && (
-        <p className="text-body text-text-secondary">
-          We&apos;ve got <span className="text-text-primary">@{knownHandle}</span> from when you
-          signed up — connect it to spotlight your projects.
-        </p>
-      )}
-
       {github.error && <ErrorBanner>{github.error}</ErrorBanner>}
 
-      <Button
-        type="button"
-        variant="primary"
-        size="md"
-        loading={github.connecting}
-        onClick={github.onConnect}
-      >
-        Connect GitHub
-      </Button>
+      <div className="grid gap-4">
+        {knownHandle && (
+          <p className="text-body text-text-secondary">
+            We&apos;ve got <span className="text-text-primary">@{knownHandle}</span> from when you
+            signed up — connect it to spotlight your projects.
+          </p>
+        )}
 
-      <p className="text-body text-text-muted">
-        You&apos;ll see GitHub&apos;s own authorisation screen — there&apos;s nothing to generate or
-        paste in yourself. We only read public repository information.
-      </p>
+        <div>
+          {/* optional here, so it is a neutral control; the screen's one cream action is Continue */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            loading={github.connecting}
+            leading={<Icon name="github" size={18} />}
+            onClick={github.onConnect}
+          >
+            Connect GitHub
+          </Button>
+        </div>
+
+        <p className="max-w-[62ch] text-small leading-[1.6] text-text-muted">
+          You&apos;ll see GitHub&apos;s own authorisation screen — there&apos;s nothing to generate or
+          paste in yourself. We only read public repository information.
+        </p>
+      </div>
     </div>
   );
 }
@@ -594,21 +613,20 @@ export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading, sugg
     });
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-8">
       <Field
         label="Your skills"
         hint={`At least ${MIN_SKILLS} to continue from this screen — or skip the whole thing for now and come back later. Star up to ${MAX_CORE_SKILLS} as core.`}
       >
         {suggestionsLoading && suggested.length === 0 && (
-          <div className="mb-4 rounded-lg border border-dashed border-signal/50 bg-signal-muted/40 p-3">
-            <p className="mb-2 text-small font-medium tracking-[0.14em] text-signal">
-              Reading your CV for skill matches…
-            </p>
-            <div className="flex flex-wrap gap-2" aria-hidden>
-              <span className="h-7 w-24 animate-pulse rounded-lg bg-tint-3" />
-              <span className="h-7 w-32 animate-pulse rounded-lg bg-tint-3" />
-              <span className="h-7 w-20 animate-pulse rounded-lg bg-tint-3" />
-            </div>
+          <div className="mb-4">
+            <Notice tone="lit" icon="spark" title="Reading your CV for skill matches…">
+              <div className="mt-3 flex flex-wrap gap-2" aria-hidden>
+                <Skeleton className="h-10 w-24 rounded-full" />
+                <Skeleton className="h-10 w-32 rounded-full" />
+                <Skeleton className="h-10 w-20 rounded-full" />
+              </div>
+            </Notice>
           </div>
         )}
         {/* Available any time a CV is on file — not just when nothing
@@ -619,20 +637,20 @@ export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading, sugg
             uploadCv), so clicking this and then changing your mind
             leaves everything exactly as it was. */}
         {s.cvConsent && (s.cvFile || s.cvUploadedKey) && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border-strong bg-tint-1 p-3">
-            <p className="text-small text-text-secondary">
+          <div className="mb-4">
+            <Notice
+              tone="info"
+              icon="file"
+              action={
+                <Button type="button" variant="ghost" size="sm" onClick={onRejectCv} disabled={rejectingCv}>
+                  {rejectingCv ? "Removing…" : "Upload a different CV"}
+                </Button>
+              }
+            >
               {suggestionsGaveUp && suggested.length === 0
                 ? "We couldn't find any matching skills in that document. You can still search for skills below in the meantime."
                 : "Not the right document? Uploading a different CV swaps out whatever it found — anything you've added yourself stays."}
-            </p>
-            <button
-              type="button"
-              onClick={onRejectCv}
-              disabled={rejectingCv}
-              className="shrink-0 cursor-pointer rounded-lg border border-border-strong px-3 py-1.5 text-small font-medium text-text-primary hover:bg-tint-2 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {rejectingCv ? "Removing…" : "Upload a different CV"}
-            </button>
+            </Notice>
           </div>
         )}
         <SkillPicker
@@ -662,7 +680,7 @@ export function InterestsScreen({ s, patch, sectors }: ScreenProps) {
     });
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-8">
       <ChipGroup
         label="Sectors you'd build in"
         items={sectors}
@@ -718,7 +736,7 @@ export function WhereScreen({ s, patch }: ScreenProps) {
   const showDetail = VENTURE_STAGES_WITH_DETAIL.has(s.ventureStage);
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-8">
       <Lead>You can always change this later from My Profile.</Lead>
 
       <Field label="What's your situation right now?">
@@ -731,85 +749,86 @@ export function WhereScreen({ s, patch }: ScreenProps) {
         />
       </Field>
 
-      <Field label="Are you currently enrolled on a degree course?">
-        <ChoiceCards
-          name="Currently enrolled"
-          columns={2}
-          options={YES_NO}
-          value={s.currentlyEnrolled || null}
-          onChange={(v) => patch({ currentlyEnrolled: v })}
-        />
-      </Field>
+      <div className="grid gap-8 sm:grid-cols-2 sm:gap-6">
+        <Field label="Are you currently enrolled on a degree course?">
+          <ChoiceCards
+            name="Currently enrolled"
+            columns={2}
+            options={YES_NO}
+            value={s.currentlyEnrolled || null}
+            onChange={(v) => patch({ currentlyEnrolled: v })}
+          />
+        </Field>
 
-      <Field label="Have you completed a degree?">
-        <ChoiceCards
-          name="Completed a degree"
-          columns={2}
-          options={YES_NO}
-          value={s.completedDegree || null}
-          onChange={(v) => patch({ completedDegree: v })}
-        />
-      </Field>
+        <Field label="Have you completed a degree?">
+          <ChoiceCards
+            name="Completed a degree"
+            columns={2}
+            options={YES_NO}
+            value={s.completedDegree || null}
+            onChange={(v) => patch({ completedDegree: v })}
+          />
+        </Field>
+      </div>
 
-      <Field label="Where's your venture at?">
-        <ChoiceCards
-          name="Venture stage"
-          columns={2}
-          options={VENTURE_STAGES}
-          value={s.ventureStage || null}
-          onChange={(v) => patch({ ventureStage: v })}
-        />
-      </Field>
+      <div className="space-y-8 border-t border-border-subtle pt-8">
+        <Field label="Where's your venture at?">
+          <ChoiceCards
+            name="Venture stage"
+            columns={2}
+            options={VENTURE_STAGES}
+            value={s.ventureStage || null}
+            onChange={(v) => patch({ ventureStage: v })}
+          />
+        </Field>
 
-      {showDetail && (
-        <>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Venture name" htmlFor={nameId}>
-              <input
-                id={nameId}
+        {showDetail && (
+          <>
+            <div className="grid gap-6 sm:grid-cols-2">
+              <Field label="Venture name" htmlFor={nameId}>
+                <Input
+                  id={nameId}
+                  type="text"
+                  maxLength={200}
+                  value={s.ventureName}
+                  onChange={(e) => patch({ ventureName: e.target.value })}
+                  placeholder="Whatever you call it"
+                />
+              </Field>
+              <Field label="Website" htmlFor={urlId}>
+                <Input
+                  id={urlId}
+                  type="url"
+                  maxLength={512}
+                  value={s.ventureUrl}
+                  onChange={(e) => patch({ ventureUrl: e.target.value })}
+                  placeholder="https://…"
+                />
+              </Field>
+            </div>
+
+            <Field label="One line on what it does" htmlFor={oneLinerId}>
+              <Input
+                id={oneLinerId}
                 type="text"
-                maxLength={200}
-                value={s.ventureName}
-                onChange={(e) => patch({ ventureName: e.target.value })}
-                placeholder="Whatever you call it"
-                className={inputCls}
+                maxLength={140}
+                value={s.ventureOneLiner}
+                onChange={(e) => patch({ ventureOneLiner: e.target.value })}
+                placeholder="Computer vision that scores surgical technique from theatre footage."
               />
             </Field>
-            <Field label="Website" htmlFor={urlId}>
-              <input
-                id={urlId}
-                type="url"
-                maxLength={512}
-                value={s.ventureUrl}
-                onChange={(e) => patch({ ventureUrl: e.target.value })}
-                placeholder="https://…"
-                className={inputCls}
+
+            <Field label="Recruiting?">
+              <PillChoice
+                name="Recruiting"
+                options={RECRUITING_STATUSES}
+                value={s.recruitingStatus}
+                onChange={(v) => patch({ recruitingStatus: v })}
               />
             </Field>
-          </div>
-
-          <Field label="One line on what it does" htmlFor={oneLinerId}>
-            <input
-              id={oneLinerId}
-              type="text"
-              maxLength={140}
-              value={s.ventureOneLiner}
-              onChange={(e) => patch({ ventureOneLiner: e.target.value })}
-              placeholder="Computer vision that scores surgical technique from theatre footage."
-              className={inputCls}
-            />
-          </Field>
-
-          <Field label="Recruiting?">
-            <PillChoice
-              name="Recruiting"
-              options={RECRUITING_STATUSES}
-              value={s.recruitingStatus}
-              onChange={(v) => patch({ recruitingStatus: v })}
-            />
-          </Field>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -827,7 +846,7 @@ export function WantScreen({ s, patch }: ScreenProps) {
     });
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-8">
       <Lead>
         Pick up to {MAX_INTENTS}, in order. This is what the directory sorts
         on when someone goes looking for a person like you.

@@ -2,6 +2,9 @@
 
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
+import { FormActions } from "@/components/ui/FormActions";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · "You've given us neither" warning
@@ -31,31 +34,37 @@ export function SkipWarningDialog({
     <Dialog
       onClose={onAddNow}
       label="You haven't added a CV or GitHub"
-      className="w-full max-w-[480px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto p-7"
+      className="my-auto w-full max-w-[480px] p-7"
     >
+      <div className="mb-5">
+        <Disc>
+          <Icon name="eye-off" size={20} />
+        </Disc>
+      </div>
+
       <h2 className="mb-3 font-display text-title text-text-primary">
         Recruiters won&apos;t be able to find you
       </h2>
 
-      <p className="mb-4 text-body leading-[1.65] text-text-secondary">
+      <p className="mb-4 text-body leading-[1.6] text-text-secondary">
         You haven&apos;t given us your CV or your GitHub profile — you won&apos;t be visible to
         recruiters for their job postings. If you&apos;d rather not do it here, you can always upload
         your CV and connect GitHub from your profile page later.
       </p>
 
-      <p className="mb-6 text-body leading-[1.6] text-text-muted">
+      <p className="mb-7 text-small leading-[1.6] text-text-muted">
         You can change which projects you spotlight to recruiters any time, and we&apos;ll email you
         when there&apos;s something new worth adding — at most once a month.
       </p>
 
-      <div className="flex flex-wrap gap-2">
+      <FormActions>
         <Button type="button" variant="primary" size="md" onClick={onAddNow}>
           Add it now
         </Button>
         <Button type="button" variant="ghost" size="md" onClick={onSkip}>
           Skip for now
         </Button>
-      </div>
+      </FormActions>
     </Dialog>
   );
 }

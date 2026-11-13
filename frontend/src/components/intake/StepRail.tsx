@@ -1,7 +1,11 @@
 "use client";
 
-import { GROUPS, STEPS, indexOf, type StepId } from "@/lib/intake/steps";
-import { labelCls } from "@/components/forms/styles";
+import { useId, useState } from "react";
+import { GROUPS, ORDER, STEPS, TOTAL_SCREENS, indexOf, type StepId } from "@/lib/intake/steps";
+import { Button } from "@/components/ui/Button";
+import { Collapse } from "@/components/ui/Disclosure";
+import { StepDots } from "@/components/ui/StepDots";
+import { Icon } from "@/design-system/icons/Icon";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Intake step rail
@@ -9,78 +13,79 @@ import { labelCls } from "@/components/forms/styles";
 // The rail's job is to show that the flow is finite and grouped, so the
 // gate reads as short rather than as the first three of nine unknowns.
 //
+// It is the design system's StepDots, one per group under the group's own
+// heading: what is behind you is lit, where you are is a lit ring, what
+// is ahead is hollow, and a hairline lights as it is travelled.
+//
 // Every non-current step is pressable, whether already visited or not —
 // almost everything past screen 01 is optional anyway (see IntakeFlow's
 // validate()), and the server enforces the few compulsory fields at
 // Finish/Skip regardless of which order the member clicked through.
 // ════════════════════════════════════════════════════════════════════
 
-export default function StepRail({
-  current,
-  onJump,
-}: {
+type RailProps = {
   current: StepId;
   onJump: (id: StepId) => void;
-}) {
-  const currentIdx = indexOf(current);
+};
+
+export default function StepRail({ current, onJump }: RailProps) {
+  // every screen before the current one, across all the groups: that is what has been travelled
+  const done = ORDER.slice(0, indexOf(current));
 
   return (
     <nav aria-label="Intake progress" className="w-full">
       {GROUPS.map((group) => (
         <div key={group.label} className="mb-8 last:mb-0">
-          <p className={`${labelCls} mb-1`}>{group.label}</p>
-          <p className="mb-3 text-small leading-[1.5] text-text-muted">{group.note}</p>
+          <p className="font-display text-lead text-text-primary">{group.label}</p>
+          <p className="mb-3 mt-1 text-small leading-[1.5] text-text-muted">{group.note}</p>
 
-          <ul className="space-y-1">
-            {group.steps.map((id) => {
-              const step = STEPS[id];
-              const idx = indexOf(id);
-              const isCurrent = idx === currentIdx;
-              const isDone = idx < currentIdx;
-
-              const numCls = isDone
-                ? "text-signal"
-                : isCurrent
-                  ? "text-text-primary"
-                  : "text-text-muted";
-
-              const inner = (
-                <span className="flex items-center gap-3">
-                  <span className={`w-5 shrink-0 font-mono text-small ${numCls}`}>
-                    {step.num ?? "—"}
-                  </span>
-                  <span className="truncate">{step.label}</span>
-                </span>
-              );
-
-              if (isCurrent) {
-                return (
-                  <li key={id}>
-                    <div
-                      aria-current="step"
-                      className="rounded-lg border border-border-strong bg-tint-3 px-3 py-2 text-body font-medium text-text-primary"
-                    >
-                      {inner}
-                    </div>
-                  </li>
-                );
-              }
-
-              return (
-                <li key={id}>
-                  <button
-                    type="button"
-                    onClick={() => onJump(id)}
-                    className="w-full cursor-pointer rounded-lg border border-border bg-tint-1 px-3 py-2 text-left text-body text-text-secondary transition-colors duration-150 hover:border-border-strong hover:bg-tint-2 hover:text-text-primary"
-                  >
-                    {inner}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <StepDots
+            orientation="vertical"
+            label={group.label}
+            steps={group.steps.map((id) => ({ id, label: STEPS[id].label, num: STEPS[id].num ?? "—" }))}
+            current={current}
+            done={done}
+            onSelect={(id) => onJump(id as StepId)}
+          />
         </div>
       ))}
     </nav>
+  );
+}
+
+/**
+ * The same rail for a phone, where it has no column to sit in: closed to one line (the old
+ * "{n} groups · {n} screens" caption is now the button's words), and it closes itself once you have jumped.
+ * Everything in it stays in the DOM; closed, it is inert, so the keyboard skips it.
+ */
+export function StepRailDisclosure({ current, onJump, className = "" }: RailProps & { className?: string }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+
+  return (
+    <div className={className}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {GROUPS.length} groups · {TOTAL_SCREENS} screens
+        <Icon name="chevron-down" size={16} className="lm-chev" />
+      </Button>
+      <Collapse id={panelId} open={open}>
+        <div className="pt-6">
+          <StepRail
+            current={current}
+            onJump={(id) => {
+              setOpen(false);
+              onJump(id);
+            }}
+          />
+        </div>
+      </Collapse>
+    </div>
   );
 }

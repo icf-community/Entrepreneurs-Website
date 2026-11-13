@@ -6,13 +6,19 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ErrorBanner } from "@/components/forms/Banners";
-import { inputCls } from "@/components/forms/styles";
+import { Field } from "@/components/forms/Field";
 import { cleanText } from "@/lib/text";
 import { gradYearOptions, validateGradYear } from "@/lib/gradYears";
 import type { Affiliation } from "@/lib/intake/steps";
 import { destinationForStatus } from "@/lib/auth/status";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
 import { Button } from "@/components/ui/Button";
+import { FormActions } from "@/components/ui/FormActions";
+import { FormSection } from "@/components/ui/FormSection";
+import { Input } from "@/components/ui/Input";
+import { PageHead } from "@/components/ui/PageHead";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Select } from "@/components/ui/Select";
 import { invalidateDirectoryCache } from "@/app/profile/actions";
 import { track } from "@/lib/analytics/track";
 
@@ -52,6 +58,7 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
   const [portfolio, setPortfolio] = useState("");
 
   const [step, setStep] = useState(0);
+  const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -85,11 +92,13 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
       return;
     }
     setError("");
+    setDir("fwd");
     setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1));
   };
 
   const handleBack = () => {
     setError("");
+    setDir("back");
     setStep((s) => Math.max(0, s - 1));
   };
 
@@ -139,220 +148,178 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
   };
 
   return (
-    <div className="relative min-h-screen bg-bg-primary flex flex-col">
-      <header className="sticky top-0 z-40 px-8 py-5 bg-bg-primary/90 backdrop-blur-md border-b border-border-subtle">
-        <div className="max-w-[1200px] mx-auto flex items-center justify-between">
-          <Link href="/" className="no-underline">
+    // no background of its own: the atmosphere (the night behind every page) shows through
+    <div className="flex min-h-screen flex-col">
+      <header className="z-40 border-b border-border-subtle bg-bg-primary/85 px-[var(--gutter)] backdrop-blur-md sm:sticky sm:top-0">
+        <div className="mx-auto flex max-w-[var(--content-max)] flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3.5">
+          {/* below 430px the lockup and the "Foundry" wordmark do not fit one line (the lockup may not shrink): the lockup keeps the room */}
+          <Link href="/" className="no-underline max-[430px]:[&_.font-display]:hidden">
             <BrandLogo size="sm" />
           </Link>
-          <span className="text-body text-text-muted">
+          <span className="text-small text-text-muted">
             Signed in as <span className="text-text-secondary">{firstName} {surname}</span>
           </span>
         </div>
       </header>
 
-      <main id="main-content" tabIndex={-1} className="flex-1 flex items-start justify-center px-8 py-12">
-        <div className="w-full max-w-[640px]">
-          <div className="text-center mb-8">
-            <p className="label-wide text-text-secondary mb-3">Step {step + 1} of {TOTAL_STEPS} · {STEP_TITLES[step]}</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight mb-4 text-display">
-              Who let you <span className="font-light text-text-secondary">in?</span>
-            </h1>
-            <p className="text-lead text-text-secondary leading-[1.7]">
-              {role !== "student"
-                ? "Help us verify your Imperial connection and your work."
-                : "A couple of questions, then you're through."}
-              <br />
-              <span className="text-text-muted text-body">
-                You can go back to any step. There&apos;s more to add once you&apos;re in.
-              </span>
-            </p>
+      <main id="main-content" tabIndex={-1} className="flex-1 px-[var(--gutter)] pb-20 pt-4">
+        <div className="mx-auto w-full max-w-[640px]">
+          <PageHead
+            context={<>Step {step + 1} of {TOTAL_STEPS} · {STEP_TITLES[step]}</>}
+            title={<>Who let you <span className="text-text-secondary">in?</span></>}
+            lede={
+              <>
+                {role !== "student"
+                  ? "Help us verify your Imperial connection and your work."
+                  : "A couple of questions, then you're through."}
+                <span className="mt-2 block text-small text-text-muted">
+                  You can go back to any step. There&apos;s more to add once you&apos;re in.
+                </span>
+              </>
+            }
+          />
+
+          <div className="my-7">
+            <ProgressBar
+              value={step + 1}
+              max={TOTAL_STEPS}
+              label={`Step ${step + 1} of ${TOTAL_STEPS}`}
+              valueText={`Step ${step + 1} of ${TOTAL_STEPS}`}
+              start={`${step + 1} / ${TOTAL_STEPS}`}
+              end={`${Math.round(((step + 1) / TOTAL_STEPS) * 100)}%`}
+            />
           </div>
 
-          <ProgressBar current={step + 1} total={TOTAL_STEPS} />
-
-          <form onSubmit={handleSubmit} className="mt-6 space-y-5 rounded-2xl bg-bg-card border border-border p-8">
+          <FormSection as="form" onSubmit={handleSubmit}>
             {error && <ErrorBanner>{error}</ErrorBanner>}
 
-            {step === 0 && (
-              <EducationStep
-                role={role}
-                course={course} setCourse={setCourse}
-                gradYear={gradYear} setGradYear={setGradYear}
-                inputCls={inputCls}
-              />
-            )}
-            {step === 1 && (
-              <LinksStep
-                role={role}
-                linkedin={linkedin} setLinkedin={setLinkedin}
-                github={github} setGithub={setGithub}
-                portfolio={portfolio} setPortfolio={setPortfolio}
-                inputCls={inputCls}
-              />
-            )}
+            {/* the fields enter from the side you are travelling toward, so Back visibly reverses Continue */}
+            <div key={step} className={`grid gap-6 ${dir === "fwd" ? "anim-step-fwd" : "anim-step-back"}`}>
+              {step === 0 && (
+                <EducationStep
+                  role={role}
+                  course={course} setCourse={setCourse}
+                  gradYear={gradYear} setGradYear={setGradYear}
+                />
+              )}
+              {step === 1 && (
+                <LinksStep
+                  role={role}
+                  linkedin={linkedin} setLinkedin={setLinkedin}
+                  github={github} setGithub={setGithub}
+                  portfolio={portfolio} setPortfolio={setPortfolio}
+                />
+              )}
+            </div>
 
-            <div className="pt-2 flex gap-3">
+            {/* KEEP AS WRITTEN (pre-existing): Continue and the submit button are both a <Button> at this same position, so React reuses
+                the one DOM node and flips its type; the click that advances to step 2 therefore also submits the form. Giving the two
+                buttons different `key`s stops that. It is left alone here because it changes what a student's first click does. */}
+            <FormActions align="between">
               {step > 0 && (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  disabled={isLoading}
-                  className="px-5 py-3 rounded-xl bg-tint-2 border border-border-strong text-text-primary text-body hover:bg-tint-4 cursor-pointer transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
+                <Button type="button" variant="ghost" size="lg" onClick={handleBack} disabled={isLoading}>
                   Back
-                </button>
+                </Button>
               )}
               {step < TOTAL_STEPS - 1 ? (
-                <Button
-                  type="button"
-                  onClick={handleNext}
-                  variant="primary"
-                  size="lg"
-                  className="flex-1"
-                >
+                <Button type="button" onClick={handleNext} variant="primary" size="lg" className="ml-auto">
                   Continue
                 </Button>
               ) : (
-                <Button
-                  type="submit"
-                  loading={isLoading}
-                  variant="primary"
-                  size="lg"
-                  className="flex-1"
-                >
+                <Button type="submit" loading={isLoading} variant="primary" size="lg" lit className="ml-auto">
                   {role === "student" ? "Finish onboarding" : "Submit for review"}
                 </Button>
               )}
-            </div>
-          </form>
+            </FormActions>
+          </FormSection>
         </div>
       </main>
     </div>
   );
 }
 
-function ProgressBar({ current, total }: { current: number; total: number }) {
-  const pct = (current / total) * 100;
-  return (
-    <div className="space-y-2" aria-label={`Step ${current} of ${total}`}>
-      <div className="h-1 w-full rounded-full bg-tint-2 overflow-hidden">
-        <div
-          className="h-full bg-accent transition-[width] duration-300 ease-out"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <div className="flex justify-between text-small text-text-muted">
-        <span>{current} / {total}</span>
-        <span>{Math.round(pct)}%</span>
-      </div>
-    </div>
-  );
-}
-
 function EducationStep({
-  role, course, setCourse, gradYear, setGradYear, inputCls,
+  role, course, setCourse, gradYear, setGradYear,
 }: {
   role: Affiliation;
   course: string; setCourse: (v: string) => void;
   gradYear: string; setGradYear: (v: string) => void;
-  inputCls: string;
 }) {
   return (
     <>
-      <div>
-        <label htmlFor="course" className="block text-small text-text-muted mb-1.5">
-          {role === "student" ? "Course you're studying" : "Course studied"} <span className="text-danger">*</span>
-        </label>
-        <input
+      <Field label={role === "student" ? "Course you're studying" : "Course studied"} required>
+        <Input
           id="course"
           type="text"
           placeholder={role === "student" ? "e.g. BSc Mathematics" : "e.g. MEng Computing"}
           value={course}
           onChange={(e) => setCourse(e.target.value)}
-          className={inputCls}
           maxLength={200}
           required
         />
-      </div>
-      <div>
-        <label htmlFor="grad-year" className="block text-small text-text-muted mb-1.5">
-          {role === "student" ? "Expected graduation year" : "Graduation year"} <span className="text-danger">*</span>
-        </label>
-        <select
+      </Field>
+      <Field label={role === "student" ? "Expected graduation year" : "Graduation year"} required>
+        <Select
           id="grad-year"
           value={gradYear}
           onChange={(e) => setGradYear(e.target.value)}
-          className={inputCls}
           required
         >
           <option value="">Select a year</option>
           {gradYearOptions(role).map((y) => (
             <option key={y} value={y}>{y}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </Field>
     </>
   );
 }
 
 function LinksStep({
-  role, linkedin, setLinkedin, github, setGithub, portfolio, setPortfolio, inputCls,
+  role, linkedin, setLinkedin, github, setGithub, portfolio, setPortfolio,
 }: {
   role: Affiliation;
   linkedin: string; setLinkedin: (v: string) => void;
   github: string; setGithub: (v: string) => void;
   portfolio: string; setPortfolio: (v: string) => void;
-  inputCls: string;
 }) {
   return (
     <>
-      <div>
-        <label htmlFor="linkedin" className="block text-small text-text-muted mb-1.5">
-          LinkedIn URL{" "}
-          {role !== "student"
-            ? <span className="text-danger">*</span>
-            : <span className="text-text-muted ml-1">— optional</span>}
-        </label>
-        <input
+      <Field
+        label="LinkedIn URL"
+        required={role !== "student"}
+        hint={role !== "student" ? undefined : "— optional"}
+      >
+        <Input
           id="linkedin"
           type="url"
           placeholder="https://www.linkedin.com/in/your-handle"
           value={linkedin}
           onChange={(e) => setLinkedin(e.target.value)}
-          className={inputCls}
           maxLength={512}
           required={role !== "student"}
         />
-      </div>
-      <div>
-        <label htmlFor="github" className="block text-small text-text-muted mb-1.5">
-          GitHub URL <span className="text-text-muted ml-1">— optional</span>
-        </label>
-        <input
+      </Field>
+      <Field label="GitHub URL" hint="— optional">
+        <Input
           id="github"
           type="url"
           placeholder="https://github.com/your-handle"
           value={github}
           onChange={(e) => setGithub(e.target.value)}
-          className={inputCls}
           maxLength={512}
         />
-      </div>
-      <div>
-        <label htmlFor="portfolio" className="block text-small text-text-muted mb-1.5">
-          Portfolio URL <span className="text-text-muted ml-1">— optional</span>
-        </label>
-        <input
+      </Field>
+      <Field label="Portfolio URL" hint="— optional">
+        <Input
           id="portfolio"
           type="url"
           placeholder="https://yourportfolio.com"
           value={portfolio}
           onChange={(e) => setPortfolio(e.target.value)}
-          className={inputCls}
           maxLength={512}
         />
-      </div>
+      </Field>
     </>
   );
 }
