@@ -1,4 +1,6 @@
-// The 2026 Imperial Entrepreneurs logo as vector data. GENERATED from design/logo-2026 (scripts/logo/trace-logo.mjs): do not edit by hand.
+// The 2026 Imperial Entrepreneurs logo as vector data. GENERATED, do not edit by hand: traced from the supplied files kept in scripts/logo/source
+// (the tracer lives in the owner's design workspace, design/phase-2/tools/trace-logo-2026.mjs). Every raster file (favicon, app icons, link
+// preview) is exported from this data by scripts/logo/build-assets.mjs, and src/design-system/logo.guard.test.ts pins both.
 //
 // ROUNDEL is an unofficial trace of the supplied "solid black.png" (Bezier curves fitted to its sub-pixel outline, tolerance 0.5 px on a
 // 1257 px ring). WORDMARK is the supplied outline vector ("vector black.svg") as drawn. LOCKUP is assembled from the two with the proportions

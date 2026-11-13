@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Entry } from "@/components/ui/Entry";
 import { PageHead } from "@/components/ui/PageHead";
 import { Panel } from "@/components/ui/Panel";
+import { Icon } from "@/design-system/icons/Icon";
 import { Lockup } from "@/design-system/logo/Lockup";
 import { Roundel } from "@/design-system/logo/Roundel";
 import { OrbitGlyph } from "@/design-system/OrbitGlyph";
@@ -146,7 +147,7 @@ export default async function DesignSystemPage() {
         <Section title="Entries" note="One row of a list in a ring: a member, a listing, a notification. With a link the whole row is the target.">
           <Panel className="p-2">
             <ul className="grid">
-              <Entry as="li" glyph={<Roundel size={20} />} title="Elena Petrova" meta="Imperial student · Angel investor" href="/members" trailing={<Badge tone="lit" dot>Looking for a co-founder</Badge>} />
+              <Entry as="li" glyph={<Icon name="members" size={20} />} title="Elena Petrova" meta="Imperial student · Angel investor" href="/members" trailing={<Badge tone="lit" dot>Looking for a co-founder</Badge>} />
               <Entry as="li" lit glyph={<OrbitGlyph />} title="Demo Night" meta="Barclays Eagle Labs, London" trailing={<Badge>Event</Badge>} />
               <Entry as="li" title="A row with no glyph" meta="The ring is optional" />
             </ul>
