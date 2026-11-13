@@ -5,14 +5,13 @@
 //   src/app/apple-icon.png  180 × 180   the same, opaque (iOS rounds the corners itself)
 //   src/app/favicon.ico     16 / 32 / 48
 //   public/logo-square.png  512 × 512   the same as icon.png (the Organization logo in the JSON-LD)
-//   public/logo-roundel.png 1024 wide   the roundel alone, white on transparent (the landing scene samples its alpha)
 //   public/og-image.png     1200 × 630  the lockup and the tagline on the night with its glows and star dust (OG and Twitter cards)
 //
 // The vector data is src/design-system/logo/logo-data.ts (the roundel is a trace of source/solid-black.png, the wordmark is the supplied
 // outline vector); the colours are read from src/design-system/tokens.css, so a change to the night or the ring white lands here too. The
 // tagline (tagline.json) is the previous trace, carried over unchanged: only the OG image draws it.
 //
-//   node scripts/logo/build-assets.mjs [--only icon,favicon,roundel,og]
+//   node scripts/logo/build-assets.mjs [--only icon,favicon,og]
 //
 // Needs Google Chrome (through the repo's Playwright) and ImageMagick (`magick`) for the .ico and the palette PNGs. Run it from frontend/.
 import { execFileSync } from "node:child_process";
@@ -108,13 +107,6 @@ if (want("favicon")) {
   magick(...files, out("src/app/favicon.ico"));
 }
 
-// ── the roundel alone, white on transparent: the landing scene samples this alpha channel if it is asked to ────────────
-if (want("roundel")) {
-  const w = 1024, h = Math.round((w * ROUNDEL.h) / ROUNDEL.w);
-  const body = svg(w, h, `<g transform="scale(${w / ROUNDEL.w})" fill="#ffffff"><path fill-rule="evenodd" d="${ROUNDEL.d}"/></g>`);
-  await shoot(out("public/logo-roundel.png"), w, h, page(w, h, "transparent", body), true);
-}
-
 // ── the link-preview card ─────────────────────────────────────────────────────────────────────────────────────────
 if (want("og")) {
   const W = 1200, H = 630;
@@ -148,7 +140,7 @@ if (want("og")) {
 
 await browser.close();
 fs.rmSync(tmp, { recursive: true, force: true });
-for (const f of ["src/app/icon.png", "src/app/apple-icon.png", "src/app/favicon.ico", "public/logo-square.png", "public/logo-roundel.png", "public/og-image.png"]) {
+for (const f of ["src/app/icon.png", "src/app/apple-icon.png", "src/app/favicon.ico", "public/logo-square.png", "public/og-image.png"]) {
   const p = out(f);
   if (fs.existsSync(p)) console.log(`${f.padEnd(26)} ${String(fs.statSync(p).size).padStart(7)} bytes`);
 }

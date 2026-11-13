@@ -16,7 +16,7 @@ The 2026 mark: a ring with a gap at the top and the rocket breaking out through 
 |---|---|
 | `design-system/logo/logo-data.ts` | the vector data (ROUNDEL, WORDMARK, LOCKUP, MARK). The roundel is a trace of the supplied `solid black.png`; the wordmark is the supplied outline vector; the lockup is assembled from the two by the proportions measured on the 2025 lockup (no official lockup was supplied). |
 | `design-system/logo/Roundel.tsx`, `Lockup.tsx`, `components/BrandLogo.tsx` | the components |
-| `frontend/scripts/logo/build-assets.mjs` | exports every raster file from the data: `src/app/icon.png`, `apple-icon.png`, `favicon.ico`, `public/logo-square.png`, `logo-roundel.png`, `og-image.png` |
+| `frontend/scripts/logo/build-assets.mjs` | exports every raster file from the data: `src/app/icon.png`, `apple-icon.png`, `favicon.ico`, `public/logo-square.png`, `og-image.png` |
 | `frontend/scripts/logo/source/` | the supplied master (`solid-black.png`) and wordmark (`wordmark-black.svg`) |
 | `frontend/scripts/logo/tagline.json` | the carried-over "GO DO SHIT." trace, used only by the link-preview image |
 
