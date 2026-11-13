@@ -229,6 +229,8 @@
   /* ── Search: a pill with a glass on the left and a clear button on the right ───────────────────────────────────── */
   .lm-search { position: relative; display: block; }
   .lm-search > .lm-field { padding-left: 52px; padding-right: 54px; border-radius: var(--radius-pill); }
+  /* the right padding makes room for the clear button; without one the placeholder may use it */
+  .lm-search:not(:has(.lm-search__clear)) > .lm-field { padding-right: 20px; }
   .lm-search > .lm-field::-webkit-search-decoration,
   .lm-search > .lm-field::-webkit-search-cancel-button,
   .lm-search > .lm-field::-webkit-search-results-button,
