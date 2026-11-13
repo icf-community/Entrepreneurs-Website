@@ -167,6 +167,14 @@ describe("controls and focus are seen (WCAG 1.4.11, 3:1)", () => {
       const bg = surfaceRgb(surface);
       expect(ratio(toSrgb(token("border-strong")), bg)).toBeGreaterThanOrEqual(3);
     });
+    it(`a pointed-at control's edge (edge-hover) on ${surface}`, () => {
+      const bg = surfaceRgb(surface);
+      expect(ratio(toSrgb(token("edge-hover")), bg)).toBeGreaterThanOrEqual(3);
+    });
+    it(`a chosen control's edge (edge-lit, translucent) on ${surface}`, () => {
+      const bg = surfaceRgb(surface);
+      expect(ratio(over(token("edge-lit"), bg), bg)).toBeGreaterThanOrEqual(3);
+    });
     it(`the focus ring on ${surface}`, () => {
       const bg = surfaceRgb(surface);
       expect(ratio(toSrgb(token("focus")), bg)).toBeGreaterThanOrEqual(3);

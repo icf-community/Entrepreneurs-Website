@@ -50,6 +50,10 @@
   --color-border:        color-mix(in oklab, var(--color-ink) 28%, var(--color-void));
   --color-border-subtle: color-mix(in oklab, var(--color-ink) 17%, var(--color-void));
   --color-border-strong: oklch(0.56 0.024 255);
+  /* The two edges a control wears besides its resting one: pointed at (warms the firm edge) and chosen (amber). Chosen is a boundary too, so
+     it clears 3:1 on every surface, unlike lit-line, which is a hairline for surfaces (pinned by the contrast test). */
+  --color-edge-hover:    color-mix(in oklab, var(--color-warm) 40%, var(--color-border-strong));
+  --color-edge-lit:      color-mix(in oklab, var(--color-warm) 62%, transparent);
 
   /* ── 5. Action: sun. A cream fill with void on it is the strongest control the system makes. Also the focus ring. ── */
   --color-accent:        var(--color-sun);
