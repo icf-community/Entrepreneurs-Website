@@ -1,7 +1,9 @@
-import Link from "next/link";
 import { listPendingOpportunities } from "@/lib/data/admin";
 import OpportunitiesReview from "./OpportunitiesReview";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PageHead } from "@/components/ui/PageHead";
+import { Icon } from "@/design-system/icons/Icon";
 
 // bulkApproveOpportunities/bulkRejectOpportunities are one SECURITY
 // DEFINER RPC call per id (see runBulk's own comment on why that's
@@ -20,27 +22,24 @@ export default async function AdminOpportunitiesPage() {
   const pending = await listPendingOpportunities(supabase);
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
-      <div className="max-w-[1200px] mx-auto">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
-          <div className="min-w-0">
-            <p className="label-wide text-text-secondary mb-3">Admin · review queue</p>
-            <h1 className="font-display text-display leading-[1.1] tracking-tight">
-              Pending opportunities
-            </h1>
-            <p className="text-body text-text-muted mt-2">
-              {pending.length} awaiting review.
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link href="/admin/opportunities/new" className="px-3 py-1.5 rounded-lg bg-accent text-bg-primary text-body font-medium no-underline transition-colors hover:bg-accent-light">
-              + New opportunity
-            </Link>
-            <Link href="/admin" className="text-body text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
-              ← Admin home
-            </Link>
-          </div>
-        </div>
+    <main id="main-content" tabIndex={-1} className="min-h-screen px-[var(--gutter)] py-10 sm:py-12 text-text-primary">
+      <div className="mx-auto max-w-[var(--content-max)]">
+        <PageHead
+          className="mb-8"
+          context="Admin · review queue"
+          title="Pending opportunities"
+          lede={`${pending.length} awaiting review.`}
+          actions={
+            <>
+              <ButtonLink href="/admin/opportunities/new" variant="ghost" size="sm" leading={<Icon name="plus" size={18} />}>
+                <span className="sr-only">+ </span>New opportunity
+              </ButtonLink>
+              <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
+                Admin home
+              </ButtonLink>
+            </>
+          }
+        />
 
         <OpportunitiesReview items={pending} />
       </div>

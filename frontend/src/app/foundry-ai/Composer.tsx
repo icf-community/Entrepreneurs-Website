@@ -2,9 +2,16 @@
 
 import { useRef } from "react";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Chip } from "@/components/ui/Chip";
+import { Panel } from "@/components/ui/Panel";
+import { Textarea } from "@/components/ui/Textarea";
 
 const MAX_MESSAGE = 600;
 
+// The one calm field the whole screen leans on: starters above it (a chip fills the draft, never sends it),
+// the counter and the temporary-search choice under it, and the one lit action. `#ai-composer` and its
+// "Your search" name are what the specs and a screen reader find it by.
 export function Composer({
   draft, setDraft, disabled, sending, placeholder, starters, onSend, showTemporary, temporary, setTemporary,
 }: {
@@ -22,26 +29,22 @@ export function Composer({
   const composing = useRef(false);
   const canSend = draft.trim().length > 0 && draft.length <= MAX_MESSAGE && !disabled;
   return (
-    <form
+    <Panel
+      as="form"
       onSubmit={(e) => { e.preventDefault(); if (canSend) onSend(); }}
-      className="rounded-2xl border border-border bg-bg-card p-4"
+      className="p-4 sm:p-5"
     >
       {starters.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2">
+        <div className="mb-4 flex flex-wrap gap-2">
           {starters.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setDraft(s)}
-              className="cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-1.5 text-small text-text-secondary hover:border-accent"
-            >
+            <Chip key={s} size="sm" className="whitespace-normal text-left" onClick={() => setDraft(s)}>
               {s}
-            </button>
+            </Chip>
           ))}
         </div>
       )}
       <label htmlFor="ai-composer" className="sr-only">Your search</label>
-      <textarea
+      <Textarea
         id="ai-composer"
         rows={3}
         maxLength={MAX_MESSAGE}
@@ -57,22 +60,23 @@ export function Composer({
             if (canSend) onSend();
           }
         }}
-        className="w-full resize-none rounded-lg border border-border bg-tint-1 px-3 py-2 text-body text-text-primary placeholder:text-text-muted focus:border-accent"
+        className="resize-none"
       />
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 text-small text-text-muted">
-          <span>{draft.length}/{MAX_MESSAGE}</span>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-small text-text-muted">
+          <span className="data">{draft.length}/{MAX_MESSAGE}</span>
           {showTemporary && (
-            <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={temporary} onChange={(e) => setTemporary(e.target.checked)} />
-              Temporary search (not used to understand later searches)
-            </label>
+            <Checkbox
+              label="Temporary search (not used to understand later searches)"
+              checked={temporary}
+              onChange={(e) => setTemporary(e.target.checked)}
+            />
           )}
         </div>
-        <Button type="submit" size="sm" loading={sending} disabled={!canSend}>
+        <Button type="submit" size="sm" lit loading={sending} disabled={!canSend}>
           Search
         </Button>
       </div>
-    </form>
+    </Panel>
   );
 }

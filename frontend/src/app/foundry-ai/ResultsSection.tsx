@@ -1,6 +1,9 @@
 "use client";
 
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
+import { Icon } from "@/design-system/icons/Icon";
 import { outcomeMessage } from "@/lib/ai/outcomes";
 import type { AiMode, AiTurnSummary, ResultCard } from "@/lib/ai/types";
 import { ResultList } from "./ResultList";
@@ -22,19 +25,22 @@ export function ResultsSection({
   return (
     <>
       {results && (
-        <section aria-label="Results" className="space-y-3">
+        <section aria-label="Results" className="space-y-4">
           {running && <p className="text-small text-text-muted">Previous results</p>}
           <ResultList mode={mode} turnId={results.turnId} cards={results.cards} partial={results.partial} />
           {mode === "recruiter" && lastCompleted && !running && (
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {!lastCompleted.saved ? (
-                <Button variant="ghost" size="sm" onClick={onSave}>
+                <Button variant="ghost" size="sm" type="button" onClick={onSave}>
                   Save these matches
                 </Button>
               ) : (
-                <span className="text-body text-text-muted">Saved for 7 days.</span>
+                <Badge tone="success" className="min-h-8 gap-2 px-3 text-small">
+                  <Icon name="check" size={14} />
+                  Saved for 7 days.
+                </Badge>
               )}
-              <Button variant="ghost" size="sm" onClick={onRescan} loading={sending}>
+              <Button variant="ghost" size="sm" type="button" onClick={onRescan} loading={sending}>
                 Check for new matches
               </Button>
             </div>
@@ -42,17 +48,16 @@ export function ResultsSection({
         </section>
       )}
       {resultsError && (
-        <p role="alert" className="text-body text-danger">
-          {resultsError}{" "}
-          {lastCompleted && (
-            <button type="button" className="underline" onClick={onRetryResults}>
-              Try again
-            </button>
-          )}
-        </p>
+        <Notice
+          tone="danger"
+          role="alert"
+          action={lastCompleted ? <Button variant="ghost" size="sm" type="button" onClick={onRetryResults}>Try again</Button> : undefined}
+        >
+          {resultsError}
+        </Notice>
       )}
       {lastTurn && (lastTurn.status === "failed" || lastTurn.status === "expired") && !running && (
-        <p className="text-body text-text-muted">{outcomeMessage(lastTurn.outcome)}</p>
+        <Notice tone={lastTurn.status === "failed" ? "danger" : "info"}>{outcomeMessage(lastTurn.outcome)}</Notice>
       )}
     </>
   );

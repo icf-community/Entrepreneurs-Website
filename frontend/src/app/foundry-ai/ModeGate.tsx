@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Notice } from "@/components/ui/Notice";
 import type {
   AiMode, AiTurnSummary, Conversation, RecruiterJob, ResultCard, TurnStatusResponse,
 } from "@/lib/ai/types";
@@ -59,9 +60,13 @@ export function ModeGate({
       {mode === "recruiter" && <JobPicker jobs={jobs} jobId={jobId} onChange={onJobChange} />}
 
       {mode === "opportunities" && !educationKnown && (
-        <p className="rounded-2xl border border-border bg-bg-card p-5 text-body text-text-secondary">
-          Confirm your status to see jobs. <Link href="/settings#education" className="underline">Confirm now</Link>
-        </p>
+        <Notice
+          tone="lit"
+          icon="user"
+          action={<ButtonLink href="/settings#education" variant="ghost" size="sm">Confirm now</ButtonLink>}
+        >
+          Confirm your status to see jobs.
+        </Notice>
       )}
 
       {jobNeedsConfirming && jobId ? (

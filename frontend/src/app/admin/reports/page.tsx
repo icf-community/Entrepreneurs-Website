@@ -1,8 +1,10 @@
 import { pageParam } from "@/lib/filters/serverParams";
-import Link from "next/link";
 import { adminReportsPage, REPORTS_PAGE_SIZE } from "@/lib/data/posts";
 import ReportsClient from "./ReportsClient";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PageHead } from "@/components/ui/PageHead";
+import { Icon } from "@/design-system/icons/Icon";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/reports
@@ -41,25 +43,20 @@ export default async function AdminReportsPage({
     <main
       id="main-content"
       tabIndex={-1}
-      className="min-h-screen bg-bg-primary text-text-primary px-8 py-12"
+      className="min-h-screen px-[var(--gutter)] py-10 sm:py-12 text-text-primary"
     >
-      <div className="max-w-[1200px] mx-auto">
-        <div className="mb-8 rule-draw pt-6">
-          <Link
-            href="/admin"
-            className="text-body text-text-secondary hover:text-text-primary"
-          >
-            ← Admin home
-          </Link>
-          <p className="label-wide text-text-muted mt-6 mb-4">Admin · reported posts</p>
-          <h1 className="font-display leading-[1.1] tracking-tight text-display">
-            Reported posts
-          </h1>
-          <p className="mt-3 max-w-[60ch] text-body text-text-secondary leading-relaxed">
-            Members report posts from the Community feed. Resolving a report emails the reporter
-            with the outcome, whichever way it goes. Reports are kept for 12 months.
-          </p>
-        </div>
+      <div className="mx-auto max-w-[var(--content-max)]">
+        <PageHead
+          className="mb-8"
+          context="Admin · reported posts"
+          title="Reported posts"
+          lede="Members report posts from the Community feed. Resolving a report emails the reporter with the outcome, whichever way it goes. Reports are kept for 12 months."
+          actions={
+            <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
+              Admin home
+            </ButtonLink>
+          }
+        />
 
         <ReportsClient
           reports={reports}

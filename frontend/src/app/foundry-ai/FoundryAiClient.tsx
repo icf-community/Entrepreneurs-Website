@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, useEffect } from "react";
+import { MeterGlyph } from "@/components/ui/Meter";
 import { track } from "@/lib/analytics/track";
 import type { AiMode, AiState } from "@/lib/ai/types";
 import { deleteAllAiHistory, deleteConversation, submitTurn, type SubmitInput } from "./actions";
@@ -168,7 +169,7 @@ export default function FoundryAiClient({ state, initialMode, initialJobId, init
   if (modes.length === 0) return null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
       <ConversationSidebar
         conversations={conversations}
         conversationId={conversationId}
@@ -180,9 +181,20 @@ export default function FoundryAiClient({ state, initialMode, initialJobId, init
       <div className="order-1 min-w-0 space-y-5 lg:order-2">
         <ModeTabs modes={modes} mode={mode} onSwitch={switchMode} />
 
-        <p className="text-body text-text-muted">
-          AI-assisted matching. Evidence may be incomplete.{" "}
-          <Link href="/ai-notice" className="underline">Learn more</Link> · {remaining} of {state.quota.limit} searches left today
+        {/* The words are the content; the ring beside them is a glance at how much of today's allowance is left. */}
+        <p className="flex items-center gap-3 text-small text-text-muted">
+          <MeterGlyph
+            value={remaining}
+            max={state.quota.limit}
+            size="sm"
+            tone={remaining === 0 ? "danger" : "lit"}
+            className="[--_d:22px]"
+          />
+          <span>
+            AI-assisted matching. Evidence may be incomplete.{" "}
+            <Link href="/ai-notice" className="underline underline-offset-4 hover:text-text-primary">Learn more</Link> ·{" "}
+            <span className="data text-text-secondary">{remaining} of {state.quota.limit}</span> searches left today
+          </span>
         </p>
 
         <ModeGate
