@@ -1,18 +1,27 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Sidebar, { type NavKey } from "./Sidebar";
 import { SiteBanner } from "@/components/SiteBanner";
+import { Icon } from "@/design-system/icons/Icon";
+import { Roundel } from "@/design-system/logo/Roundel";
 
 // ════════════════════════════════════════════════════════════════════
-// Foundry · App shell
+// Foundry · App shell (Lumen)
 //
 // Sidebar + content column. The rail is fixed on desktop and a drawer
 // below lg — the same breakpoint the old AppNav switched to a hamburger,
-// so nothing changes about which devices get which affordance.
+// so nothing changes about which devices get which affordance. The look of
+// all of it is shell.css; the shell draws no background of its own, so the
+// atmosphere (surfaces.css) shows behind every member page.
 //
 // The drawer traps nothing and locks body scroll while open, matching
 // what AppNav already did; that behaviour is kept rather than reinvented.
+// What is added: focus moves to its close control when it opens and comes
+// back to the menu control when it closes, and it closes by itself if the
+// window grows to a desktop while it is open (the scroll lock would
+// otherwise outlive the drawer).
 // ════════════════════════════════════════════════════════════════════
 
 export default function AppShell({
@@ -29,57 +38,73 @@ export default function AppShell({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
+    const menu = menuRef.current;
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+    // 64rem is Tailwind's lg, the breakpoint shell.css shows the rail at.
+    const desktop = window.matchMedia("(min-width: 64rem)");
+    const onResize = (e: MediaQueryListEvent) => {
+      if (e.matches) setOpen(false);
+    };
     document.addEventListener("keydown", onEsc);
+    desktop.addEventListener("change", onResize);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onEsc);
+      desktop.removeEventListener("change", onResize);
       document.body.style.overflow = prev;
+      menu?.focus();
     };
   }, [open]);
 
+  const close = () => setOpen(false);
+
   return (
-    <div className="flex min-h-screen bg-bg-primary">
+    <div className="lm-shell">
       {/* Desktop rail */}
-      <aside className="sticky top-0 hidden h-screen shrink-0 lg:block">
+      <aside className="lm-shell__rail">
         <Sidebar active={active} name={name} isApproved={isApproved} isAdmin={isAdmin} />
       </aside>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer. The scrim is not a control: the close button inside
+          the drawer and Escape are the keyboard's ways out. */}
       {open && (
         <>
-          <button
-            type="button"
-            aria-label="Close navigation"
-            onClick={() => setOpen(false)}
-            className="anim-fade-in fixed inset-0 z-40 cursor-default bg-black/60 lg:hidden"
-          />
-          <aside className="anim-panel fixed inset-y-0 left-0 z-50 lg:hidden">
-            <Sidebar active={active} name={name} isApproved={isApproved} isAdmin={isAdmin} onNavigate={() => setOpen(false)} />
+          <div aria-hidden="true" onClick={close} className="lm-scrim" />
+          <aside className="lm-drawer">
+            <Sidebar
+              active={active}
+              name={name}
+              isApproved={isApproved}
+              isAdmin={isAdmin}
+              onNavigate={close}
+              onClose={close}
+            />
           </aside>
         </>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border-subtle bg-bg-primary/92 px-4 py-3 backdrop-blur-md lg:hidden">
+      <div className="lm-shell__main">
+        <header className="lm-appbar">
           <button
+            ref={menuRef}
             type="button"
             onClick={() => setOpen(true)}
             aria-label="Open navigation"
             aria-expanded={open}
-            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-tint-2 text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+            className="lm-iconbtn"
           >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
-              <path d="M3 6h14M3 10h14M3 14h14" />
-            </svg>
+            <Icon name="menu" size={20} />
           </button>
-          <span className="text-body text-text-secondary">Foundry</span>
+          <Link href="/home" className="lm-appbar__brand">
+            <Roundel size={45} label="Imperial Entrepreneurs" />
+          </Link>
         </header>
 
         <SiteBanner />

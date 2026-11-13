@@ -11,6 +11,7 @@
      motion.css      keyframes and the few gestures the logo gives us (rule draws, ring turns, light breathes), reduced-motion contract
      surfaces.css    the atmosphere behind every page
      components.css  the classes behind the components in src/components/ui (button, panel, entry, badge …)
+     shell.css       the frame of the signed-in app: the labelled rail, the phone's app bar and drawer
      forms.css · overlays.css · data.css   the same, for the form controls, the overlays and feedback, and the data display
 
    Documentation: DESIGN.md (the saved design system) and docs/design-system/.
@@ -21,6 +22,7 @@
 @import "../design-system/motion.css";
 @import "../design-system/surfaces.css";
 @import "../design-system/components.css";
+@import "../design-system/shell.css";
 @import "../design-system/forms.css";
 @import "../design-system/overlays.css";
 @import "../design-system/data.css";

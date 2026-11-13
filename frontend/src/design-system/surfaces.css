@@ -18,12 +18,19 @@ body { background-color: transparent; }
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  /* the two breaths are sized in px, not rem: the root is 125 % (base.css), and the artifact's 62 × 40 and 54 × 46 rem were drawn at 16 px */
+  --lm-glow: 7%;
   background-image:
-    radial-gradient(62rem 40rem at 12% -10%, color-mix(in oklch, var(--color-warm) 7%, transparent), transparent 70%),
-    radial-gradient(54rem 46rem at 104% 108%, color-mix(in oklch, var(--color-cool) 6%, transparent), transparent 70%),
+    radial-gradient(992px 640px at 12% -10%, color-mix(in oklab, var(--color-warm) var(--lm-glow), transparent), transparent 70%),
+    radial-gradient(864px 736px at 104% 108%, color-mix(in oklab, var(--color-cool) 6%, transparent), transparent 70%),
     var(--lm-dust-a),
     var(--lm-dust-b);
   background-size: auto, auto, 380px 380px, 610px 610px;
   background-position: 0 0, 0 0, 0 0, 150px 95px;
   background-repeat: no-repeat, no-repeat, repeat, repeat;
+}
+
+/* On a phone the same glow covers most of the screen, so it is dimmed: the night stays the night, and a bar drawn over it does not seam. */
+@media (max-width: 40rem) {
+  .atmosphere { --lm-glow: 4%; }
 }

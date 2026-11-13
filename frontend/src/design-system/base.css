@@ -35,7 +35,7 @@ h1, h2, h3, h4, h5, h6, [id] { scroll-margin-top: 5rem; }
 /* No 300 ms double-tap-zoom delay on touch, and a tap flash that belongs to the palette. */
 button, a, [role="button"], summary {
   touch-action: manipulation;
-  -webkit-tap-highlight-color: color-mix(in oklch, var(--color-warm) 18%, transparent);
+  -webkit-tap-highlight-color: color-mix(in oklab, var(--color-warm) 18%, transparent);
 }
 
 /* The single focus indicator for the whole app: sun, 2 px, offset 3 px. :focus-visible, so it shows for keyboard and programmatic focus and

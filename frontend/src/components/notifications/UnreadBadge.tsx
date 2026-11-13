@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getCachedCount, getCount, listeners } from "@/components/notifications/unreadBadgeStore";
+import { Badge } from "@/components/ui/Badge";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Unread notifications badge on the rail (launch programme F-x3)
@@ -43,11 +44,8 @@ export function UnreadBadge() {
   if (count <= 0) return null;
 
   return (
-    <span
-      className="ml-auto shrink-0 rounded-full border border-accent/40 bg-accent-muted px-1.5 py-0.5 text-caption font-medium leading-none text-accent-light"
-      aria-label={`${count} unread ${count === 1 ? "notification" : "notifications"}`}
-    >
+    <Badge tone="lit" aria-label={`${count} unread ${count === 1 ? "notification" : "notifications"}`}>
       {count > 99 ? "99+" : count}
-    </span>
+    </Badge>
   );
 }

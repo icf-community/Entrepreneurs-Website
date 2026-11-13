@@ -35,44 +35,44 @@
 
   /* Tints: ink laid over whatever is behind it, in four steps. These replace every hand-written bg-white/[0.0x].
         tint-1 a quiet field · tint-2 a resting control · tint-3 a raised row · tint-4 a hovered or pressed one (fleeting, never a resting surface) */
-  --color-tint-1: color-mix(in oklch, var(--color-ink) 3%, transparent);
-  --color-tint-2: color-mix(in oklch, var(--color-ink) 5%, transparent);
-  --color-tint-3: color-mix(in oklch, var(--color-ink) 8%, transparent);
-  --color-tint-4: color-mix(in oklch, var(--color-ink) 12%, transparent);
+  --color-tint-1: color-mix(in oklab, var(--color-ink) 3%, transparent);
+  --color-tint-2: color-mix(in oklab, var(--color-ink) 5%, transparent);
+  --color-tint-3: color-mix(in oklab, var(--color-ink) 8%, transparent);
+  --color-tint-4: color-mix(in oklab, var(--color-ink) 12%, transparent);
 
   /* ── 3. Ink: text. Three steps, all ≥ 4.5:1 on every surface above, tint-3 included (pinned by the contrast test). ── */
   --color-text-primary:   var(--color-ink);
-  --color-text-secondary: color-mix(in oklch, var(--color-ink) 78%, var(--color-void));
-  --color-text-muted:     color-mix(in oklch, var(--color-ink) 68%, var(--color-void));
+  --color-text-secondary: color-mix(in oklab, var(--color-ink) 78%, var(--color-void));
+  --color-text-muted:     color-mix(in oklab, var(--color-ink) 68%, var(--color-void));
 
   /* ── 4. Lines. border is a rule (decorative, below 3:1 on purpose); border-strong is the edge of anything you can press and
         clears WCAG 1.4.11's 3:1 on the page and on a panel (pinned by the contrast test). ─────────────────────────────── */
-  --color-border:        color-mix(in oklch, var(--color-ink) 28%, var(--color-void));
-  --color-border-subtle: color-mix(in oklch, var(--color-ink) 17%, var(--color-void));
+  --color-border:        color-mix(in oklab, var(--color-ink) 28%, var(--color-void));
+  --color-border-subtle: color-mix(in oklab, var(--color-ink) 17%, var(--color-void));
   --color-border-strong: oklch(0.56 0.024 255);
 
   /* ── 5. Action: sun. A cream fill with void on it is the strongest control the system makes. Also the focus ring. ── */
   --color-accent:        var(--color-sun);
-  --color-accent-light:  color-mix(in oklch, var(--color-sun) 70%, var(--color-star));   /* a lit word, a link at rest or hovered */
-  --color-accent-dim:    color-mix(in oklch, var(--color-sun) 72%, var(--color-void));   /* pressed, or lit text that must not shout */
-  --color-accent-muted:  color-mix(in oklch, var(--color-warm) 14%, transparent);        /* the wash behind a chosen thing */
+  --color-accent-light:  color-mix(in oklab, var(--color-sun) 70%, var(--color-star));   /* a lit word, a link at rest or hovered */
+  --color-accent-dim:    color-mix(in oklab, var(--color-sun) 72%, var(--color-void));   /* pressed, or lit text that must not shout */
+  --color-accent-muted:  color-mix(in oklab, var(--color-warm) 14%, transparent);        /* the wash behind a chosen thing */
   --color-focus:         var(--color-sun);
 
   /* ── 6. Light: warm. Selection, glow, the lit part of a gauge. Never an action fill. ───────────────────────────── */
   --color-lit:        var(--color-warm);
-  --color-lit-muted:  color-mix(in oklch, var(--color-warm) 14%, transparent);
-  --color-lit-line:   color-mix(in oklch, var(--color-warm) 38%, transparent);
-  --color-lit-glow:   color-mix(in oklch, var(--color-warm) 19%, transparent);
+  --color-lit-muted:  color-mix(in oklab, var(--color-warm) 14%, transparent);
+  --color-lit-line:   color-mix(in oklab, var(--color-warm) 38%, transparent);
+  --color-lit-glow:   color-mix(in oklab, var(--color-warm) 19%, transparent);
   /* the older name for "a status that must not read as primary": a review waiting, a listing about to expire */
   --color-signal:       var(--color-warm);
-  --color-signal-muted: color-mix(in oklch, var(--color-warm) 14%, transparent);
+  --color-signal-muted: color-mix(in oklab, var(--color-warm) 14%, transparent);
 
   /* ── 7. Status. Used sparingly, always with a word or a drawn mark beside the colour. ──────────────────────────── */
   --color-danger:        oklch(0.75 0.15 28);
-  --color-danger-muted:  color-mix(in oklch, var(--color-danger) 13%, transparent);
-  --color-danger-line:   color-mix(in oklch, var(--color-danger) 55%, transparent);
+  --color-danger-muted:  color-mix(in oklab, var(--color-danger) 13%, transparent);
+  --color-danger-line:   color-mix(in oklab, var(--color-danger) 55%, transparent);
   --color-success:       oklch(0.8 0.11 165);
-  --color-success-muted: color-mix(in oklch, var(--color-success) 13%, transparent);
+  --color-success-muted: color-mix(in oklab, var(--color-success) 13%, transparent);
   --color-info:          var(--color-cool);
 
   /* ── 8. Type. Two faces: Funnel Display for headings (light, tight), Host Grotesk for everything else. Both come from
@@ -107,7 +107,7 @@
   --radius-pill: 999px;
 
   /* ── 10. Depth: declared once. Surfaces are lit by a hairline and, when lit, by their own light; overlays get one soft shadow. ── */
-  --shadow-lit:    0 0 0 1px var(--color-lit-line), 0 14px 46px -12px color-mix(in oklch, var(--color-warm) 55%, transparent);
+  --shadow-lit:    0 0 0 1px var(--color-lit-line), 0 14px 46px -12px color-mix(in oklab, var(--color-warm) 55%, transparent);
   --shadow-pop:    0 18px 50px -14px oklch(0 0 0 / 0.65), 0 2px 8px -2px oklch(0 0 0 / 0.4);
   --shadow-button: inset 0 1px 0 oklch(1 0 0 / 0.55), inset 0 -1px 0 oklch(0 0 0 / 0.08);
 
@@ -132,6 +132,9 @@
   --content-max: 72rem;                       /* the widest a page's column grows */
   --measure: 34ch;                            /* a lede or a caption never runs wider */
   --touch: 44px;                              /* the smallest a control may be */
+  --rail-width: 280px;                        /* the signed-in rail, labelled */
+  --rail-width-collapsed: 92px;               /* the same rail with its labels away: a column of rings */
+  --appbar-height: 76px;                      /* the phone's top bar: a 45 px ring plus its clear space */
   --focus-ring: 2px solid var(--color-focus);
   --focus-offset: 3px;                        /* the offset puts the ring on the page, so it reads on a cream fill too */
 }
