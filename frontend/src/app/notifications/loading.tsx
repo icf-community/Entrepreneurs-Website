@@ -5,8 +5,8 @@ import { PageHeaderSkeleton, RowListSkeleton } from "@/components/ui/Skeleton";
 export default function Loading() {
   return (
     <AppShell active="notifications">
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[760px] mx-auto">
+      <div className="px-[var(--gutter)] pb-20 pt-6 sm:pt-10">
+        <div className="mx-auto max-w-[44rem]">
           <PageHeaderSkeleton />
           <RowListSkeleton count={6} />
         </div>

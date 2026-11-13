@@ -1,9 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Dialog } from "@/components/ui/Dialog";
-import { closeDialog } from "@/components/ui/dialogCloser";
+import { Badge } from "@/components/ui/Badge";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Definition, DefinitionList } from "@/components/ui/DefinitionList";
+import { Dialog, DialogClose } from "@/components/ui/Dialog";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Entry } from "@/components/ui/Entry";
+import { Notice } from "@/components/ui/Notice";
+import { Panel } from "@/components/ui/Panel";
+import { ButtonTabs } from "@/components/ui/Tabs";
+import { Icon } from "@/design-system/icons/Icon";
+import type { IconName } from "@/design-system/icons/names";
 import { externalHref } from "@/lib/safeUrl";
 import {
   dayKey,
@@ -42,10 +50,12 @@ const SECTION: Record<ListingKind, string> = {
   vc_grant:    "/vcs",
 };
 
-const KIND_DOT: Record<ListingKind, string> = {
-  opportunity:  "bg-accent",
-  event:        "bg-[#7fb3ff]",
-  vc_grant:     "bg-[#b6e08b]",
+// A kind is told by its drawing (and, everywhere it is named, by its words), not by a hue:
+// the lit day is the only lit thing on the page.
+const KIND_ICON: Record<ListingKind, IconName> = {
+  opportunity:  "opportunities",
+  event:        "events",
+  vc_grant:     "vcs",
 };
 
 const KIND_LABEL: Record<ListingKind, string> = {
@@ -60,6 +70,8 @@ const ROLE_LABEL: Record<Role, string> = {
   going:      "Going",
   applied:    "Applied",
 };
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function CalendarClient({ items }: { items: CalItem[] }) {
   const [view, setView] = useState<View>("month");
@@ -77,10 +89,18 @@ export default function CalendarClient({ items }: { items: CalItem[] }) {
 
   return (
     <>
-      <div className="flex items-center gap-1.5 mb-6">
-        <ViewTab label="List"  active={view === "list"}  onClick={() => setView("list")} />
-        <ViewTab label="Month" active={view === "month"} onClick={() => setView("month")} />
-        <span className="ml-auto text-body text-text-muted">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <ButtonTabs<View>
+          variant="segmented"
+          size="sm"
+          items={[
+            { value: "list", label: "List" },
+            { value: "month", label: "Month" },
+          ]}
+          value={view}
+          onSelect={setView}
+        />
+        <span className="data text-body text-text-muted">
           {upcoming.length} upcoming
         </span>
       </div>
@@ -101,38 +121,22 @@ export default function CalendarClient({ items }: { items: CalItem[] }) {
   );
 }
 
-function ViewTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-body border transition-colors cursor-pointer ${
-        active
-          ? "bg-accent-muted border-accent/50 text-accent-light"
-          : "bg-tint-1 border-border text-text-secondary hover:border-accent hover:text-text-primary"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
 function LegendRow() {
   return (
-    <div className="flex items-center gap-3 mb-4 text-small text-text-muted flex-wrap">
-      <LegendDot kind="event"       label="Event" />
-      <LegendDot kind="opportunity" label="Opportunity deadline" />
-      <LegendDot kind="vc_grant"    label="VC / grant deadline" />
-    </div>
+    <ul className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-small text-text-muted">
+      <LegendMark kind="event"       label="Event" />
+      <LegendMark kind="opportunity" label="Opportunity deadline" />
+      <LegendMark kind="vc_grant"    label="VC / grant deadline" />
+    </ul>
   );
 }
 
-function LegendDot({ kind, label }: { kind: ListingKind; label: string }) {
+function LegendMark({ kind, label }: { kind: ListingKind; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={`inline-block w-2 h-2 rounded-full ${KIND_DOT[kind]}`} aria-hidden />
+    <li className="inline-flex items-center gap-2">
+      <Icon name={KIND_ICON[kind]} size={16} className="text-text-secondary" />
       {label}
-    </span>
+    </li>
   );
 }
 
@@ -154,22 +158,24 @@ function ListView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalItem
 
   if (groups.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
+      <EmptyState icon="calendar">
         Nothing upcoming. Items you post or mark as going/applied show up here automatically.
-      </div>
+      </EmptyState>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid gap-8">
       {groups.map((g) => {
         const dateLabel = formatDayKeyLong(g.dateKey);
         return (
-          <section key={g.dateKey}>
-            <h2 className="text-body text-accent-light mb-2">{dateLabel}</h2>
-            <div className="rounded-2xl bg-bg-card border border-border divide-y divide-border-subtle">
-              {g.rows.map((r) => <ListRow key={`${r.listingKind}:${r.listingId}`} item={r} onSelect={onSelect} />)}
-            </div>
+          <section key={g.dateKey} className="grid gap-3">
+            <h2 className="font-display text-lead text-text-primary">{dateLabel}</h2>
+            <Panel className="p-1.5">
+              <ul className="grid gap-0.5">
+                {g.rows.map((r) => <ListRow key={`${r.listingKind}:${r.listingId}`} item={r} onSelect={onSelect} />)}
+              </ul>
+            </Panel>
           </section>
         );
       })}
@@ -180,30 +186,34 @@ function ListView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalItem
 function ListRow({ item, onSelect }: { item: CalItem; onSelect: (i: CalItem) => void }) {
   const timeLabel = item.listingKind === "event" ? formatTime(item.occursAt) : "Deadline";
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(item)}
-      className="w-full flex items-start gap-3 p-4 text-left bg-transparent border-0 cursor-pointer transition-colors hover:bg-tint-1"
+    <Entry
+      as="li"
+      glyph={<Icon name={KIND_ICON[item.listingKind]} size={20} />}
+      // The whole row is the button, as the stretched link of any other Entry: one control in the
+      // accessibility tree, opening the item's details.
+      title={
+        <button
+          type="button"
+          onClick={() => onSelect(item)}
+          className="cursor-pointer border-0 bg-transparent p-0 text-left text-inherit after:absolute after:inset-0 after:content-['']"
+        >
+          {item.title}
+        </button>
+      }
+      meta={
+        <>
+          <span className="data">{timeLabel}</span> <span className="text-text-muted">· {KIND_LABEL[item.listingKind]}</span>
+        </>
+      }
+      trailing={
+        <>
+          {item.status === "pending" && <Badge tone="lit">In review</Badge>}
+          <Badge>{ROLE_LABEL[item.role]}</Badge>
+        </>
+      }
     >
-      <span className={`mt-1.5 shrink-0 inline-block w-2 h-2 rounded-full ${KIND_DOT[item.listingKind]}`} aria-hidden />
-      <div className="min-w-0 flex-1">
-        <div className="text-small text-text-muted">
-          {timeLabel} <span className="opacity-60">· {KIND_LABEL[item.listingKind]}</span>
-        </div>
-        <div className="text-lead text-text-primary mt-0.5">{item.title}</div>
-        {item.subtitle && <div className="text-small text-text-muted mt-0.5">{item.subtitle}</div>}
-      </div>
-      <span className="shrink-0 flex items-center gap-1.5">
-        {item.status === "pending" && (
-          <span className="px-2 py-0.5 rounded-lg text-caption border border-border text-text-muted">
-            In review
-          </span>
-        )}
-        <span className="px-2 py-0.5 rounded-lg text-caption tracking-wide border border-border-subtle text-text-muted">
-          {ROLE_LABEL[item.role]}
-        </span>
-      </span>
-    </button>
+      {item.subtitle && <p className="mt-0.5 text-small text-text-muted">{item.subtitle}</p>}
+    </Entry>
   );
 }
 
@@ -211,6 +221,10 @@ function ListRow({ item, onSelect }: { item: CalItem; onSelect: (i: CalItem) => 
 // Renders the month containing the first upcoming item. Prev / next
 // month nav stays inside the same client component — no router round-
 // trips needed since the items array is already paginated client-side.
+//
+// The one place a dense table is right: drawn with hairlines (a 1 px gap over a
+// rule colour), the days of the month on the card, the days of its neighbours a
+// step darker, and today as a lit ring: the only lit thing on the page.
 function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalItem) => void }) {
   // The cursor is a London year/month, not a Date. A Date here would be a
   // local-midnight one, and local midnight on the 1st is the previous month
@@ -228,63 +242,69 @@ function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalIte
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
+      <div className="mb-4 flex items-center gap-3">
         <button
           type="button"
           onClick={() => setCursor((c) => shiftMonth(c, -1))}
-          className="px-3 py-1.5 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body cursor-pointer transition-colors hover:bg-tint-4 hover:border-accent hover:text-accent-light"
+          className="lm-iconbtn"
           aria-label="Previous month"
         >
-          ◀
+          <Icon name="chevron-left" size={20} />
         </button>
-        <div className="px-3 py-1.5 text-lead text-text-primary">{monthLabel}</div>
+        <div aria-live="polite" className="min-w-0 flex-1 text-center font-display text-title text-text-primary sm:min-w-[11rem] sm:flex-none">{monthLabel}</div>
         <button
           type="button"
           onClick={() => setCursor((c) => shiftMonth(c, 1))}
-          className="px-3 py-1.5 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body cursor-pointer transition-colors hover:bg-tint-4 hover:border-accent hover:text-accent-light"
+          className="lm-iconbtn"
           aria-label="Next month"
         >
-          ▶
+          <Icon name="chevron-right" size={20} />
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-px bg-border-subtle border border-border-subtle rounded-2xl overflow-hidden text-small">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-          <div key={d} className="px-2 py-2 bg-bg-card text-text-muted uppercase tracking-wider">{d}</div>
-        ))}
-        {grid.map((cell) => (
-          <div
-            key={cell.key}
-            // Out-of-month days sit on the page colour rather than at reduced
-            // opacity: opacity-40 took their dates to 1.8:1 contrast (D4).
-            className={`min-h-[88px] p-2 ${cell.inMonth ? "bg-bg-card" : "bg-bg-primary"}`}
-          >
+      <Panel className="overflow-hidden">
+        <div className="grid grid-cols-7 gap-px bg-border-subtle text-small">
+          {WEEKDAYS.map((d) => (
+            <div key={d} className="bg-bg-secondary px-1.5 py-2.5 text-caption font-medium text-text-muted sm:px-2">{d}</div>
+          ))}
+          {grid.map((cell) => (
             <div
-              className={
-                cell.isToday
-                  ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-small font-medium text-bg-primary mb-1"
-                  : "text-small text-text-muted mb-1"
-              }
+              key={cell.key}
+              // Out-of-month days sit a step darker than the card rather than at reduced
+              // opacity: opacity-40 took their dates to 1.8:1 contrast (D4).
+              className={`min-h-20 p-1 sm:min-h-24 sm:p-2 ${cell.inMonth ? "bg-bg-card" : "bg-bg-secondary"}`}
             >
-              {cell.day}
+              <div className="mb-1">
+                {cell.isToday ? (
+                  <span
+                    aria-current="date"
+                    className="data inline-flex size-7 items-center justify-center rounded-full border border-lit-line bg-lit-muted text-small font-medium text-accent-light shadow-[0_0_14px_-3px_var(--color-lit-glow)]"
+                  >
+                    {cell.day}
+                  </span>
+                ) : (
+                  <span className="data inline-flex h-7 items-center px-1 text-small text-text-muted">{cell.day}</span>
+                )}
+              </div>
+              <div className="grid gap-0.5">
+                {cell.items.map((i) => (
+                  <button
+                    key={`${i.listingKind}:${i.listingId}`}
+                    type="button"
+                    onClick={() => onSelect(i)}
+                    title={i.title}
+                    className="flex min-h-6 w-full cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-1 text-left text-text-secondary transition-colors hover:bg-tint-3 hover:text-text-primary"
+                  >
+                    <Icon name={KIND_ICON[i.listingKind]} size={14} className="shrink-0 text-text-muted" />
+                    {/* On a phone a day is a column about as wide as a finger: the mark alone, the title stays for a screen reader. */}
+                    <span className="truncate text-caption max-sm:sr-only">{i.title}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="space-y-1">
-              {cell.items.map((i) => (
-                <button
-                  key={`${i.listingKind}:${i.listingId}`}
-                  type="button"
-                  onClick={() => onSelect(i)}
-                  title={i.title}
-                  className="w-full flex items-center gap-1.5 bg-transparent border-0 p-0 text-left cursor-pointer transition-colors hover:opacity-80"
-                >
-                  <span className={`shrink-0 inline-block w-1.5 h-1.5 rounded-full ${KIND_DOT[i.listingKind]}`} aria-hidden />
-                  <span className="truncate text-small text-text-secondary">{i.title}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </Panel>
 
       {items.length === 0 && (
         <p className="mt-4 text-center text-body text-text-muted">
@@ -306,71 +326,67 @@ function DetailDialog({ item, onClose }: { item: CalItem; onClose: () => void })
       onClose={onClose}
       label={item.title}
       containerClassName="flex items-end sm:items-center justify-center p-0 sm:p-4"
-      className="w-full sm:max-w-[520px] max-h-[88vh] overflow-y-auto overscroll-contain rounded-t-2xl sm:rounded-2xl bg-bg-card border border-border p-6 sm:p-7"
+      className="max-h-[88vh] w-full overflow-y-auto overscroll-contain p-6 max-sm:rounded-b-none sm:max-w-[34rem] sm:p-7"
     >
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-small text-text-muted">
-            <span className={`inline-block w-2 h-2 rounded-full ${KIND_DOT[item.listingKind]}`} aria-hidden />
-            {KIND_LABEL[item.listingKind]}
-            <span className="opacity-50">·</span>
-            <span>{ROLE_LABEL[item.role]}</span>
-          </div>
-          <h2 className="font-display text-text-primary text-heading leading-tight mt-1">{item.title}</h2>
-          {item.subtitle && <div className="text-body text-text-muted mt-1">{item.subtitle}</div>}
+      <DialogClose className="absolute right-4 top-4 z-10" />
+
+      <div className="mb-5 min-w-0 pr-12">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-small text-text-muted">
+          <Icon name={KIND_ICON[item.listingKind]} size={16} className="text-text-secondary" />
+          {KIND_LABEL[item.listingKind]}
+          <span aria-hidden>·</span>
+          <span>{ROLE_LABEL[item.role]}</span>
         </div>
-        <button
-          type="button"
-          onClick={closeDialog}
-          aria-label="Close"
-          className="shrink-0 w-11 h-11 rounded-lg bg-tint-2 border border-border-strong text-text-primary cursor-pointer hover:bg-tint-4 hover:border-accent transition-colors flex items-center justify-center text-lg leading-none"
-        >
-          ×
-        </button>
+        <h2 className="mt-2 font-display text-heading text-text-primary">{item.title}</h2>
+        {item.subtitle && <p className="mt-1 text-body text-text-muted">{item.subtitle}</p>}
       </div>
 
-      {item.status === "pending" && (
-        <div className="mb-4 px-4 py-3 rounded-xl border border-accent/25 bg-accent/[0.06] text-body text-text-secondary leading-relaxed">
-          <span className="text-accent-light font-medium">Still in review.</span> This listing is awaiting admin approval, so it doesn&apos;t have a public page yet. The details below are what you submitted.
-        </div>
-      )}
+      <div className="grid gap-5">
+        {item.status === "pending" && (
+          <Notice tone="lit" title="Still in review.">
+            This listing is awaiting admin approval, so it doesn&apos;t have a public page yet. The details below are what you submitted.
+          </Notice>
+        )}
 
-      <div className="text-body text-text-primary mb-4">{when}</div>
+        <p className="data text-body text-text-primary">{when}</p>
 
-      {item.meta.length > 0 && (
-        <dl className="space-y-2.5 mb-4">
-          {item.meta.map((m) => (
-            <div key={m.label} className="flex gap-3 text-body">
-              <dt className="shrink-0 w-28 text-text-muted">{m.label}</dt>
-              <dd className="min-w-0 flex-1 text-text-secondary break-words">
+        {item.meta.length > 0 && (
+          <DefinitionList layout="inline">
+            {item.meta.map((m) => (
+              <Definition key={m.label} term={m.label}>
                 {m.href ? (
-                  <a href={externalHref(m.href)} target="_blank" rel="noopener noreferrer" className="text-accent-light hover:underline break-all">{m.value}</a>
+                  <a
+                    href={externalHref(m.href)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all text-accent-light underline underline-offset-4"
+                  >
+                    {m.value}
+                  </a>
                 ) : (
                   m.value
                 )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
+              </Definition>
+            ))}
+          </DefinitionList>
+        )}
 
-      {item.description && (
-        <div className="pt-3 border-t border-border-subtle">
-          <div className="text-small text-text-muted mb-2">Description</div>
-          <p className="text-body text-text-secondary leading-relaxed whitespace-pre-line">{item.description}</p>
-        </div>
-      )}
+        {item.description && (
+          <section className="grid gap-2 border-t border-border-subtle pt-5">
+            <div className="label-wide text-text-muted">Description</div>
+            <p className="whitespace-pre-line text-body text-text-secondary">{item.description}</p>
+          </section>
+        )}
 
-      {/* Only for approved listings: a pending one has no page yet, which
-          the banner above already says. */}
-      {item.status === "approved" && (
-        <Link
-          href={`${SECTION[item.listingKind]}/${item.listingId}`}
-          className="mt-5 inline-flex items-center rounded-lg border border-border-strong bg-tint-2 px-4 py-2 text-body text-text-primary no-underline transition-colors hover:bg-tint-4 hover:border-accent"
-        >
-          Open full page →
-        </Link>
-      )}
+        {/* Only for approved listings: a pending one has no page yet, which
+            the notice above already says. */}
+        {item.status === "approved" && (
+          <ButtonLink href={`${SECTION[item.listingKind]}/${item.listingId}`} variant="ghost" size="md" className="justify-self-start">
+            Open full page<span className="sr-only"> →</span>
+            <Icon name="arrow-right" size={16} />
+          </ButtonLink>
+        )}
+      </div>
     </Dialog>
   );
 }

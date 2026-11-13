@@ -1,12 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { unmarkAction, type ListingKind } from "@/lib/listingActions";
 import { formatDate, formatDateTime } from "@/lib/dates";
 // Type-only, so the server-only module is erased rather than imported.
 import type { ActivityItem } from "@/lib/data/activity";
 import { externalHref } from "@/lib/safeUrl";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Entry } from "@/components/ui/Entry";
+import { Panel } from "@/components/ui/Panel";
+import { ButtonTabs, TabCount } from "@/components/ui/Tabs";
+import { Icon } from "@/design-system/icons/Icon";
+import type { IconName } from "@/design-system/icons/names";
 
 type Tab = "all" | "opportunity" | "event" | "vc_grant";
 
@@ -21,6 +29,12 @@ const KIND_BADGE: Record<ListingKind, string> = {
   opportunity:  "Opportunity",
   event:        "Event",
   vc_grant:     "VC / grant",
+};
+
+const KIND_ICON: Record<ListingKind, IconName> = {
+  opportunity:  "opportunities",
+  event:        "events",
+  vc_grant:     "vcs",
 };
 
 export default function MyActivityClient({ items }: { items: ActivityItem[] }) {
@@ -54,41 +68,40 @@ export default function MyActivityClient({ items }: { items: ActivityItem[] }) {
 
   if (items.length === 0 || counts.all === 0) {
     return (
-      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
+      <EmptyState icon="activity">
         Nothing here yet. When you apply to an opportunity or VC, or RSVP to an event, hit the &quot;Mark as applied&quot; / &quot;Mark as going&quot; button on the listing — it&apos;ll show up here.
-      </div>
+      </EmptyState>
     );
   }
 
   return (
-    <>
-      <div className="flex flex-wrap gap-1.5 mb-6">
-        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded-lg text-body border transition-colors cursor-pointer ${
-              tab === t
-                ? "bg-accent-muted border-accent/50 text-accent-light"
-                : "bg-tint-1 border-border text-text-secondary hover:border-accent hover:text-text-primary"
-            }`}
-          >
-            {TAB_LABEL[t]} <span className="opacity-60">· {counts[t]}</span>
-          </button>
-        ))}
-      </div>
+    <div className="grid gap-6">
+      {/* A toggle between views of this page, so each tab says whether it is pressed (the count stays in its name). */}
+      <ButtonTabs<Tab>
+        items={(Object.keys(TAB_LABEL) as Tab[]).map((t) => ({
+          value: t,
+          label: (
+            <>
+              {TAB_LABEL[t]} <TabCount>· {counts[t]}</TabCount>
+            </>
+          ),
+        }))}
+        value={tab}
+        onSelect={setTab}
+      />
 
       {visible.length === 0 ? (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
+        <EmptyState icon="activity" size="compact">
           Nothing in this tab.
-        </div>
+        </EmptyState>
       ) : (
-        <div className="rounded-2xl bg-bg-card border border-border divide-y divide-border-subtle">
-          {visible.map((i) => <Row key={key(i)} item={i} onUnmark={() => handleUnmark(i)} />)}
-        </div>
+        <Panel className="overflow-hidden">
+          <ul className="divide-y divide-border-subtle">
+            {visible.map((i) => <Row key={key(i)} item={i} onUnmark={() => handleUnmark(i)} />)}
+          </ul>
+        </Panel>
       )}
-    </>
+    </div>
   );
 }
 
@@ -110,59 +123,46 @@ function Row({ item, onUnmark }: { item: ActivityItem; onUnmark: () => void }) {
   const internalHref = `${section}/${item.listingId}`;
 
   const expired = item.status === "expired";
+  // Only an http(s) address becomes a link (lib/safeUrl); anything else draws no control.
+  const openHref = externalHref(item.url);
 
   return (
-    <div className="p-4">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2 py-0.5 rounded-lg text-caption border bg-tint-1 border-border text-text-muted">
-              {KIND_BADGE[item.listingKind]}
-            </span>
-            <span className="px-2 py-0.5 rounded-lg text-caption border bg-accent-muted text-accent-light border-accent/30">
-              {item.actionType === "going" ? "Going" : "Applied"}
-            </span>
-            {expired && (
-              <span className="px-2 py-0.5 rounded-lg text-caption border bg-tint-1 border-border-subtle text-text-muted">
-                Listing expired
-              </span>
-            )}
-          </div>
-          <Link
-            href={internalHref}
-            className="block mt-2 text-lead text-text-primary no-underline hover:text-accent-light transition-colors"
-          >
-            {item.title}
-          </Link>
-          {item.subtitle && (
-            <div className="text-small text-text-muted mt-0.5">{item.subtitle}</div>
-          )}
-          <div className="text-small text-text-muted mt-2 flex items-center gap-3 flex-wrap">
-            {occursLabel && <span>{occursLabel}</span>}
-            <span>Marked {markedLabel}</span>
-          </div>
-        </div>
-        <div className="shrink-0 flex items-start gap-1.5">
-          {item.url && (
-            <a
-              href={externalHref(item.url)}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center px-3 py-1.5 rounded-lg bg-transparent border border-border text-text-secondary text-small no-underline transition-colors hover:border-accent hover:text-accent-light"
-            >
-              Open ↗
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={onUnmark}
-            className="px-3 py-1.5 rounded-lg bg-tint-2 border border-border-strong text-text-secondary text-small cursor-pointer transition-colors hover:bg-danger/10 hover:border-danger/50 hover:text-danger"
-          >
-            Unmark
-          </button>
-        </div>
+    <Entry
+      as="li"
+      glyph={<Icon name={KIND_ICON[item.listingKind]} size={20} />}
+      title={item.title}
+      href={internalHref}
+      meta={item.subtitle ?? undefined}
+      className="items-start rounded-none px-4 py-4 sm:px-5"
+    >
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Badge>{KIND_BADGE[item.listingKind]}</Badge>
+        <Badge tone="lit">{item.actionType === "going" ? "Going" : "Applied"}</Badge>
+        {expired && <Badge>Listing expired</Badge>}
       </div>
-    </div>
+      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-text-muted">
+        {occursLabel && <span className="data">{occursLabel}</span>}
+        <span>Marked <span className="data">{markedLabel}</span></span>
+      </p>
+      {/* The controls sit above the row's stretched link (z-10), so they stay clickable. */}
+      <div className="relative z-10 mt-3 flex flex-wrap items-center gap-2">
+        {openHref && (
+          <ButtonLink
+            href={openHref}
+            target="_blank"
+            rel="noreferrer noopener"
+            variant="ghost"
+            size="sm"
+          >
+            Open<span className="sr-only"> ↗</span>
+            <Icon name="arrow-up-right" size={16} />
+          </ButtonLink>
+        )}
+        <Button variant="dangerGhost" size="sm" onClick={onUnmark}>
+          Unmark
+        </Button>
+      </div>
+    </Entry>
   );
 }
 

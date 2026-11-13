@@ -1,4 +1,5 @@
-import { FilteredListLoadingSkeleton } from "@/components/FilteredListLoadingSkeleton";
+import AppShell from "@/components/app/AppShell";
+import { CardGridSkeleton, PageHeaderSkeleton } from "@/components/ui/Skeleton";
 
 // Painted the instant a navigation to this route starts, before the server
 // has finished anything. Next.js wraps the segment in a Suspense boundary
@@ -15,7 +16,18 @@ import { FilteredListLoadingSkeleton } from "@/components/FilteredListLoadingSke
 // The <main> carries the same id and tabIndex as the real page's. Without
 // them the skip link points at nothing for as long as the skeleton is on
 // screen — which e2e/a11y.spec.ts caught, because with streaming the
-// document finishes loading while the fallback is still displayed.
+// document finishes loading while the fallback is still displayed. (AppShell
+// draws the <main>.) The page is drawn in its own column, so nothing shifts
+// when the real one streams in.
 export default function Loading() {
-  return <FilteredListLoadingSkeleton active="calendar" body="cards" />;
+  return (
+    <AppShell active="calendar">
+      <div className="px-[var(--gutter)] pb-20 pt-6 sm:pt-10">
+        <div className="mx-auto max-w-[var(--content-max)]">
+          <PageHeaderSkeleton />
+          <CardGridSkeleton count={3} />
+        </div>
+      </div>
+    </AppShell>
+  );
 }

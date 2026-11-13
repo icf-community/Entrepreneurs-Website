@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MemberDialog } from "./MemberDialog";
 import { MemberCard } from "./MemberCard";
+import { Section } from "@/components/ui/Section";
 import type { DirectoryMember } from "@/lib/data/directory";
 
 // ════════════════════════════════════════════════════════════════════
@@ -11,7 +12,9 @@ import type { DirectoryMember } from "@/lib/data/directory";
 // Was a block inside members/MembersClient. It lives on /home now, which
 // is a server component — so the strip carries its own dialog state
 // rather than borrowing the directory's. The markup is unchanged: this
-// is the same strip, not a second one that looks like it.
+// is the same strip, not a second one that looks like it. Each person is a
+// tile (a ring, a name, who they are) that opens the same profile dialog the
+// directory does.
 // ════════════════════════════════════════════════════════════════════
 
 export default function NewestMembers({ newest }: { newest: DirectoryMember[] }) {
@@ -20,17 +23,14 @@ export default function NewestMembers({ newest }: { newest: DirectoryMember[] })
   return (
     <>
       {newest.length > 0 && (
-        <section className="mb-10">
-          <div className="flex items-baseline justify-between mb-4">
-            <h2 className="font-display text-text-primary text-title tracking-tight">
-              Some of our newest members…
-            </h2>
-            <span className="text-small text-text-muted">{newest.length} just joined</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <Section
+          title="Some of our newest members…"
+          actions={<span className="data text-small text-text-muted">{newest.length} just joined</span>}
+        >
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {newest.map((m) => <MemberCard key={m.id} member={m} dense onClick={() => setOpenMember(m)} />)}
           </div>
-        </section>
+        </Section>
       )}
 
       {openMember && (

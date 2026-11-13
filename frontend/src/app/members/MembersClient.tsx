@@ -7,6 +7,8 @@ import { useUrlFilters, useSearchDraft, type UrlFilters } from "@/lib/filters/us
 import { SearchInput, FilterPanel, ChipGroup, RangeFilter } from "@/components/filters/FilterBar";
 import { Pager } from "@/components/ui/Pager";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Icon } from "@/design-system/icons/Icon";
 import { MemberDialog } from "@/components/members/MemberDialog";
 import { MemberCard } from "@/components/members/MemberCard";
 import { createAiDraftHandoff } from "@/lib/ai/entryPoint";
@@ -83,17 +85,26 @@ export default function MembersClient({
 
   return (
     <>
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-0 sm:min-w-[16rem]">
+      {/* Search first, with the AI hand-off beside it; the filters are one press below. */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {/* A basis wider than half a phone sends the AI button to its own line there, so the placeholder is never clipped. */}
+        <div className="min-w-0 flex-[1_1_20rem]">
           <SearchInput
             label="Search members"
             placeholder="Search by name, course, skill, sector, or what they're working on"
             value={queryDraft}
             onChange={setQueryDraft}
+            className=""
           />
         </div>
         {aiEnabled && (
-          <Button variant="ghost" size="sm" loading={searchingWithAi} onClick={searchWithAi}>
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={searchingWithAi}
+            onClick={searchWithAi}
+            leading={<Icon name="foundry-ai" size={18} />}
+          >
             Search with AI
           </Button>
         )}
@@ -230,11 +241,11 @@ function MemberResultsGrid({
     <div className={`relative ${pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={pending || undefined}>
       {pending && <Updating />}
       {members.length === 0 ? (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
+        <EmptyState icon={facets.total === 0 ? "members" : "search"}>
           {facets.total === 0 ? "No members yet." : "No members match your search or filters."}
-        </div>
+        </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {members.map((m) => <MemberCard key={m.id} member={m} onClick={() => onOpenMember(m)} />)}
         </div>
       )}

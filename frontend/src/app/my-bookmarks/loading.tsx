@@ -1,6 +1,16 @@
-import { FilteredListLoadingSkeleton } from "@/components/FilteredListLoadingSkeleton";
+import AppShell from "@/components/app/AppShell";
+import { PageHeaderSkeleton, RowListSkeleton } from "@/components/ui/Skeleton";
 
 // See events/loading.tsx for why this exists and renders the shell.
 export default function Loading() {
-  return <FilteredListLoadingSkeleton active="opportunities" body="rows" />;
+  return (
+    <AppShell active="opportunities">
+      <div className="px-[var(--gutter)] pb-20 pt-6 sm:pt-10">
+        <div className="mx-auto max-w-[var(--content-max)]">
+          <PageHeaderSkeleton />
+          <RowListSkeleton />
+        </div>
+      </div>
+    </AppShell>
+  );
 }
