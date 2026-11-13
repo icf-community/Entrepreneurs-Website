@@ -1,8 +1,14 @@
 import type { ReactNode } from "react";
+import { ChipSet } from "@/components/ui/ChipSet";
 import { labelCls } from "./styles";
 
 export type ChipItem = { id: number; name: string };
 
+// A captioned set of chips for picking ids (skills, sectors) inside a form. Each chip is a toggle
+// button (aria-pressed) that reports its id; the set is held by the caller. Rendered through the
+// shared ChipSet, so a long set (the ~170 skills on the opportunity form) shows only what is chosen
+// and opens the rest behind a ring with a search box, while a short one (the sectors) is a plain wrap.
+// The filters have their own ChipGroup, keyed by string (components/filters/FilterBar), and the same ChipSet.
 export function ChipGroup({
   label, items, selected, onToggle, hint = "optional, pick any that fit",
 }: {
@@ -14,28 +20,18 @@ export function ChipGroup({
 }) {
   return (
     <div>
-      <div className={`${labelCls} mb-2`}>
-        {label}{hint && <span className="ml-2 normal-case tracking-normal font-normal text-text-muted">— {hint}</span>}
+      <div className={`${labelCls} mb-2.5`}>
+        {label}{hint && <span className="lm-label__hint">— {hint}</span>}
       </div>
-      <div className="flex flex-wrap gap-2">
-        {items.map((it) => {
-          const on = selected.has(it.id);
-          return (
-            <button
-              key={it.id}
-              type="button"
-              onClick={() => onToggle(it.id)}
-              className={`px-3 py-1.5 rounded-lg text-[0.775rem] border transition-colors duration-150 cursor-pointer ${
-                on
-                  ? "bg-accent text-bg-primary border-accent font-medium"
-                  : "bg-white/[0.02] border-border-strong text-text-secondary hover:border-accent hover:text-text-primary"
-              }`}
-            >
-              {it.name}
-            </button>
-          );
-        })}
-      </div>
+      <ChipSet
+        name={typeof label === "string" ? label.toLowerCase() : "options"}
+        items={items.map((it) => ({
+          id: String(it.id),
+          label: it.name,
+          pressed: selected.has(it.id),
+          onToggle: () => onToggle(it.id),
+        }))}
+      />
     </div>
   );
 }

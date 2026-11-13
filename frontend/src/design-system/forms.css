@@ -1,3 +1,698 @@
-/* LUMEN · forms. Owned by the forms family; imported from src/app/globals.css. Reads tokens.css only. */
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · forms. One family for every control that takes input or makes a choice: fields, search, checkbox, radio, switch, chips, the
+   disclosure that keeps a long chip set short, the searchable multi-select, and the shells that group them. Reads tokens.css only.
+
+   The idea: a field is a pane of the night with an edge that wakes up. At rest it is a quiet tint inside a firm hairline (border-strong,
+   3:1). Pointing at it warms the edge toward amber. Focus lights it: a cream (sun) edge and a wide faint amber halo, like light falling
+   on the field. Something chosen is amber (a lit wash, a lit edge, a cream word); something wrong is the danger edge plus a drawn mark
+   and a sentence. Nothing is ever shown by colour alone.
+
+   Consumed through src/components/forms/styles.ts (inputCls, labelCls), the components in src/components/forms and filters, and the
+   primitives in src/components/ui (Input, Textarea, Select, Checkbox, Radio, Chip, FormSection, FieldGroup, FormActions, SearchField).
+   Variants are data attributes (data-size, data-state, data-card), never new class strings in a page. Docs: docs/design-system/forms.md.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 @layer components {
+
+  :root {
+    /* The two edges a control can wear besides its resting one. lit-line (tokens.css) is a hairline for surfaces and sits at 2.3:1 on a
+       panel, so a chosen control, which is also a boundary, gets a stronger amber of its own (3.9:1). Mixed in oklab: oklch would swing
+       the hue through pink between the blue-grey edge and the amber. */
+    --lm-edge-hover: color-mix(in oklab, var(--color-warm) 40%, var(--color-border-strong));
+    --lm-edge-lit:   color-mix(in oklab, var(--color-warm) 62%, transparent);
+
+    /* The marks a control draws on itself, on a 24 grid. They are masks (only the shape counts), so a mark takes the colour of its own
+       background: currentColor, a token, whatever the state says. Standalone glyphs (chevrons, the plus, the cross) are <Icon>s instead. */
+    --lm-g-tick:    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.6 10 17l8.5-9.6'/%3E%3C/svg%3E");
+    --lm-g-dash:    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round'%3E%3Cpath d='M6.5 12h11'/%3E%3C/svg%3E");
+    --lm-g-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6.5 9.5 5.5 5.5 5.5-5.5'/%3E%3C/svg%3E");
+    --lm-g-plus:    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Cpath d='M12 5.5v13M5.5 12h13'/%3E%3C/svg%3E");
+    --lm-g-close:   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Cpath d='M6.5 6.5l11 11M17.5 6.5l-11 11'/%3E%3C/svg%3E");
+    --lm-g-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='3.5'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E");
+    --lm-g-clock:   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 7.5V12l3 2'/%3E%3C/svg%3E");
+
+    /* A select's chevron has to live in its own background (a <select> takes no pseudo-element, and the label that holds it takes no
+       wrapper), and a background image cannot read a custom property, so it cannot take a token's colour. It takes no hue at all instead:
+       the stroke is white (the same white as --color-star, within a hair of --color-ink) at three opacities, which on the night reads as
+       text-secondary at rest, full white when pointed at or focused, and dim when disabled. The glyph is the same chevron as above. */
+    --lm-select-chevron:      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-opacity='0.72' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6.5 9.5 5.5 5.5 5.5-5.5'/%3E%3C/svg%3E");
+    --lm-select-chevron-lit:  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-opacity='1' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6.5 9.5 5.5 5.5 5.5-5.5'/%3E%3C/svg%3E");
+    --lm-select-chevron-dim:  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-opacity='0.38' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6.5 9.5 5.5 5.5 5.5-5.5'/%3E%3C/svg%3E");
+  }
+
+  @keyframes lm-pulse  { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  @keyframes lm-rotate { to { rotate: 360deg; } }
+  @keyframes lm-chip-in { from { opacity: 0; transform: translateY(6px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+  /* ── Label, hint, error ───────────────────────────────────────────────────────────────────────────────────────
+     The label sits above its control, in sentence case: small, medium weight, secondary ink. A control that lives inside its label
+     (every Field) warms the label while it holds focus, with no script: label:focus-within. The required star is a point of light. */
+  .lm-label {
+    display: block;
+    font-size: var(--text-small);
+    font-weight: 500;
+    line-height: 1.35;
+    letter-spacing: 0.005em;
+    color: var(--color-text-secondary);
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+  label:focus-within > .lm-label,
+  [data-invalid] > label > .lm-label { color: var(--color-text-primary); }
+  .lm-label__req { margin-left: 1px; color: var(--color-lit); font-weight: 600; }
+  /* a hint lives inside the label's span, so a screen reader still hears it with the name */
+  .lm-label__hint { margin-left: 8px; font-size: var(--text-caption); font-weight: 400; letter-spacing: 0; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+
+  .lm-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 8px;
+    color: var(--color-danger);
+    font-size: var(--text-small);
+    line-height: 1.4;
+  }
+  .lm-error > svg { flex: none; width: 18px; height: 18px; margin-top: 0.08em; }
+
+  /* ── Field: text-like inputs, textarea, select, and a button that opens a list ─────────────────────────────────── */
+  .lm-field {
+    --_edge: var(--color-border-strong);
+    --_fill: var(--color-tint-1);
+    --_light: color-mix(in oklab, var(--color-ink) 5%, transparent);   /* the whisper of top light every surface carries */
+    appearance: none;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    margin: 0;
+    padding: 11px 16px;
+    border: 1px solid var(--_edge);
+    border-radius: var(--radius-lg);
+    background-color: var(--_fill);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    font-weight: 400;
+    line-height: 1.4;
+    color-scheme: dark;
+    caret-color: var(--color-sun);
+    box-shadow: inset 0 1px 0 var(--_light);
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-base) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+  .lm-field[data-size="sm"] { min-height: 44px; padding: 8px 14px; font-size: var(--text-small); }
+  .lm-field::placeholder { color: var(--color-text-muted); opacity: 1; }
+
+  /* pointing at it: the edge warms (pointer devices only; data-state="hover" shows it in the style guide) */
+  @media (hover: hover) {
+    .lm-field:hover:not(:focus, :disabled, [readonly], [aria-invalid="true"]) { --_edge: var(--lm-edge-hover); --_fill: var(--color-tint-2); }
+  }
+  .lm-field[data-state="hover"] { --_edge: var(--lm-edge-hover); --_fill: var(--color-tint-2); }
+
+  /* focus: a cream edge (2 px with the shadow's first ring) and a wide faint amber halo, with a pool of light beneath. The global ring is
+     retired for fields (see the unlayered block at the end), so there are never two rings. */
+  .lm-field:focus,
+  .lm-field[data-state="focus"] {
+    --_edge: var(--color-sun);
+    --_fill: var(--color-tint-2);
+    outline: none;
+    box-shadow:
+      0 0 0 1px var(--color-sun),
+      0 0 0 6px var(--color-lit-muted),
+      0 14px 34px -14px var(--color-lit-glow),
+      inset 0 0 28px -14px var(--color-lit-glow);
+  }
+
+  /* wrong: the danger edge. A drawn mark and a sentence arrive with it (FieldError); focus keeps the cream edge and turns the halo red. */
+  .lm-field[aria-invalid="true"],
+  [data-invalid] .lm-field {
+    --_edge: var(--color-danger);
+    --_fill: color-mix(in oklab, var(--color-danger) 6%, transparent);
+  }
+  .lm-field[aria-invalid="true"]:focus,
+  [data-invalid] .lm-field:focus {
+    --_edge: var(--color-sun);
+    box-shadow:
+      0 0 0 1px var(--color-sun),
+      0 0 0 6px var(--color-danger-muted),
+      0 14px 34px -14px var(--color-danger-muted);
+  }
+
+  /* off: no fill, the quiet rule instead of the firm edge, muted ink, a not-allowed cursor. Quieter by structure, not just by opacity. */
+  .lm-field:disabled,
+  .lm-field[aria-disabled="true"] {
+    --_edge: var(--color-border);
+    --_fill: transparent;
+    color: var(--color-text-muted);
+    -webkit-text-fill-color: var(--color-text-muted);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  .lm-field:disabled::placeholder { color: color-mix(in oklab, var(--color-text-muted) 65%, transparent); }
+  /* a value you can read and copy but not change */
+  .lm-field[readonly]:not(:focus) { --_edge: var(--color-border); --_fill: transparent; box-shadow: none; }
+  /* waiting on something: the field breathes (opacity only) */
+  .lm-field[aria-busy="true"] { cursor: progress; animation: lm-pulse 1.6s var(--ease-in-out) infinite; }
+
+  .lm-field:is(textarea) { min-height: 7.5rem; padding-block: 13px; line-height: 1.5; resize: vertical; }
+
+  .lm-field:is(select) {
+    padding-right: 50px;
+    background-image: var(--lm-select-chevron);
+    background-repeat: no-repeat;
+    background-position: right 17px center;
+    background-size: 18px 18px;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  @media (hover: hover) { .lm-field:is(select):hover:not(:disabled) { background-image: var(--lm-select-chevron-lit); } }
+  .lm-field:is(select):focus { background-image: var(--lm-select-chevron-lit); }
+  .lm-field:is(select):disabled { background-image: var(--lm-select-chevron-dim); }
+  .lm-field:is(select)[multiple] { background-image: none; padding-right: 16px; cursor: default; }
+  .lm-field option, .lm-field optgroup { background-color: var(--color-bg-raised); color: var(--color-text-primary); }
+  .lm-field option:disabled { color: var(--color-text-muted); }
+
+  /* the date and time pickers: the browser's segments and icon redrawn in the night */
+  .lm-field::-webkit-datetime-edit { padding: 0; }
+  .lm-field::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+  .lm-field::-webkit-datetime-edit-text { padding: 0 2px; color: var(--color-text-muted); }
+  .lm-field::-webkit-datetime-edit-month-field:focus,
+  .lm-field::-webkit-datetime-edit-day-field:focus,
+  .lm-field::-webkit-datetime-edit-year-field:focus,
+  .lm-field::-webkit-datetime-edit-hour-field:focus,
+  .lm-field::-webkit-datetime-edit-minute-field:focus,
+  .lm-field::-webkit-datetime-edit-ampm-field:focus { background-color: var(--color-lit-muted); color: var(--color-accent-light); border-radius: 5px; outline: none; }
+  .lm-field[type="number"]::-webkit-inner-spin-button,
+  .lm-field[type="number"]::-webkit-outer-spin-button { opacity: 0.55; }
+  .lm-field[type="number"]:hover::-webkit-inner-spin-button,
+  .lm-field[type="number"]:focus::-webkit-inner-spin-button { opacity: 1; }
+  /* a short year does not need steppers (typing and the arrow keys do the job), and on a phone-width pair they eat the digits */
+  .lm-field[type="number"][data-spin="off"] { appearance: textfield; -moz-appearance: textfield; }
+  .lm-field[type="number"][data-spin="off"]::-webkit-inner-spin-button,
+  .lm-field[type="number"][data-spin="off"]::-webkit-outer-spin-button { appearance: none; display: none; margin: 0; }
+
+  /* a file input: the field is the drop target, the browser's button becomes one of ours */
+  .lm-field[type="file"] { padding: 6px; color: var(--color-text-secondary); cursor: pointer; }
+  .lm-field[type="file"]::file-selector-button {
+    margin-right: 14px;
+    min-height: 34px;
+    padding: 0 16px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--color-tint-2);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .lm-field[type="file"]:hover::file-selector-button { background: var(--color-tint-3); border-color: var(--lm-edge-hover); }
+  }
+
+  /* a <button> that opens a list wears the field's face; its chevron is an <Icon> child (.lm-chev) that flips with aria-expanded */
+  button.lm-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; cursor: pointer; }
+  /* nothing chosen yet: the trigger's words are a prompt, so they read like a placeholder */
+  button.lm-field[data-trigger][data-empty] { color: var(--color-text-muted); }
+  button.lm-field[data-trigger][aria-expanded="true"] { --_edge: var(--lm-edge-lit); }
+
+  /* a value shown in a field's shape that is not a control at all (the signup email beside "use a different one") */
+  .lm-static {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 11px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    color: var(--color-text-secondary);
+    font-size: var(--text-body);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Search: a pill with a glass on the left and a clear button on the right ───────────────────────────────────── */
+  .lm-search { position: relative; display: block; }
+  .lm-search > .lm-field { padding-left: 52px; padding-right: 54px; border-radius: var(--radius-pill); }
+  .lm-search > .lm-field::-webkit-search-decoration,
+  .lm-search > .lm-field::-webkit-search-cancel-button,
+  .lm-search > .lm-field::-webkit-search-results-button,
+  .lm-search > .lm-field::-webkit-search-results-decoration { appearance: none; display: none; }
+  .lm-search__icon {
+    position: absolute;
+    left: 19px;
+    top: 50%;
+    translate: 0 -50%;
+    color: var(--color-text-muted);
+    pointer-events: none;
+    transition: color var(--duration-base) var(--ease-out);
+  }
+  .lm-search:focus-within .lm-search__icon { color: var(--color-accent-light); }
+  .lm-search__clear {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    translate: 0 -50%;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  }
+  @media (hover: hover) { .lm-search__clear:hover { background: var(--color-tint-3); color: var(--color-text-primary); } }
+
+  /* ── Checkbox and radio: the native input, redrawn. It stays the focusable, announced, clickable thing; only its face changes. ───── */
+  .lm-check,
+  .lm-radio {
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    border: 1px solid var(--color-border-strong);
+    background-color: var(--color-tint-1);
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-base) var(--ease-out);
+  }
+  .lm-check { border-radius: 7px; }
+  .lm-radio { border-radius: 50%; }
+  .lm-check::before,
+  .lm-radio::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    opacity: 0;
+    transform: scale(0.4);
+    transition: transform var(--duration-base) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
+  }
+  .lm-check::before {
+    width: 14px;
+    height: 14px;
+    background: var(--color-accent-light);
+    -webkit-mask: var(--lm-g-tick) center / contain no-repeat;
+    mask: var(--lm-g-tick) center / contain no-repeat;
+  }
+  /* the radio's mark is a small lit body in the ring */
+  .lm-radio::before {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-lit);
+    box-shadow: 0 0 10px 1px var(--color-lit-glow);
+  }
+  .lm-check:checked,
+  .lm-radio:checked,
+  .lm-check:indeterminate {
+    border-color: var(--lm-edge-lit);
+    background-color: var(--color-lit-muted);
+    box-shadow: 0 0 16px -4px var(--color-lit-glow);
+  }
+  .lm-check:checked::before,
+  .lm-radio:checked::before,
+  .lm-check:indeterminate::before { opacity: 1; transform: none; }
+  .lm-check:indeterminate::before { -webkit-mask-image: var(--lm-g-dash); mask-image: var(--lm-g-dash); }
+  @media (hover: hover) {
+    .lm-check:hover:not(:disabled, :checked, :indeterminate),
+    .lm-radio:hover:not(:disabled, :checked),
+    .lm-choice:hover .lm-check:not(:disabled, :checked, :indeterminate),
+    .lm-choice:hover .lm-radio:not(:disabled, :checked) { border-color: var(--lm-edge-hover); background-color: var(--color-tint-2); }
+  }
+  .lm-check[aria-invalid="true"],
+  .lm-radio[aria-invalid="true"],
+  [data-invalid] .lm-check,
+  [data-invalid] .lm-radio { border-color: var(--color-danger); }
+  .lm-check:disabled,
+  .lm-radio:disabled { border-color: var(--color-border); background-color: transparent; box-shadow: none; cursor: not-allowed; }
+  .lm-check:disabled:checked::before { background: var(--color-text-muted); }
+  .lm-radio:disabled:checked::before { background: var(--color-text-muted); box-shadow: none; }
+
+  /* a choice: the control and its words as one target. Card form for a short list of exclusive options (who is this for, how to apply). */
+  .lm-choice {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    color: var(--color-text-secondary);
+    font-size: var(--text-body);
+    line-height: 1.45;
+    cursor: pointer;
+    transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
+  }
+  .lm-choice > .lm-check,
+  .lm-choice > .lm-radio { margin-top: 1px; }
+  .lm-choice__text { min-width: 0; }
+  .lm-choice__hint { display: block; margin-top: 2px; color: var(--color-text-muted); font-size: var(--text-small); line-height: 1.4; }
+  .lm-choice:has(:checked) { color: var(--color-text-primary); }
+  @media (hover: hover) { .lm-choice:hover { color: var(--color-text-primary); } }
+  .lm-choice:has(:disabled) { color: var(--color-text-muted); cursor: not-allowed; }
+
+  .lm-choice[data-card] {
+    align-items: center;
+    min-height: 56px;
+    padding: 12px 16px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--color-tint-1);
+  }
+  .lm-choice[data-card] > .lm-check,
+  .lm-choice[data-card] > .lm-radio { margin-top: 0; }
+  @media (hover: hover) {
+    .lm-choice[data-card]:hover:not(:has(:disabled)) { border-color: var(--lm-edge-hover); background: var(--color-tint-2); }
+  }
+  .lm-choice[data-card]:has(:checked) {
+    border-color: var(--lm-edge-lit);
+    background: var(--color-lit-muted);
+    color: var(--color-accent-light);
+    box-shadow: 0 0 24px -10px var(--color-lit-glow);
+  }
+  .lm-choice[data-card]:has(:focus-visible) { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+  .lm-choice[data-card]:has(:disabled) { border-color: var(--color-border); background: transparent; }
+  [data-invalid] .lm-choice[data-card] { border-color: var(--color-danger); }
+
+  /* ── Switch: a pill track with a ring for a knob (the logo's ring). On, the knob travels, its ring lights amber and a lit body appears
+        in it. It is still a checkbox with role="switch" underneath: focusable, announced with its state, toggled by space. ───────── */
+  .lm-switch {
+    --_x: 0px;              /* how far the knob has travelled; one variable moves both the ring and the lit body */
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: 54px;
+    height: 32px;
+    margin: 0;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    background-color: var(--color-tint-1);
+    cursor: pointer;
+    transition:
+      border-color var(--duration-base) var(--ease-out),
+      background-color var(--duration-base) var(--ease-out),
+      box-shadow var(--duration-base) var(--ease-out);
+  }
+  .lm-switch::before,
+  .lm-switch::after {
+    content: "";
+    position: absolute;
+    translate: var(--_x) 0;
+    border-radius: 50%;
+    transition: translate var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
+  }
+  .lm-switch::before { top: 4px; left: 4px; width: 22px; height: 22px; border: 1.75px solid var(--color-text-secondary); }
+  .lm-switch::after  { top: 11px; left: 11px; width: 8px; height: 8px; background: var(--color-lit); transform: scale(0); box-shadow: 0 0 10px 1px var(--color-lit-glow); }
+  .lm-switch:checked { --_x: 22px; border-color: var(--lm-edge-lit); background-color: var(--color-lit-muted); box-shadow: 0 0 20px -6px var(--color-lit-glow); }
+  .lm-switch:checked::before { border-color: var(--color-lit); }
+  .lm-switch:checked::after  { transform: scale(1); }
+  @media (hover: hover) { .lm-switch:hover:not(:disabled, :checked) { border-color: var(--lm-edge-hover); background-color: var(--color-tint-2); } }
+  .lm-switch:disabled:not([aria-busy="true"]) { border-color: var(--color-border); background-color: transparent; box-shadow: none; cursor: not-allowed; }
+  .lm-switch:disabled:not([aria-busy="true"])::before { border-color: var(--color-text-muted); }
+  .lm-switch:disabled:not([aria-busy="true"]):checked::after { background: var(--color-text-muted); box-shadow: none; }
+  /* a request in flight: the knob's ring goes dotted and turns (rotation, not position, so it keeps its place) */
+  .lm-switch[aria-busy="true"] { cursor: progress; }
+  .lm-switch[aria-busy="true"]::before { border-style: dotted; animation: lm-rotate 1.4s linear infinite; }
+
+  /* ── Chip: a pill you can switch on. Chosen is amber (a lit wash, a lit edge, a cream word) with a tick, so it never rests on colour alone.
+        A chip is a toggle button (aria-pressed); `lit` without aria-pressed is a chosen value whose press removes it. ──────────────── */
+  .lm-chip {
+    --_edge: var(--color-border-strong);
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    min-height: 40px;
+    padding: 0 16px;
+    border: 1px solid var(--_edge);
+    border-radius: var(--radius-pill);
+    background-color: var(--color-tint-1);
+    color: var(--color-text-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--text-small);
+    font-weight: 450;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-base) var(--ease-out);
+  }
+  .lm-chip[data-size="sm"] { min-height: 36px; padding: 0 14px; gap: 6px; }
+  .lm-chip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  @media (hover: hover) {
+    .lm-chip:hover:not(:disabled, [aria-pressed="true"], [data-lit]) { --_edge: var(--lm-edge-hover); background-color: var(--color-tint-2); color: var(--color-text-primary); }
+  }
+  .lm-chip[aria-pressed="true"],
+  .lm-chip[data-lit] {
+    --_edge: var(--lm-edge-lit);
+    background-color: var(--color-lit-muted);
+    color: var(--color-accent-light);
+    box-shadow: 0 0 20px -8px var(--color-lit-glow);
+  }
+  @media (hover: hover) {
+    .lm-chip[aria-pressed="true"]:hover:not(:disabled),
+    .lm-chip[data-lit]:hover:not(:disabled) { background-color: color-mix(in oklab, var(--color-warm) 20%, transparent); color: var(--color-star); }
+  }
+  .lm-chip[aria-pressed="true"]::before {
+    content: "";
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin-left: -3px;
+    background: currentColor;
+    -webkit-mask: var(--lm-g-tick) center / contain no-repeat;
+    mask: var(--lm-g-tick) center / contain no-repeat;
+  }
+  .lm-chip__x { flex: none; margin-right: -4px; opacity: 0.8; }
+  .lm-chip:disabled { --_edge: var(--color-border); background-color: transparent; color: var(--color-text-muted); box-shadow: none; cursor: not-allowed; }
+  .lm-chip[hidden] { display: none !important; }
+
+  /* ── Pick: a long set of chips kept short. Closed, only the chosen chips show, with a ring to open the rest. Open, the whole set lays in
+        under a search box inside a recessed panel. The chips are one set of elements throughout (nothing is re-parented, so focus never
+        drops); only which of them are hidden changes. The head and the list are `contents` while closed so the chips and the ring are
+        siblings in one wrap. ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
+  .lm-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .lm-pick__head,
+  .lm-pick__list { display: contents; }
+  .lm-pick__toggle {
+    order: 1;
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 50%;
+    background-color: var(--color-tint-1);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
+  }
+  .lm-pick__toggle > svg { transition: rotate var(--duration-base) var(--ease-out); }
+  @media (hover: hover) { .lm-pick__toggle:hover { border-color: var(--lm-edge-hover); background-color: var(--color-tint-2); color: var(--color-accent-light); } }
+  .lm-pick__toggle[aria-expanded="true"] { border-color: var(--lm-edge-lit); background-color: var(--color-lit-muted); color: var(--color-lit); box-shadow: 0 0 18px -6px var(--color-lit-glow); }
+  .lm-pick__toggle[aria-expanded="true"] > svg { rotate: 45deg; }
+
+  .lm-pick[data-open] {
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-xl);
+    background: var(--color-bg-secondary);
+  }
+  .lm-pick[data-open] .lm-pick__head { display: flex; flex: 1 0 100%; order: -1; align-items: center; gap: 10px; }
+  .lm-pick[data-open] .lm-pick__head > .lm-search { flex: 1 1 auto; min-width: 0; }
+  .lm-pick[data-open] .lm-pick__toggle { order: 0; }
+  .lm-pick[data-open] .lm-pick__list {
+    display: flex;
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 8px;
+    max-height: 15rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding: 6px;
+    margin: -6px;
+  }
+  /* the rest lay in one by one, the way tags do in the mock (opacity and transform only; only the first screenful is staggered) */
+  .lm-pick[data-open] .lm-chip:not([aria-pressed="true"]) { animation: lm-chip-in 320ms var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 18) * 22ms); }
+  .lm-pick__empty { flex: 1 0 100%; margin: 4px 0; color: var(--color-text-muted); font-size: var(--text-small); }
+
+  /* ── Searchable multi-select: a trigger in the field's face, a raised list under it, the chosen values as removable chips ───────── */
+  .lm-ms { position: relative; }
+  .lm-ms__pop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 30;
+    overflow: hidden;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-xl);
+    background: var(--color-bg-raised);
+    box-shadow: var(--shadow-pop);
+  }
+  .lm-ms__head { padding: 10px; border-bottom: 1px solid var(--color-border-subtle); }
+  .lm-ms__list { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; padding: 6px; }
+  .lm-ms__opt {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  }
+  @media (hover: hover) { .lm-ms__opt:hover { background: var(--color-tint-2); color: var(--color-text-primary); } }
+  .lm-ms__opt:focus-visible { outline-offset: -2px; }
+  .lm-ms__opt[aria-selected="true"] { background: var(--color-lit-muted); color: var(--color-accent-light); }
+  .lm-ms__box {
+    position: relative;
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 6px;
+    transition: border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+  }
+  .lm-ms__opt[aria-selected="true"] .lm-ms__box { border-color: var(--lm-edge-lit); background: var(--color-lit-muted); }
+  .lm-ms__opt[aria-selected="true"] .lm-ms__box::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 13px;
+    height: 13px;
+    background: var(--color-accent-light);
+    -webkit-mask: var(--lm-g-tick) center / contain no-repeat;
+    mask: var(--lm-g-tick) center / contain no-repeat;
+  }
+  .lm-ms__empty { padding: 14px 12px; color: var(--color-text-muted); font-size: var(--text-small); }
+
+  /* ── Filter chrome: the count in the Filters button is a small lit disc ─────────────────────────────────────────── */
+  .lm-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: var(--radius-pill);
+    background: var(--color-warm);
+    color: var(--color-void);
+    font-size: var(--text-caption);
+    font-weight: 650;
+    line-height: 1;
+  }
+  /* the chevron of anything that opens (an <Icon className="lm-chev">): it flips when its button is expanded. lm-chev--right is the
+     disclosure that reads "more here": it points right closed and down open; without it the chevron points down closed and up open. */
+  .lm-chev { flex: none; opacity: 0.75; transition: rotate var(--duration-base) var(--ease-out); }
+  [aria-expanded="true"] > .lm-chev { rotate: 180deg; }
+  .lm-chev--right { rotate: -90deg; }
+  [aria-expanded="true"] > .lm-chev--right { rotate: 0deg; }
+
+  /* ── Shells: a titled card for a whole form, a titled group inside one, and the row that ends it ───────────────────── */
+  .lm-formsec { display: grid; gap: 24px; padding: 24px; }
+  @media (min-width: 40rem) { .lm-formsec { padding: 32px; } }
+  .lm-formsec__head { display: grid; gap: 6px; }
+  .lm-formsec__title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: var(--text-title); line-height: var(--text-title--line-height); letter-spacing: var(--tracking-display); color: var(--color-text-primary); text-wrap: balance; }
+  .lm-formsec__desc { margin: 0; max-width: 62ch; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.5; }
+
+  .lm-group { padding-top: 24px; border-top: 1px solid var(--color-border-subtle); }
+  .lm-group__set { min-width: 0; margin: 0; padding: 0; border: 0; }
+  .lm-group__legend { display: block; width: 100%; padding: 0; margin: 0 0 4px; color: var(--color-text-primary); font-size: var(--text-body); font-weight: 500; line-height: 1.4; }
+  .lm-group__desc { margin: 0 0 16px; max-width: 62ch; color: var(--color-text-muted); font-size: var(--text-small); line-height: 1.5; }
+  .lm-group__legend:not(:has(+ .lm-group__desc)) { margin-bottom: 16px; }
+  .lm-group__body { display: grid; gap: 16px; }
+
+  /* Windows high-contrast and forced-colour modes repaint every background, which would erase the drawn ticks, dots and chevrons. Give those
+     system colours and keep the chosen state legible without our amber. */
+  @media (forced-colors: active) {
+    .lm-check::before, .lm-radio::before, .lm-switch::after, .lm-chip::before,
+    .lm-ms__opt[aria-selected="true"] .lm-ms__box::before { forced-color-adjust: none; background: CanvasText; box-shadow: none; }
+    .lm-check:checked, .lm-radio:checked, .lm-check:indeterminate, .lm-switch:checked, .lm-choice[data-card]:has(:checked), .lm-ms__opt[aria-selected="true"] .lm-ms__box { border-color: Highlight; }
+    .lm-switch::before { border-color: ButtonText; }
+    .lm-switch:checked::before { border-color: Highlight; }
+    .lm-chip[aria-pressed="true"], .lm-chip[data-lit], .lm-pick__toggle[aria-expanded="true"] { outline: 2px solid Highlight; outline-offset: -3px; }
+  }
+
+  .lm-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-top: 4px; }
+  .lm-actions[data-align="end"] { justify-content: flex-end; }
+  .lm-actions[data-align="between"] { justify-content: space-between; }
+  @media (max-width: 30rem) {
+    .lm-actions > .lm-btn { width: 100%; }
+    /* the row stacks; for an end-aligned row (Cancel, then the primary) the primary comes first, as it is the thumb's first reach */
+    .lm-actions:is([data-align="end"], [data-align="between"]) { flex-direction: column-reverse; align-items: stretch; }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   Outside the layer on purpose. base.css is unlayered, and an unlayered declaration always beats a layered one whatever its
+   specificity, so anything here that must win against base.css has to be unlayered as well:
+     1. the global focus ring (outline: 2px sun, offset 3px). A field lights its own edge instead, so it drops the ring; a card-shaped
+        choice rings the whole card. Everything else keeps the global ring. Never two rings, never none.
+     2. the browser's calendar and clock icons, which base.css inverts with a filter. Ours are masks that take a token colour.
+     3. autofill, which base.css paints with an inset shadow that would swallow the focus halo.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+.lm-field:focus-visible,
+.lm-choice[data-card] > :focus-visible { outline: none; }
+/* ...except where a forced palette repaints the shadows: there the outline is the only ring left */
+@media (forced-colors: active) {
+  .lm-field:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+}
+
+input.lm-field:is([type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"])::-webkit-calendar-picker-indicator,
+input.lm-field[list]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 1;
+  width: 22px;
+  height: 22px;
+  margin: 0 0 0 8px;
+  padding: 0;
+  background: var(--color-text-secondary);
+  -webkit-mask: var(--lm-g-calendar) center / contain no-repeat;
+  mask: var(--lm-g-calendar) center / contain no-repeat;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+input.lm-field[type="time"]::-webkit-calendar-picker-indicator {
+  -webkit-mask-image: var(--lm-g-clock);
+  mask-image: var(--lm-g-clock);
+}
+/* a text input with a datalist wears the dropdown arrow, not a calendar */
+input.lm-field[list]:not([type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"])::-webkit-calendar-picker-indicator {
+  width: 18px;
+  height: 18px;
+  -webkit-mask-image: var(--lm-g-chevron);
+  mask-image: var(--lm-g-chevron);
+}
+input.lm-field:is([type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"])::-webkit-calendar-picker-indicator:hover,
+input.lm-field[list]::-webkit-calendar-picker-indicator:hover { background: var(--color-accent-light); }
+
+.lm-field:-webkit-autofill:focus {
+  box-shadow:
+    0 0 0 1000px var(--color-bg-card) inset,
+    0 0 0 1px var(--color-sun),
+    0 0 0 6px var(--color-lit-muted);
 }
