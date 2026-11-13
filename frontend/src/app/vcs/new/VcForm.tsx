@@ -178,11 +178,11 @@ function KindField({
   return (
     <Field label="Kind" required group error={error}>
       <div className="grid grid-cols-2 gap-3">
-        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${value === "vc" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-white/[0.02] border-border text-text-secondary hover:border-accent"}`}>
+        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${value === "vc" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
           <input type="radio" name="kind" value="vc" checked={value === "vc"} onChange={() => onChange("vc")} className="mr-2" />
           Venture capital
         </label>
-        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${value === "grant" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-white/[0.02] border-border text-text-secondary hover:border-accent"}`}>
+        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${value === "grant" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
           <input type="radio" name="kind" value="grant" checked={value === "grant"} onChange={() => onChange("grant")} className="mr-2" />
           Grant
         </label>

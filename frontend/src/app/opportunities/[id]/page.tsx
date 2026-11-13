@@ -81,10 +81,10 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
       {(o.sectors.length > 0 || o.skills.length > 0) && (
         <div className="mb-8 flex flex-wrap gap-1.5">
           {o.sectors.map((s) => (
-            <span key={`sec-${s}`} className="rounded-lg border border-accent/20 bg-accent-muted px-2 py-0.5 text-[0.7rem] text-accent-light">{s}</span>
+            <span key={`sec-${s}`} className="rounded-lg border border-accent/20 bg-accent-muted px-2 py-0.5 text-small text-accent-light">{s}</span>
           ))}
           {o.skills.map((s) => (
-            <span key={`skl-${s}`} className="rounded-lg border border-border bg-white/[0.03] px-2 py-0.5 text-[0.7rem] text-text-secondary">{s}</span>
+            <span key={`skl-${s}`} className="rounded-lg border border-border bg-tint-1 px-2 py-0.5 text-small text-text-secondary">{s}</span>
           ))}
         </div>
       )}
@@ -106,7 +106,7 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
                 href={externalHref(o.postedBy.linkedinUrl)}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="text-[0.8rem] text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
+                className="text-body text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
               >
                 LinkedIn ↗
               </a>
@@ -119,7 +119,7 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
       </div>
 
       <div className="mt-9 border-t border-border-subtle pt-7">
-        <h2 className="mb-3 text-[0.7rem] uppercase tracking-wider text-text-muted">How to apply</h2>
+        <h2 className="mb-3 text-small text-text-muted">How to apply</h2>
         <OpportunityActions
           opportunity={o}
           applied={appliedIds.includes(o.id)}

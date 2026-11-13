@@ -91,7 +91,7 @@ export default async function CalendarPage() {
         <div className="max-w-[1080px] mx-auto">
           <div className="mb-8 rule-draw pt-4">
             <p className="label-wide text-text-muted mb-6">Your calendar</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               Events, opportunity deadlines, and VC deadlines
             </h1>
           </div>

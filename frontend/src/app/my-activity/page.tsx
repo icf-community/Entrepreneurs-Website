@@ -14,10 +14,10 @@ export default async function MyActivityPage() {
         <div className="max-w-[820px] mx-auto">
           <div className="mb-8 rule-draw pt-4">
             <p className="label-wide text-text-muted mb-6">Your activity</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               Things you&apos;ve applied to or are going to
             </h1>
-            <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed">
+            <p className="text-body text-text-muted mt-3 leading-relaxed">
               Every opportunity and VC/grant you&apos;ve marked as applied, plus every event you&apos;re going to. We take your word for it — there&apos;s no verification against the apply or RSVP site. Use the toggle to unmark.
             </p>
           </div>

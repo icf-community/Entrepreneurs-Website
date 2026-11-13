@@ -64,8 +64,8 @@ export default async function OpportunitiesPage({
     >
       {education && !education.known && (
         <section className="mb-8 rounded-2xl border border-border bg-bg-card p-6" aria-labelledby="confirm-status">
-          <h2 id="confirm-status" className="text-[0.95rem] font-medium text-text-primary">Confirm your status to see jobs</h2>
-          <p className="mt-1 mb-4 text-[0.8rem] text-text-muted">Each job is for students, graduates or both.</p>
+          <h2 id="confirm-status" className="text-lead font-medium text-text-primary">Confirm your status to see jobs</h2>
+          <p className="mt-1 mb-4 text-body text-text-muted">Each job is for students, graduates or both.</p>
           <EducationForm initialEnrolled={null} initialGraduated={null} compact />
         </section>
       )}
@@ -108,7 +108,7 @@ async function BookmarksLink({ data }: { data: Promise<OpportunitiesData> }) {
   return (
     <Link
       href="/my-bookmarks"
-      className="text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:text-accent-light flex items-center gap-1.5"
+      className="text-body text-text-secondary no-underline transition-colors duration-150 hover:text-accent-light flex items-center gap-1.5"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />

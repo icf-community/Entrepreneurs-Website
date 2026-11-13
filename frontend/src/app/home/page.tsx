@@ -79,8 +79,8 @@ export default async function HomePage() {
     <AppShell active="home" name={fullName || name}>
       <div className="mx-auto w-full max-w-[1100px] px-6 py-10 sm:px-10">
         <header className="mb-12">
-          <p className="mb-1 text-[0.8rem] text-text-muted">Hello,</p>
-          <h1 className="font-display text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] tracking-tight text-text-primary">
+          <p className="mb-1 text-body text-text-muted">Hello,</p>
+          <h1 className="font-display text-display leading-[1.05] tracking-tight text-text-primary">
             {name}
           </h1>
         </header>
@@ -133,21 +133,21 @@ export default async function HomePage() {
  */
 function ConnectionRequestsCard({ count }: { count: number }) {
   return (
-    <section className="mb-10 rounded-lg border border-border-strong bg-white/[0.04] px-5 py-4">
+    <section className="mb-10 rounded-lg border border-border-strong bg-tint-2 px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[0.95rem] text-text-primary">
+          <p className="text-lead text-text-primary">
             {count === 1
               ? "Someone wants to connect with you"
               : `${count} people want to connect with you`}
           </p>
-          <p className="mt-0.5 text-[0.8rem] text-text-muted">
+          <p className="mt-0.5 text-body text-text-muted">
             Accepting means you each see the other&apos;s email address.
           </p>
         </div>
         <Link
           href="/connections?tab=pending"
-          className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.05] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
+          className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-border-strong bg-tint-2 px-4 py-2 text-body text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-tint-4"
         >
           Review {count === 1 ? "it" : "them"}
           <span aria-hidden>→</span>
@@ -169,10 +169,10 @@ function Section({
   return (
     <section className="mb-14">
       <div className="mb-5 border-b border-border-subtle pb-3">
-        <h2 className="font-display text-[1.4rem] leading-tight tracking-tight text-text-primary">
+        <h2 className="font-display text-heading leading-tight tracking-tight text-text-primary">
           {title}
         </h2>
-        <p className="mt-0.5 text-[0.825rem] text-text-muted">{blurb}</p>
+        <p className="mt-0.5 text-body text-text-muted">{blurb}</p>
       </div>
       {children}
     </section>
@@ -186,7 +186,7 @@ function ViewAll({ href, label }: { href: string; label: string }) {
     <div className="mt-5">
       <Link
         href={href}
-        className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.04] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.08]"
+        className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-tint-2 px-4 py-2 text-body text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-tint-3"
       >
         View all {label}
         <span aria-hidden>→</span>
@@ -217,7 +217,7 @@ function StripSkeleton() {
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-lg border border-border bg-white/[0.02] px-5 py-6 text-[0.85rem] text-text-secondary">
+    <p className="rounded-lg border border-border bg-tint-1 px-5 py-6 text-body text-text-secondary">
       {children}
     </p>
   );
@@ -259,17 +259,17 @@ async function Events({ data }: { data: ReturnType<typeof newestEvents> }) {
       {latest.map((e) => (
         <Card key={e.id} href={`/events/${e.id}`}>
           {e.isSocietyEvent && (
-            <span className="mb-3 inline-block rounded border border-signal/40 bg-signal-muted px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-[0.1em] text-signal">
+            <span className="mb-3 inline-block rounded border border-signal/40 bg-signal-muted px-2 py-0.5 text-caption font-medium tracking-[0.1em] text-signal">
               Society event
             </span>
           )}
-          <p className="mb-1.5 font-mono text-[0.7rem] uppercase tracking-[0.08em] text-text-muted">
+          <p className="mb-1.5 font-mono text-small tracking-[0.08em] text-text-muted">
             {formatDateTime(e.eventAt)}
           </p>
-          <p className="mb-2 text-[0.95rem] font-medium leading-snug text-text-primary">
+          <p className="mb-2 text-lead font-medium leading-snug text-text-primary">
             {e.title}
           </p>
-          <p className="text-[0.775rem] text-text-secondary">{e.location}</p>
+          <p className="text-body text-text-secondary">{e.location}</p>
         </Card>
       ))}
     </Grid>
@@ -285,14 +285,14 @@ async function Opportunities({ data }: { data: ReturnType<typeof newestOpportuni
     <Grid>
       {latest.map((o) => (
         <Card key={o.id} href={`/opportunities/${o.id}`}>
-          <p className="mb-1.5 font-mono text-[0.7rem] uppercase tracking-[0.08em] text-text-muted">
+          <p className="mb-1.5 font-mono text-small tracking-[0.08em] text-text-muted">
             {o.locationType}
             {o.locationText ? ` · ${o.locationText}` : ""}
           </p>
-          <p className="mb-2 text-[0.95rem] font-medium leading-snug text-text-primary">
+          <p className="mb-2 text-lead font-medium leading-snug text-text-primary">
             {o.positionName}
           </p>
-          <p className="text-[0.775rem] text-text-secondary">{o.company}</p>
+          <p className="text-body text-text-secondary">{o.company}</p>
         </Card>
       ))}
     </Grid>
@@ -308,14 +308,14 @@ async function Vcs({ data }: { data: ReturnType<typeof newestVcs> }) {
     <Grid>
       {latest.map((v) => (
         <Card key={v.id} href={`/vcs/${v.id}`}>
-          <p className="mb-1.5 font-mono text-[0.7rem] uppercase tracking-[0.08em] text-text-muted">
+          <p className="mb-1.5 font-mono text-small tracking-[0.08em] text-text-muted">
             {v.kind === "vc" ? "VC" : "Grant"}
             {v.stage ? ` · ${v.stage}` : ""}
           </p>
-          <p className="mb-2 text-[0.95rem] font-medium leading-snug text-text-primary">
+          <p className="mb-2 text-lead font-medium leading-snug text-text-primary">
             {v.name}
           </p>
-          <p className="text-[0.775rem] text-text-secondary">
+          <p className="text-body text-text-secondary">
             {v.amount ?? (v.deadline ? `Closes ${formatDate(v.deadline)}` : "Rolling applications")}
           </p>
         </Card>

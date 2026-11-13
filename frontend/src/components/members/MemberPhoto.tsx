@@ -47,7 +47,7 @@ export function MemberPhoto({
   // status flag that must not read as the primary accent (globals.css) —
   // a committee title is exactly that: a status, not a control.
   const banner = member.committeeRole ? (
-    <span className="absolute inset-x-0 bottom-0 truncate bg-signal px-2 py-1 text-center text-[0.7rem] font-semibold text-bg-primary">
+    <span className="absolute inset-x-0 bottom-0 truncate bg-signal px-2 py-1 text-center text-small font-semibold text-bg-primary">
       {member.committeeRole}
     </span>
   ) : null;
@@ -70,7 +70,7 @@ export function MemberPhoto({
     <div
       className={`relative flex w-full items-center justify-center bg-bg-secondary font-display text-text-secondary ${aspect} ${rounded}`}
     >
-      <span aria-hidden className="text-[2rem]">{initials}</span>
+      <span aria-hidden className="text-display">{initials}</span>
       {banner}
     </div>
   );

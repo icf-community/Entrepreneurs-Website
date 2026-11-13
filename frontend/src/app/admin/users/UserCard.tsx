@@ -62,24 +62,24 @@ export default function UserCard({ member }: { member: Member }) {
     <article className="rounded-2xl bg-bg-card border border-border p-6">
       <header className="mb-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="text-[1.05rem] font-medium text-text-primary">
+          <div className="text-lead font-medium text-text-primary">
             {member.firstName} {member.surname}
           </div>
           {member.previouslyBanned && (
             <span
-              className="px-2 py-0.5 rounded-lg text-[0.7rem] font-medium bg-red-500/10 text-red-400 border border-red-500/30"
+              className="px-2 py-0.5 rounded-lg text-small font-medium bg-red-500/10 text-red-400 border border-red-500/30"
               title="A past account using this email address was rejected and the account later deleted."
             >
               Previously banned
             </span>
           )}
         </div>
-        <div className="text-[0.75rem] text-text-muted mt-1">
+        <div className="text-small text-text-muted mt-1">
           {member.role === "alum" ? `Alum · grad ${member.gradYear ?? "—"}` : `Student · class of ${member.gradYear ?? "—"}`}
           {" · submitted "}{submitted}
         </div>
         {member.course && (
-          <div className="text-[0.75rem] text-text-secondary mt-1">{member.course}</div>
+          <div className="text-small text-text-secondary mt-1">{member.course}</div>
         )}
       </header>
 
@@ -114,15 +114,15 @@ function MemberDetails({ member }: { member: Member }) {
     <>
       {member.bio && (
         <div className="mb-3">
-          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Bio</div>
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed">{member.bio}</p>
+          <div className="text-small text-text-muted mb-1">Bio</div>
+          <p className="text-body text-text-secondary leading-relaxed">{member.bio}</p>
         </div>
       )}
 
       {member.workingOn && (
         <div className="mb-3">
-          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Working on</div>
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed">{member.workingOn}</p>
+          <div className="text-small text-text-muted mb-1">Working on</div>
+          <p className="text-body text-text-secondary leading-relaxed">{member.workingOn}</p>
         </div>
       )}
 
@@ -131,10 +131,10 @@ function MemberDetails({ member }: { member: Member }) {
           {hasTags && (
             <div className="flex flex-wrap gap-1.5">
               {member.sectors.map((s) => (
-                <span key={`sec-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-accent-muted text-accent-light border border-accent/20">{s}</span>
+                <span key={`sec-${s}`} className="px-2 py-0.5 rounded-lg text-small bg-accent-muted text-accent-light border border-accent/20">{s}</span>
               ))}
               {member.skills.map((s) => (
-                <span key={`skl-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-white/[0.03] text-text-secondary border border-border">{s}</span>
+                <span key={`skl-${s}`} className="px-2 py-0.5 rounded-lg text-small bg-tint-1 text-text-secondary border border-border">{s}</span>
               ))}
             </div>
           )}

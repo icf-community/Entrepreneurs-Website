@@ -64,7 +64,7 @@ export default function OpportunityActions({
           target="_blank"
           rel="noreferrer noopener"
           onClick={() => recordListingEvent("opportunity", o.id, "apply_click")}
-          className="inline-block rounded-lg bg-accent px-4 py-2 text-[0.825rem] font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
+          className="inline-block rounded-lg bg-accent px-4 py-2 text-body font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
         >
           Open application portal ↗
         </a>
@@ -72,12 +72,12 @@ export default function OpportunityActions({
         <a
           href={mailtoHref(o.contactEmail, o.positionName)}
           onClick={() => recordListingEvent("opportunity", o.id, "contact_click")}
-          className="inline-block rounded-lg bg-accent px-4 py-2 text-[0.825rem] font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
+          className="inline-block rounded-lg bg-accent px-4 py-2 text-body font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
         >
           Email to apply ↗
         </a>
       ) : (
-        <p className="text-[0.85rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           Contact{" "}
           <span className="text-text-primary">
             {o.postedBy.firstName} {o.postedBy.surname}

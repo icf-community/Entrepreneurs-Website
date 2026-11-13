@@ -34,7 +34,7 @@ export default function EventActions({
         target="_blank"
         rel="noreferrer noopener"
         onClick={() => recordListingEvent("event", ev.id, "external_click")}
-        className="inline-block rounded-lg bg-accent px-4 py-2 text-[0.825rem] font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
+        className="inline-block rounded-lg bg-accent px-4 py-2 text-body font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
       >
         RSVP on Luma ↗
       </a>
@@ -61,7 +61,7 @@ export function ContactOrganiserLink({
     <a
       href={mailtoHref(email, subject)}
       onClick={() => recordListingEvent("event", id, "contact_click")}
-      className="break-all text-[0.85rem] text-text-secondary no-underline transition-colors hover:text-text-primary"
+      className="break-all text-body text-text-secondary no-underline transition-colors hover:text-text-primary"
     >
       {email}
     </a>

@@ -180,7 +180,7 @@ export default function FoundryAiClient({ state, initialMode, initialJobId, init
       <div className="order-1 min-w-0 space-y-5 lg:order-2">
         <ModeTabs modes={modes} mode={mode} onSwitch={switchMode} />
 
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           AI-assisted matching. Evidence may be incomplete.{" "}
           <Link href="/ai-notice" className="underline">Learn more</Link> · {remaining} of {state.quota.limit} searches left today
         </p>

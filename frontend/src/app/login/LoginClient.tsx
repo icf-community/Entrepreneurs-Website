@@ -317,12 +317,12 @@ export default function LoginClient() {
 
             {/* Toggle */}
             <div className="mt-6 pt-5 border-t border-border-subtle text-center">
-              <p className="text-[0.8rem] text-text-muted">
+              <p className="text-body text-text-muted">
                 {mode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
                 <button
                   type="button"
                   onClick={() => switchMode(mode === "signup" ? "signin" : "signup")}
-                  className="cursor-pointer border-0 bg-transparent text-[0.8rem] font-medium text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent"
+                  className="cursor-pointer border-0 bg-transparent text-body font-medium text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent"
                 >
                   {mode === "signup" ? "Sign in" : "Sign up"}
                 </button>
@@ -344,7 +344,7 @@ function AuthHeader() {
     <header className="relative z-10 px-8 py-5">
       <div className="max-w-[1200px] mx-auto flex items-center justify-between">
         <Logo />
-        <Link href="/" className="text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+        <Link href="/" className="text-body text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
           ← Back to home
         </Link>
       </div>
@@ -356,13 +356,13 @@ function AuthFooter() {
   return (
     <footer className="relative z-10 px-8 py-5">
       <div className="max-w-[1200px] mx-auto flex justify-center gap-8">
-        <Link href="/privacy" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+        <Link href="/privacy" className="text-small text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
           Privacy
         </Link>
-        <Link href="/terms" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+        <Link href="/terms" className="text-small text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
           Terms
         </Link>
-        <Link href="/contact" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+        <Link href="/contact" className="text-small text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
           Contact
         </Link>
       </div>
@@ -396,10 +396,10 @@ function AuthHeading({ mode, track }: { mode: Mode; track: Track | null }) {
 
   return (
     <div className="mb-6 text-center">
-      <h1 className="mb-3 text-[clamp(1.9rem,4vw,2.6rem)] font-semibold leading-[1.06] tracking-[-0.035em] text-text-primary">
+      <h1 className="mb-3 text-display font-semibold leading-[1.06] tracking-[-0.035em] text-text-primary">
         {heading}
       </h1>
-      <p className="text-[0.9rem] leading-[1.65] text-text-secondary">
+      <p className="text-lead leading-[1.65] text-text-secondary">
         {subtitle}
       </p>
     </div>
@@ -410,14 +410,14 @@ function AuthHeading({ mode, track }: { mode: Mode; track: Track | null }) {
 function ModeToggle({ mode, onSwitch }: { mode: Mode; onSwitch: (next: Mode) => void }) {
   return (
     <div className="mb-6 flex justify-center">
-      <div className="inline-flex rounded-lg border border-border-strong bg-white/[0.03] p-1">
+      <div className="inline-flex rounded-lg border border-border-strong bg-tint-1 p-1">
         <button
           type="button"
           onClick={() => onSwitch("signup")}
           aria-pressed={mode === "signup"}
-          className={`cursor-pointer rounded-md border-0 px-6 py-2 text-[0.82rem] font-medium transition-colors duration-150 ${
+          className={`cursor-pointer rounded-md border-0 px-6 py-2 text-body font-medium transition-colors duration-150 ${
             mode === "signup"
-              ? "bg-white/[0.09] text-text-primary"
+              ? "bg-tint-3 text-text-primary"
               : "bg-transparent text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -427,9 +427,9 @@ function ModeToggle({ mode, onSwitch }: { mode: Mode; onSwitch: (next: Mode) => 
           type="button"
           onClick={() => onSwitch("signin")}
           aria-pressed={mode === "signin"}
-          className={`cursor-pointer rounded-md border-0 px-6 py-2 text-[0.82rem] font-medium transition-colors duration-150 ${
+          className={`cursor-pointer rounded-md border-0 px-6 py-2 text-body font-medium transition-colors duration-150 ${
             mode === "signin"
-              ? "bg-white/[0.09] text-text-primary"
+              ? "bg-tint-3 text-text-primary"
               : "bg-transparent text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -582,12 +582,12 @@ function RoleButton({ title, blurb, onClick }: { title: string; blurb?: string; 
     <button
       type="button"
       onClick={onClick}
-      className="group w-full cursor-pointer rounded-lg border border-border-strong bg-white/[0.03] px-5 py-4 text-left transition-colors duration-150 hover:border-accent hover:bg-white/[0.06]"
+      className="group w-full cursor-pointer rounded-lg border border-border-strong bg-tint-1 px-5 py-4 text-left transition-colors duration-150 hover:border-accent hover:bg-tint-3"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[0.9rem] font-medium text-text-primary">{title}</div>
-          {blurb && <div className="mt-0.5 text-[0.775rem] leading-[1.5] text-text-muted">{blurb}</div>}
+          <div className="text-lead font-medium text-text-primary">{title}</div>
+          {blurb && <div className="mt-0.5 text-body leading-[1.5] text-text-muted">{blurb}</div>}
         </div>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0 text-text-muted transition-[color,transform] duration-150 group-hover:translate-x-0.5 group-hover:text-text-primary">
             <line x1="4" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" />
@@ -610,7 +610,7 @@ function NameFields({
   return (
     <div className="flex gap-3">
       <div className="flex-1">
-        <label htmlFor="first-name" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">First name</label>
+        <label htmlFor="first-name" className="block text-small font-medium tracking-[0.14em] text-text-secondary mb-2">First name</label>
         <input
           id="first-name"
           type="text"
@@ -623,7 +623,7 @@ function NameFields({
         />
       </div>
       <div className="flex-1">
-        <label htmlFor="surname" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Surname</label>
+        <label htmlFor="surname" className="block text-small font-medium tracking-[0.14em] text-text-secondary mb-2">Surname</label>
         <input
           id="surname"
           type="text"
@@ -645,7 +645,7 @@ function BackLink({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 px-3 py-1.5 text-[0.75rem] rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
+      className="inline-flex items-center gap-1 px-3 py-1.5 text-small rounded-lg border border-border-strong bg-tint-2 text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
     >
       ← Back
     </button>
@@ -683,8 +683,8 @@ function CodeEntryPanel({
             <polyline points="22,6 12,13 2,6" />
           </svg>
         </div>
-        <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Enter your code</h2>
-        <p className="text-[0.8rem] text-text-secondary leading-relaxed">
+        <h2 className="text-title font-semibold tracking-[-0.02em] text-text-primary">Enter your code</h2>
+        <p className="text-body text-text-secondary leading-relaxed">
           We emailed a 6-digit code to <span className="text-text-primary">{email}</span>. Enter it below to {mode === "signup" ? "finish signing up" : "sign in"}.
         </p>
 
@@ -700,11 +700,11 @@ function CodeEntryPanel({
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
           placeholder="000000"
           autoFocus
-          className="data w-full rounded-lg border border-border-strong bg-white/[0.03] px-4 py-3 text-center text-[1.4rem] font-medium tracking-[0.4em] text-text-primary transition-colors duration-150 placeholder:tracking-[0.4em] placeholder:text-text-muted focus:border-accent focus:bg-white/[0.05]"
+          className="data w-full rounded-lg border border-border-strong bg-tint-1 px-4 py-3 text-center text-heading font-medium tracking-[0.4em] text-text-primary transition-colors duration-150 placeholder:tracking-[0.4em] placeholder:text-text-muted focus:border-accent focus:bg-tint-2"
         />
 
         {verifyError && (
-          <p role="alert" className="text-[0.78rem] text-[#ff8080] leading-relaxed">{verifyError}</p>
+          <p role="alert" className="text-body text-danger leading-relaxed">{verifyError}</p>
         )}
 
         <Button
@@ -718,11 +718,11 @@ function CodeEntryPanel({
           Verify
         </Button>
 
-        <p className="text-[0.7rem] text-text-muted leading-relaxed">
+        <p className="text-small text-text-muted leading-relaxed">
           The code expires in 30 minutes. Check your spam folder if it doesn&apos;t arrive within a minute.
         </p>
         {showGoogleHint && (
-          <p className="text-[0.72rem] text-text-muted leading-relaxed">
+          <p className="text-small text-text-muted leading-relaxed">
             No code arriving? Signed up with Google before? Use <span className="text-text-secondary">Continue with Google</span> instead.
           </p>
         )}
@@ -731,7 +731,7 @@ function CodeEntryPanel({
             type="button"
             onClick={onResend}
             disabled={!canResend}
-            className="cursor-pointer border-0 bg-transparent text-[0.8rem] text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
+            className="cursor-pointer border-0 bg-transparent text-body text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
           >
             {isLoading
               ? "Resending…"
@@ -772,7 +772,7 @@ function StudentMagicLinkFlow({
   onBack: () => void;
 }) {
   const inputCls =
-    "w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-white/[0.05]";
+    "w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-tint-2";
 
   if (emailSent) {
     return (
@@ -800,7 +800,7 @@ function StudentMagicLinkFlow({
       )}
 
       <div>
-        <label htmlFor="email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Imperial email</label>
+        <label htmlFor="email" className="block text-small font-medium tracking-[0.14em] text-text-secondary mb-2">Imperial email</label>
         <input
           id="email"
           type="email"
@@ -810,7 +810,7 @@ function StudentMagicLinkFlow({
           onChange={(e) => setEmail(e.target.value)}
           className={inputCls}
         />
-        <p className="mt-2 text-[0.7rem] text-text-muted leading-relaxed">
+        <p className="mt-2 text-small text-text-muted leading-relaxed">
           Must end in @imperial.ac.uk or @ic.ac.uk.
         </p>
       </div>
@@ -876,7 +876,7 @@ function AlumForm({
   const [forgotView, setForgotView] = useState(false);
 
   const inputCls =
-    "w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-white/[0.05]";
+    "w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-tint-2";
 
   // After signup, "Confirm email" requires the alum to verify before they have
   // a session. Show the shared code-entry panel; the resend re-sends the signup
@@ -940,7 +940,7 @@ function AlumForm({
       )}
 
       <div>
-        <label htmlFor="email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Email</label>
+        <label htmlFor="email" className="block text-small font-medium tracking-[0.14em] text-text-secondary mb-2">Email</label>
         <input
           id="email"
           type="email"
@@ -1001,11 +1001,11 @@ function ForgotPasswordFlow({
               <polyline points="22,6 12,13 2,6" />
             </svg>
           </div>
-          <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Check your inbox</h2>
-          <p className="text-[0.8rem] text-text-secondary leading-relaxed">
+          <h2 className="text-title font-semibold tracking-[-0.02em] text-text-primary">Check your inbox</h2>
+          <p className="text-body text-text-secondary leading-relaxed">
             If an account exists for <span className="text-text-primary">{email}</span>, we&apos;ve sent a password-reset link.
           </p>
-          <p className="text-[0.7rem] text-text-muted leading-relaxed">
+          <p className="text-small text-text-muted leading-relaxed">
             The link expires in 30 minutes. Open it in the same browser you&apos;re using now.
           </p>
           <div className="pt-2">
@@ -1013,7 +1013,7 @@ function ForgotPasswordFlow({
               type="button"
               onClick={onForgot}
               disabled={!canSend}
-              className="cursor-pointer border-0 bg-transparent text-[0.8rem] text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
+              className="cursor-pointer border-0 bg-transparent text-body text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
             >
               {isLoading
                 ? "Resending…"
@@ -1031,13 +1031,13 @@ function ForgotPasswordFlow({
     <form onSubmit={(e) => { e.preventDefault(); onForgot(); }} className="space-y-4">
       <BackLink onClick={onBack} />
       <div className="space-y-1.5">
-        <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Reset your password</h2>
-        <p className="text-[0.8rem] text-text-secondary leading-relaxed">
+        <h2 className="text-title font-semibold tracking-[-0.02em] text-text-primary">Reset your password</h2>
+        <p className="text-body text-text-secondary leading-relaxed">
           Enter your email and we&apos;ll send you a link to set a new password.
         </p>
       </div>
       <div>
-        <label htmlFor="reset-email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Email</label>
+        <label htmlFor="reset-email" className="block text-small font-medium tracking-[0.14em] text-text-secondary mb-2">Email</label>
         <input
           id="reset-email"
           type="email"
@@ -1062,7 +1062,7 @@ function ForgotPasswordFlow({
           "Send reset link"
         )}
       </Button>
-      <p className="text-[0.72rem] text-text-muted leading-relaxed text-center px-2">
+      <p className="text-small text-text-muted leading-relaxed text-center px-2">
         Signed up with Google? Use <span className="text-text-secondary">Continue with Google</span> instead.
       </p>
     </form>
@@ -1079,7 +1079,7 @@ function AffiliationSelect({
 }) {
   return (
     <div>
-      <label htmlFor="affiliation" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">
+      <label htmlFor="affiliation" className="block text-small font-medium tracking-[0.14em] text-text-secondary mb-2">
         How you&apos;re connected
       </label>
       <select
@@ -1094,7 +1094,7 @@ function AffiliationSelect({
         ))}
       </select>
       {selected && (
-        <p className="mt-2 text-[0.72rem] leading-relaxed text-text-muted">
+        <p className="mt-2 text-small leading-relaxed text-text-muted">
           {selected.blurb}
         </p>
       )}
@@ -1118,7 +1118,7 @@ function GoogleSignupSection({
         type="button"
         onClick={onGoogle}
         disabled={isLoading}
-        className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border-0 bg-white px-6 py-3 text-[0.85rem] font-semibold text-[#1a1a1a] transition-colors duration-150 hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border-0 bg-white px-6 py-3 text-body font-semibold text-[#1a1a1a] transition-colors duration-150 hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-60"
       >
         <GoogleIcon />
         Continue with Google
@@ -1133,13 +1133,13 @@ function GoogleSignupSection({
           dropdown above genuinely does not reach this button. Saying so is
           the alternative to a picker that silently doesn't apply. */}
       {mode === "signup" && role && role !== "alum" && (
-        <p className="text-[0.72rem] leading-relaxed text-text-muted text-center px-2">
+        <p className="text-small leading-relaxed text-text-muted text-center px-2">
           Google sign-up is recorded as an alumni founder. The admin reviewing
           you will set it to {selected?.label.toLowerCase()}.
         </p>
       )}
 
-      <p className="text-[0.72rem] text-text-muted leading-relaxed text-center px-2">
+      <p className="text-small text-text-muted leading-relaxed text-center px-2">
         By continuing with Google, you confirm you&apos;re 18 or over and agree to our{" "}
         <Link href="/terms" target="_blank" className="text-accent hover:text-accent-light no-underline">
           Terms &amp; Conditions
@@ -1153,7 +1153,7 @@ function GoogleSignupSection({
 
       <div className="flex items-center gap-3 py-1">
         <div className="flex-1 h-px bg-border-subtle" />
-        <span className="text-[0.7rem] text-text-muted uppercase tracking-widest">or</span>
+        <span className="text-small text-text-muted">or</span>
         <div className="flex-1 h-px bg-border-subtle" />
       </div>
     </>
@@ -1173,7 +1173,7 @@ function PasswordFields({
   return (
     <>
       <div>
-        <label htmlFor="password" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Password</label>
+        <label htmlFor="password" className="block text-small font-medium tracking-[0.14em] text-text-secondary mb-2">Password</label>
         <input
           id="password"
           type="password"
@@ -1190,7 +1190,7 @@ function PasswordFields({
           <button
             type="button"
             onClick={onForgotClick}
-            className="cursor-pointer border-0 bg-transparent text-[0.75rem] text-accent underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:text-accent-light hover:decoration-accent"
+            className="cursor-pointer border-0 bg-transparent text-small text-accent underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:text-accent-light hover:decoration-accent"
           >
             Forgot your password?
           </button>
@@ -1199,7 +1199,7 @@ function PasswordFields({
 
       {mode === "signup" && (
         <div>
-          <label htmlFor="repeat-password" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Repeat password</label>
+          <label htmlFor="repeat-password" className="block text-small font-medium tracking-[0.14em] text-text-secondary mb-2">Repeat password</label>
           <input
             id="repeat-password"
             type="password"

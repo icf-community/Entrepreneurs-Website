@@ -128,10 +128,10 @@ export default function ConnectionsClient({
             // straight at ?tab=pending. Changing it drops the cursor:
             // a keyset cursor from one list means nothing in another.
             onClick={() => url.apply({ tab: t === "connections" ? null : t, cursor: null })}
-            className={`cursor-pointer rounded-lg border px-3.5 py-2 text-[0.8rem] transition-colors duration-150 ${
+            className={`cursor-pointer rounded-lg border px-3.5 py-2 text-body transition-colors duration-150 ${
               t === tab
                 ? "border-accent bg-accent font-medium text-bg-primary"
-                : "border-border-strong bg-white/[0.02] text-text-secondary hover:border-accent hover:text-text-primary"
+                : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary"
             }`}
           >
             {TAB_LABELS[t]}
@@ -328,7 +328,7 @@ function ConnectionsFilterPanel({
   return (
     <>
       {facets?.unavailable && (
-        <p role="status" className="mt-4 text-[0.8rem] text-text-muted">
+        <p role="status" className="mt-4 text-body text-text-muted">
           Couldn&apos;t load the filters. Reload to try again.
         </p>
       )}
@@ -571,7 +571,7 @@ function ConnectionsCardGrid({
               // Only reachable if the other account is mid-deletion:
               // the address is joined live from auth.users, never
               // snapshot, so it disappears the moment they do.
-              <p className="text-[0.75rem] text-text-muted">
+              <p className="text-small text-text-muted">
                 This member&apos;s address is no longer available.
               </p>
             )}
@@ -727,7 +727,7 @@ function PendingTab({
       {justAccepted && (
         <p
           role="status"
-          className="mb-4 rounded-lg border border-border-strong bg-white/[0.05] px-4 py-3 text-[0.85rem] text-text-secondary"
+          className="mb-4 rounded-lg border border-border-strong bg-tint-2 px-4 py-3 text-body text-text-secondary"
         >
           You&apos;re connected with {justAccepted}.{" "}
           <Link
@@ -754,7 +754,7 @@ function PendingTab({
                   // Plain text, never HTML, and it never leaves the app —
                   // the digest email carries names and counts only, so an
                   // abusive note cannot reach an inbox.
-                  <blockquote className="rounded-lg border-l-2 border-border-strong bg-white/[0.03] px-3 py-2 text-[0.78rem] text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
+                  <blockquote className="rounded-lg border-l-2 border-border-strong bg-tint-1 px-3 py-2 text-body text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
                     {r.note}
                   </blockquote>
                 )}
@@ -909,7 +909,7 @@ function SentTab({ page }: { page: RequestsPage<SentRequest> }) {
           you expect. A decline removes the row entirely and tells nobody,
           which is the point — but without saying so, a member watching a
           request vanish concludes the site lost it. */}
-      <p className="mb-4 text-[0.8rem] text-text-muted leading-relaxed max-w-[62ch]">
+      <p className="mb-4 text-body text-text-muted leading-relaxed max-w-[62ch]">
         Requests you&apos;ve sent that haven&apos;t been answered yet. Answered ones move
         to <strong className="text-text-secondary">Your connections</strong>; declined
         ones simply disappear, and we don&apos;t tell you which.
@@ -998,16 +998,16 @@ function ViewToggle({ view, url }: { view: View; url: ReturnType<typeof useUrlFi
           aria-pressed={view === v.value}
           onClick={() => url.apply({ view: v.value === "cards" ? null : v.value, cursor: null })}
           className={
-            "cursor-pointer rounded-lg border px-3 py-1.5 text-[0.75rem] transition-colors duration-150 " +
+            "cursor-pointer rounded-lg border px-3 py-1.5 text-small transition-colors duration-150 " +
             (view === v.value
-              ? "border-accent bg-white/[0.05] text-text-primary"
-              : "border-border-strong bg-white/[0.02] text-text-secondary hover:border-accent hover:text-text-primary")
+              ? "border-accent bg-tint-2 text-text-primary"
+              : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary")
           }
         >
           {v.label}
         </button>
       ))}
-      <p className="ml-2 text-[0.7rem] text-text-muted">
+      <p className="ml-2 text-small text-text-muted">
         {view === "graph"
           ? "Your connections, grouped. Email addresses are on the cards."
           : "The list, with each person's email address."}
@@ -1040,7 +1040,7 @@ function ActionButton({
       // A visible shape, not bare text. Every control in this app has an
       // outline and a surface — bare-text controls are a recurring
       // regression here and they do not read as controls at all.
-      className="cursor-pointer rounded-lg border border-border-strong bg-white/[0.05] px-2.5 py-1.5 text-[0.725rem] text-text-secondary transition-colors hover:border-accent hover:text-text-primary hover:bg-white/[0.10]"
+      className="cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-2.5 py-1.5 text-small text-text-secondary transition-colors hover:border-accent hover:text-text-primary hover:bg-tint-4"
     >
       {children}
     </button>
@@ -1068,7 +1068,7 @@ function LoadMore({
         Load more
       </Button>
       {error && (
-        <p role="alert" className="text-center text-[0.8rem] text-[#ff8080]">
+        <p role="alert" className="text-center text-body text-danger">
           {error}
         </p>
       )}
@@ -1079,13 +1079,13 @@ function LoadMore({
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center">
-      <p className="text-[0.95rem] text-text-primary">{title}</p>
-      <p className="mx-auto mt-2 max-w-[48ch] text-[0.85rem] text-text-muted leading-relaxed">
+      <p className="text-lead text-text-primary">{title}</p>
+      <p className="mx-auto mt-2 max-w-[48ch] text-body text-text-muted leading-relaxed">
         {body}
       </p>
       <Link
         href="/members"
-        className="mt-5 inline-flex rounded-lg border border-border-strong bg-white/[0.05] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.10]"
+        className="mt-5 inline-flex rounded-lg border border-border-strong bg-tint-2 px-4 py-2 text-body text-text-primary no-underline transition-colors hover:border-accent hover:bg-tint-4"
       >
         Browse the directory
       </Link>

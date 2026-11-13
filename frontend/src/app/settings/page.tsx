@@ -80,7 +80,7 @@ export default async function SettingsPage() {
         <div className="max-w-[640px] mx-auto">
           <div className="mb-10 rule-draw pt-6">
             <p className="label-wide text-text-secondary mb-3">Settings</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               Account & profile
             </h1>
           </div>
@@ -91,7 +91,7 @@ export default async function SettingsPage() {
               className="group block rounded-2xl border border-border bg-bg-card p-6 no-underline transition-colors duration-150 hover:border-accent hover:bg-bg-card-hover"
             >
               <div className="flex items-center justify-between gap-4">
-                <div className="text-[0.95rem] font-medium text-text-primary">Edit your profile</div>
+                <div className="text-lead font-medium text-text-primary">Edit your profile</div>
                 <span className="shrink-0 text-text-muted transition-colors group-hover:text-text-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5"><line x1="4" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" /></svg></span>
               </div>
             </Link>
@@ -101,7 +101,7 @@ export default async function SettingsPage() {
               className="group block rounded-2xl border border-border bg-bg-card p-6 no-underline transition-colors duration-150 hover:border-accent hover:bg-bg-card-hover"
             >
               <div className="flex items-center justify-between gap-4">
-                <div className="text-[0.95rem] font-medium text-text-primary">Your submissions</div>
+                <div className="text-lead font-medium text-text-primary">Your submissions</div>
                 <span className="shrink-0 text-text-muted transition-colors group-hover:text-text-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5"><line x1="4" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" /></svg></span>
               </div>
             </Link>
@@ -111,7 +111,7 @@ export default async function SettingsPage() {
               className="group block rounded-2xl border border-border bg-bg-card p-6 no-underline transition-colors duration-150 hover:border-accent hover:bg-bg-card-hover"
             >
               <div className="flex items-center justify-between gap-4">
-                <div className="text-[0.95rem] font-medium text-text-primary">Saved opportunities</div>
+                <div className="text-lead font-medium text-text-primary">Saved opportunities</div>
                 <span className="shrink-0 text-text-muted transition-colors group-hover:text-text-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5"><line x1="4" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" /></svg></span>
               </div>
             </Link>
@@ -121,7 +121,7 @@ export default async function SettingsPage() {
               className="group block rounded-2xl border border-border bg-bg-card p-6 no-underline transition-colors duration-150 hover:border-accent hover:bg-bg-card-hover"
             >
               <div className="flex items-center justify-between gap-4">
-                <div className="text-[0.95rem] font-medium text-text-primary">Contact the team</div>
+                <div className="text-lead font-medium text-text-primary">Contact the team</div>
                 <span className="shrink-0 text-text-muted transition-colors group-hover:text-text-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5"><line x1="4" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" /></svg></span>
               </div>
             </Link>
@@ -137,8 +137,8 @@ export default async function SettingsPage() {
 
             {education && (
               <section id="education" className="rounded-2xl border border-border bg-bg-card p-6">
-                <h2 className="text-[0.95rem] font-medium text-text-primary">Education status</h2>
-                <p className="mt-1 mb-4 text-[0.75rem] text-text-muted">Jobs are for students, graduates or both; this decides which you see.</p>
+                <h2 className="text-lead font-medium text-text-primary">Education status</h2>
+                <p className="mt-1 mb-4 text-small text-text-muted">Jobs are for students, graduates or both; this decides which you see.</p>
                 <EducationForm initialEnrolled={education.enrolled} initialGraduated={education.graduated} />
               </section>
             )}

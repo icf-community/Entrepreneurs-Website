@@ -25,8 +25,8 @@ export function ModeTabs({
           type="button"
           aria-selected={m === mode}
           onClick={() => onSwitch(m)}
-          className={`cursor-pointer rounded-lg border px-4 py-2 text-[0.8rem] ${
-            m === mode ? "border-accent bg-white/[0.08] text-text-primary" : "border-border-strong text-text-secondary hover:border-accent"
+          className={`cursor-pointer rounded-lg border px-4 py-2 text-body ${
+            m === mode ? "border-accent bg-tint-3 text-text-primary" : "border-border-strong text-text-secondary hover:border-accent"
           }`}
         >
           {MODE_LABEL[m]}

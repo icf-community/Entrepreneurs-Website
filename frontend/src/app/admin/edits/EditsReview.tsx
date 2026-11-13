@@ -49,7 +49,7 @@ type Props = {
 export default function EditsReview({ items, labels, changed }: Props) {
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
         No proposed changes. Published listings are all as their organisers left them.
       </div>
     );
@@ -94,35 +94,35 @@ function EditCard({
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2 py-0.5 rounded-lg border border-border-strong text-[0.65rem] uppercase tracking-wider text-text-secondary">
+            <span className="px-2 py-0.5 rounded-lg border border-border-strong text-caption text-text-secondary">
               {KIND_LABEL[edit.listingKind]}
             </span>
             {safety.length > 0 && (
-              <span className="px-2 py-0.5 rounded-lg border border-[#ff4d4d]/30 bg-[#ff4d4d]/10 text-[0.65rem] uppercase tracking-wider text-[#ff8b8b]">
+              <span className="px-2 py-0.5 rounded-lg border border-danger/30 bg-danger/10 text-caption text-danger">
                 Time / place changed
               </span>
             )}
           </div>
-          <h2 className="text-[1.05rem] text-text-primary mt-2">{edit.listingTitle}</h2>
-          <p className="text-[0.75rem] text-text-muted mt-1">
+          <h2 className="text-lead text-text-primary mt-2">{edit.listingTitle}</h2>
+          <p className="text-small text-text-muted mt-1">
             Proposed by {edit.proposedByName ?? "a member"} on {formatDate(edit.createdAt)}
           </p>
         </div>
         <Link
           href={`${PUBLIC_PATH[edit.listingKind]}/${edit.listingId}`}
-          className="shrink-0 inline-flex items-center rounded-lg border border-border-strong bg-white/[0.05] px-3 py-1.5 text-[0.75rem] text-text-primary no-underline transition-colors hover:bg-white/[0.10] hover:border-accent"
+          className="shrink-0 inline-flex items-center rounded-lg border border-border-strong bg-tint-2 px-3 py-1.5 text-small text-text-primary no-underline transition-colors hover:bg-tint-4 hover:border-accent"
         >
           View live listing
         </Link>
       </div>
 
       {changed.length === 0 ? (
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           Nothing differs from the published version. Approving is harmless; declining is tidier.
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-[0.8rem] border-collapse">
+          <table className="w-full text-body border-collapse">
             <thead>
               <tr className="text-left text-text-muted">
                 <th className="py-2 pr-4 font-normal w-[22%]">Field</th>
@@ -135,7 +135,7 @@ function EditCard({
                 <tr key={f} className="border-t border-border-subtle">
                   <td className="py-2 pr-4 text-text-secondary">
                     {labels[f] ?? f}
-                    {SAFETY_FIELDS.has(f) && <span className="text-[#ff8b8b]"> •</span>}
+                    {SAFETY_FIELDS.has(f) && <span className="text-danger"> •</span>}
                   </td>
                   <td className="py-2 pr-4 text-text-muted whitespace-pre-wrap break-words">
                     {render(edit.current[f])}
@@ -168,7 +168,7 @@ function EditCard({
         </div>
       ) : (
         <div className="mt-5 space-y-3">
-          <label className="block text-[0.8rem] text-text-secondary" htmlFor={`reason-${edit.id}`}>
+          <label className="block text-body text-text-secondary" htmlFor={`reason-${edit.id}`}>
             Why? The organiser gets this, so it has to tell them what to change.
           </label>
           <textarea
@@ -176,7 +176,7 @@ function EditCard({
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white/[0.02] border border-border-strong text-text-primary text-[0.85rem] resize-none"
+            className="w-full px-4 py-3 rounded-lg bg-tint-1 border border-border-strong text-text-primary text-body resize-none"
           />
           <div className="flex flex-wrap gap-2">
             <Button

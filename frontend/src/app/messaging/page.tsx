@@ -33,7 +33,7 @@ export default async function MessagingPage() {
       <div className="mx-auto flex w-full max-w-[1100px] flex-col items-center px-6 py-20 text-center sm:px-10 sm:py-28">
         <span
           aria-hidden
-          className="anim-fade-in relative mb-8 flex h-16 w-16 items-center justify-center rounded-2xl border border-border-strong bg-white/[0.04]"
+          className="anim-fade-in relative mb-8 flex h-16 w-16 items-center justify-center rounded-2xl border border-border-strong bg-tint-2"
         >
           <span className="absolute inset-0 rounded-2xl bg-accent-muted/40 blur-xl" />
           <svg
@@ -54,19 +54,19 @@ export default async function MessagingPage() {
 
         <p className="label-wide anim-fade-up mb-5 text-text-muted">Messaging</p>
 
-        <h1 className="anim-fade-up font-display text-[clamp(2.25rem,6vw,3.75rem)] leading-[1.02] tracking-tight text-text-primary">
+        <h1 className="anim-fade-up font-display text-display leading-[1.02] tracking-tight text-text-primary">
           Coming Soon!
         </h1>
 
         <div aria-hidden className="anim-fade-up mx-auto my-7 h-px w-24 bg-border-strong" />
 
-        <p className="anim-fade-up max-w-[34rem] text-[0.925rem] leading-relaxed text-text-secondary">
+        <p className="anim-fade-up max-w-[34rem] text-lead leading-relaxed text-text-secondary">
           Member-to-member messaging is being built. Soon you will be able to reach
           anyone in the directory from here — introductions, questions about a role,
           or a note to someone building in your space — without leaving Foundry.
         </p>
 
-        <p className="anim-fade-up mt-6 max-w-[34rem] text-[0.85rem] leading-relaxed text-text-muted">
+        <p className="anim-fade-up mt-6 max-w-[34rem] text-body leading-relaxed text-text-muted">
           Until then, member profiles carry the contact links people have chosen to
           share, and every opportunity lists how to apply.
         </p>
@@ -74,14 +74,14 @@ export default async function MessagingPage() {
         <div className="anim-fade-up mt-10 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/members"
-            className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.06] px-5 py-2.5 text-[0.825rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
+            className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-tint-3 px-5 py-2.5 text-body text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-tint-4"
           >
             Browse members
             <span aria-hidden>→</span>
           </Link>
           <Link
             href="/opportunities"
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-5 py-2.5 text-[0.825rem] text-text-secondary no-underline transition-colors duration-150 hover:border-border-strong hover:text-text-primary"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-5 py-2.5 text-body text-text-secondary no-underline transition-colors duration-150 hover:border-border-strong hover:text-text-primary"
           >
             See opportunities
           </Link>

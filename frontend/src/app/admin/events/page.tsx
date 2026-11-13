@@ -25,16 +25,16 @@ export default async function AdminEventsPage() {
         <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
           <div className="min-w-0">
             <p className="label-wide text-text-secondary mb-3">Admin · review queue</p>
-            <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">
+            <h1 className="font-display text-display leading-[1.1] tracking-tight">
               Pending events
             </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2">{pending.length} awaiting review.</p>
+            <p className="text-body text-text-muted mt-2">{pending.length} awaiting review.</p>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/admin/events/new" className="px-3 py-1.5 rounded-lg bg-accent text-bg-primary text-[0.8rem] font-medium no-underline transition-colors hover:bg-accent-light">
+            <Link href="/admin/events/new" className="px-3 py-1.5 rounded-lg bg-accent text-bg-primary text-body font-medium no-underline transition-colors hover:bg-accent-light">
               + New event
             </Link>
-            <Link href="/admin" className="text-[0.8rem] text-text-secondary no-underline hover:text-text-primary">
+            <Link href="/admin" className="text-body text-text-secondary no-underline hover:text-text-primary">
               ← Admin home
             </Link>
           </div>

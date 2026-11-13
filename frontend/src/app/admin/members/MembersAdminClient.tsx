@@ -226,7 +226,7 @@ function MembersTable({
     <div className={`relative ${pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={pending || undefined}>
       {pending && <Updating />}
       {members.length === 0 ? (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
           {facets.total === 0 ? "No members yet." : "No members match your search or filters."}
         </div>
       ) : (
@@ -237,9 +237,9 @@ function MembersTable({
               letting the outer overflow-hidden (there for the rounded
               corners) silently clip the rightmost column off-screen. */}
           <div className="overflow-x-auto">
-          <table className="w-full text-[0.825rem]">
+          <table className="w-full text-body">
             <thead>
-              <tr className="border-b border-border-subtle text-[0.7rem] text-text-muted uppercase tracking-wider">
+              <tr className="border-b border-border-subtle text-small text-text-muted">
                 <th className="text-left px-4 py-3 font-normal">Name</th>
                 <th className="text-left px-4 py-3 font-normal">Email</th>
                 <th className="text-left px-4 py-3 font-normal">Role</th>
@@ -252,7 +252,7 @@ function MembersTable({
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m.id} className="border-b border-border-subtle last:border-0 hover:bg-white/[0.02]">
+                <tr key={m.id} className="border-b border-border-subtle last:border-0 hover:bg-tint-1">
                   <td className="px-4 py-3 text-text-primary">{m.firstName} {m.surname}</td>
                   <td className="px-4 py-3 text-text-secondary">{m.email ?? "—"}</td>
                   <td className="px-4 py-3 text-text-muted">{m.role}</td>
@@ -261,7 +261,7 @@ function MembersTable({
                   <td className="px-4 py-3 text-text-muted">{m.gradYear ?? "—"}</td>
                   <td className="px-4 py-3">
                     {m.isCommittee ? (
-                      <span className="inline-block rounded-lg border border-signal/40 bg-signal-muted px-2 py-1 text-[0.7rem] font-medium text-signal align-bottom">
+                      <span className="inline-block rounded-lg border border-signal/40 bg-signal-muted px-2 py-1 text-small font-medium text-signal align-bottom">
                         {m.committeeRole}
                       </span>
                     ) : (
@@ -273,14 +273,14 @@ function MembersTable({
                       <button
                         type="button"
                         onClick={() => onEditCommittee(m)}
-                        className="px-3 py-1.5 rounded-lg bg-transparent border border-border-strong text-text-secondary text-[0.75rem] cursor-pointer transition-colors hover:border-accent hover:text-text-primary"
+                        className="px-3 py-1.5 rounded-lg bg-transparent border border-border-strong text-text-secondary text-small cursor-pointer transition-colors hover:border-accent hover:text-text-primary"
                       >
                         {m.isCommittee ? "Edit committee" : "Add to committee"}
                       </button>
                       <button
                         type="button"
                         onClick={() => onDelete(m)}
-                        className="px-3 py-1.5 rounded-lg bg-transparent border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.75rem] cursor-pointer transition-colors hover:bg-[#ff4d4d]/10"
+                        className="px-3 py-1.5 rounded-lg bg-transparent border border-danger/30 text-danger text-small cursor-pointer transition-colors hover:bg-danger/10"
                       >
                         Delete
                       </button>
@@ -328,17 +328,17 @@ function CommitteeModal({ member, onClose }: { member: AdminMember; onClose: () 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
       <div className="w-full max-w-[480px] rounded-2xl bg-bg-card border border-border-strong p-6">
         <p className="label-wide text-signal mb-3">Committee</p>
-        <h2 className="font-display text-[1.25rem] text-text-primary mb-2">
+        <h2 className="font-display text-title text-text-primary mb-2">
           {member.isCommittee ? "Edit" : "Add"} {member.firstName} {member.surname}
         </h2>
-        <p className="text-[0.825rem] text-text-secondary leading-relaxed mb-5">
+        <p className="text-body text-text-secondary leading-relaxed mb-5">
           Shows a gold banner with this role on their photo everywhere it appears, and moves
           them from the member directory to the Meet the Committee page.
         </p>
 
         {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
-        <label htmlFor="committee-role" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="committee-role" className="block text-small text-text-muted mb-1.5">
           Role
         </label>
         <input
@@ -348,7 +348,7 @@ function CommitteeModal({ member, onClose }: { member: AdminMember; onClose: () 
           onChange={(e) => setRole(e.target.value)}
           placeholder="e.g. President"
           maxLength={60}
-          className="w-full px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted focus:border-accent/50 mb-5"
+          className="w-full px-3 py-2 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted focus:border-accent/50 mb-5"
         />
 
         <div className="flex items-center justify-between gap-3">
@@ -358,7 +358,7 @@ function CommitteeModal({ member, onClose }: { member: AdminMember; onClose: () 
                 type="button"
                 onClick={remove}
                 disabled={pending}
-                className="px-4 py-2 rounded-lg bg-transparent border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.85rem] cursor-pointer transition-colors hover:bg-[#ff4d4d]/10 disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-transparent border border-danger/30 text-danger text-body cursor-pointer transition-colors hover:bg-danger/10 disabled:opacity-50"
               >
                 Remove from committee
               </button>
@@ -369,7 +369,7 @@ function CommitteeModal({ member, onClose }: { member: AdminMember; onClose: () 
               type="button"
               onClick={onClose}
               disabled={pending}
-              className="px-4 py-2 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.85rem] cursor-pointer transition-colors hover:bg-white/[0.10] disabled:opacity-50"
+              className="px-4 py-2 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body cursor-pointer transition-colors hover:bg-tint-4 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -377,7 +377,7 @@ function CommitteeModal({ member, onClose }: { member: AdminMember; onClose: () 
               type="button"
               onClick={save}
               disabled={pending || !role.trim()}
-              className="px-4 py-2 rounded-lg bg-signal-muted border border-signal/40 text-signal text-[0.85rem] font-medium cursor-pointer transition-colors hover:bg-signal/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-lg bg-signal-muted border border-signal/40 text-signal text-body font-medium cursor-pointer transition-colors hover:bg-signal/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {pending ? "Saving…" : "Save"}
             </button>
@@ -412,18 +412,18 @@ function DeleteUserModal({ member, onClose }: { member: AdminMember; onClose: ()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-      <div className="w-full max-w-[520px] rounded-2xl bg-bg-card border border-[#ff4d4d]/30 p-6">
-        <p className="label-wide text-[#ff8080] mb-3">Danger zone</p>
-        <h2 className="font-display text-[1.25rem] text-text-primary mb-2">
+      <div className="w-full max-w-[520px] rounded-2xl bg-bg-card border border-danger/30 p-6">
+        <p className="label-wide text-danger mb-3">Danger zone</p>
+        <h2 className="font-display text-title text-text-primary mb-2">
           Delete {member.firstName} {member.surname}?
         </h2>
-        <p className="text-[0.825rem] text-text-secondary leading-relaxed mb-5">
-          This permanently removes their profile, posted opportunities, events, VC/grant submissions, and any admin actions they took. They will be emailed the reason below. <span className="text-[#ff6b6b]">This cannot be undone.</span>
+        <p className="text-body text-text-secondary leading-relaxed mb-5">
+          This permanently removes their profile, posted opportunities, events, VC/grant submissions, and any admin actions they took. They will be emailed the reason below. <span className="text-danger">This cannot be undone.</span>
         </p>
 
         {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
-        <label htmlFor="reason" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="reason" className="block text-small text-text-muted mb-1.5">
           Reason (sent to user)
         </label>
         <textarea
@@ -432,7 +432,7 @@ function DeleteUserModal({ member, onClose }: { member: AdminMember; onClose: ()
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="e.g. Inappropriate listings violating community guidelines."
-          className="w-full px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted focus:border-[#ff4d4d]/50 resize-none mb-5"
+          className="w-full px-3 py-2 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted focus:border-danger/50 resize-none mb-5"
         />
 
         <div className="flex gap-3 justify-end">
@@ -440,7 +440,7 @@ function DeleteUserModal({ member, onClose }: { member: AdminMember; onClose: ()
             type="button"
             onClick={onClose}
             disabled={pending}
-            className="px-4 py-2 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.85rem] cursor-pointer transition-colors hover:bg-white/[0.10] disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body cursor-pointer transition-colors hover:bg-tint-4 disabled:opacity-50"
           >
             Cancel
           </button>
@@ -448,7 +448,7 @@ function DeleteUserModal({ member, onClose }: { member: AdminMember; onClose: ()
             type="button"
             onClick={handleConfirm}
             disabled={pending || !reason.trim()}
-            className="px-4 py-2 rounded-lg bg-[#ff4d4d]/15 border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.85rem] font-medium cursor-pointer transition-colors hover:bg-[#ff4d4d]/25 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-lg bg-danger/15 border border-danger/30 text-danger text-body font-medium cursor-pointer transition-colors hover:bg-danger/25 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {pending ? "Deleting…" : "Permanently delete + email"}
           </button>

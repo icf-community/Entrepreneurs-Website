@@ -56,7 +56,7 @@ export default function ConnectionSettings({
 
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-6">
-      <h2 className="text-[0.95rem] font-medium text-text-primary">Connections</h2>
+      <h2 className="text-lead font-medium text-text-primary">Connections</h2>
 
       <div className="mt-4 space-y-4">
         <Switch
@@ -77,7 +77,7 @@ export default function ConnectionSettings({
         />
       </div>
 
-      {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-body text-danger">{error}</p>}
     </section>
   );
 }

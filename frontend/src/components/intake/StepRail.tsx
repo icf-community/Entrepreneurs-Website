@@ -29,7 +29,7 @@ export default function StepRail({
       {GROUPS.map((group) => (
         <div key={group.label} className="mb-8 last:mb-0">
           <p className={`${labelCls} mb-1`}>{group.label}</p>
-          <p className="mb-3 text-[0.75rem] leading-[1.5] text-text-muted">{group.note}</p>
+          <p className="mb-3 text-small leading-[1.5] text-text-muted">{group.note}</p>
 
           <ul className="space-y-1">
             {group.steps.map((id) => {
@@ -46,7 +46,7 @@ export default function StepRail({
 
               const inner = (
                 <span className="flex items-center gap-3">
-                  <span className={`w-5 shrink-0 font-mono text-[0.7rem] ${numCls}`}>
+                  <span className={`w-5 shrink-0 font-mono text-small ${numCls}`}>
                     {step.num ?? "—"}
                   </span>
                   <span className="truncate">{step.label}</span>
@@ -58,7 +58,7 @@ export default function StepRail({
                   <li key={id}>
                     <div
                       aria-current="step"
-                      className="rounded-lg border border-border-strong bg-white/[0.06] px-3 py-2 text-[0.8rem] font-medium text-text-primary"
+                      className="rounded-lg border border-border-strong bg-tint-3 px-3 py-2 text-body font-medium text-text-primary"
                     >
                       {inner}
                     </div>
@@ -71,7 +71,7 @@ export default function StepRail({
                   <button
                     type="button"
                     onClick={() => onJump(id)}
-                    className="w-full cursor-pointer rounded-lg border border-border bg-white/[0.02] px-3 py-2 text-left text-[0.8rem] text-text-secondary transition-colors duration-150 hover:border-border-strong hover:bg-white/[0.05] hover:text-text-primary"
+                    className="w-full cursor-pointer rounded-lg border border-border bg-tint-1 px-3 py-2 text-left text-body text-text-secondary transition-colors duration-150 hover:border-border-strong hover:bg-tint-2 hover:text-text-primary"
                   >
                     {inner}
                   </button>

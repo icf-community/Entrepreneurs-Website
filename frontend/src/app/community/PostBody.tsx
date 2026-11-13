@@ -40,7 +40,7 @@ function withKeys(segments: PostSegment[]): (PostSegment & { key: number })[] {
 
 export default function PostBody({ body }: { body: string }) {
   return (
-    <p className="text-[0.9rem] text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
+    <p className="text-lead text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
       {withKeys(segmentPostBody(body)).map((segment) =>
         segment.kind === "text" ? (
           <span key={segment.key}>{segment.text}</span>
@@ -53,7 +53,7 @@ export default function PostBody({ body }: { body: string }) {
             className="text-text-primary underline decoration-border-strong underline-offset-2 hover:decoration-accent break-all"
           >
             {segment.href}
-            <span className="ml-1 whitespace-nowrap text-[0.7rem] text-text-muted">
+            <span className="ml-1 whitespace-nowrap text-small text-text-muted">
               ({segment.host})
             </span>
           </a>

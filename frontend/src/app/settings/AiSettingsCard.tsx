@@ -52,8 +52,8 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
 
   return (
     <section id="ai" className="rounded-2xl border border-border bg-bg-card p-6">
-      <h2 className="text-[0.95rem] font-medium text-text-primary">AI matching</h2>
-      <p className="mt-1 text-[0.75rem] text-text-muted">
+      <h2 className="text-lead font-medium text-text-primary">AI matching</h2>
+      <p className="mt-1 text-small text-text-muted">
         Each choice is off until you turn it on. <Link href="/ai-notice" className="underline">How AI search uses your profile</Link>
       </p>
       <div className="mt-4 space-y-4">
@@ -81,12 +81,12 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
         <Checks label="Where I'd like to work" options={LOCATIONS} value={s.prefLocationTypes} disabled={saving}
           onChange={(v) => save({ ...s, prefLocationTypes: v })} />
         <div>
-          <label htmlFor="ai-self-reported" className="text-[0.85rem] text-text-primary">Projects and experience</label>
-          <p className="mt-0.5 text-[0.75rem] text-text-muted">Useful if you haven&apos;t uploaded a CV. Shown as self-reported.</p>
+          <label htmlFor="ai-self-reported" className="text-body text-text-primary">Projects and experience</label>
+          <p className="mt-0.5 text-small text-text-muted">Useful if you haven&apos;t uploaded a CV. Shown as self-reported.</p>
           <textarea id="ai-self-reported" rows={4} maxLength={1200} value={note} onChange={(e) => setNote(e.target.value)}
-            className="mt-2 w-full resize-none rounded-lg border border-border bg-white/[0.03] px-3 py-2 text-[0.8rem] text-text-primary" />
+            className="mt-2 w-full resize-none rounded-lg border border-border bg-tint-1 px-3 py-2 text-body text-text-primary" />
           <div className="mt-1 flex items-center justify-between">
-            <span className="text-[0.7rem] text-text-muted">{note.length}/1200</span>
+            <span className="text-small text-text-muted">{note.length}/1200</span>
             <Button size="sm" variant="ghost" loading={saving} disabled={note === s.selfReported}
               onClick={() => save({ ...s, selfReported: note })}>Save</Button>
           </div>
@@ -94,7 +94,7 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2 border-t border-border-subtle pt-5">
-        <span className="w-full text-[0.75rem] text-text-muted">See exactly what AI search uses:</span>
+        <span className="w-full text-small text-text-muted">See exactly what AI search uses:</span>
         <Button variant="ghost" size="sm" onClick={() => showPreview("self")}>For my job matches</Button>
         {s.recruiterDiscoverable && <Button variant="ghost" size="sm" onClick={() => showPreview("recruiter")}>What recruiters search</Button>}
         {s.networkDiscoverable && <Button variant="ghost" size="sm" onClick={() => showPreview("network")}>What members search</Button>}
@@ -102,11 +102,11 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
       {preview && (
         <div className="mt-3 rounded-lg border border-border p-3">
           {preview.items.length === 0 ? (
-            <p className="text-[0.8rem] text-text-muted">Nothing yet. It updates a few minutes after you change your profile.</p>
+            <p className="text-body text-text-muted">Nothing yet. It updates a few minutes after you change your profile.</p>
           ) : (
             <ul className="space-y-1.5">
               {preview.items.map((item) => (
-                <li key={`${item.kind}:${item.text}`} className="text-[0.8rem] text-text-secondary">
+                <li key={`${item.kind}:${item.text}`} className="text-body text-text-secondary">
                   {item.text}{item.fromCv && <span className="text-text-muted"> · from your CV</span>}
                 </li>
               ))}
@@ -114,7 +114,7 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
           )}
         </div>
       )}
-      {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-body text-danger">{error}</p>}
     </section>
   );
 }
@@ -131,13 +131,13 @@ function TopicPicker({
   const inputId = `topic-${label.replace(/\W+/g, "-").toLowerCase()}`;
   return (
     <div>
-      <label htmlFor={inputId} className="text-[0.85rem] text-text-primary">{label}</label>
+      <label htmlFor={inputId} className="text-body text-text-primary">{label}</label>
       <ul className="mt-2 flex flex-wrap gap-1.5">
         {value.map((slug) => (
-          <li key={slug} className="inline-flex items-center gap-1 rounded-lg border border-border-strong px-2 py-1 text-[0.75rem] text-text-secondary">
+          <li key={slug} className="inline-flex items-center gap-1 rounded-lg border border-border-strong px-2 py-1 text-small text-text-secondary">
             {byslug.get(slug)?.label ?? slug}
             <button type="button" disabled={disabled} aria-label={`Remove ${byslug.get(slug)?.label ?? slug}`}
-              className="cursor-pointer rounded border border-border-strong px-1.5 text-[0.7rem] hover:border-accent"
+              className="cursor-pointer rounded border border-border-strong px-1.5 text-small hover:border-accent"
               onClick={() => onChange(value.filter((v) => v !== slug))}>×</button>
           </li>
         ))}
@@ -145,13 +145,13 @@ function TopicPicker({
       {value.length < 10 && (
         <>
           <input id={inputId} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search topics"
-            className="mt-2 w-full rounded-lg border border-border bg-white/[0.03] px-3 py-2 text-[0.8rem] text-text-primary" />
+            className="mt-2 w-full rounded-lg border border-border bg-tint-1 px-3 py-2 text-body text-text-primary" />
           {matches.length > 0 && (
             <ul className="mt-1 flex flex-wrap gap-1.5">
               {matches.map((c) => (
                 <li key={c.slug}>
                   <button type="button" disabled={disabled}
-                    className="cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-2.5 py-1 text-[0.75rem] text-text-secondary hover:border-accent"
+                    className="cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-2.5 py-1 text-small text-text-secondary hover:border-accent"
                     onClick={() => { onChange([...value, c.slug]); setQuery(""); }}>
                     + {c.label}
                   </button>
@@ -176,8 +176,8 @@ function Checks({
 }) {
   return (
     <fieldset>
-      <legend className="text-[0.85rem] text-text-primary">{label}</legend>
-      <div className="mt-2 flex flex-wrap gap-3 text-[0.8rem] text-text-secondary">
+      <legend className="text-body text-text-primary">{label}</legend>
+      <div className="mt-2 flex flex-wrap gap-3 text-body text-text-secondary">
         {options.map(([v, l]) => (
           <label key={v} className="flex items-center gap-1.5">
             {/* react-doctor-disable-next-line js-set-map-lookups -- array is provably bounded to a tiny fixed size (not user/data-scaled); O(n²) concern doesn't apply */}

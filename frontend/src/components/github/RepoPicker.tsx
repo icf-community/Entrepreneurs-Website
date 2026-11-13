@@ -46,7 +46,7 @@ function Chip({ tone, children }: { tone: "suggested" | "new"; children: string 
       ? "border-accent/60 text-accent"
       : "border-border-strong text-text-secondary";
   return (
-    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[0.62rem] uppercase tracking-[0.1em] ${cls}`}>
+    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-caption tracking-[0.1em] ${cls}`}>
       {children}
     </span>
   );
@@ -127,7 +127,7 @@ export function RepoPicker({
   if (availableRepos.length === 0) {
     return (
       <div className="space-y-4">
-        <p className="text-[0.85rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           Your GitHub is connected — we just didn&apos;t find any public repositories on it yet. Push
           something public and we&apos;ll pick it up automatically.
         </p>
@@ -143,11 +143,11 @@ export function RepoPicker({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <p className="text-[0.85rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           Choose up to {SHOWCASE_MAX_PICKS} projects to spotlight to recruiters. Add a line about each
           one in your own words.
         </p>
-        <p className="text-[0.75rem] text-text-muted">
+        <p className="text-small text-text-muted">
           Change these any time from your profile — when you push something new we&apos;ll let you
           know, at most once a month.
         </p>
@@ -169,19 +169,19 @@ export function RepoPicker({
           fast run down a checklist into a misclick, since the row you meant
           to hit next has already moved by the time the click lands. */}
       {picks.length > 0 && (
-        <div className="space-y-2 rounded-lg border border-accent/40 bg-white/[0.03] p-3">
-          <p className="text-[0.7rem] text-text-muted">
+        <div className="space-y-2 rounded-lg border border-accent/40 bg-tint-1 p-3">
+          <p className="text-small text-text-muted">
             {picks.length} of {SHOWCASE_MAX_PICKS} chosen — in the order recruiters will see them
           </p>
           <ul className="space-y-3">
             {picks.map((pick) => (
               <li key={pick.name}>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-[0.8rem] text-text-primary">{pick.name}</span>
+                  <span className="truncate text-body text-text-primary">{pick.name}</span>
                   <button
                     type="button"
                     onClick={() => remove(pick.name)}
-                    className="shrink-0 cursor-pointer text-[0.7rem] text-text-muted hover:text-[#ff8080]"
+                    className="shrink-0 cursor-pointer text-small text-text-muted hover:text-danger"
                   >
                     Remove
                   </button>
@@ -196,7 +196,7 @@ export function RepoPicker({
                   aria-label={`One line about ${pick.name}`}
                   className={`${inputCls} mt-1`}
                 />
-                <p className="mt-1 text-right text-[0.68rem] text-text-muted">
+                <p className="mt-1 text-right text-caption text-text-muted">
                   {pick.blurb.length}/{SHOWCASE_BLURB_MAX}
                 </p>
               </li>
@@ -205,7 +205,7 @@ export function RepoPicker({
         </div>
       )}
 
-      <p className="text-[0.75rem] text-text-muted" aria-live="polite">
+      <p className="text-small text-text-muted" aria-live="polite">
         {picks.length} of {SHOWCASE_MAX_PICKS} chosen
         {atLimit && " — deselect one below to swap it out"}
       </p>
@@ -218,7 +218,7 @@ export function RepoPicker({
             <li
               key={repo.name}
               className={`rounded-lg border p-3 transition-colors ${
-                picked ? "border-accent bg-white/[0.04]" : "border-border-strong bg-white/[0.02]"
+                picked ? "border-accent bg-tint-2" : "border-border-strong bg-tint-1"
               }`}
             >
               <label className="flex cursor-pointer items-start gap-3">
@@ -234,16 +234,16 @@ export function RepoPicker({
                 />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-[0.85rem] text-text-primary">{repo.name}</span>
+                    <span className="truncate text-body text-text-primary">{repo.name}</span>
                     {suggestedNames.has(repo.name) && <Chip tone="suggested">Suggested</Chip>}
                     {!seenSet.has(repo.name) && <Chip tone="new">New</Chip>}
                   </span>
                   {repo.description && (
-                    <span className="mt-1 block text-[0.78rem] text-text-secondary">
+                    <span className="mt-1 block text-body text-text-secondary">
                       {repo.description}
                     </span>
                   )}
-                  <span className="mt-1 block text-[0.7rem] text-text-muted">
+                  <span className="mt-1 block text-small text-text-muted">
                     {[repo.language, repo.stargazers_count > 0 ? `★ ${repo.stargazers_count}` : null, pushed]
                       .filter(Boolean)
                       .join(" · ")}
@@ -254,7 +254,7 @@ export function RepoPicker({
           );
         })}
         {visible.length === 0 && (
-          <li className="rounded-lg border border-border-strong p-3 text-[0.8rem] text-text-muted">
+          <li className="rounded-lg border border-border-strong p-3 text-body text-text-muted">
             No repositories match “{filter}”.
           </li>
         )}

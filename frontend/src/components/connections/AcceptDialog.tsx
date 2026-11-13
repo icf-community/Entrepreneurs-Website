@@ -93,11 +93,11 @@ export function AcceptDialog({
       className="w-full max-w-[480px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto"
     >
       <div className="px-6 py-5">
-        <h2 className="font-display text-[1.15rem] text-text-primary tracking-tight">
+        <h2 className="font-display text-title text-text-primary tracking-tight">
           Connect with {theirName}?
         </h2>
 
-        <div className="mt-3 space-y-3 text-[0.85rem] text-text-secondary leading-relaxed">
+        <div className="mt-3 space-y-3 text-body text-text-secondary leading-relaxed">
           <p>
             {theirName} will be able to see{" "}
             <strong className="text-text-primary break-all">{myEmail}</strong>, and you&apos;ll
@@ -109,7 +109,7 @@ export function AcceptDialog({
           </p>
         </div>
 
-        {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+        {error && <p role="alert" className="mt-3 text-body text-danger">{error}</p>}
 
         <div className="mt-5 flex items-center justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={closeDialog} disabled={busy}>

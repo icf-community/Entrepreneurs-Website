@@ -53,7 +53,7 @@ export function PendingBadge() {
 
   return (
     <span
-      className="ml-auto shrink-0 rounded-full border border-accent/40 bg-accent-muted px-1.5 py-0.5 text-[0.65rem] font-medium leading-none text-accent-light"
+      className="ml-auto shrink-0 rounded-full border border-accent/40 bg-accent-muted px-1.5 py-0.5 text-caption font-medium leading-none text-accent-light"
       // The number alone reads as "3" to a screen reader, which says
       // nothing. The row's own label supplies the noun.
       aria-label={`${count} pending connection ${count === 1 ? "request" : "requests"}`}

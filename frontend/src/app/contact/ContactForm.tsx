@@ -34,7 +34,7 @@ export default function ContactForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   const inputCls =
-    "w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-white/[0.05]";
+    "w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-tint-2";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +81,7 @@ export default function ContactForm({
       {!lockEmail && (
         <>
           <div data-invalid={fieldErrors.name ? "" : undefined}>
-            <label htmlFor="name" className="block text-[0.75rem] text-text-muted mb-1.5">
+            <label htmlFor="name" className="block text-small text-text-muted mb-1.5">
               Name <span className="text-text-muted ml-2">optional</span>
             </label>
             <input
@@ -97,7 +97,7 @@ export default function ContactForm({
           </div>
 
           <div data-invalid={fieldErrors.email ? "" : undefined}>
-            <label htmlFor="email" className="block text-[0.75rem] text-text-muted mb-1.5">Email</label>
+            <label htmlFor="email" className="block text-small text-text-muted mb-1.5">Email</label>
             <input
               id="email"
               type="email"
@@ -115,7 +115,7 @@ export default function ContactForm({
       )}
 
       <div>
-        <label htmlFor="topic" className="block text-[0.75rem] text-text-muted mb-1.5">What&apos;s this about?</label>
+        <label htmlFor="topic" className="block text-small text-text-muted mb-1.5">What&apos;s this about?</label>
         <select id="topic" value={topic} onChange={(e) => setTopic(e.target.value)} className={inputCls}>
           {CONTACT_TOPICS.map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
@@ -124,7 +124,7 @@ export default function ContactForm({
       </div>
 
       <div data-invalid={fieldErrors.subject ? "" : undefined}>
-        <label htmlFor="subject" className="block text-[0.75rem] text-text-muted mb-1.5">Subject</label>
+        <label htmlFor="subject" className="block text-small text-text-muted mb-1.5">Subject</label>
         <input
           id="subject"
           type="text"
@@ -138,7 +138,7 @@ export default function ContactForm({
       </div>
 
       <div data-invalid={fieldErrors.message ? "" : undefined}>
-        <label htmlFor="message" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="message" className="block text-small text-text-muted mb-1.5">
           Message <span className="text-text-muted ml-2">{message.length}/4000</span>
         </label>
         <textarea

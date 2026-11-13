@@ -22,10 +22,10 @@ export default function NewestMembers({ newest }: { newest: DirectoryMember[] })
       {newest.length > 0 && (
         <section className="mb-10">
           <div className="flex items-baseline justify-between mb-4">
-            <h2 className="font-display text-text-primary text-[1.25rem] tracking-tight">
+            <h2 className="font-display text-text-primary text-title tracking-tight">
               Some of our newest members…
             </h2>
-            <span className="text-[0.7rem] text-text-muted">{newest.length} just joined</span>
+            <span className="text-small text-text-muted">{newest.length} just joined</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {newest.map((m) => <MemberCard key={m.id} member={m} dense onClick={() => setOpenMember(m)} />)}

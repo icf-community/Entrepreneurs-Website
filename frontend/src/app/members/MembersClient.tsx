@@ -148,7 +148,7 @@ function MemberFilterPanel({
       }
     >
       {facets.unavailable && (
-        <p role="status" className="text-[0.8rem] text-text-muted">
+        <p role="status" className="text-body text-text-muted">
           Couldn&apos;t load the course, sector and skill filters. Reload to try again.
         </p>
       )}
@@ -230,7 +230,7 @@ function MemberResultsGrid({
     <div className={`relative ${pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={pending || undefined}>
       {pending && <Updating />}
       {members.length === 0 ? (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
           {facets.total === 0 ? "No members yet." : "No members match your search or filters."}
         </div>
       ) : (

@@ -59,7 +59,7 @@ export function EmailCopy({ email, name }: { email: string; name: string }) {
       <div className="flex items-center gap-1.5">
         <a
           href={mailtoHref(email)}
-          className="min-w-0 flex-1 truncate rounded-lg border border-border-strong bg-white/[0.05] px-2.5 py-1.5 text-[0.75rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.10]"
+          className="min-w-0 flex-1 truncate rounded-lg border border-border-strong bg-tint-2 px-2.5 py-1.5 text-small text-text-primary no-underline transition-colors hover:border-accent hover:bg-tint-4"
           title={`Email ${name} at ${email}`}
         >
           {email}
@@ -71,7 +71,7 @@ export function EmailCopy({ email, name }: { email: string; name: string }) {
           // whole meaning — including whose address it is, because a list
           // of cards otherwise reads as forty identical "Copy" buttons.
           aria-label={`Copy ${name}'s email address`}
-          className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-white/[0.05] text-text-primary transition-colors hover:border-accent hover:bg-white/[0.10] cursor-pointer"
+          className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-tint-2 text-text-primary transition-colors hover:border-accent hover:bg-tint-4 cursor-pointer"
         >
           {state === "copied" ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -102,12 +102,12 @@ export function EmailCopy({ email, name }: { email: string; name: string }) {
         {state === "copied" ? "Email address copied" : ""}
       </p>
       {state === "copied" && (
-        <span className="text-[0.7rem] text-text-muted" aria-hidden>Copied</span>
+        <span className="text-small text-text-muted" aria-hidden>Copied</span>
       )}
 
       {state === "failed" && (
         <div className="flex flex-col gap-1">
-          <span id={hintId} className="text-[0.7rem] text-text-muted">
+          <span id={hintId} className="text-small text-text-muted">
             Your browser blocked the copy. Select the address and copy it yourself:
           </span>
           <input
@@ -117,7 +117,7 @@ export function EmailCopy({ email, name }: { email: string; name: string }) {
             aria-label={`${name}'s email address`}
             aria-describedby={hintId}
             onFocus={(e) => e.currentTarget.select()}
-            className="w-full rounded-lg border border-border-strong bg-bg-secondary px-2.5 py-1.5 text-[0.75rem] text-text-primary"
+            className="w-full rounded-lg border border-border-strong bg-bg-secondary px-2.5 py-1.5 text-small text-text-primary"
           />
         </div>
       )}

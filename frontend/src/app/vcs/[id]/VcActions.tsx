@@ -27,7 +27,7 @@ export default function VcActions({ vc: v, applied }: { vc: Vc; applied: boolean
         target="_blank"
         rel="noreferrer noopener"
         onClick={() => recordListingEvent("vc_grant", v.id, "external_click")}
-        className="inline-block rounded-lg bg-accent px-4 py-2 text-[0.825rem] font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
+        className="inline-block rounded-lg bg-accent px-4 py-2 text-body font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
       >
         Open link ↗
       </a>

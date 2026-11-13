@@ -317,7 +317,7 @@ function ErrorFooter({ onRetry }: { onRetry: () => void }) {
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p role="alert" className="text-[0.8rem] text-text-muted">
+        <p role="alert" className="text-body text-text-muted">
           Couldn&apos;t check your connection status.
         </p>
         <Button variant="ghost" size="sm" className="shrink-0" onClick={onRetry}>
@@ -332,12 +332,12 @@ function ConnectedFooter() {
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           You&apos;re connected. You can see each other&apos;s email address.
         </p>
         <Link
           href="/connections"
-          className="shrink-0 rounded-lg border border-border-strong bg-white/[0.05] px-3 py-1.5 text-[0.75rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.10]"
+          className="shrink-0 rounded-lg border border-border-strong bg-tint-2 px-3 py-1.5 text-small text-text-primary no-underline transition-colors hover:border-accent hover:bg-tint-4"
         >
           View
         </Link>
@@ -362,7 +362,7 @@ function PendingOutgoingFooter({
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-secondary">Request sent — waiting for a reply.</p>
+        <p className="text-body text-text-secondary">Request sent — waiting for a reply.</p>
         <Button
           variant="ghost"
           size="sm"
@@ -404,7 +404,7 @@ function PendingOutgoingFooter({
 function WithdrawnByMeFooter({ firstName, availableAt }: { firstName: string; availableAt: string | null }) {
   return (
     <Footer>
-      <p className="text-[0.8rem] text-text-muted">
+      <p className="text-body text-text-muted">
         You withdrew your request.
         {availableAt && <> You can send {firstName} a new one from {formatWhen(availableAt)}.</>}
       </p>
@@ -416,12 +416,12 @@ function PendingIncomingFooter({ firstName }: { firstName: string }) {
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           {firstName} sent you a connection request.
         </p>
         <Link
           href="/connections?tab=pending"
-          className="shrink-0 rounded-lg border border-border-strong bg-white/[0.05] px-3 py-1.5 text-[0.75rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.10]"
+          className="shrink-0 rounded-lg border border-border-strong bg-tint-2 px-3 py-1.5 text-small text-text-primary no-underline transition-colors hover:border-accent hover:bg-tint-4"
         >
           Review
         </Link>
@@ -442,7 +442,7 @@ function BlockedByMeFooter({
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           You&apos;ve blocked this member. They were never told.
         </p>
         <Button
@@ -455,7 +455,7 @@ function BlockedByMeFooter({
           Unblock
         </Button>
       </div>
-      {error && <p role="alert" className="mt-2 text-[0.8rem] text-[#ff8080]">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-body text-danger">{error}</p>}
     </Footer>
   );
 }
@@ -463,7 +463,7 @@ function BlockedByMeFooter({
 function UnavailableFooter() {
   return (
     <Footer>
-      <p className="text-[0.8rem] text-text-muted">
+      <p className="text-body text-text-muted">
         You can&apos;t send a request to this member right now.
       </p>
     </Footer>
@@ -507,7 +507,7 @@ function NoneFooter({
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p id={ids.status} className="text-[0.8rem] text-text-muted">
+        <p id={ids.status} className="text-body text-text-muted">
           {limited ?? "Connect to exchange email addresses."}
         </p>
         <Button
@@ -582,7 +582,7 @@ function ConnectDialog({
     >
       <div className="px-6 py-5">
         <div className="flex items-start justify-between gap-3">
-          <h2 className="font-display text-[1.15rem] text-text-primary tracking-tight">
+          <h2 className="font-display text-title text-text-primary tracking-tight">
             Connect with {firstName} {surname}?
           </h2>
           <button
@@ -590,7 +590,7 @@ function ConnectDialog({
             aria-label="Close"
             onClick={closeDialog}
             disabled={sending}
-            className="-mr-1 -mt-1 inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-white/[0.05] text-text-primary transition-colors hover:border-accent hover:bg-white/[0.10] disabled:opacity-60"
+            className="-mr-1 -mt-1 inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-tint-2 text-text-primary transition-colors hover:border-accent hover:bg-tint-4 disabled:opacity-60"
           >
             <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
               <path d="M4 4l8 8M12 4l-8 8" />
@@ -599,13 +599,13 @@ function ConnectDialog({
         </div>
 
         <div className="mt-3 space-y-3">
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed">
+          <p className="text-body text-text-secondary leading-relaxed">
             If {firstName} accepts, you&apos;ll each be able to see the other&apos;s email address.
           </p>
           <div>
             <label
               htmlFor={ids.note}
-              className="block text-[0.7rem] uppercase tracking-wider text-text-muted mb-1.5"
+              className="block text-small text-text-muted mb-1.5"
             >
               Add a note (optional)
             </label>
@@ -621,7 +621,7 @@ function ConnectDialog({
               maxLength={CONNECTION_NOTE_MAX * 2}
               placeholder="Why you'd like to connect."
               aria-describedby={ids.count}
-              className="w-full rounded-lg border border-border-strong bg-bg-secondary px-3 py-2 text-[0.85rem] text-text-primary placeholder:text-text-muted"
+              className="w-full rounded-lg border border-border-strong bg-bg-secondary px-3 py-2 text-body text-text-primary placeholder:text-text-muted"
             />
             {/* Described by the textarea AND a live region, because going
                 over the limit disables Send. Colour alone was the only
@@ -632,14 +632,14 @@ function ConnectDialog({
             <div
               id={ids.count}
               aria-live="polite"
-              className={`mt-1 text-[0.7rem] ${tooLong ? "text-[#ff8080]" : "text-text-muted"}`}
+              className={`mt-1 text-small ${tooLong ? "text-danger" : "text-text-muted"}`}
             >
               {used}/{CONNECTION_NOTE_MAX}
               {tooLong && ` — too long to send, shorten it by ${used - CONNECTION_NOTE_MAX}`}
             </div>
           </div>
           {error && (
-            <p role="alert" className="text-[0.8rem] text-[#ff8080]">{error}</p>
+            <p role="alert" className="text-body text-danger">{error}</p>
           )}
         </div>
 

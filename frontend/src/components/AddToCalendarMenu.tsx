@@ -57,7 +57,7 @@ export function AddToCalendarMenu(props: Props) {
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.8rem] font-medium transition-colors cursor-pointer hover:bg-white/[0.10] hover:border-accent"
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body font-medium transition-colors cursor-pointer hover:bg-tint-4 hover:border-accent"
       >
         <CalendarIcon />
         Add to calendar
@@ -74,7 +74,7 @@ export function AddToCalendarMenu(props: Props) {
             target="_blank"
             rel="noreferrer noopener"
             onClick={close}
-            className="block px-4 py-2.5 text-[0.825rem] text-text-secondary no-underline transition-colors hover:bg-white/[0.04] hover:text-text-primary"
+            className="block px-4 py-2.5 text-body text-text-secondary no-underline transition-colors hover:bg-tint-2 hover:text-text-primary"
           >
             Google Calendar ↗
           </a>
@@ -82,7 +82,7 @@ export function AddToCalendarMenu(props: Props) {
             href={icsUrl}
             download={`${icsName}.ics`}
             onClick={close}
-            className="block px-4 py-2.5 text-[0.825rem] text-text-secondary no-underline transition-colors hover:bg-white/[0.04] hover:text-text-primary border-t border-border-subtle"
+            className="block px-4 py-2.5 text-body text-text-secondary no-underline transition-colors hover:bg-tint-2 hover:text-text-primary border-t border-border-subtle"
           >
             Download .ics (Apple / Outlook)
           </a>

@@ -49,7 +49,7 @@ export default function GraduatesClient({ defaultCutoff }: { defaultCutoff: numb
     <div className="space-y-6">
       <div className="space-y-5 rounded-2xl border border-border bg-bg-card p-6">
         <div>
-          <label htmlFor="cutoff" className="mb-1.5 block text-[0.75rem] text-text-muted">Cutoff graduation year</label>
+          <label htmlFor="cutoff" className="mb-1.5 block text-small text-text-muted">Cutoff graduation year</label>
           <input
             id="cutoff"
             type="number"
@@ -57,9 +57,9 @@ export default function GraduatesClient({ defaultCutoff }: { defaultCutoff: numb
             onChange={(e) => setCutoff(e.target.value)}
             min={1950}
             max={2099}
-            className="w-[200px] rounded-lg border border-border-strong bg-white/[0.03] px-4 py-3 text-[0.85rem] text-text-primary focus:border-accent/50"
+            className="w-[200px] rounded-lg border border-border-strong bg-tint-1 px-4 py-3 text-body text-text-primary focus:border-accent/50"
           />
-          <p className="mt-1.5 text-[0.725rem] text-text-muted">
+          <p className="mt-1.5 text-small text-text-muted">
             Students whose graduation year is at or before this are asked once whether they&apos;ve graduated.
           </p>
         </div>
@@ -68,7 +68,7 @@ export default function GraduatesClient({ defaultCutoff }: { defaultCutoff: numb
         </Button>
         {error && <ErrorBanner>{error}</ErrorBanner>}
         {done && (
-          <p role="status" className="text-[0.825rem] text-text-secondary">
+          <p role="status" className="text-body text-text-secondary">
             Asked {done.prompted} student{done.prompted === 1 ? "" : "s"}; {done.emailsQueued} email{done.emailsQueued === 1 ? "" : "s"} queued.
           </p>
         )}
@@ -76,26 +76,26 @@ export default function GraduatesClient({ defaultCutoff }: { defaultCutoff: numb
 
       {preview && (
         <section aria-labelledby="grad-preview" className="rounded-2xl border border-border bg-bg-card p-6">
-          <h2 id="grad-preview" className="mb-4 font-display text-[1.1rem] text-text-primary">
+          <h2 id="grad-preview" className="mb-4 font-display text-lead text-text-primary">
             {preview.count} student{preview.count === 1 ? "" : "s"} will be asked
           </h2>
           {preview.count === 0 ? (
-            <p className="text-[0.85rem] text-text-muted">Nobody to ask at this cutoff, or everyone due has been asked already.</p>
+            <p className="text-body text-text-muted">Nobody to ask at this cutoff, or everyone due has been asked already.</p>
           ) : (
             <>
               <ul className="mb-5 space-y-2">
                 {preview.sample.map((m) => (
-                  <li key={m.id} className="text-[0.85rem] text-text-secondary">
+                  <li key={m.id} className="text-body text-text-secondary">
                     {m.firstName} {m.surname} <span className="text-text-muted">· grad {m.gradYear}</span>
                   </li>
                 ))}
                 {preview.count > preview.sample.length && (
-                  <li className="text-[0.8rem] italic text-text-muted">+ {preview.count - preview.sample.length} more</li>
+                  <li className="text-body italic text-text-muted">+ {preview.count - preview.sample.length} more</li>
                 )}
               </ul>
               {confirming ? (
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-[0.825rem] text-text-secondary">Email {preview.count} student{preview.count === 1 ? "" : "s"} and show them the prompt?</span>
+                  <span className="text-body text-text-secondary">Email {preview.count} student{preview.count === 1 ? "" : "s"} and show them the prompt?</span>
                   <Button type="button" onClick={handleSend} loading={pending}>Send</Button>
                   <Button type="button" variant="ghost" onClick={() => setConfirming(false)} disabled={pending}>Cancel</Button>
                 </div>

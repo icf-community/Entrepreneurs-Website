@@ -32,7 +32,7 @@ export function RejectionForm({ id, reason, onReasonChange, placeholder, label, 
 }) {
   return (
     <div className="space-y-3 pt-3 border-t border-border-subtle">
-      <label htmlFor={id} className="block text-[0.75rem] text-text-muted">
+      <label htmlFor={id} className="block text-small text-text-muted">
         {label}
       </label>
       <textarea
@@ -41,7 +41,7 @@ export function RejectionForm({ id, reason, onReasonChange, placeholder, label, 
         value={reason}
         onChange={(e) => onReasonChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.8rem] text-text-primary placeholder:text-text-muted focus:border-accent/50 resize-none"
+        className="w-full px-3 py-2 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted focus:border-accent/50 resize-none"
       />
       <div className="flex gap-2">
         <Button type="button" onClick={onConfirm} disabled={pending || !reason.trim()} variant="danger" size="sm">

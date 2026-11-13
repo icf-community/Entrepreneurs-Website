@@ -159,12 +159,12 @@ export function GithubDialog({
       className="w-full max-w-[560px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto p-7"
     >
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-[1.2rem] text-text-primary">Your GitHub</h2>
+        <h2 className="font-display text-title text-text-primary">Your GitHub</h2>
         <button
           type="button"
           onClick={closeDialog}
           aria-label="Close"
-          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 text-text-muted transition-colors hover:bg-white/[0.06]"
+          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 text-text-muted transition-colors hover:bg-tint-3"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M18 6L6 18M6 6l12 12" />
@@ -174,7 +174,7 @@ export function GithubDialog({
 
       {phase === "loadFailed" && (
         <div className="space-y-3">
-          <p role="alert" className="text-[0.85rem] text-text-muted">
+          <p role="alert" className="text-body text-text-muted">
             We couldn&apos;t load your repositories just now. Your GitHub is still connected.
           </p>
           <Button
@@ -199,7 +199,7 @@ export function GithubDialog({
 
       {phase === "scanning" && (
         <div className="space-y-3">
-          <p className="text-[0.85rem] text-text-secondary">Reading your public repositories…</p>
+          <p className="text-body text-text-secondary">Reading your public repositories…</p>
           <Skeleton className="h-3 w-full" />
           <Skeleton className="h-3 w-5/6" />
           <Skeleton className="h-3 w-2/3" />
@@ -207,7 +207,7 @@ export function GithubDialog({
       )}
 
       {phase === "failed" && (
-        <p className="text-[0.85rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           {failureReason ?? "We couldn't scan your GitHub repositories. You may need to reconnect."}
         </p>
       )}
@@ -230,7 +230,7 @@ export function GithubDialog({
 
       {phase === "saved" && (
         <div className="space-y-3">
-          <p className="text-[0.85rem] text-text-secondary">
+          <p className="text-body text-text-secondary">
             Saved. These are what recruiters will see — updating your profile summary to match.
           </p>
           <Skeleton className="h-3 w-full" />

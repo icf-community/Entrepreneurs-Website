@@ -162,8 +162,8 @@ export function AvatarCropper({
   };
 
   return (
-    <div className="rounded-lg border border-border-strong bg-white/[0.04] p-5">
-      {error && <p className="mb-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+    <div className="rounded-lg border border-border-strong bg-tint-2 p-5">
+      {error && <p className="mb-3 text-body text-danger">{error}</p>}
 
       {/* Always rendered (not gated on bitmap) so containerRef can measure
           the real available width before the first image ever loads —
@@ -196,7 +196,7 @@ export function AvatarCropper({
       {bitmap && (
         <>
           <div className="mt-5">
-            <label htmlFor={zoomId} className="mb-1.5 block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary">
+            <label htmlFor={zoomId} className="mb-1.5 block text-small font-medium tracking-[0.14em] text-text-secondary">
               Zoom
             </label>
             <input
@@ -215,14 +215,14 @@ export function AvatarCropper({
             <button
               type="button"
               onClick={confirm}
-              className="cursor-pointer rounded-lg border border-accent bg-accent px-4 py-2 text-[0.8rem] font-medium text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
+              className="cursor-pointer rounded-lg border border-accent bg-accent px-4 py-2 text-body font-medium text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
             >
               Use this photo
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="cursor-pointer rounded-lg border border-border-strong bg-white/[0.03] px-4 py-2 text-[0.8rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+              className="cursor-pointer rounded-lg border border-border-strong bg-tint-1 px-4 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
             >
               Choose a different photo
             </button>

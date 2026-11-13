@@ -10,14 +10,14 @@ export default async function AdminNewVcPage() {
         <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
           <div className="min-w-0">
             <p className="label-wide text-text-secondary mb-3">Admin · direct publish</p>
-            <h1 className="font-display text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.1] tracking-tight">
+            <h1 className="font-display text-display leading-[1.1] tracking-tight">
               New VC / grant
             </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2">
+            <p className="text-body text-text-muted mt-2">
               Skips the approval queue — published immediately.
             </p>
           </div>
-          <Link href="/admin/vcs" className="text-[0.8rem] text-text-secondary no-underline hover:text-text-primary">
+          <Link href="/admin/vcs" className="text-body text-text-secondary no-underline hover:text-text-primary">
             ← Back to queue
           </Link>
         </div>

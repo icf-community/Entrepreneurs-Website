@@ -269,13 +269,13 @@ function ApplyMethodSection({
 }) {
   return (
     <div className="pt-2 border-t border-border-subtle">
-      <div className="text-[0.85rem] text-text-primary mb-3 mt-3">How should applicants apply?</div>
+      <div className="text-body text-text-primary mb-3 mt-3">How should applicants apply?</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${applyMethod === "email" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-white/[0.02] border-border text-text-secondary hover:border-accent"}`}>
+        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${applyMethod === "email" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
           <input type="radio" name="apply-method" value="email" checked={applyMethod === "email"} onChange={() => onApplyMethodChange("email")} className="mr-2" />
           Contact me directly
         </label>
-        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${applyMethod === "link" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-white/[0.02] border-border text-text-secondary hover:border-accent"}`}>
+        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${applyMethod === "link" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
           <input type="radio" name="apply-method" value="link" checked={applyMethod === "link"} onChange={() => onApplyMethodChange("link")} className="mr-2" />
           Application portal link
         </label>
@@ -311,13 +311,13 @@ function EligibleAudienceFieldset({
 }) {
   return (
     <fieldset className="pt-2 border-t border-border-subtle" data-invalid={error ? "" : undefined}>
-      <legend className="text-[0.85rem] text-text-primary mb-1 mt-3">Who is this job for? <span className="text-text-muted">*</span></legend>
-      <p className="text-[0.75rem] text-text-muted leading-relaxed mb-3">
+      <legend className="text-body text-text-primary mb-1 mt-3">Who is this job for? <span className="text-text-muted">*</span></legend>
+      <p className="text-small text-text-muted leading-relaxed mb-3">
         Graduates means anyone who has finished a degree, whatever their role here.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {AUDIENCES.map((a) => (
-          <label key={a.value} className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${value === a.value ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-white/[0.02] border-border text-text-secondary hover:border-accent"}`}>
+          <label key={a.value} className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${value === a.value ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
             <input type="radio" name="eligible-audience" value={a.value} checked={value === a.value} onChange={() => onChange(a.value)} className="mr-2" />
             {a.label}
           </label>

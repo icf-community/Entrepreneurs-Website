@@ -90,7 +90,7 @@ export default function EmailChangeForm({
   const [error, setError] = useState("");
 
   const inputCls =
-    "w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-white/[0.05]";
+    "w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-tint-2";
   const codeCls = `${inputCls} font-mono tracking-[0.3em] text-center`;
 
   const pending = newEmail.trim().toLowerCase();
@@ -205,8 +205,8 @@ export default function EmailChangeForm({
   if (stage === "done") {
     return (
       <div className="space-y-3 rounded-2xl bg-bg-card border border-border p-8">
-        <div className="text-[0.95rem] font-medium text-text-primary">Email address</div>
-        <div className="px-4 py-3 rounded-lg bg-accent-muted border border-accent/30 text-[0.8rem] text-accent-light leading-relaxed">
+        <div className="text-lead font-medium text-text-primary">Email address</div>
+        <div className="px-4 py-3 rounded-lg bg-accent-muted border border-accent/30 text-body text-accent-light leading-relaxed">
           Your email address has been changed. Use the new address next time you sign in.
         </div>
       </div>
@@ -219,8 +219,8 @@ export default function EmailChangeForm({
       className="space-y-5 rounded-2xl bg-bg-card border border-border p-8"
     >
       <div>
-        <div className="text-[0.95rem] font-medium text-text-primary mb-1">Change email address</div>
-        <p className="text-[0.8rem] text-text-muted leading-relaxed">
+        <div className="text-lead font-medium text-text-primary mb-1">Change email address</div>
+        <p className="text-body text-text-muted leading-relaxed">
           {stage === "idle" ? (
             <>
               We&apos;ll send a code to your old address and another to the new one. Both are needed:
@@ -237,7 +237,7 @@ export default function EmailChangeForm({
 
       {stage === "idle" ? (
         <div>
-          <label htmlFor="new-email" className="block text-[0.75rem] text-text-muted mb-1.5">
+          <label htmlFor="new-email" className="block text-small text-text-muted mb-1.5">
             New email address
           </label>
           <input
@@ -251,7 +251,7 @@ export default function EmailChangeForm({
             required
           />
 
-          <label htmlFor="confirm-email" className="block text-[0.75rem] text-text-muted mb-1.5 mt-4">
+          <label htmlFor="confirm-email" className="block text-small text-text-muted mb-1.5 mt-4">
             Confirm new email address
           </label>
           <input
@@ -268,7 +268,7 @@ export default function EmailChangeForm({
       ) : (
         <div className="space-y-4">
           <div>
-            <label htmlFor="code-current" className="block text-[0.75rem] text-text-muted mb-1.5">
+            <label htmlFor="code-current" className="block text-small text-text-muted mb-1.5">
               Code sent to your old email address
             </label>
             <input
@@ -284,14 +284,14 @@ export default function EmailChangeForm({
               required={!currentConfirmed}
             />
             {currentConfirmed && (
-              <p className="mt-2 text-[0.75rem] text-accent-light">
+              <p className="mt-2 text-small text-accent-light">
                 Confirmed. Only the code sent to your new address is still needed.
               </p>
             )}
           </div>
 
           <div>
-            <label htmlFor="code-new" className="block text-[0.75rem] text-text-muted mb-1.5">
+            <label htmlFor="code-new" className="block text-small text-text-muted mb-1.5">
               Code sent to your new email address
             </label>
             <input
@@ -309,7 +309,7 @@ export default function EmailChangeForm({
 
           {/* An unrequested email change is an account-takeover signal, so the
               way out has to be on the screen at the moment it is noticed. */}
-          <p className="text-[0.75rem] text-text-muted leading-relaxed">
+          <p className="text-small text-text-muted leading-relaxed">
             Didn&apos;t ask for this? Don&apos;t enter the codes —{" "}
             <Link href="/contact" className="text-accent hover:text-accent-light">
               contact the team

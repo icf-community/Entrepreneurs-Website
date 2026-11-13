@@ -36,7 +36,7 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
   };
 
   const inputCls =
-    "w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-white/[0.05]";
+    "w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-tint-2";
 
   // OAuth-only (Google) accounts have no password to manage — hide the card entirely.
   if (!hasPassword) return null;
@@ -125,8 +125,8 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
   return (
     <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
       <div>
-        <div className="text-[0.95rem] font-medium text-text-primary mb-1">Change password</div>
-        <p className="text-[0.8rem] text-text-muted leading-relaxed">
+        <div className="text-lead font-medium text-text-primary mb-1">Change password</div>
+        <p className="text-body text-text-muted leading-relaxed">
           You&apos;ll stay signed in on this device. Every other device you&apos;re signed in on will be signed out automatically.
         </p>
       </div>
@@ -135,7 +135,7 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
       {saved && !error && <SuccessBanner>Password updated.</SuccessBanner>}
 
       <div>
-        <label htmlFor="current-password" className="block text-[0.75rem] text-text-muted mb-1.5">Current password</label>
+        <label htmlFor="current-password" className="block text-small text-text-muted mb-1.5">Current password</label>
         <input
           id="current-password"
           type="password"
@@ -148,7 +148,7 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
       </div>
 
       <div>
-        <label htmlFor="new-password" className="block text-[0.75rem] text-text-muted mb-1.5">New password</label>
+        <label htmlFor="new-password" className="block text-small text-text-muted mb-1.5">New password</label>
         <input
           id="new-password"
           type="password"
@@ -162,7 +162,7 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
       </div>
 
       <div>
-        <label htmlFor="confirm-password" className="block text-[0.75rem] text-text-muted mb-1.5">Confirm new password</label>
+        <label htmlFor="confirm-password" className="block text-small text-text-muted mb-1.5">Confirm new password</label>
         <input
           id="confirm-password"
           type="password"

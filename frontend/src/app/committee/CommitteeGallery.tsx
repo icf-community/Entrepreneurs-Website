@@ -103,14 +103,14 @@ export default function CommitteeGallery({ members }: { members: CommitteeMember
             type="button"
             onClick={prev}
             aria-label="Previous committee member"
-            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-tint-2 text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M12 4l-6 6 6 6" />
             </svg>
           </button>
 
-          <p className="w-24 text-center text-[0.7rem] font-mono text-text-muted">
+          <p className="w-24 text-center text-small font-mono text-text-muted">
             {index + 1} of {total}
           </p>
 
@@ -118,7 +118,7 @@ export default function CommitteeGallery({ members }: { members: CommitteeMember
             type="button"
             onClick={next}
             aria-label="Next committee member"
-            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-tint-2 text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M8 4l6 6-6 6" />

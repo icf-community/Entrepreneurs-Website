@@ -48,7 +48,7 @@ export default function NotificationsList({ initial }: { initial: Notification[]
 
   if (items.length === 0) {
     return (
-      <p className="rounded-2xl border border-border bg-bg-card p-6 text-[0.85rem] text-text-muted">
+      <p className="rounded-2xl border border-border bg-bg-card p-6 text-body text-text-muted">
         Nothing yet. Connection requests, listing decisions and replies to your reports show up here.
       </p>
     );
@@ -57,7 +57,7 @@ export default function NotificationsList({ initial }: { initial: Notification[]
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-muted">{unread === 0 ? "All caught up." : `${unread} unread`}</p>
+        <p className="text-body text-text-muted">{unread === 0 ? "All caught up." : `${unread} unread`}</p>
         {unread > 0 && (
           <Button variant="ghost" size="sm" loading={marking} onClick={markAll}>
             Mark all as read
@@ -69,19 +69,19 @@ export default function NotificationsList({ initial }: { initial: Notification[]
           const content = (
             <>
               <span className="flex items-start justify-between gap-3">
-                <span className={`text-[0.875rem] ${n.readAt ? "text-text-secondary" : "font-medium text-text-primary"}`}>
+                <span className={`text-body ${n.readAt ? "text-text-secondary" : "font-medium text-text-primary"}`}>
                   {!n.readAt && <span className="sr-only">Unread: </span>}
                   {n.title}
                 </span>
                 {/* suppressHydrationWarning: formats in the viewer's local
                     zone, which legitimately differs from the server's. */}
-                <span className="shrink-0 text-[0.72rem] text-text-muted" suppressHydrationWarning>{when(n.createdAt)}</span>
+                <span className="shrink-0 text-small text-text-muted" suppressHydrationWarning>{when(n.createdAt)}</span>
               </span>
-              {n.body && <span className="mt-1 block text-[0.8rem] text-text-muted">{n.body}</span>}
+              {n.body && <span className="mt-1 block text-body text-text-muted">{n.body}</span>}
             </>
           );
           const cls = `block rounded-xl border px-4 py-3 no-underline transition-colors ${
-            n.readAt ? "border-border bg-white/[0.02]" : "border-border-strong bg-white/[0.05]"
+            n.readAt ? "border-border bg-tint-1" : "border-border-strong bg-tint-2"
           }`;
           return (
             <li key={n.id}>

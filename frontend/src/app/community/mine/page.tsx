@@ -33,10 +33,10 @@ export default async function MyPostsPage() {
         <div className="max-w-[720px] mx-auto">
           <div className="mb-8 rule-draw pt-4">
             <p className="label-wide text-text-muted mb-6">Community</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               My posts
             </h1>
-            <p className="mt-3 text-[0.875rem] text-text-secondary leading-relaxed">
+            <p className="mt-3 text-body text-text-secondary leading-relaxed">
               Everything you&rsquo;ve posted that hasn&rsquo;t expired yet. Posts are deleted
               automatically seven days after publishing, and you can remove one sooner at any time.
             </p>

@@ -46,7 +46,7 @@ export default function SessionsSection() {
   return (
     <div className="rounded-2xl bg-bg-card border border-border p-8 space-y-5">
       <div>
-        <div className="text-[0.95rem] font-medium text-text-primary">Active sessions</div>
+        <div className="text-lead font-medium text-text-primary">Active sessions</div>
       </div>
 
       {error && <ErrorBanner>{error}</ErrorBanner>}
@@ -55,13 +55,13 @@ export default function SessionsSection() {
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="px-5 py-2.5 rounded-lg bg-transparent border border-[#ff4d4d]/25 text-[#ff6b6b] text-[0.825rem] font-medium cursor-pointer transition-colors hover:bg-[#ff4d4d]/10"
+          className="px-5 py-2.5 rounded-lg bg-transparent border border-danger/25 text-danger text-body font-medium cursor-pointer transition-colors hover:bg-danger/10"
         >
           Sign out everywhere
         </button>
       ) : (
         <div className="space-y-3">
-          <p className="text-[0.8rem] text-[#ff8b8b] leading-relaxed">
+          <p className="text-body text-danger leading-relaxed">
             This will sign you out on this device too. You&apos;ll have to sign in again to get back to Foundry.
           </p>
           <div className="flex gap-2">
@@ -69,7 +69,7 @@ export default function SessionsSection() {
               type="button"
               onClick={handleSignOutEverywhere}
               disabled={pending}
-              className="px-5 py-2.5 rounded-lg bg-[#ff4d4d]/15 border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.825rem] font-medium cursor-pointer transition-colors hover:bg-[#ff4d4d]/25 disabled:opacity-60"
+              className="px-5 py-2.5 rounded-lg bg-danger/15 border border-danger/30 text-danger text-body font-medium cursor-pointer transition-colors hover:bg-danger/25 disabled:opacity-60"
             >
               {pending ? "Signing out…" : "Confirm — sign out everywhere"}
             </button>
@@ -77,7 +77,7 @@ export default function SessionsSection() {
               type="button"
               onClick={() => setConfirming(false)}
               disabled={pending}
-              className="px-5 py-2.5 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.825rem] cursor-pointer transition-colors hover:bg-white/[0.10] disabled:opacity-60"
+              className="px-5 py-2.5 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body cursor-pointer transition-colors hover:bg-tint-4 disabled:opacity-60"
             >
               Cancel
             </button>

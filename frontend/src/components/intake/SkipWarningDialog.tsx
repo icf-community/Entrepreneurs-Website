@@ -33,17 +33,17 @@ export function SkipWarningDialog({
       label="You haven't added a CV or GitHub"
       className="w-full max-w-[480px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto p-7"
     >
-      <h2 className="mb-3 font-display text-[1.2rem] text-text-primary">
+      <h2 className="mb-3 font-display text-title text-text-primary">
         Recruiters won&apos;t be able to find you
       </h2>
 
-      <p className="mb-4 text-[0.85rem] leading-[1.65] text-text-secondary">
+      <p className="mb-4 text-body leading-[1.65] text-text-secondary">
         You haven&apos;t given us your CV or your GitHub profile — you won&apos;t be visible to
         recruiters for their job postings. If you&apos;d rather not do it here, you can always upload
         your CV and connect GitHub from your profile page later.
       </p>
 
-      <p className="mb-6 text-[0.8rem] leading-[1.6] text-text-muted">
+      <p className="mb-6 text-body leading-[1.6] text-text-muted">
         You can change which projects you spotlight to recruiters any time, and we&apos;ll email you
         when there&apos;s something new worth adding — at most once a month.
       </p>

@@ -17,7 +17,7 @@ export function IntakeProgressBar({ pct }: { pct: number }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="shrink-0 font-mono text-[0.7rem] text-text-muted">
+      <span className="shrink-0 font-mono text-small text-text-muted">
         {pct}% profile complete
       </span>
     </div>

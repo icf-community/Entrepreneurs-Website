@@ -33,8 +33,8 @@ export function GraduationPrompt({ currentYear }: { currentYear: number }) {
 
   return (
     <section aria-labelledby="grad-heading" className="mb-10 rounded-2xl border border-border-strong bg-bg-card p-5">
-      <h2 id="grad-heading" className="text-[0.95rem] font-medium text-text-primary">Have you graduated?</h2>
-      <p className="mt-1 text-[0.85rem] text-text-muted">
+      <h2 id="grad-heading" className="text-lead font-medium text-text-primary">Have you graduated?</h2>
+      <p className="mt-1 text-body text-text-muted">
         Confirm it to keep your account and see roles for graduates.{" "}
         <Link href="/settings" className="underline">Add a personal email</Link> before your Imperial address is switched off.
       </p>
@@ -45,17 +45,17 @@ export function GraduationPrompt({ currentYear }: { currentYear: number }) {
           onClick={() => setAnswer("no")}>Not yet</Button>
       </div>
       {answer === "yes" && (
-        <label className="mt-4 flex items-center gap-2 text-[0.85rem] text-text-secondary">
+        <label className="mt-4 flex items-center gap-2 text-body text-text-secondary">
           <input type="checkbox" checked={stillEnrolled} onChange={(e) => setStillEnrolled(e.target.checked)}
             className="h-4 w-4 rounded border border-border-strong" />
           I&apos;m starting another degree at Imperial
         </label>
       )}
       {answer === "no" && (
-        <label className="mt-4 flex items-center gap-2 text-[0.85rem] text-text-secondary">
+        <label className="mt-4 flex items-center gap-2 text-body text-text-secondary">
           I now expect to graduate in
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}
-            className="rounded-lg border border-border-strong bg-white/[0.03] px-2 py-1 text-text-primary">
+            className="rounded-lg border border-border-strong bg-tint-1 px-2 py-1 text-text-primary">
             {Array.from({ length: 7 }, (_, i) => currentYear + i).map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </label>
@@ -65,7 +65,7 @@ export function GraduationPrompt({ currentYear }: { currentYear: number }) {
           <Button type="button" onClick={save} loading={saving}>Save</Button>
         </div>
       )}
-      {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8a8a]">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-body text-danger">{error}</p>}
     </section>
   );
 }

@@ -56,7 +56,7 @@ export default async function CommunityPage({
         <div className="max-w-[1200px] mx-auto">
           <div className="mb-8 rule-draw pt-4">
             <p className="label-wide text-text-muted mb-6">Members</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               The Foundry directory
             </h1>
           </div>

@@ -54,26 +54,26 @@ export function MemberCard({
         <MemberPhoto member={m} aspect="aspect-square" rounded="rounded-t-2xl" />
 
         <div className={`border-t border-border ${dense ? "p-3" : "p-4"}`}>
-          <div className={`font-medium text-text-primary truncate ${dense ? "text-[0.875rem]" : "text-[0.95rem]"}`}>
+          <div className={`font-medium text-text-primary truncate ${dense ? "text-body" : "text-lead"}`}>
             {m.firstName} {m.surname}
           </div>
-          <div className={`text-text-muted mt-0.5 truncate ${dense ? "text-[0.7rem]" : "text-[0.725rem]"}`}>
+          <div className={`text-text-muted mt-0.5 truncate ${dense ? "text-small" : "text-small"}`}>
             {memberSubtitle(m)}
           </div>
           {m.course && (
-            <div className={`text-text-secondary mt-1 truncate ${dense ? "text-[0.7rem]" : "text-[0.725rem]"}`}>
+            <div className={`text-text-secondary mt-1 truncate ${dense ? "text-small" : "text-small"}`}>
               {m.course}
             </div>
           )}
 
           {!dense && m.bioPreview && (
-            <p className="mt-3 line-clamp-2 break-words text-[0.8rem] leading-relaxed text-text-secondary">
+            <p className="mt-3 line-clamp-2 break-words text-body leading-relaxed text-text-secondary">
               {m.bioPreview}
             </p>
           )}
 
           {!dense && m.hobbiesPreview && (
-            <div className="mt-2 line-clamp-1 break-all text-[0.75rem] leading-relaxed text-text-muted">
+            <div className="mt-2 line-clamp-1 break-all text-small leading-relaxed text-text-muted">
               <span className="label-wide text-text-muted">Outside of that:</span> {m.hobbiesPreview}
             </div>
           )}
@@ -81,13 +81,13 @@ export function MemberCard({
       </div>
 
       {!dense && m.lookingFor.length > 0 && (
-        <div className="relative z-10 flex items-center flex-wrap gap-1.5 px-4 pb-4 text-[0.7rem] text-text-muted">
+        <div className="relative z-10 flex items-center flex-wrap gap-1.5 px-4 pb-4 text-small text-text-muted">
           <span>Looking for</span>
           {m.lookingFor.slice(0, MAX_LOOKING_FOR).map((lf) => (
             <Link
               key={lf.id}
               href={`/opportunities/${lf.id}`}
-              className="rounded-lg border border-border-strong px-2 py-0.5 text-[0.7rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.06]"
+              className="rounded-lg border border-border-strong px-2 py-0.5 text-small text-text-primary no-underline transition-colors hover:border-accent hover:bg-tint-3"
             >
               {lf.role}
             </Link>

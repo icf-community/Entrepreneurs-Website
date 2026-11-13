@@ -48,13 +48,13 @@ export default async function RejectedPage() {
 
       <main id="main-content" tabIndex={-1} className="flex-1 flex items-center justify-center px-8 py-12">
         <div className="w-full max-w-[520px] text-center">
-          <h1 className="font-display text-text-primary leading-[1.1] tracking-tight mb-6 text-[clamp(2rem,4vw,2.75rem)]">
+          <h1 className="font-display text-text-primary leading-[1.1] tracking-tight mb-6 text-display">
             Application not approved.
           </h1>
-          <p className="text-[0.95rem] text-text-secondary leading-[1.7] mb-3">
+          <p className="text-lead text-text-secondary leading-[1.7] mb-3">
             Thanks for your interest in Foundry. Unfortunately, we weren&apos;t able to approve your membership.
           </p>
-          <p className="text-[0.875rem] text-text-muted leading-[1.7]">
+          <p className="text-body text-text-muted leading-[1.7]">
             If you believe this was a mistake or your circumstances have changed,
             please reply to the email we sent and we&apos;ll take another look.
           </p>

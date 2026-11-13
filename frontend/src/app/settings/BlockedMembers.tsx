@@ -81,8 +81,8 @@ export default function BlockedMembers() {
   if (loadFailed) {
     return (
       <section className="rounded-2xl border border-border bg-bg-card p-6">
-        <h2 className="text-[0.95rem] font-medium text-text-primary">Blocked members</h2>
-        <p role="alert" className="mt-1 text-[0.8rem] text-text-muted">
+        <h2 className="text-lead font-medium text-text-primary">Blocked members</h2>
+        <p role="alert" className="mt-1 text-body text-text-muted">
           Couldn&apos;t load the people you&apos;ve blocked.
         </p>
         <Button
@@ -104,8 +104,8 @@ export default function BlockedMembers() {
 
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-6">
-      <h2 className="text-[0.95rem] font-medium text-text-primary">Blocked members</h2>
-      <p className="mt-1 text-[0.75rem] text-text-muted leading-relaxed">
+      <h2 className="text-lead font-medium text-text-primary">Blocked members</h2>
+      <p className="mt-1 text-small text-text-muted leading-relaxed">
         They can&apos;t send you connection requests, and they were never told. Unblocking
         does not restore a connection you had before.
       </p>
@@ -117,11 +117,11 @@ export default function BlockedMembers() {
             className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
           >
             <div className="min-w-0">
-              <div className="truncate text-[0.85rem] text-text-primary">
+              <div className="truncate text-body text-text-primary">
                 {b.first_name} {b.surname}
               </div>
               {b.course && (
-                <div className="truncate text-[0.725rem] text-text-muted">{b.course}</div>
+                <div className="truncate text-small text-text-muted">{b.course}</div>
               )}
             </div>
             <Button
@@ -137,7 +137,7 @@ export default function BlockedMembers() {
         ))}
       </ul>
 
-      {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-body text-danger">{error}</p>}
     </section>
   );
 }

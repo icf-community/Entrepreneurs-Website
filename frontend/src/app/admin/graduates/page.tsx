@@ -15,16 +15,16 @@ export default async function AdminGraduatesPage() {
         <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
           <div className="min-w-0">
             <p className="label-wide text-text-secondary mb-3">Admin · graduates</p>
-            <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">
+            <h1 className="font-display text-display leading-[1.1] tracking-tight">
               Ask graduating students to confirm
             </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2 leading-relaxed">
+            <p className="text-body text-text-muted mt-2 leading-relaxed">
               Graduates keep their accounts. Each student asked confirms once and, if they&apos;ve graduated, becomes a recent graduate.
             </p>
           </div>
           <Link
             href="/admin"
-            className="text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary"
+            className="text-body text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary"
           >
             ← Admin home
           </Link>

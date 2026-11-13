@@ -41,19 +41,19 @@ export default function IngestionToggle({ initial }: { initial: IngestionStatus 
   return (
     <div className="mt-12 rule-draw pt-6">
       <p className="label-wide text-text-secondary mb-3">GitHub / CV ingestion</p>
-      <p className="text-[0.8rem] text-text-muted mb-4 leading-relaxed">
+      <p className="text-body text-text-muted mb-4 leading-relaxed">
         Pauses new CV parsing, new GitHub connections, and the weekly GitHub rescan — a fast stop
         for new AI spend. Files, connections and picks a member already has stay untouched and
         visible either way.
       </p>
       {error && <div className="mb-3"><ErrorBanner>{error}</ErrorBanner></div>}
-      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-tint-1 p-4">
         <span
           className={
-            "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-[0.75rem] font-semibold " +
+            "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-small font-semibold " +
             (status.enabled
               ? "border border-border text-text-muted"
-              : "border border-[#ff4d4d]/40 bg-[#ff4d4d]/15 text-[#ff8080]")
+              : "border border-danger/40 bg-danger/15 text-danger")
           }
         >
           {status.enabled ? "Running" : "Paused"}
@@ -61,7 +61,7 @@ export default function IngestionToggle({ initial }: { initial: IngestionStatus 
         {status.lastChangedAt && (
           // suppressHydrationWarning: this formats in the viewer's local time,
           // which legitimately differs from whatever the server rendered.
-          <span className="text-[0.75rem] text-text-muted" suppressHydrationWarning>
+          <span className="text-small text-text-muted" suppressHydrationWarning>
             Last changed {new Date(status.lastChangedAt).toLocaleString("en-GB")}
             {status.lastChangedBy ? ` by ${status.lastChangedBy}` : ""}
           </span>

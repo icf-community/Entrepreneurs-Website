@@ -110,10 +110,10 @@ export default function ConnectionsAdminClient({
               aria-current={status === tab.value ? "page" : undefined}
               onClick={() => url.apply({ status: tab.value, page: null })}
               className={
-                "rounded-lg border px-4 py-2 text-[0.8rem] transition-colors cursor-pointer " +
+                "rounded-lg border px-4 py-2 text-body transition-colors cursor-pointer " +
                 (status === tab.value
-                  ? "border-accent bg-white/[0.05] text-text-primary"
-                  : "border-border-strong bg-white/[0.03] text-text-secondary hover:border-accent hover:text-text-primary")
+                  ? "border-accent bg-tint-2 text-text-primary"
+                  : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary")
               }
             >
               {tab.label}
@@ -122,7 +122,7 @@ export default function ConnectionsAdminClient({
         </nav>
 
         {reports.length === 0 ? (
-          <p className="rounded-xl border border-border-subtle bg-white/[0.02] px-6 py-12 text-center text-[0.875rem] text-text-secondary">
+          <p className="rounded-xl border border-border-subtle bg-tint-1 px-6 py-12 text-center text-body text-text-secondary">
             {status === "open" ? "No open reports. Nothing needs your attention." : "Nothing here."}
           </p>
         ) : (
@@ -185,9 +185,9 @@ function ConnectionStatsRow({ stats }: { stats: ConnectionStats | null }) {
 function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="bg-bg-card p-5">
-      <div className="text-[0.75rem] text-text-muted">{label}</div>
-      <div className="data mt-1 text-[1.5rem] font-medium text-text-primary">{value}</div>
-      <div className="mt-1 text-[0.7rem] text-text-muted">{hint}</div>
+      <div className="text-small text-text-muted">{label}</div>
+      <div className="data mt-1 text-heading font-medium text-text-primary">{value}</div>
+      <div className="mt-1 text-small text-text-muted">{hint}</div>
     </div>
   );
 }
@@ -215,20 +215,20 @@ function KillSwitch({ initial }: { initial: ConnectionsStatus }) {
   return (
     <div className="mt-12 rule-draw pt-6">
       <p className="label-wide text-text-secondary mb-3">New connection requests</p>
-      <p className="text-[0.8rem] text-text-muted mb-4 leading-relaxed">
+      <p className="text-body text-text-muted mb-4 leading-relaxed">
         Pauses <strong>new requests only</strong>. Accepting, declining, withdrawing, blocking,
         reporting and removing all keep working while this is off, and the daily digest keeps
         going out — otherwise flipping it strands everyone mid-handshake with an inbox they
         cannot clear.
       </p>
       {error && <div className="mb-3"><ErrorBanner>{error}</ErrorBanner></div>}
-      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-tint-1 p-4">
         <span
           className={
-            "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-[0.75rem] font-semibold " +
+            "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-small font-semibold " +
             (status.enabled
               ? "border border-border text-text-muted"
-              : "border border-[#ff4d4d]/40 bg-[#ff4d4d]/15 text-[#ff8080]")
+              : "border border-danger/40 bg-danger/15 text-danger")
           }
         >
           {status.enabled ? "Open" : "Paused"}
@@ -237,7 +237,7 @@ function KillSwitch({ initial }: { initial: ConnectionsStatus }) {
           // suppressHydrationWarning: this formats in the viewer's local zone,
           // which legitimately differs from the server's (same pattern as
           // BannerForm's CurrentBannerStatus).
-          <span className="text-[0.75rem] text-text-muted" suppressHydrationWarning>
+          <span className="text-small text-text-muted" suppressHydrationWarning>
             {/* react-doctor-disable-next-line react-doctor/no-locale-format-in-render -- cosmetic admin-only timestamp; suppressHydrationWarning above accepts the server/client locale mismatch rather than adding post-mount state for it */}
             Last changed {DATE_TIME_FORMAT.format(new Date(status.lastChangedAt))}
             {status.lastChangedBy ? ` by ${status.lastChangedBy}` : ""}
@@ -271,25 +271,25 @@ function ReportRow({
   const [error, setError] = useState("");
 
   return (
-    <li className="rounded-xl border border-border-subtle bg-white/[0.02] p-5">
+    <li className="rounded-xl border border-border-subtle bg-tint-1 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <span
             className={
-              "inline-block rounded-full px-2.5 py-1 text-[0.65rem] uppercase tracking-wider " +
+              "inline-block rounded-full px-2.5 py-1 text-caption" +
               (URGENT.has(report.category)
-                ? "border border-[#ff4d4d]/40 bg-[#ff4d4d]/10 text-[#ff8080]"
+                ? "border border-danger/40 bg-danger/10 text-danger"
                 : "border border-border-strong text-text-muted")
             }
           >
             {categoryLabel(report.category)}
           </span>
-          <h2 className="mt-3 text-[1rem] font-medium tracking-tight text-text-primary break-words">
+          <h2 className="mt-3 text-lead font-medium tracking-tight text-text-primary break-words">
             About {report.reportedName || "a member who has since left"}
           </h2>
           {/* suppressHydrationWarning: this formats in the viewer's local
               zone, which legitimately differs from the server's. */}
-          <p className="mt-1 text-[0.75rem] text-text-muted" suppressHydrationWarning>
+          <p className="mt-1 text-small text-text-muted" suppressHydrationWarning>
             Reported by {report.reporterName}
             <span aria-hidden className="mx-1.5">·</span>
             {/* react-doctor-disable-next-line react-doctor/no-locale-format-in-render -- cosmetic admin-only timestamp; suppressHydrationWarning above accepts the server/client locale mismatch rather than adding post-mount state for it */}
@@ -300,7 +300,7 @@ function ReportRow({
         {/* The number that decides whether this is a pattern or a one-off,
             shown next to the report rather than left to be counted. */}
         {report.reportedSignals > 0 && (
-          <span className="shrink-0 rounded-lg border border-border-strong px-2.5 py-1 text-[0.7rem] text-text-secondary">
+          <span className="shrink-0 rounded-lg border border-border-strong px-2.5 py-1 text-small text-text-secondary">
             {report.reportedSignals} distinct{" "}
             {report.reportedSignals === 1 ? "signal" : "signals"} against them
           </span>
@@ -310,14 +310,14 @@ function ReportRow({
       {report.adminIsParty && (
         <p
           role="note"
-          className="mt-4 rounded-lg border border-[#c9a84c]/40 bg-[#c9a84c]/10 px-3 py-2 text-[0.75rem] text-text-secondary"
+          className="mt-4 rounded-lg border border-[#c9a84c]/40 bg-[#c9a84c]/10 px-3 py-2 text-small text-text-secondary"
         >
           You are one of the people involved in this report. You can still act on it, and your
           action is logged either way — but consider passing it to another admin.
         </p>
       )}
 
-      <blockquote className="mt-4 border-l-2 border-border-strong pl-4 text-[0.85rem] text-text-secondary whitespace-pre-wrap break-words">
+      <blockquote className="mt-4 border-l-2 border-border-strong pl-4 text-body text-text-secondary whitespace-pre-wrap break-words">
         {report.reason}
       </blockquote>
 
@@ -340,26 +340,26 @@ function ReportRow({
               >
                 Show the note they sent
               </Button>
-              <p className="mt-2 text-[0.7rem] text-text-muted">
+              <p className="mt-2 text-small text-text-muted">
                 Private member-to-member content. Opening it is recorded against your account.
               </p>
             </>
           ) : (
             <>
-              <p className="text-[0.7rem] text-text-muted">
+              <p className="text-small text-text-muted">
                 Note sent with the request, as it read when this was reported:
               </p>
-              <blockquote className="mt-2 rounded-lg border border-border-strong bg-white/[0.03] px-4 py-3 text-[0.85rem] text-text-secondary whitespace-pre-wrap break-words">
+              <blockquote className="mt-2 rounded-lg border border-border-strong bg-tint-1 px-4 py-3 text-body text-text-secondary whitespace-pre-wrap break-words">
                 {note || "(the note was empty)"}
               </blockquote>
             </>
           )}
-          {error && <p role="alert" className="mt-2 text-[0.8rem] text-[#ff8080]">{error}</p>}
+          {error && <p role="alert" className="mt-2 text-body text-danger">{error}</p>}
         </div>
       )}
 
       {report.resolutionNote && (
-        <p className="mt-3 text-[0.75rem] text-text-muted">
+        <p className="mt-3 text-small text-text-muted">
           Resolution note: {report.resolutionNote}
         </p>
       )}
@@ -398,16 +398,16 @@ function ResolveDialog({
       label={upholding ? "Uphold this report" : "Dismiss this report"}
       className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6"
     >
-      <h3 className="font-display text-[1.1rem] text-text-primary">
+      <h3 className="font-display text-lead text-text-primary">
         {upholding ? `Uphold this report about ${report.reportedName || "this member"}?` : "Dismiss this report?"}
       </h3>
-      <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+      <p className="mt-2 text-body text-text-secondary leading-relaxed">
         {upholding
           ? "This counts as a reputation signal against them: enough distinct signals and their daily request cap drops automatically for 30 days. The reporter is emailed that we agreed. It does not remove the connection or ban anyone — do that separately if it is warranted."
           : "The reporter is emailed to say it was reviewed and no action was taken. No reputation signal is recorded."}
       </p>
 
-      <label htmlFor="resolve-note" className="mt-5 block text-[0.75rem] text-text-muted">
+      <label htmlFor="resolve-note" className="mt-5 block text-small text-text-muted">
         Note for the reporter (optional)
       </label>
       <textarea
@@ -416,7 +416,7 @@ function ResolveDialog({
         value={text}
         maxLength={2000}
         onChange={(e) => setText(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.85rem] text-text-primary"
+        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-body text-text-primary"
       />
 
       {error && <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>}
@@ -462,7 +462,7 @@ function FlaggedSenders({
   return (
     <section className="mt-12 rule-draw pt-6">
       <p className="label-wide text-text-secondary mb-3">Senders worth a look</p>
-      <p className="text-[0.8rem] text-text-muted mb-4 max-w-[70ch] leading-relaxed">
+      <p className="text-body text-text-muted mb-4 max-w-[70ch] leading-relaxed">
         <strong>Throttled</strong> is automatic — that many distinct members have blocked them or
         had a report upheld against them, so their daily cap has already dropped. It decays on
         its own.{" "}
@@ -473,7 +473,7 @@ function FlaggedSenders({
       </p>
 
       {senders.length === 0 ? (
-        <p className="rounded-xl border border-border-subtle bg-white/[0.02] px-6 py-12 text-center text-[0.875rem] text-text-secondary">
+        <p className="rounded-xl border border-border-subtle bg-tint-1 px-6 py-12 text-center text-body text-text-secondary">
           Nobody is flagged. No member has attracted a block or an upheld report recently.
         </p>
       ) : (
@@ -483,7 +483,7 @@ function FlaggedSenders({
           aria-label="Members with blocks, upheld reports, or an unusual decline rate"
           tabIndex={0}
         >
-          <table className="w-full min-w-[640px] border-collapse text-[0.8rem]">
+          <table className="w-full min-w-[640px] border-collapse text-body">
             <caption className="sr-only">
               Members with blocks, upheld reports, or an unusual decline rate
             </caption>
@@ -505,7 +505,7 @@ function FlaggedSenders({
                   <td className="px-4 py-3 text-text-primary">
                     {s.memberName}
                     {s.throttled && (
-                      <span className="ml-2 inline-block rounded-full border border-[#ff4d4d]/40 bg-[#ff4d4d]/10 px-2 py-0.5 text-[0.65rem] uppercase tracking-wider text-[#ff8080]">
+                      <span className="ml-2 inline-block rounded-full border border-danger/40 bg-danger/10 px-2 py-0.5 text-caption text-danger">
                         Throttled
                       </span>
                     )}
@@ -550,17 +550,17 @@ function ClearThrottleDialog({
       label="Lift this throttle"
       className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6"
     >
-      <h3 className="font-display text-[1.1rem] text-text-primary">
+      <h3 className="font-display text-lead text-text-primary">
         Lift the throttle on {sender.memberName}?
       </h3>
-      <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+      <p className="mt-2 text-body text-text-secondary leading-relaxed">
         Their daily request cap goes back to normal immediately. The{" "}
         {sender.distinctSignals} {sender.distinctSignals === 1 ? "signal" : "signals"} against
         them are not deleted — this records that you reviewed them and decided they do not
         warrant a restriction. They are not told, either way.
       </p>
 
-      <label htmlFor="clear-note" className="mt-5 block text-[0.75rem] text-text-muted">
+      <label htmlFor="clear-note" className="mt-5 block text-small text-text-muted">
         Why (recorded in the admin log, optional)
       </label>
       <textarea
@@ -569,7 +569,7 @@ function ClearThrottleDialog({
         value={text}
         maxLength={2000}
         onChange={(e) => setText(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.85rem] text-text-primary"
+        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-body text-text-primary"
       />
 
       {error && <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>}

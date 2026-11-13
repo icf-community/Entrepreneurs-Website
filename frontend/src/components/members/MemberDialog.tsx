@@ -109,12 +109,12 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
       </div>
 
       <header className="px-7 pt-5 pb-4 border-b border-border-subtle">
-        <h2 className="font-display text-[1.4rem] text-text-primary tracking-tight truncate">
+        <h2 className="font-display text-heading text-text-primary tracking-tight truncate">
           {m.firstName} {m.surname}
         </h2>
-        <div className="text-[0.75rem] text-text-muted mt-1">{memberSubtitle(m)}</div>
+        <div className="text-small text-text-muted mt-1">{memberSubtitle(m)}</div>
         {m.course && (
-          <div className="text-[0.8rem] text-text-secondary mt-1">{m.course}</div>
+          <div className="text-body text-text-secondary mt-1">{m.course}</div>
         )}
       </header>
 
@@ -146,7 +146,7 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
         {/* Only claim the profile is empty once we know: the links and the
             full text arrive after the dialog opens. */}
         {full && isProfileEmpty(full, m) && (
-          <p className="text-[0.85rem] text-text-muted italic">
+          <p className="text-body text-text-muted italic">
             No additional details on this profile yet.
           </p>
         )}
@@ -158,7 +158,7 @@ export function MemberDialog({ member: m, onClose }: { member: DirectoryMember; 
 function LoadFailedBanner({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-      <p role="alert" className="text-[0.8rem] text-text-muted">Couldn&apos;t load the full profile.</p>
+      <p role="alert" className="text-body text-text-muted">Couldn&apos;t load the full profile.</p>
       <Button variant="ghost" size="sm" className="shrink-0" onClick={onRetry}>
         Try again
       </Button>
@@ -170,8 +170,8 @@ function BioSection({ title, text, showSkeleton }: { title: string; text: string
   if (!text) return null;
   return (
     <section>
-      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1.5">{title}</div>
-      <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{text}</p>
+      <div className="text-small text-text-muted mb-1.5">{title}</div>
+      <p className="text-body text-text-secondary leading-relaxed whitespace-pre-wrap">{text}</p>
       {showSkeleton && <Skeleton className="h-3 w-2/3 mt-2" />}
     </section>
   );
@@ -181,7 +181,7 @@ function LinksSection({ full }: { full: FullProfile }) {
   if (!full.linkedin_url && !full.github_url && !full.portfolio_url) return null;
   return (
     <section className="pt-3 border-t border-border-subtle">
-      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">Links</div>
+      <div className="text-small text-text-muted mb-2">Links</div>
       <SocialLinks
         linkedinUrl={full.linkedin_url}
         githubUrl={full.github_url}
@@ -200,13 +200,13 @@ function LookingForSection({ lookingFor }: { lookingFor: DirectoryMember["lookin
   if (lookingFor.length === 0) return null;
   return (
     <section>
-      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">Looking for</div>
+      <div className="text-small text-text-muted mb-2">Looking for</div>
       <div className="flex flex-wrap gap-1.5">
         {lookingFor.slice(0, MAX_LOOKING_FOR).map((lf) => (
           <Link
             key={lf.id}
             href={`/opportunities/${lf.id}`}
-            className="rounded-lg border border-border-strong px-2.5 py-1 text-[0.725rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.06]"
+            className="rounded-lg border border-border-strong px-2.5 py-1 text-small text-text-primary no-underline transition-colors hover:border-accent hover:bg-tint-3"
           >
             {lf.role}
           </Link>
@@ -228,11 +228,11 @@ function TagSection({
 }) {
   if (items.length === 0) return null;
   const chipClass = tone === "accent"
-    ? "px-2.5 py-1 rounded-lg text-[0.725rem] bg-accent-muted text-accent-light border border-accent/20"
-    : "px-2.5 py-1 rounded-lg text-[0.725rem] bg-white/[0.03] text-text-secondary border border-border";
+    ? "px-2.5 py-1 rounded-lg text-small bg-accent-muted text-accent-light border border-accent/20"
+    : "px-2.5 py-1 rounded-lg text-small bg-tint-1 text-text-secondary border border-border";
   return (
     <section>
-      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">{title}</div>
+      <div className="text-small text-text-muted mb-2">{title}</div>
       <div className="flex flex-wrap gap-1.5">
         {items.map((s) => (
           <span key={`${prefix}-${s}`} className={chipClass}>

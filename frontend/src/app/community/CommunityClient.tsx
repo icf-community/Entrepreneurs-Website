@@ -97,7 +97,7 @@ export default function CommunityClient({
       <nav aria-label="Community actions" className="flex justify-end gap-2">
         <Link
           href="/community/mine"
-          className="rounded-lg border border-border-strong bg-white/[0.03] px-4 py-2 text-[0.8rem] text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
+          className="rounded-lg border border-border-strong bg-tint-1 px-4 py-2 text-body text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
         >
           My posts
         </Link>
@@ -117,7 +117,7 @@ export default function CommunityClient({
       )}
 
       {posts.length === 0 ? (
-        <p className="rounded-xl border border-border-subtle bg-white/[0.02] px-6 py-12 text-center text-[0.875rem] text-text-secondary">
+        <p className="rounded-xl border border-border-subtle bg-tint-1 px-6 py-12 text-center text-body text-text-secondary">
           Nothing here yet. Be the first to post something.
         </p>
       ) : (

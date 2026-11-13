@@ -65,14 +65,14 @@ export function ReportDialog({
         className="w-full max-w-[480px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto"
       >
         <div className="px-6 py-5">
-          <h2 className="font-display text-[1.15rem] text-text-primary tracking-tight">
+          <h2 className="font-display text-title text-text-primary tracking-tight">
             Thanks — that&rsquo;s with us
           </h2>
-          <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+          <p className="mt-2 text-body text-text-secondary leading-relaxed">
             An admin will look at this and email you once they&rsquo;ve decided, either way.{" "}
             {theirName} is not told that you reported them.
           </p>
-          <p className="mt-2 text-[0.8rem] text-text-muted leading-relaxed">
+          <p className="mt-2 text-body text-text-muted leading-relaxed">
             If you&rsquo;d rather not hear from them again in the meantime, blocking them is
             separate from this and takes effect immediately.
           </p>
@@ -93,10 +93,10 @@ export function ReportDialog({
       className="w-full max-w-[480px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto"
     >
       <div className="px-6 py-5">
-        <h2 className="font-display text-[1.15rem] text-text-primary tracking-tight">
+        <h2 className="font-display text-title text-text-primary tracking-tight">
           Report {theirName}
         </h2>
-        <p className="mt-2 text-[0.8rem] text-text-muted leading-relaxed">
+        <p className="mt-2 text-body text-text-muted leading-relaxed">
           This goes to Foundry admins. They can read any note that was sent with the
           original request, and every read of one is logged.
         </p>
@@ -105,7 +105,7 @@ export function ReportDialog({
           <div>
             <label
               htmlFor="report-category"
-              className="block text-[0.7rem] uppercase tracking-wider text-text-muted mb-1.5"
+              className="block text-small text-text-muted mb-1.5"
             >
               Reason
             </label>
@@ -113,7 +113,7 @@ export function ReportDialog({
               id="report-category"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-border-strong bg-bg-secondary px-3 py-2 text-[0.85rem] text-text-primary"
+              className="w-full rounded-lg border border-border-strong bg-bg-secondary px-3 py-2 text-body text-text-primary"
             >
               <option value="">Choose a reason…</option>
               {CONNECTION_REPORT_CATEGORIES.map((c) => (
@@ -125,7 +125,7 @@ export function ReportDialog({
           <div>
             <label
               htmlFor="report-reason"
-              className="block text-[0.7rem] uppercase tracking-wider text-text-muted mb-1.5"
+              className="block text-small text-text-muted mb-1.5"
             >
               What happened?
             </label>
@@ -136,12 +136,12 @@ export function ReportDialog({
               rows={4}
               maxLength={1000}
               placeholder="Tell us a little more so an admin can act on this."
-              className="w-full rounded-lg border border-border-strong bg-bg-secondary px-3 py-2 text-[0.85rem] text-text-primary placeholder:text-text-muted"
+              className="w-full rounded-lg border border-border-strong bg-bg-secondary px-3 py-2 text-body text-text-primary placeholder:text-text-muted"
             />
           </div>
         </div>
 
-        {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+        {error && <p role="alert" className="mt-3 text-body text-danger">{error}</p>}
 
         <div className="mt-5 flex items-center justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={closeDialog} disabled={busy}>

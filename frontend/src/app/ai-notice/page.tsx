@@ -21,16 +21,16 @@ export default function AiNoticePage() {
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-6 sm:px-8 py-16">
       <div className="max-w-[720px] mx-auto">
-        <Link href="/foundry-ai" className="text-[0.8rem] text-text-muted no-underline hover:text-text-secondary transition-colors">
+        <Link href="/foundry-ai" className="text-body text-text-muted no-underline hover:text-text-secondary transition-colors">
           ← Foundry AI
         </Link>
         <div className="mt-6 mb-10 rule-draw pt-6">
           <p className="label-wide text-text-secondary mb-3">Foundry AI</p>
-          <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">How AI search works</h1>
-          <p className="text-[0.825rem] text-text-muted mt-3">Last updated: {LAST_UPDATED}.</p>
+          <h1 className="font-display text-display leading-[1.1] tracking-tight">How AI search works</h1>
+          <p className="text-body text-text-muted mt-3">Last updated: {LAST_UPDATED}.</p>
         </div>
 
-        <article className="space-y-8 text-[0.875rem] text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
+        <article className="space-y-8 text-body text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
           <Section title="What it does">
             <p>Foundry AI runs three searches:</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -119,7 +119,7 @@ export default function AiNoticePage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="font-display text-[1.15rem] text-text-primary tracking-tight mb-2">{title}</h2>
+      <h2 className="font-display text-title text-text-primary tracking-tight mb-2">{title}</h2>
       {children}
     </section>
   );

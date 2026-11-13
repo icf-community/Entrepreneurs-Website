@@ -90,12 +90,12 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
       className="w-full max-w-[520px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto p-7"
     >
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-[1.2rem] text-text-primary">Your CV</h2>
+        <h2 className="font-display text-title text-text-primary">Your CV</h2>
         <button
           type="button"
           onClick={closeDialog}
           aria-label="Close"
-          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 text-text-muted transition-colors hover:bg-white/[0.06]"
+          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 text-text-muted transition-colors hover:bg-tint-3"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M18 6L6 18M6 6l12 12" />
@@ -105,7 +105,7 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
 
       {loadFailed && (
         <div className="space-y-3">
-          <p role="alert" className="text-[0.85rem] text-text-muted">
+          <p role="alert" className="text-body text-text-muted">
             We couldn&apos;t check your CV&apos;s status just now. It&apos;s already saved.
           </p>
           <Button
@@ -120,7 +120,7 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
 
       {!loadFailed && processing && (
         <div className="space-y-3">
-          <p className="text-[0.85rem] text-text-secondary">Reading your CV and generating a summary…</p>
+          <p className="text-body text-text-secondary">Reading your CV and generating a summary…</p>
           <Skeleton className="h-3 w-full" />
           <Skeleton className="h-3 w-5/6" />
           <Skeleton className="h-3 w-2/3" />
@@ -128,13 +128,13 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
       )}
 
       {!loadFailed && status === "failed" && (
-        <p className="text-[0.85rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           {failureReason ?? "That file couldn't be processed. Please upload a text-based PDF or Word document."}
         </p>
       )}
 
       {!loadFailed && status === "flagged" && (
-        <p className="text-[0.85rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           Your CV needs a quick manual check before it&apos;s used in search. This doesn&apos;t affect the rest of
           your account.
         </p>
@@ -144,12 +144,12 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           {profile.skills.length > 0 && (
             <section>
-              <div className="mb-2 text-[0.7rem] uppercase tracking-wider text-text-muted">Skills detected</div>
+              <div className="mb-2 text-small text-text-muted">Skills detected</div>
               <div className="flex flex-wrap gap-1.5">
                 {profile.skills.map((skill) => (
                   <span
                     key={skill}
-                    className="rounded-lg border border-border bg-white/[0.03] px-2.5 py-1 text-[0.725rem] text-text-secondary"
+                    className="rounded-lg border border-border bg-tint-1 px-2.5 py-1 text-small text-text-secondary"
                   >
                     {skill}
                   </span>

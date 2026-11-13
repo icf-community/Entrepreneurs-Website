@@ -37,18 +37,18 @@ export function ConsentWarningDialog({
       label="Your CV won't be used for matching"
       className="w-full max-w-[480px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto p-7"
     >
-      <h2 className="mb-3 font-display text-[1.2rem] text-text-primary">
+      <h2 className="mb-3 font-display text-title text-text-primary">
         That CV won&apos;t reach recruiters
       </h2>
 
-      <p className="mb-4 text-[0.85rem] leading-[1.65] text-text-secondary">
+      <p className="mb-4 text-body leading-[1.65] text-text-secondary">
         You&apos;ve attached a CV but haven&apos;t ticked the box to let us read it. Without that, we
         can&apos;t generate the summary recruiters search to find you — even though your CV will still
         be on file. You can tick it now, or leave it unticked and add your skills yourself from the
         next screen instead.
       </p>
 
-      <p className="mb-6 text-[0.8rem] leading-[1.6] text-text-muted">
+      <p className="mb-6 text-body leading-[1.6] text-text-muted">
         You can change this any time by re-uploading your CV from your profile page.
       </p>
 

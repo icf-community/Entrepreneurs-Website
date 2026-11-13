@@ -416,28 +416,28 @@ function IdentityFields({
 }) {
   return (
     <>
-      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">Identity</h2>
+      <h2 className="mb-1 text-lead font-medium text-text-primary">Identity</h2>
 
       <div className="flex gap-3">
         <div className="flex-1">
-          <label htmlFor="first-name" className="block text-[0.75rem] text-text-muted mb-1.5">First name</label>
+          <label htmlFor="first-name" className="block text-small text-text-muted mb-1.5">First name</label>
           <input id="first-name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} required />
         </div>
         <div className="flex-1">
-          <label htmlFor="surname" className="block text-[0.75rem] text-text-muted mb-1.5">Surname</label>
+          <label htmlFor="surname" className="block text-small text-text-muted mb-1.5">Surname</label>
           <input id="surname" type="text" value={surname} onChange={(e) => setSurname(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} required />
         </div>
       </div>
 
       <div>
-        <label htmlFor="preferred-name" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="preferred-name" className="block text-small text-text-muted mb-1.5">
           What people call you <span className="text-text-muted ml-1">— optional</span>
         </label>
         <input id="preferred-name" type="text" value={preferredName} onChange={(e) => setPreferredName(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} />
       </div>
 
       <div>
-        <label htmlFor="course" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="course" className="block text-small text-text-muted mb-1.5">
           {role === "alum" ? "Course studied" : "Course you're studying"}
         </label>
         <input
@@ -449,7 +449,7 @@ function IdentityFields({
       </div>
 
       <div>
-        <label htmlFor="grad-year" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="grad-year" className="block text-small text-text-muted mb-1.5">
           {role === "alum" ? "Graduation year" : "Expected graduation year"}
         </label>
         <select id="grad-year" value={gradYear} onChange={(e) => setGradYear(e.target.value)} className={inputCls} required>
@@ -459,7 +459,7 @@ function IdentityFields({
       </div>
 
       <div>
-        <label htmlFor="linkedin" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="linkedin" className="block text-small text-text-muted mb-1.5">
           LinkedIn URL{" "}
           {role === "student" && <span className="text-text-muted ml-1">— optional</span>}
         </label>
@@ -467,28 +467,28 @@ function IdentityFields({
       </div>
 
       <div>
-        <label htmlFor="github" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="github" className="block text-small text-text-muted mb-1.5">
           GitHub URL <span className="text-text-muted ml-1">— optional</span>
         </label>
         <input id="github" type="url" placeholder="https://github.com/your-handle" value={github} onChange={(e) => setGithub(e.target.value)} className={inputCls} maxLength={512} />
       </div>
 
       <div>
-        <label htmlFor="portfolio" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="portfolio" className="block text-small text-text-muted mb-1.5">
           Portfolio URL <span className="text-text-muted ml-1">— optional</span>
         </label>
         <input id="portfolio" type="url" placeholder="https://yourportfolio.com" value={portfolio} onChange={(e) => setPortfolio(e.target.value)} className={inputCls} maxLength={512} />
       </div>
 
       <div>
-        <label htmlFor="bio-focus" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="bio-focus" className="block text-small text-text-muted mb-1.5">
           What are you working on, or into? <span className="text-text-muted ml-2">{bioFocus.length}/500</span>
         </label>
         <textarea id="bio-focus" rows={3} value={bioFocus} onChange={(e) => setBioFocus(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
       </div>
 
       <div>
-        <label htmlFor="bio-hobbies" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="bio-hobbies" className="block text-small text-text-muted mb-1.5">
           And outside of that? <span className="text-text-muted ml-2">{bioHobbies.length}/500</span>
         </label>
         <textarea id="bio-hobbies" rows={2} value={bioHobbies} onChange={(e) => setBioHobbies(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
@@ -513,7 +513,7 @@ function SkillsAndInterests({
 }) {
   return (
     <>
-      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Skills</h2>
+      <h2 className="pt-4 text-lead font-medium text-text-primary">Skills</h2>
       <SkillPicker
         taxonomy={skillTaxonomy}
         selectedIds={skillIds}
@@ -528,7 +528,7 @@ function SkillsAndInterests({
         maxCore={MAX_CORE_SKILLS}
       />
 
-      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Interests</h2>
+      <h2 className="pt-4 text-lead font-medium text-text-primary">Interests</h2>
       <ChipGroup label="Sectors" items={sectors} selected={sectorIds} onToggle={toggleSector} />
       <Field label="Things you find genuinely interesting" hint="Not necessarily your job.">
         <TagInput
@@ -569,7 +569,7 @@ function WhereYoureAt({
 }) {
   return (
     <>
-      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Where you&apos;re at</h2>
+      <h2 className="pt-4 text-lead font-medium text-text-primary">Where you&apos;re at</h2>
       <Field label="What's your situation right now?">
         <ChoiceCards name="Current focus" columns={2} options={CURRENT_FOCUS} value={currentFocus || null} onChange={setCurrentFocus} />
       </Field>
@@ -580,16 +580,16 @@ function WhereYoureAt({
         <>
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <label htmlFor="venture-name" className="block text-[0.75rem] text-text-muted mb-1.5">Venture name</label>
+              <label htmlFor="venture-name" className="block text-small text-text-muted mb-1.5">Venture name</label>
               <input id="venture-name" type="text" maxLength={200} value={ventureName} onChange={(e) => setVentureName(e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label htmlFor="venture-url" className="block text-[0.75rem] text-text-muted mb-1.5">Website</label>
+              <label htmlFor="venture-url" className="block text-small text-text-muted mb-1.5">Website</label>
               <input id="venture-url" type="url" maxLength={512} value={ventureUrl} onChange={(e) => setVentureUrl(e.target.value)} className={inputCls} placeholder="https://…" />
             </div>
           </div>
           <div>
-            <label htmlFor="venture-one-liner" className="block text-[0.75rem] text-text-muted mb-1.5">One line on what it does</label>
+            <label htmlFor="venture-one-liner" className="block text-small text-text-muted mb-1.5">One line on what it does</label>
             <input id="venture-one-liner" type="text" maxLength={140} value={ventureOneLiner} onChange={(e) => setVentureOneLiner(e.target.value)} className={inputCls} />
           </div>
           <Field label="Recruiting?">
@@ -610,7 +610,7 @@ function WhatYouWant({
 }) {
   return (
     <>
-      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">What you want</h2>
+      <h2 className="pt-4 text-lead font-medium text-text-primary">What you want</h2>
       <Field label={`Pick up to ${MAX_INTENTS}, in order`}>
         <RankPicker options={INTENTS} values={intents} onToggle={toggleIntent} max={MAX_INTENTS} />
       </Field>
@@ -700,8 +700,8 @@ function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
 
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">Photo</h2>
-      <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
+      <h2 className="mb-1 text-lead font-medium text-text-primary">Photo</h2>
+      <p className="mb-5 text-body leading-[1.6] text-text-muted">
         What people see first in the directory.
       </p>
       {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
@@ -709,14 +709,14 @@ function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
       {pendingFile ? (
         <AvatarCropper file={pendingFile} onCropped={upload} onCancel={() => setPendingFile(null)} />
       ) : preview ? (
-        <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
+        <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-tint-2 p-4">
           {/* eslint-disable-next-line @next/next/no-img-element -- signed blob URL or local object URL, not a static asset */}
           <img src={preview} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover" />
-          <span className="flex-1 text-[0.85rem] text-text-primary">{uploading ? "Uploading…" : "Current photo"}</span>
+          <span className="flex-1 text-body text-text-primary">{uploading ? "Uploading…" : "Current photo"}</span>
           <button
             type="button"
             onClick={() => replaceRef.current?.click()}
-            className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+            className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
           >
             Replace
           </button>
@@ -725,7 +725,7 @@ function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
             onClick={remove}
             disabled={removing}
             aria-busy={removing}
-            className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-wait disabled:opacity-60"
+            className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-danger/60 hover:text-danger disabled:cursor-wait disabled:opacity-60"
           >
             {removing ? "Removing…" : "Remove"}
           </button>
@@ -937,8 +937,8 @@ function CvSection({
 
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">CV</h2>
-      <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
+      <h2 className="mb-1 text-lead font-medium text-text-primary">CV</h2>
+      <p className="mb-5 text-body leading-[1.6] text-text-muted">
         Kept for you and, if you allow it once on upload, read to generate
         a searchable summary of your background and skills. Only you and
         admins handling account reviews can open the file itself.
@@ -999,7 +999,7 @@ function CvIngestBadge({
         ? "Needs a quick check"
         : "Couldn't be processed";
   return (
-    <span className="mt-1 flex items-center gap-1.5 text-[0.75rem] text-text-muted">
+    <span className="mt-1 flex items-center gap-1.5 text-small text-text-muted">
       {!ingestCheckFailed && processing && (
         <span
           aria-hidden
@@ -1037,8 +1037,8 @@ function CvPresentCard({
   onViewDetails: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
+    <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-tint-2 p-4">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-tint-1 font-mono text-caption text-text-secondary">
         CV
       </span>
       {/* min-w-[9rem]: three buttons (alumni) previously squeezed this
@@ -1046,7 +1046,7 @@ function CvPresentCard({
           "Uploaded …" onto a colliding second line — found by actually
           looking at a rendered screenshot, not from reading the JSX. */}
       <span className="min-w-[9rem] flex-1">
-        <span className="block truncate text-[0.85rem] text-text-primary">{filename ?? "Your CV"}</span>
+        <span className="block truncate text-body text-text-primary">{filename ?? "Your CV"}</span>
         {uploadedAt && (
           // suppressHydrationWarning: toLocaleDateString resolves the
           // viewer's timezone, which can legitimately differ from the
@@ -1054,7 +1054,7 @@ function CvPresentCard({
           // a cosmetic mismatch, not a real one, so it isn't worth
           // deferring the date to a post-mount effect to avoid.
           <span
-            className="block truncate text-[0.75rem] text-text-muted"
+            className="block truncate text-small text-text-muted"
             suppressHydrationWarning
           >
             Uploaded {new Date(uploadedAt).toLocaleDateString("en-GB", {
@@ -1074,17 +1074,17 @@ function CvPresentCard({
           on a narrow container, rather than each one individually
           fighting the filename column for space. */}
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={onDownload} disabled={cvBusy !== null} aria-busy={cvBusy === "download"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary disabled:cursor-wait disabled:opacity-60">
+        <button type="button" onClick={onDownload} disabled={cvBusy !== null} aria-busy={cvBusy === "download"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary disabled:cursor-wait disabled:opacity-60">
           {cvBusy === "download" ? "Opening…" : "Download"}
         </button>
-        <button type="button" onClick={onChange} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
+        <button type="button" onClick={onChange} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
           Change CV
         </button>
         {/* Students' CVs are required (screens.tsx's cvRequired) — removing
             down to nothing isn't offered to them at all, and the RPC itself
             also refuses it, so this is UX clarity, not the enforcement. */}
         {canRemove && (
-          <button type="button" onClick={onRemove} disabled={cvBusy !== null} aria-busy={cvBusy === "remove"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-wait disabled:opacity-60">
+          <button type="button" onClick={onRemove} disabled={cvBusy !== null} aria-busy={cvBusy === "remove"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-danger/60 hover:text-danger disabled:cursor-wait disabled:opacity-60">
             {cvBusy === "remove" ? "Removing…" : "Remove CV"}
           </button>
         )}
@@ -1122,7 +1122,7 @@ function CvUploadForm({
         <button
           type="button"
           onClick={onCancelChanging}
-          className="mt-2 cursor-pointer text-[0.775rem] text-text-muted underline decoration-dotted underline-offset-2 hover:text-text-secondary"
+          className="mt-2 cursor-pointer text-body text-text-muted underline decoration-dotted underline-offset-2 hover:text-text-secondary"
         >
           Cancel — keep my current CV
         </button>
@@ -1130,14 +1130,14 @@ function CvUploadForm({
       {file && (
         <>
           {ingestionEnabled ? (
-            <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
+            <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-tint-1 p-4">
               <input
                 type="checkbox"
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
                 className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
               />
-              <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
+              <span className="text-body leading-[1.6] text-text-secondary">
                 Read my CV to suggest skills to add above and generate a
                 searchable summary of my background. The extracted text
                 and summary are stored and used to help match me to
@@ -1147,7 +1147,7 @@ function CvUploadForm({
               </span>
             </label>
           ) : (
-            <p className="mt-3 rounded-lg border border-border-strong bg-white/[0.03] p-4 text-[0.8rem] leading-[1.6] text-text-muted">
+            <p className="mt-3 rounded-lg border border-border-strong bg-tint-1 p-4 text-body leading-[1.6] text-text-muted">
               CV-based skill matching is temporarily paused — your file will still be saved.
             </p>
           )}
@@ -1280,8 +1280,8 @@ function GithubSection({
 
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">GitHub</h2>
-      <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
+      <h2 className="mb-1 text-lead font-medium text-text-primary">GitHub</h2>
+      <p className="mb-5 text-body leading-[1.6] text-text-muted">
         Optional. Connect your GitHub account to have your public
         repositories count as an extra skill signal alongside your CV —
         real GitHub sign-in and authorisation, nothing to generate or
@@ -1316,7 +1316,7 @@ function GithubSection({
           Connect GitHub
         </Button>
       ) : (
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           GitHub connections are temporarily paused — check back soon.
         </p>
       )}
@@ -1363,25 +1363,25 @@ function GithubConnectedPanel({
   return (
     <div className="space-y-4">
       {!ingestionEnabled && (
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           GitHub rescans are paused right now — your existing projects and picks are unaffected,
           and you can still choose from what&apos;s already been found, but nothing new will show
           up until this is back on.
         </p>
       )}
-      <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
+      <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-tint-2 p-4">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-tint-1 font-mono text-caption text-text-secondary">
           GH
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.85rem] text-text-primary">@{username}</span>
-          <span className="block text-[0.75rem] text-text-muted">{statusLabel}</span>
+          <span className="block truncate text-body text-text-primary">@{username}</span>
+          <span className="block text-small text-text-muted">{statusLabel}</span>
         </span>
         <button
           type="button"
           onClick={onConfirmDisconnect}
           disabled={disconnecting}
-          className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-not-allowed disabled:opacity-60"
+          className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-danger/60 hover:text-danger disabled:cursor-not-allowed disabled:opacity-60"
         >
           Disconnect
         </button>
@@ -1392,8 +1392,8 @@ function GithubConnectedPanel({
           That is the right privacy default, but it is not something a
           member should discover afterwards. */}
       {confirmingDisconnect && (
-        <div className="rounded-lg border border-[#ff4d4d]/40 bg-[#ff4d4d]/[0.06] p-4">
-          <p className="mb-3 text-[0.8rem] text-text-secondary">
+        <div className="rounded-lg border border-danger/40 bg-[#ff4d4d]/[0.06] p-4">
+          <p className="mb-3 text-body text-text-secondary">
             Disconnecting removes your GitHub-derived skills, your spotlit projects and the
             descriptions you wrote for them. You can reconnect later, but you&apos;ll need to
             choose your projects again.
@@ -1411,7 +1411,7 @@ function GithubConnectedPanel({
 
       {needsReview && (
         <div className="rounded-lg border border-accent/50 bg-accent/[0.06] p-4">
-          <p className="mb-3 text-[0.8rem] text-text-secondary">
+          <p className="mb-3 text-body text-text-secondary">
             There&apos;s something new on your GitHub that you haven&apos;t looked at yet. Want to
             update which projects recruiters see?
           </p>
@@ -1453,9 +1453,9 @@ function GithubSpotlitProjects({
   onToggleNudges: (enabled: boolean) => void;
 }) {
   return (
-    <div className="rounded-lg border border-border-strong bg-white/[0.02] p-4">
+    <div className="rounded-lg border border-border-strong bg-tint-1 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-[0.85rem] text-text-primary">Spotlit projects</h3>
+        <h3 className="text-body text-text-primary">Spotlit projects</h3>
         <Button type="button" variant="ghost" size="sm" onClick={onChangeProjects}>
           {picks && picks.length > 0 ? "Change projects" : "Choose projects"}
         </Button>
@@ -1463,17 +1463,17 @@ function GithubSpotlitProjects({
       {picks && picks.length > 0 ? (
         <ul className="space-y-2">
           {picks.map((repo) => (
-            <li key={repo.name} className="rounded-lg border border-border bg-white/[0.02] p-3">
+            <li key={repo.name} className="rounded-lg border border-border bg-tint-1 p-3">
               <a
                 href={externalHref(repo.url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[0.825rem] text-text-primary underline-offset-2 hover:underline"
+                className="text-body text-text-primary underline-offset-2 hover:underline"
               >
                 {repo.name}
               </a>
               {(repo.blurb ?? repo.description) && (
-                <p className="mt-1 text-[0.775rem] text-text-secondary">
+                <p className="mt-1 text-body text-text-secondary">
                   {repo.blurb ?? repo.description}
                 </p>
               )}
@@ -1481,7 +1481,7 @@ function GithubSpotlitProjects({
           ))}
         </ul>
       ) : (
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           You haven&apos;t chosen any yet. Until you do, we&apos;ll show the projects our scan
           rated highest.
         </p>
@@ -1493,12 +1493,12 @@ function GithubSpotlitProjects({
           shows up, rather than getting cut from the prose entirely. */}
       {themes.length > 0 && (
         <div className="mt-4">
-          <p className="mb-1.5 text-[0.7rem] text-text-muted">What your code says about you</p>
+          <p className="mb-1.5 text-small text-text-muted">What your code says about you</p>
           <div className="flex flex-wrap gap-1.5">
             {themes.map((theme) => (
               <span
                 key={theme}
-                className="rounded-full border border-border-strong bg-white/[0.03] px-2.5 py-1 text-[0.7rem] text-text-secondary"
+                className="rounded-full border border-border-strong bg-tint-1 px-2.5 py-1 text-small text-text-secondary"
               >
                 {theme}
               </span>
@@ -1507,7 +1507,7 @@ function GithubSpotlitProjects({
         </div>
       )}
 
-      <label className="mt-4 flex cursor-pointer items-start gap-2 text-[0.75rem] text-text-muted">
+      <label className="mt-4 flex cursor-pointer items-start gap-2 text-small text-text-muted">
         <input
           type="checkbox"
           checked={nudgesEnabled}

@@ -129,16 +129,16 @@ export default async function ProfilePage() {
         <div className="max-w-[640px] mx-auto">
           <Link
             href="/settings"
-            className="inline-flex items-center text-[0.8rem] text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6"
+            className="inline-flex items-center text-body text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6"
           >
             ← Settings
           </Link>
           <div className="mb-10 rule-draw pt-6">
             <p className="label-wide text-text-secondary mb-3">Your profile</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               Edit your details
             </h1>
-            <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed">
+            <p className="text-body text-text-muted mt-3 leading-relaxed">
               Changes are visible in the directory once you&apos;re approved.
             </p>
           </div>

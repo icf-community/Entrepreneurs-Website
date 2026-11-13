@@ -60,27 +60,27 @@ export default function VcReviewCard({ vc: v }: { vc: Vc }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full px-6 py-5 text-left bg-transparent border-0 cursor-pointer transition-colors duration-150 hover:bg-white/[0.02]"
+        className="w-full px-6 py-5 text-left bg-transparent border-0 cursor-pointer transition-colors duration-150 hover:bg-tint-1"
       >
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-[1.05rem] font-medium text-text-primary">{v.name}</div>
-            <div className="text-[0.8rem] text-text-muted mt-1">
+            <div className="text-lead font-medium text-text-primary">{v.name}</div>
+            <div className="text-body text-text-muted mt-1">
               {v.stage  && <>{v.stage} · </>}
               {v.amount && <>{v.amount} · </>}
               {deadline ? `Deadline ${deadline}` : "No deadline"}
             </div>
-            <div className="text-[0.75rem] text-text-muted mt-1">
+            <div className="text-small text-text-muted mt-1">
               Posted by <span className="text-text-secondary">{v.postedBy.firstName} {v.postedBy.surname}</span>
               {v.postedBy.signupEmail && (<> · <span className="text-text-secondary">{v.postedBy.signupEmail}</span></>)}
               {" · submitted "}{submittedOn}
             </div>
           </div>
-          <span className="px-2 py-0.5 rounded-lg text-[0.65rem] bg-accent-muted text-accent-light border border-accent/20 uppercase tracking-wider shrink-0">
+          <span className="px-2 py-0.5 rounded-lg text-caption bg-accent-muted text-accent-light border border-accent/20 shrink-0">
             {v.kind === "vc" ? "VC" : "Grant"}
           </span>
         </div>
-        <div className="text-[0.7rem] text-text-muted mt-3">
+        <div className="text-small text-text-muted mt-3">
           {open ? "▾ Hide details" : "▸ Show details"}
         </div>
       </button>
@@ -113,17 +113,17 @@ function VcDetails({ v }: { v: Vc }) {
   return (
     <div className="px-6 pb-6 pt-1 border-t border-border-subtle space-y-5">
       <DetailBlock label="Description">
-        <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{v.description}</p>
+        <p className="text-body text-text-secondary leading-relaxed whitespace-pre-wrap">{v.description}</p>
       </DetailBlock>
       <DetailBlock label="Link">
-        <a href={externalHref(v.link)} target="_blank" rel="noreferrer noopener" className="text-[0.85rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
+        <a href={externalHref(v.link)} target="_blank" rel="noreferrer noopener" className="text-body text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
           {v.link} ↗
         </a>
       </DetailBlock>
       <DetailBlock label="Poster (signup email)">
-        <p className="text-[0.85rem] text-text-secondary">{v.postedBy.signupEmail ?? "—"}</p>
+        <p className="text-body text-text-secondary">{v.postedBy.signupEmail ?? "—"}</p>
         {v.postedBy.linkedinUrl && (
-          <a href={externalHref(v.postedBy.linkedinUrl)} target="_blank" rel="noreferrer noopener" className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">LinkedIn ↗</a>
+          <a href={externalHref(v.postedBy.linkedinUrl)} target="_blank" rel="noreferrer noopener" className="text-small text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">LinkedIn ↗</a>
         )}
       </DetailBlock>
     </div>
@@ -133,7 +133,7 @@ function VcDetails({ v }: { v: Vc }) {
 function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">{label}</div>
+      <div className="text-small text-text-muted mb-1">{label}</div>
       {children}
     </div>
   );

@@ -54,13 +54,13 @@ export default function ListingPageShell({
                     browser. React then finds different HTML from the server's,
                     throws hydration error #418 and re-renders the whole page
                     on the client (D1: LCP 0.9 s → 3.7 s on a mid-range phone). */}
-                <div className="mt-3 text-[0.875rem] leading-relaxed text-text-muted">{summary}</div>
+                <div className="mt-3 text-body leading-relaxed text-text-muted">{summary}</div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 {actions}
                 <Link
                   href={cta.href}
-                  className="rounded-lg bg-accent px-4 py-2 text-[0.825rem] font-semibold text-bg-primary no-underline transition-colors duration-150 hover:bg-accent-dim"
+                  className="rounded-lg bg-accent px-4 py-2 text-body font-semibold text-bg-primary no-underline transition-colors duration-150 hover:bg-accent-dim"
                 >
                   {cta.label}
                 </Link>

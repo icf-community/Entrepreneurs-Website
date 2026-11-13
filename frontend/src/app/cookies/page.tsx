@@ -73,20 +73,20 @@ export default function CookiesPage() {
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-16">
       <div className="max-w-[720px] mx-auto">
-        <Link href="/login" className="text-[0.8rem] text-text-muted no-underline hover:text-text-secondary transition-colors">
+        <Link href="/login" className="text-body text-text-muted no-underline hover:text-text-secondary transition-colors">
           ← Back
         </Link>
         <div className="mt-6 mb-10 rule-draw pt-6">
           <p className="label-wide text-text-secondary mb-3">Legal</p>
-          <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">
+          <h1 className="font-display text-display leading-[1.1] tracking-tight">
             Cookie Policy
           </h1>
-          <p className="text-[0.825rem] text-text-muted mt-3">
+          <p className="text-body text-text-muted mt-3">
             Last updated: {LAST_UPDATED}.
           </p>
         </div>
 
-        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
+        <article className="space-y-6 text-body text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
           <Section title="1. The short version">
             <p>
               Foundry is operated under the name &ldquo;Imperial Entrepreneurs&rdquo; by <strong>IC Founders Ltd</strong>,
@@ -114,7 +114,7 @@ export default function CookiesPage() {
             {/* Focusable so a keyboard user can scroll the table sideways on a
                 phone (axe scrollable-region-focusable, D4). */}
             <div tabIndex={0} role="region" aria-label="The cookies we set" className="overflow-x-auto mt-2 rounded-xl border border-border-subtle">
-              <table className="w-full text-left text-[0.8rem] border-collapse">
+              <table className="w-full text-left text-body border-collapse">
                 <thead>
                   <tr className="bg-bg-card text-text-primary">
                     <th className="px-3 py-2 font-medium border-b border-border-subtle">Cookie</th>
@@ -126,7 +126,7 @@ export default function CookiesPage() {
                 <tbody>
                   {COOKIES.map((c) => (
                     <tr key={c.name} className="align-top">
-                      <td className="px-3 py-2 border-b border-border-subtle font-mono text-[0.75rem] text-text-primary whitespace-nowrap">{c.name}</td>
+                      <td className="px-3 py-2 border-b border-border-subtle font-mono text-small text-text-primary whitespace-nowrap">{c.name}</td>
                       <td className="px-3 py-2 border-b border-border-subtle whitespace-nowrap">{c.provider}</td>
                       <td className="px-3 py-2 border-b border-border-subtle">{c.purpose}</td>
                       <td className="px-3 py-2 border-b border-border-subtle">{c.duration}</td>
@@ -135,7 +135,7 @@ export default function CookiesPage() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-3 text-[0.8rem] text-text-muted">
+            <p className="mt-3 text-body text-text-muted">
               All of these are classed as strictly necessary: they are needed to provide the service you have
               asked for (signing in) or to keep it secure.
             </p>
@@ -143,7 +143,7 @@ export default function CookiesPage() {
 
           <Section title="3a. What we keep in your browser&rsquo;s storage">
             <div tabIndex={0} role="region" aria-label="What we keep in your browser's storage" className="overflow-x-auto mt-2 rounded-xl border border-border-subtle">
-              <table className="w-full text-left text-[0.8rem] border-collapse">
+              <table className="w-full text-left text-body border-collapse">
                 <thead>
                   <tr className="bg-bg-card text-text-primary">
                     <th className="px-3 py-2 font-medium border-b border-border-subtle">Key</th>
@@ -155,7 +155,7 @@ export default function CookiesPage() {
                 <tbody>
                   {STORAGE.map((c) => (
                     <tr key={c.name} className="align-top">
-                      <td className="px-3 py-2 border-b border-border-subtle font-mono text-[0.75rem] text-text-primary whitespace-nowrap">{c.name}</td>
+                      <td className="px-3 py-2 border-b border-border-subtle font-mono text-small text-text-primary whitespace-nowrap">{c.name}</td>
                       <td className="px-3 py-2 border-b border-border-subtle whitespace-nowrap">{c.provider}</td>
                       <td className="px-3 py-2 border-b border-border-subtle">{c.purpose}</td>
                       <td className="px-3 py-2 border-b border-border-subtle">{c.duration}</td>
@@ -164,7 +164,7 @@ export default function CookiesPage() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-3 text-[0.8rem] text-text-muted">
+            <p className="mt-3 text-body text-text-muted">
               Each of these is there because you did something on the site, and none is sent to us or to anyone
               else. If you use a shared computer, finish the intake, or clear the browser&rsquo;s site data, so your
               draft answers are not left behind.
@@ -213,7 +213,7 @@ export default function CookiesPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-[1.05rem] text-text-primary font-medium tracking-tight mb-2">{title}</h2>
+      <h2 className="text-lead text-text-primary font-medium tracking-tight mb-2">{title}</h2>
       <div>{children}</div>
     </section>
   );

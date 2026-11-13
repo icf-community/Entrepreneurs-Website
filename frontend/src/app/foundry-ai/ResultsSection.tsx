@@ -23,7 +23,7 @@ export function ResultsSection({
     <>
       {results && (
         <section aria-label="Results" className="space-y-3">
-          {running && <p className="text-[0.75rem] text-text-muted">Previous results</p>}
+          {running && <p className="text-small text-text-muted">Previous results</p>}
           <ResultList mode={mode} turnId={results.turnId} cards={results.cards} partial={results.partial} />
           {mode === "recruiter" && lastCompleted && !running && (
             <div className="flex flex-wrap gap-3">
@@ -32,7 +32,7 @@ export function ResultsSection({
                   Save these matches
                 </Button>
               ) : (
-                <span className="text-[0.8rem] text-text-muted">Saved for 7 days.</span>
+                <span className="text-body text-text-muted">Saved for 7 days.</span>
               )}
               <Button variant="ghost" size="sm" onClick={onRescan} loading={sending}>
                 Check for new matches
@@ -42,7 +42,7 @@ export function ResultsSection({
         </section>
       )}
       {resultsError && (
-        <p role="alert" className="text-[0.85rem] text-[#ff8080]">
+        <p role="alert" className="text-body text-danger">
           {resultsError}{" "}
           {lastCompleted && (
             <button type="button" className="underline" onClick={onRetryResults}>
@@ -52,7 +52,7 @@ export function ResultsSection({
         </p>
       )}
       {lastTurn && (lastTurn.status === "failed" || lastTurn.status === "expired") && !running && (
-        <p className="text-[0.8rem] text-text-muted">{outcomeMessage(lastTurn.outcome)}</p>
+        <p className="text-body text-text-muted">{outcomeMessage(lastTurn.outcome)}</p>
       )}
     </>
   );

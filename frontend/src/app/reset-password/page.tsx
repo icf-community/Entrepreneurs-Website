@@ -24,8 +24,8 @@ export default async function ResetPasswordPage() {
       <div className="w-full max-w-[400px]">
         <div className="rounded-2xl bg-bg-card border border-border p-8">
           <div className="mb-6">
-            <h1 className="font-display text-[1.4rem] text-text-primary leading-tight">Set a new password</h1>
-            <p className="text-[0.8rem] text-text-muted mt-2 leading-relaxed">
+            <h1 className="font-display text-heading text-text-primary leading-tight">Set a new password</h1>
+            <p className="text-body text-text-muted mt-2 leading-relaxed">
               Choose a new password for <span className="text-text-secondary">{user.email}</span>. For security,
               you&apos;ll be signed out everywhere and asked to sign in again.
             </p>

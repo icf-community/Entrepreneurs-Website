@@ -45,9 +45,9 @@ export default function DeleteAccountSection({ email }: { email: string }) {
   };
 
   return (
-    <div className="rounded-2xl bg-bg-card border border-[#ff4d4d]/20 p-8">
-      <div className="text-[0.95rem] font-medium text-text-primary mb-1">Delete account</div>
-      <p className="text-[0.8rem] text-text-muted leading-relaxed mb-5">
+    <div className="rounded-2xl bg-bg-card border border-danger/20 p-8">
+      <div className="text-lead font-medium text-text-primary mb-1">Delete account</div>
+      <p className="text-body text-text-muted leading-relaxed mb-5">
         This cannot be undone.
       </p>
 
@@ -55,7 +55,7 @@ export default function DeleteAccountSection({ email }: { email: string }) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="px-4 py-2 rounded-lg bg-transparent border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.8rem] font-medium cursor-pointer transition-colors hover:bg-[#ff4d4d]/10"
+          className="px-4 py-2 rounded-lg bg-transparent border border-danger/30 text-danger text-body font-medium cursor-pointer transition-colors hover:bg-danger/10"
         >
           Delete my account
         </button>
@@ -63,7 +63,7 @@ export default function DeleteAccountSection({ email }: { email: string }) {
         <div className="space-y-4 pt-4 border-t border-border-subtle">
           {error && <ErrorBanner>{error}</ErrorBanner>}
           <div>
-            <label htmlFor="confirm-email" className="block text-[0.75rem] text-text-muted mb-1.5">
+            <label htmlFor="confirm-email" className="block text-small text-text-muted mb-1.5">
               Type your email <span className="text-text-secondary">{email}</span> to confirm
             </label>
             <input
@@ -72,7 +72,7 @@ export default function DeleteAccountSection({ email }: { email: string }) {
               autoComplete="off"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              className="w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-[#ff4d4d]/50"
+              className="w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-danger/50"
             />
           </div>
           <div className="flex gap-2">
@@ -80,7 +80,7 @@ export default function DeleteAccountSection({ email }: { email: string }) {
               type="button"
               onClick={handleDelete}
               disabled={!confirmed || isLoading}
-              className="px-4 py-2 rounded-lg bg-[#ff4d4d]/15 border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.8rem] font-medium cursor-pointer transition-colors hover:bg-[#ff4d4d]/25 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-lg bg-danger/15 border border-danger/30 text-danger text-body font-medium cursor-pointer transition-colors hover:bg-danger/25 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "Deleting…" : "Permanently delete account"}
             </button>
@@ -88,7 +88,7 @@ export default function DeleteAccountSection({ email }: { email: string }) {
               type="button"
               onClick={() => { setOpen(false); setConfirmText(""); setError(""); }}
               disabled={isLoading}
-              className="px-4 py-2 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.8rem] cursor-pointer transition-colors hover:bg-white/[0.10] disabled:opacity-50"
+              className="px-4 py-2 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body cursor-pointer transition-colors hover:bg-tint-4 disabled:opacity-50"
             >
               Cancel
             </button>

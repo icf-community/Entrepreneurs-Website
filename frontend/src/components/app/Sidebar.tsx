@@ -289,10 +289,10 @@ function NavRow({
         onClick={onNavigate}
         aria-current={on ? "page" : undefined}
         title={collapsed ? item.label : undefined}
-        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-[0.825rem] no-underline transition-colors duration-150 ${
+        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-body no-underline transition-colors duration-150 ${
           on
-            ? "border-border-strong bg-white/[0.08] font-medium text-text-primary"
-            : "border-transparent text-text-secondary hover:border-border hover:bg-white/[0.04] hover:text-text-primary"
+            ? "border-border-strong bg-tint-3 font-medium text-text-primary"
+            : "border-transparent text-text-secondary hover:border-border hover:bg-tint-2 hover:text-text-primary"
         }`}
       >
         {item.icon}
@@ -339,7 +339,7 @@ function SidebarHeader({
         onClick={onToggle}
         aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
         aria-expanded={!collapsed}
-        className="hidden h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary lg:flex"
+        className="hidden h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-tint-2 text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary lg:flex"
       >
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           {collapsed ? <path d="M7 4l6 6-6 6" /> : <path d="M13 4l-6 6 6 6" />}
@@ -365,7 +365,7 @@ function SidebarFooter({
           href="/admin"
           onClick={onNavigate}
           title={collapsed ? "Admin" : undefined}
-          className="flex items-center gap-3 rounded-lg border border-border-strong bg-white/[0.05] px-3 py-2 text-[0.8rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
+          className="flex items-center gap-3 rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-tint-4"
         >
           <span aria-hidden className="w-[18px] shrink-0 text-center">←</span>
           {!collapsed && <span className="truncate">Admin</span>}
@@ -375,11 +375,11 @@ function SidebarFooter({
         href="/profile"
         onClick={onNavigate}
         title={collapsed ? (name ?? "View profile") : undefined}
-        className="flex items-center gap-3 rounded-lg border border-transparent px-2 py-2 no-underline transition-colors duration-150 hover:border-border hover:bg-white/[0.04]"
+        className="flex items-center gap-3 rounded-lg border border-transparent px-2 py-2 no-underline transition-colors duration-150 hover:border-border hover:bg-tint-2"
       >
         <span
           aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-strong bg-white/[0.06] text-[0.75rem] font-medium text-text-primary"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-strong bg-tint-3 text-small font-medium text-text-primary"
         >
           {name?.trim().charAt(0).toUpperCase() || (
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
@@ -392,11 +392,11 @@ function SidebarFooter({
           <span className="min-w-0">
             {name ? (
               <>
-                <span className="block truncate text-[0.8rem] text-text-primary">{name}</span>
-                <span className="block text-[0.7rem] text-text-muted">View profile</span>
+                <span className="block truncate text-body text-text-primary">{name}</span>
+                <span className="block text-small text-text-muted">View profile</span>
               </>
             ) : (
-              <span className="block text-[0.8rem] text-text-primary">View profile</span>
+              <span className="block text-body text-text-primary">View profile</span>
             )}
           </span>
         )}

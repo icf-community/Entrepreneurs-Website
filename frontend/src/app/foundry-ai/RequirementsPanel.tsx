@@ -50,8 +50,8 @@ export function RequirementsPanel({ jobId, onConfirmed }: { jobId: string; onCon
   const pending = !reqs || reqs.status === "pending";
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-5" aria-labelledby="req-heading">
-      <h2 id="req-heading" className="text-[0.95rem] font-medium text-text-primary">Confirm what this job requires</h2>
-      <p className="mt-1 text-[0.8rem] text-text-muted">
+      <h2 id="req-heading" className="text-lead font-medium text-text-primary">Confirm what this job requires</h2>
+      <p className="mt-1 text-body text-text-muted">
         {pending
           ? "We're still reading this job's description. Check back in a minute."
           : reqs?.status === "failed"
@@ -61,11 +61,11 @@ export function RequirementsPanel({ jobId, onConfirmed }: { jobId: string; onCon
       {!pending && atoms.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-2">
           {atoms.map((a) => (
-            <li key={a.id} className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-white/[0.04] px-2.5 py-1.5 text-[0.8rem]">
+            <li key={a.id} className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-tint-2 px-2.5 py-1.5 text-body">
               <span className="text-text-primary">{a.label}</span>
               <button
                 type="button"
-                className="cursor-pointer rounded-md border border-border-strong bg-white/[0.05] px-2 py-1 text-[0.7rem] text-text-secondary hover:border-accent"
+                className="cursor-pointer rounded-md border border-border-strong bg-tint-2 px-2 py-1 text-small text-text-secondary hover:border-accent"
                 onClick={() => setAtoms((xs) => xs.map((x) => (x.id === a.id ? { ...x, required: !x.required } : x)))}
                 aria-pressed={a.required}
               >
@@ -73,7 +73,7 @@ export function RequirementsPanel({ jobId, onConfirmed }: { jobId: string; onCon
               </button>
               <button
                 type="button"
-                className="cursor-pointer rounded-md border border-border-strong bg-white/[0.05] px-2 py-1 text-[0.7rem] text-text-secondary hover:border-accent"
+                className="cursor-pointer rounded-md border border-border-strong bg-tint-2 px-2 py-1 text-small text-text-secondary hover:border-accent"
                 onClick={() => setAtoms((xs) => xs.filter((x) => x.id !== a.id))}
                 aria-label={`Remove ${a.label}`}
               >
@@ -83,7 +83,7 @@ export function RequirementsPanel({ jobId, onConfirmed }: { jobId: string; onCon
           ))}
         </ul>
       )}
-      {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+      {error && <p role="alert" className="mt-3 text-body text-danger">{error}</p>}
       {!pending && (
         <Button className="mt-4" size="sm" loading={saving} onClick={save}>
           Confirm requirements

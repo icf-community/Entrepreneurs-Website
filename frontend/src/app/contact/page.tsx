@@ -38,17 +38,17 @@ export default async function ContactPage() {
           {member && (
             <Link
               href="/settings"
-              className="inline-flex items-center text-[0.8rem] text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6"
+              className="inline-flex items-center text-body text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6"
             >
               ← Settings
             </Link>
           )}
           <div className="mb-10 rule-draw pt-6">
             <p className="label-wide text-text-secondary mb-3">Contact</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               Get in touch
             </h1>
-            <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed">
+            <p className="text-body text-text-muted mt-3 leading-relaxed">
               {user ? (
                 <>
                   Report a bug, ask a question, or flag something off. We&apos;ll reply to{" "}
@@ -92,7 +92,7 @@ export default async function ContactPage() {
           </Link>
           <Link
             href="/"
-            className="text-[0.8rem] text-text-muted no-underline transition-colors hover:text-text-secondary"
+            className="text-body text-text-muted no-underline transition-colors hover:text-text-secondary"
           >
             ← Back to home
           </Link>

@@ -18,7 +18,7 @@ export default function ResetPasswordForm() {
   const [done, setDone] = useState(false);
 
   const inputCls =
-    "w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-white/[0.05]";
+    "w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-tint-2";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,8 +56,8 @@ export default function ResetPasswordForm() {
   if (done) {
     return (
       <div className="text-center space-y-4 py-2">
-        <h2 className="font-display text-[1.15rem] text-text-primary">Password updated</h2>
-        <p className="text-[0.8rem] text-text-secondary leading-relaxed">
+        <h2 className="font-display text-title text-text-primary">Password updated</h2>
+        <p className="text-body text-text-secondary leading-relaxed">
           You can now sign in with your new password.
         </p>
         <Button
@@ -78,7 +78,7 @@ export default function ResetPasswordForm() {
       {error && <ErrorBanner>{error}</ErrorBanner>}
 
       <div>
-        <label htmlFor="new-password" className="block text-[0.75rem] text-text-muted mb-1.5">New password</label>
+        <label htmlFor="new-password" className="block text-small text-text-muted mb-1.5">New password</label>
         <input
           id="new-password"
           type="password"
@@ -91,7 +91,7 @@ export default function ResetPasswordForm() {
       </div>
 
       <div>
-        <label htmlFor="confirm-password" className="block text-[0.75rem] text-text-muted mb-1.5">Confirm new password</label>
+        <label htmlFor="confirm-password" className="block text-small text-text-muted mb-1.5">Confirm new password</label>
         <input
           id="confirm-password"
           type="password"

@@ -81,26 +81,26 @@ export default function PostCard({
   };
 
   return (
-    <article className="rounded-xl border border-border-subtle bg-white/[0.02] p-5 sm:p-6">
+    <article className="rounded-xl border border-border-subtle bg-tint-1 p-5 sm:p-6">
       <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[0.8rem] text-text-primary font-medium truncate">{post.authorName}</p>
+          <p className="text-body text-text-primary font-medium truncate">{post.authorName}</p>
           {/* suppressHydrationWarning: this formats in the viewer's local
               zone, which legitimately differs from the server's. */}
-          <p className="mt-0.5 text-[0.7rem] text-text-muted" suppressHydrationWarning>
+          <p className="mt-0.5 text-small text-text-muted" suppressHydrationWarning>
             {new Date(post.createdAt).toLocaleDateString("en-GB", {
               day: "numeric", month: "short", year: "numeric",
             })}
           </p>
         </div>
         {post.kind === "system" && (
-          <span className="shrink-0 rounded-full border border-border-strong px-2.5 py-1 text-[0.65rem] uppercase tracking-wider text-text-muted">
+          <span className="shrink-0 rounded-full border border-border-strong px-2.5 py-1 text-caption text-text-muted">
             From listings
           </span>
         )}
       </header>
 
-      <h2 className="mt-4 text-[1.05rem] font-medium tracking-tight text-text-primary break-words">
+      <h2 className="mt-4 text-lead font-medium tracking-tight text-text-primary break-words">
         {post.title}
       </h2>
 
@@ -113,7 +113,7 @@ export default function PostCard({
       {sourceHref && (
         <Link
           href={sourceHref}
-          className="mt-4 inline-block text-[0.8rem] text-text-primary underline decoration-border-strong underline-offset-2 hover:decoration-accent"
+          className="mt-4 inline-block text-body text-text-primary underline decoration-border-strong underline-offset-2 hover:decoration-accent"
         >
           View in {sourceHref.replace("/", "")} →
         </Link>
@@ -165,12 +165,12 @@ function PostImages({ images }: { images: FeedPostView["images"] }) {
             // for anything not already 4:3 that silently cuts off edges
             // and looks nothing like what was uploaded. contain scales
             // to fit inside the box instead, letterboxed on the bg fill.
-            className="w-full aspect-[4/3] rounded-lg border border-border-subtle bg-white/[0.02] object-contain"
+            className="w-full aspect-[4/3] rounded-lg border border-border-subtle bg-tint-1 object-contain"
           />
         ) : (
           <div
             key={image.blobKey}
-            className="flex aspect-[4/3] items-center justify-center rounded-lg border border-border-subtle bg-white/[0.02] px-4 text-center text-[0.75rem] text-text-muted"
+            className="flex aspect-[4/3] items-center justify-center rounded-lg border border-border-subtle bg-tint-1 px-4 text-center text-small text-text-muted"
           >
             {image.altText}
           </div>
@@ -195,7 +195,7 @@ function PostFooterActions({
   return (
     <footer className="mt-5 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-4">
       {post.kind === "member" && isAuthor && (
-        <span className="tnum px-1 text-[0.8rem] text-text-muted">
+        <span className="tnum px-1 text-body text-text-muted">
           {likeCount === 1 ? "1 like" : `${likeCount} likes`}
         </span>
       )}
@@ -234,8 +234,8 @@ function ConfirmDelete({
 
   return (
     <Dialog onClose={onClose} label="Delete your post" className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6">
-      <h3 className="font-display text-[1.1rem] text-text-primary">Delete this post?</h3>
-      <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+      <h3 className="font-display text-lead text-text-primary">Delete this post?</h3>
+      <p className="mt-2 text-body text-text-secondary leading-relaxed">
         &ldquo;{post.title}&rdquo; and any images on it will be removed straight away. This cannot
         be undone.
       </p>
@@ -276,17 +276,17 @@ function AdminRemove({
   const [error, setError] = useState("");
 
   return (
-    <Dialog onClose={onClose} label="Remove this post" className="w-full max-w-md rounded-xl border border-[#ff4d4d]/30 bg-bg-primary p-6">
-      <p className="label-wide text-[#ff6b6b]">Danger zone</p>
-      <h3 className="mt-3 font-display text-[1.1rem] text-text-primary">
+    <Dialog onClose={onClose} label="Remove this post" className="w-full max-w-md rounded-xl border border-danger/30 bg-bg-primary p-6">
+      <p className="label-wide text-danger">Danger zone</p>
+      <h3 className="mt-3 font-display text-lead text-text-primary">
         Remove {post.authorName}&rsquo;s post?
       </h3>
-      <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+      <p className="mt-2 text-body text-text-secondary leading-relaxed">
         The post and its images are deleted immediately. A record is kept for 12 months, and the
         author is emailed your reason. This cannot be undone.
       </p>
 
-      <label htmlFor={`reason-${post.id}`} className="mt-5 block text-[0.75rem] text-text-muted">
+      <label htmlFor={`reason-${post.id}`} className="mt-5 block text-small text-text-muted">
         Reason (sent to the author)
       </label>
       <textarea
@@ -295,7 +295,7 @@ function AdminRemove({
         value={reason}
         maxLength={2000}
         onChange={(e) => setReason(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.85rem] text-text-primary"
+        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-body text-text-primary"
         placeholder="Which guideline does this breach?"
       />
 
@@ -337,8 +337,8 @@ function ReportPost({ post, onClose }: { post: FeedPostView; onClose: () => void
   if (done) {
     return (
       <Dialog onClose={onClose} label="Report received" className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6">
-        <h3 className="font-display text-[1.1rem] text-text-primary">Thanks — that&rsquo;s with us</h3>
-        <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+        <h3 className="font-display text-lead text-text-primary">Thanks — that&rsquo;s with us</h3>
+        <p className="mt-2 text-body text-text-secondary leading-relaxed">
           An admin will review this post. We&rsquo;ll email you once they&rsquo;ve made a decision,
           either way.
         </p>
@@ -351,20 +351,20 @@ function ReportPost({ post, onClose }: { post: FeedPostView; onClose: () => void
 
   return (
     <Dialog onClose={onClose} label="Report this post" className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6">
-      <h3 className="font-display text-[1.1rem] text-text-primary">Report this post</h3>
-      <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+      <h3 className="font-display text-lead text-text-primary">Report this post</h3>
+      <p className="mt-2 text-body text-text-secondary leading-relaxed">
         Tell us what&rsquo;s wrong with &ldquo;{post.title}&rdquo;. Reports go to the admin team,
         and the author is never told who reported them.
       </p>
 
-      <label htmlFor={`cat-${post.id}`} className="mt-5 block text-[0.75rem] text-text-muted">
+      <label htmlFor={`cat-${post.id}`} className="mt-5 block text-small text-text-muted">
         Reason
       </label>
       <select
         id={`cat-${post.id}`}
         value={category}
         onChange={(e) => setCategory(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.85rem] text-text-primary"
+        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-body text-text-primary"
       >
         <option value="">Choose one…</option>
         {REPORT_CATEGORIES.map((c) => (
@@ -372,7 +372,7 @@ function ReportPost({ post, onClose }: { post: FeedPostView; onClose: () => void
         ))}
       </select>
 
-      <label htmlFor={`detail-${post.id}`} className="mt-4 block text-[0.75rem] text-text-muted">
+      <label htmlFor={`detail-${post.id}`} className="mt-4 block text-small text-text-muted">
         What should an admin know?
       </label>
       <textarea
@@ -381,7 +381,7 @@ function ReportPost({ post, onClose }: { post: FeedPostView; onClose: () => void
         value={reason}
         maxLength={1000}
         onChange={(e) => setReason(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.85rem] text-text-primary"
+        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-body text-text-primary"
       />
 
       {error && (

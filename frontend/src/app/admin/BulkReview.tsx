@@ -77,16 +77,16 @@ export function BulkReview<T>({ items, getId, renderCard, bulkApprove, bulkRejec
   return (
     <div className="space-y-4">
       {items.length > 0 && (
-        <label className="flex items-center gap-2 text-[0.8rem] text-text-muted cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-body text-text-muted cursor-pointer select-none">
           <input type="checkbox" checked={allSelected} onChange={toggleAll} />
           Select all ({items.length})
         </label>
       )}
 
-      {note && <div className="text-[0.8rem] text-accent-light">{note}</div>}
+      {note && <div className="text-body text-accent-light">{note}</div>}
 
       {items.length === 0 && (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
           {emptyMessage}
         </div>
       )}
@@ -109,16 +109,16 @@ export function BulkReview<T>({ items, getId, renderCard, bulkApprove, bulkRejec
 
       {selected.size > 0 && (
         <div className="sticky bottom-4 z-30 mx-auto max-w-[640px] rounded-2xl bg-bg-card border border-accent/30 shadow-lg p-4">
-          {error && <div role="alert" className="text-[0.8rem] text-[#ff6b6b] mb-2">{error}</div>}
+          {error && <div role="alert" className="text-body text-danger mb-2">{error}</div>}
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[0.85rem] text-text-primary font-medium">{selected.size} selected</span>
+            <span className="text-body text-text-primary font-medium">{selected.size} selected</span>
             {!rejecting ? (
               <>
                 <button
                   type="button"
                   disabled={pending}
                   onClick={() => run(() => bulkApprove(ids()))}
-                  className="px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.8rem] font-medium border-0 cursor-pointer hover:bg-accent-light disabled:opacity-60"
+                  className="px-4 py-2 rounded-lg bg-accent text-bg-primary text-body font-medium border-0 cursor-pointer hover:bg-accent-light disabled:opacity-60"
                 >
                   {pending ? "Working…" : `Approve ${selected.size}`}
                 </button>
@@ -126,14 +126,14 @@ export function BulkReview<T>({ items, getId, renderCard, bulkApprove, bulkRejec
                   type="button"
                   disabled={pending}
                   onClick={() => setRejecting(true)}
-                  className="px-4 py-2 rounded-lg bg-white/[0.05] border border-border-strong text-text-secondary text-[0.8rem] cursor-pointer transition-colors hover:bg-[#ff4d4d]/10 hover:border-[#ff4d4d]/50 hover:text-[#ff6b6b] disabled:opacity-60"
+                  className="px-4 py-2 rounded-lg bg-tint-2 border border-border-strong text-text-secondary text-body cursor-pointer transition-colors hover:bg-danger/10 hover:border-danger/50 hover:text-danger disabled:opacity-60"
                 >
                   Reject…
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelected(new Set())}
-                  className="px-3 py-2 text-[0.8rem] rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
+                  className="px-3 py-2 text-body rounded-lg border border-border-strong bg-tint-2 text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
                 >
                   Clear
                 </button>
@@ -146,20 +146,20 @@ export function BulkReview<T>({ items, getId, renderCard, bulkApprove, bulkRejec
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder={`Reason — sent to all ${selected.size}`}
-                  className="flex-1 min-w-[200px] px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.8rem] text-text-primary focus:border-accent/50"
+                  className="flex-1 min-w-[200px] px-3 py-2 bg-tint-1 border border-border rounded-lg text-body text-text-primary focus:border-accent/50"
                 />
                 <button
                   type="button"
                   disabled={pending || !reason.trim()}
                   onClick={() => run(() => bulkReject(ids(), reason.trim()))}
-                  className="px-4 py-2 rounded-lg bg-[#ff6b6b] text-bg-primary text-[0.8rem] font-medium border-0 cursor-pointer disabled:opacity-60"
+                  className="px-4 py-2 rounded-lg bg-[#ff6b6b] text-bg-primary text-body font-medium border-0 cursor-pointer disabled:opacity-60"
                 >
                   {pending ? "Working…" : `Reject ${selected.size}`}
                 </button>
                 <button
                   type="button"
                   onClick={() => setRejecting(false)}
-                  className="px-3 py-2 text-[0.8rem] rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
+                  className="px-3 py-2 text-body rounded-lg border border-border-strong bg-tint-2 text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
                 >
                   Cancel
                 </button>

@@ -59,7 +59,7 @@ export function ModeGate({
       {mode === "recruiter" && <JobPicker jobs={jobs} jobId={jobId} onChange={onJobChange} />}
 
       {mode === "opportunities" && !educationKnown && (
-        <p className="rounded-2xl border border-border bg-bg-card p-5 text-[0.85rem] text-text-secondary">
+        <p className="rounded-2xl border border-border bg-bg-card p-5 text-body text-text-secondary">
           Confirm your status to see jobs. <Link href="/settings#education" className="underline">Confirm now</Link>
         </p>
       )}

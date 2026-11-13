@@ -16,10 +16,10 @@ export default async function NewEventPage() {
         <div className="max-w-[720px] mx-auto">
           <div className="mb-8 rule-draw pt-6">
             <p className="label-wide text-text-secondary mb-3">Post an event</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               Share an event with the network
             </h1>
-            <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed">
+            <p className="text-body text-text-muted mt-3 leading-relaxed">
               Submissions go to the admin queue for review before they appear on the Events tab.
             </p>
           </div>

@@ -74,7 +74,7 @@ export default async function EventPage({ params }: { params: Promise<Params> })
 
       {ev.isSocietyEvent && (
         <div className="mb-8">
-          <span className="inline-block rounded-lg bg-accent px-2.5 py-0.5 text-[0.7rem] font-semibold text-bg-primary">
+          <span className="inline-block rounded-lg bg-accent px-2.5 py-0.5 text-small font-semibold text-bg-primary">
             Society event
           </span>
         </div>
@@ -95,7 +95,7 @@ export default async function EventPage({ params }: { params: Promise<Params> })
                 href={externalHref(ev.postedBy.linkedinUrl)}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="text-[0.8rem] text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
+                className="text-body text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
               >
                 LinkedIn ↗
               </a>
@@ -110,7 +110,7 @@ export default async function EventPage({ params }: { params: Promise<Params> })
       </div>
 
       <div className="mt-9 border-t border-border-subtle pt-7">
-        <h2 className="mb-3 text-[0.7rem] uppercase tracking-wider text-text-muted">Attend</h2>
+        <h2 className="mb-3 text-small text-text-muted">Attend</h2>
         <EventActions event={ev} going={goingIds.includes(ev.id)} />
       </div>
     </ListingDetailShell>

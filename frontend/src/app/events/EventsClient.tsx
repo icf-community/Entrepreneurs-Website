@@ -124,7 +124,7 @@ export default function EventsClient({
       </FilterPanel>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
           {items.length === 0 ? "No upcoming events." : "No events match your search or filters."}
         </div>
       ) : (
@@ -176,21 +176,21 @@ function EventCard({ ev, going, onDismiss }: {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full px-5 py-4 text-left bg-transparent border-0 cursor-pointer transition-colors duration-150 hover:bg-white/[0.02]"
+        className="w-full px-5 py-4 text-left bg-transparent border-0 cursor-pointer transition-colors duration-150 hover:bg-tint-1"
       >
         <div className="flex items-center justify-between gap-2 mb-1">
-          <div className="text-[0.75rem] text-accent-light tracking-wide">
+          <div className="text-small text-accent-light tracking-wide">
             {timeLabel} <span className="text-text-muted">· {dateLabel}</span>
           </div>
           {ev.isSocietyEvent && (
-            <span className="shrink-0 px-2.5 py-0.5 rounded-lg text-[0.7rem] font-semibold bg-accent text-bg-primary">
+            <span className="shrink-0 px-2.5 py-0.5 rounded-lg text-small font-semibold bg-accent text-bg-primary">
               Society event
             </span>
           )}
         </div>
         <div className="flex items-start gap-2 mb-3">
           <CalendarIcon />
-          <h3 className="text-[1.05rem] font-medium text-text-primary leading-snug">
+          <h3 className="text-lead font-medium text-text-primary leading-snug">
             {ev.title}
           </h3>
         </div>
@@ -198,7 +198,7 @@ function EventCard({ ev, going, onDismiss }: {
           <Meta icon={<OrganiserAvatar name={ev.organiserName} />} text={`By ${ev.organiserName}`} />
           <Meta icon={isOnline ? <VideoIcon /> : <PinIcon />} text={ev.location} />
         </div>
-        <div className="mt-3 text-[0.7rem] text-text-muted">
+        <div className="mt-3 text-small text-text-muted">
           {open ? "▾ Hide details" : "▸ Show details"}
         </div>
       </button>
@@ -210,14 +210,14 @@ function EventCard({ ev, going, onDismiss }: {
       {open && !stale && (
         <div className="px-5 pb-5 pt-1 border-t border-border-subtle">
           {checking && (
-            <div className="text-[0.7rem] text-text-muted mt-3">Loading latest details…</div>
+            <div className="text-small text-text-muted mt-3">Loading latest details…</div>
           )}
-          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1 mt-4">Description</div>
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{ev.description}</p>
+          <div className="text-small text-text-muted mb-1 mt-4">Description</div>
+          <p className="text-body text-text-secondary leading-relaxed whitespace-pre-wrap">{ev.description}</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 text-[0.8rem]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 text-body">
             <div>
-              <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Posted by</div>
+              <div className="text-small text-text-muted mb-1">Posted by</div>
               <div className="text-text-secondary">
                 {ev.postedBy.firstName} {ev.postedBy.surname}
               </div>
@@ -226,7 +226,7 @@ function EventCard({ ev, going, onDismiss }: {
                   href={externalHref(ev.postedBy.linkedinUrl)}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
+                  className="text-small text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
                 >
                   LinkedIn ↗
                 </a>
@@ -234,11 +234,11 @@ function EventCard({ ev, going, onDismiss }: {
             </div>
             {ev.contactEmail && (
               <div>
-                <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Contact organiser</div>
+                <div className="text-small text-text-muted mb-1">Contact organiser</div>
                 <a
                   href={mailtoHref(ev.contactEmail, ev.title)}
                   onClick={() => recordListingEvent("event", ev.id, "contact_click")}
-                  className="text-[0.8rem] text-text-secondary no-underline hover:text-text-primary break-all"
+                  className="text-body text-text-secondary no-underline hover:text-text-primary break-all"
                 >
                   {ev.contactEmail}
                 </a>
@@ -252,7 +252,7 @@ function EventCard({ ev, going, onDismiss }: {
               target="_blank"
               rel="noreferrer noopener"
               onClick={() => recordListingEvent("event", ev.id, "external_click")}
-              className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.825rem] font-medium no-underline transition-colors hover:bg-accent-light"
+              className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-body font-medium no-underline transition-colors hover:bg-accent-light"
             >
               RSVP on Luma ↗
             </a>
@@ -274,7 +274,7 @@ function EventCard({ ev, going, onDismiss }: {
 
 function Meta({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
-    <div className="flex items-center gap-2 text-[0.8rem] text-text-secondary">
+    <div className="flex items-center gap-2 text-body text-text-secondary">
       <span className="shrink-0 text-text-muted">{icon}</span>
       <span className="truncate">{text}</span>
     </div>
@@ -284,7 +284,7 @@ function Meta({ icon, text }: { icon: React.ReactNode; text: string }) {
 function OrganiserAvatar({ name }: { name: string }) {
   const initial = name.trim().charAt(0).toUpperCase() || "?";
   return (
-    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent-muted text-accent-light text-[0.65rem] font-medium border border-accent/25">
+    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent-muted text-accent-light text-caption font-medium border border-accent/25">
       {initial}
     </span>
   );

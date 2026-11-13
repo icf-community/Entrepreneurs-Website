@@ -84,7 +84,7 @@ export default async function VcPage({ params }: { params: Promise<Params> }) {
       </div>
 
       <div className="mt-9 border-t border-border-subtle pt-7">
-        <h2 className="mb-3 text-[0.7rem] uppercase tracking-wider text-text-muted">Apply</h2>
+        <h2 className="mb-3 text-small text-text-muted">Apply</h2>
         <VcActions vc={v} applied={appliedIds.includes(v.id)} />
       </div>
     </ListingDetailShell>

@@ -89,16 +89,16 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
       </section>
 
       {!o.prices_confirmed && (
-        <p className="rounded-lg border border-[#ff4d4d]/40 px-4 py-3 text-[0.85rem] text-[#ff8080]">
+        <p className="rounded-lg border border-danger/40 px-4 py-3 text-body text-danger">
           Model prices aren&apos;t confirmed, so AI search refuses to run. Confirm them in ai_private.model_prices first.
         </p>
       )}
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">
-        <h2 className="text-[0.95rem] font-medium">Switches</h2>
-        {!o.is_operator && <p className="mt-1 text-[0.8rem] text-text-muted">Only AI operators can change these.</p>}
+        <h2 className="text-lead font-medium">Switches</h2>
+        {!o.is_operator && <p className="mt-1 text-body text-text-muted">Only AI operators can change these.</p>}
         <label className="mt-4 block">
-          <span className="text-[0.75rem] text-text-muted">Reason (recorded with every change)</span>
+          <span className="text-small text-text-muted">Reason (recorded with every change)</span>
           <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} className={`${inputCls} mt-1`} />
         </label>
         <ul className="mt-4 space-y-2">
@@ -106,7 +106,7 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
             const on = o.flags[f.field];
             return (
               <li key={f.key} className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-2">
-                <span className="text-[0.85rem]">{f.label}: <strong>{on ? "on" : "off"}</strong></span>
+                <span className="text-body">{f.label}: <strong>{on ? "on" : "off"}</strong></span>
                 <Button size="sm" variant={on ? "dangerGhost" : "ghost"} disabled={!o.is_operator} loading={busy === f.key}
                   onClick={() => run(f.key, () => setAiFlag(f.key, !on, reason), `${f.label} ${on ? "off" : "on"}.`)}>
                   {on ? "Turn off" : "Turn on"}
@@ -118,16 +118,16 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">
-        <h2 className="text-[0.95rem] font-medium">Limits</h2>
-        <p className="mt-1 text-[0.8rem] text-text-muted">
+        <h2 className="text-lead font-medium">Limits</h2>
+        <p className="mt-1 text-body text-text-muted">
           Raise the active-turn ceiling at most 25% at a time, and only when the queue is persistently full with healthy headroom.
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <label className="block"><span className="text-[0.75rem] text-text-muted">Active turns</span>
+          <label className="block"><span className="text-small text-text-muted">Active turns</span>
             <input type="number" min={1} max={50} value={ceiling} onChange={(e) => setCeiling(e.target.value)} className={`${inputCls} mt-1`} /></label>
-          <label className="block"><span className="text-[0.75rem] text-text-muted">Matching cap per day ($)</span>
+          <label className="block"><span className="text-small text-text-muted">Matching cap per day ($)</span>
             <input type="number" min={0} step="0.5" value={dailyCap} onChange={(e) => setDailyCap(e.target.value)} className={`${inputCls} mt-1`} /></label>
-          <label className="block"><span className="text-[0.75rem] text-text-muted">Per member per day ($)</span>
+          <label className="block"><span className="text-small text-text-muted">Per member per day ($)</span>
             <input type="number" min={0} step="0.05" value={memberCap} onChange={(e) => setMemberCap(e.target.value)} className={`${inputCls} mt-1`} /></label>
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
@@ -144,30 +144,30 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">
-        <h2 className="text-[0.95rem] font-medium">Last 24 hours</h2>
-        <dl className="mt-3 grid gap-2 text-[0.8rem] sm:grid-cols-2">
+        <h2 className="text-lead font-medium">Last 24 hours</h2>
+        <dl className="mt-3 grid gap-2 text-body sm:grid-cols-2">
           {Object.entries(o.refusals_24h).map(([k, v]) => <div key={`r-${k}`}><dt className="inline text-text-muted">Admission: {k.replaceAll("_", " ")}: </dt><dd className="inline">{v}</dd></div>)}
           {Object.entries(o.provider_errors_24h).map(([k, v]) => <div key={`p-${k}`}><dt className="inline text-text-muted">Provider: {k.replaceAll("_", " ")}: </dt><dd className="inline">{v}</dd></div>)}
           {Object.entries(o.turns_24h).map(([k, v]) => <div key={k}><dt className="inline text-text-muted">{k}: </dt><dd className="inline">{v}</dd></div>)}
           {Object.entries(o.outcomes_24h).map(([k, v]) => <div key={`o-${k}`}><dt className="inline text-text-muted">{k}: </dt><dd className="inline">{v}</dd></div>)}
         </dl>
         {o.recent_changes.length > 0 && (
-          <ul className="mt-4 space-y-1 text-[0.8rem] text-text-secondary">
+          <ul className="mt-4 space-y-1 text-body text-text-secondary">
             {o.recent_changes.map((c) => <li key={`${c.at}-${c.action}`}>{formatDate(c.at)} · {c.action} · {c.notes}</li>)}
           </ul>
         )}
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-card p-6">
-        <h2 className="text-[0.95rem] font-medium">Jobs that need an audience</h2>
-        <p className="mt-1 text-[0.8rem] text-text-muted">Members can&apos;t see these until someone chooses who they&apos;re for.</p>
+        <h2 className="text-lead font-medium">Jobs that need an audience</h2>
+        <p className="mt-1 text-body text-text-muted">Members can&apos;t see these until someone chooses who they&apos;re for.</p>
         {needingAudience.length === 0 ? (
-          <p className="mt-3 text-[0.8rem] text-text-muted">None.</p>
+          <p className="mt-3 text-body text-text-muted">None.</p>
         ) : (
           <ul className="mt-3 space-y-2">
             {needingAudience.map((j) => (
               <li key={j.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-2">
-                <span className="text-[0.85rem]">
+                <span className="text-body">
                   <Link href={`/opportunities/${j.id}`} className="underline">{j.title}</Link> · {j.company} · {j.poster} · closes {formatDate(j.deadline)}
                 </span>
                 <span className="flex gap-2">
@@ -190,8 +190,8 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-border bg-bg-card p-4">
-      <div className="text-[0.7rem] uppercase tracking-wider text-text-muted">{label}</div>
-      <div className="mt-1 text-[0.95rem] text-text-primary">{value}</div>
+      <div className="text-small text-text-muted">{label}</div>
+      <div className="mt-1 text-lead text-text-primary">{value}</div>
     </div>
   );
 }

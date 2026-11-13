@@ -24,10 +24,10 @@ export default async function MyBookmarksPage() {
           <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
             <div className="rule-draw pt-6">
               <p className="label-wide text-text-secondary mb-3 md:mb-0">Bookmarks</p>
-              <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)] md:col-start-2 md:row-start-1">
+              <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display md:col-start-2 md:row-start-1">
                 Saved opportunities
               </h1>
-              <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed md:col-start-2">
+              <p className="text-body text-text-muted mt-3 leading-relaxed md:col-start-2">
                 {items.length === 0
                   ? "Nothing saved yet. Tap the star on any opportunity in the directory to save it for later."
                   : `${items.length} saved opportunit${items.length === 1 ? "y" : "ies"} still open for applications.`}
@@ -35,7 +35,7 @@ export default async function MyBookmarksPage() {
             </div>
             <Link
               href="/opportunities"
-              className="text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary"
+              className="text-body text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary"
             >
               ← Browse all opportunities
             </Link>
@@ -43,12 +43,12 @@ export default async function MyBookmarksPage() {
 
           {items.length === 0 ? (
             <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center">
-              <p className="text-[0.85rem] text-text-muted leading-relaxed">
+              <p className="text-body text-text-muted leading-relaxed">
                 When you find a role that looks interesting, click the star to save it here. Saved opportunities stay in this list while they&apos;re open and disappear once the application deadline passes.
               </p>
               <Link
                 href="/opportunities"
-                className="inline-block mt-5 px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.825rem] font-medium no-underline transition-colors hover:bg-accent-light"
+                className="inline-block mt-5 px-4 py-2 rounded-lg bg-accent text-bg-primary text-body font-medium no-underline transition-colors hover:bg-accent-light"
               >
                 Browse opportunities →
               </Link>

@@ -49,20 +49,20 @@ export default async function PendingPage() {
       <main id="main-content" tabIndex={-1} className="flex-1 flex items-center justify-center px-8 py-12">
         <div className="w-full max-w-[520px] text-center">
           <p className="label-wide text-text-secondary mb-3">Application received</p>
-          <h1 className="font-display text-text-primary leading-[1.1] tracking-tight mb-6 text-[clamp(2rem,4vw,2.75rem)]">
+          <h1 className="font-display text-text-primary leading-[1.1] tracking-tight mb-6 text-display">
             Thanks, {profile.first_name || "there"}.
           </h1>
-          <p className="text-[0.95rem] text-text-secondary leading-[1.7] mb-3">
+          <p className="text-lead text-text-secondary leading-[1.7] mb-3">
             We&apos;ve received your application and our team will review it manually.
           </p>
-          <p className="text-[0.875rem] text-text-muted leading-[1.7]">
+          <p className="text-body text-text-muted leading-[1.7]">
             Review isn&apos;t instant — we&apos;ll email you when there&apos;s an update.
             You can edit your profile in the meantime.
           </p>
           <div className="mt-8 flex items-center justify-center gap-3">
             <Link
               href="/profile"
-              className="px-5 py-2.5 rounded-xl bg-accent text-bg-primary text-[0.85rem] font-medium no-underline transition-colors duration-150 hover:bg-accent-light"
+              className="px-5 py-2.5 rounded-xl bg-accent text-bg-primary text-body font-medium no-underline transition-colors duration-150 hover:bg-accent-light"
             >
               Edit your profile
             </Link>

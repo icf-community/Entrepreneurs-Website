@@ -16,10 +16,10 @@ export function IntakePromptCard() {
   return (
     <div className="mb-10 flex items-start justify-between gap-4 rounded-lg border border-signal/40 bg-signal-muted/60 px-5 py-4">
       <div>
-        <p className="text-[0.875rem] font-medium text-text-primary">
+        <p className="text-body font-medium text-text-primary">
           A couple of minutes finishes your profile.
         </p>
-        <p className="mt-0.5 text-[0.8rem] leading-[1.6] text-text-secondary">
+        <p className="mt-0.5 text-body leading-[1.6] text-text-secondary">
           A photo, your skills, and what you&apos;re looking for — that&apos;s what
           makes you findable in the directory.{" "}
           <Link href="/intake" className="text-text-primary underline underline-offset-2">
@@ -31,7 +31,7 @@ export function IntakePromptCard() {
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-1.5 text-[0.75rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+        className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-1.5 text-small text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
       >
         Not now
       </button>

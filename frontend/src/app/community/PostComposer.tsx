@@ -112,12 +112,12 @@ export default function PostComposer({
   const canPost = title.trim().length >= 3 && body.trim().length >= 10 && !missingAlt;
 
   return (
-    <section className="rounded-xl border border-border-subtle bg-white/[0.02] p-5 sm:p-6">
-      <h2 className="text-[0.95rem] font-medium tracking-tight text-text-primary">
+    <section className="rounded-xl border border-border-subtle bg-tint-1 p-5 sm:p-6">
+      <h2 className="text-lead font-medium tracking-tight text-text-primary">
         Post to the community
       </h2>
 
-      <label htmlFor="post-title" className="mt-4 block text-[0.75rem] text-text-muted">
+      <label htmlFor="post-title" className="mt-4 block text-small text-text-muted">
         Title
       </label>
       <input
@@ -126,10 +126,10 @@ export default function PostComposer({
         maxLength={POST_TITLE_MAX}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="What's this about?"
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.9rem] text-text-primary"
+        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-lead text-text-primary"
       />
 
-      <label htmlFor="post-body" className="mt-4 block text-[0.75rem] text-text-muted">
+      <label htmlFor="post-body" className="mt-4 block text-small text-text-muted">
         Post
       </label>
       <textarea
@@ -139,9 +139,9 @@ export default function PostComposer({
         maxLength={POST_BODY_MAX}
         onChange={(e) => setBody(e.target.value)}
         placeholder="Share what you're building, ask for help, or point people at something."
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.9rem] text-text-primary"
+        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-lead text-text-primary"
       />
-      <p className="mt-1 text-right text-[0.7rem] text-text-muted tnum">
+      <p className="mt-1 text-right text-small text-text-muted tnum">
         {body.length}/{POST_BODY_MAX}
       </p>
 
@@ -150,7 +150,7 @@ export default function PostComposer({
           {images.map((image, i) => (
             <li key={image.blob_key} className="rounded-lg border border-border-subtle p-3">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[0.75rem] text-text-secondary tnum">
+                <p className="text-small text-text-secondary tnum">
                   Image {i + 1} · {image.width}×{image.height}
                 </p>
                 <Button
@@ -161,7 +161,7 @@ export default function PostComposer({
                   Remove
                 </Button>
               </div>
-              <label htmlFor={`alt-${i}`} className="mt-3 block text-[0.7rem] text-text-muted">
+              <label htmlFor={`alt-${i}`} className="mt-3 block text-small text-text-muted">
                 Describe this image (required)
               </label>
               <input
@@ -174,7 +174,7 @@ export default function PostComposer({
                   )
                 }
                 placeholder="e.g. Our team demoing at the showcase"
-                className="mt-1.5 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-1.5 text-[0.8rem] text-text-primary"
+                className="mt-1.5 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-1.5 text-body text-text-primary"
               />
             </li>
           ))}
@@ -208,7 +208,7 @@ export default function PostComposer({
             </Button>
           </>
         ) : (
-          <span className="text-[0.75rem] text-text-muted">
+          <span className="text-small text-text-muted">
             {uploadsAvailable ? `Maximum ${POST_MAX_IMAGES} images` : "Images unavailable"}
           </span>
         )}
@@ -236,7 +236,7 @@ export default function PostComposer({
       </div>
 
       {missingAlt && (
-        <p className="mt-3 text-[0.75rem] text-text-muted">
+        <p className="mt-3 text-small text-text-muted">
           Add a description for each image before posting.
         </p>
       )}

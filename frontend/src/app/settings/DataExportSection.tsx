@@ -32,8 +32,8 @@ export default function DataExportSection() {
   return (
     <div className="rounded-2xl bg-bg-card border border-border p-8 space-y-5">
       <div>
-        <div className="text-[0.95rem] font-medium text-text-primary mb-1">Your data</div>
-        <p className="text-[0.8rem] text-text-muted leading-relaxed">
+        <div className="text-lead font-medium text-text-primary mb-1">Your data</div>
+        <p className="text-body text-text-muted leading-relaxed">
           A copy of everything we hold about you, as a JSON file. <Link href="/privacy" className="underline underline-offset-2">Privacy notice</Link>
         </p>
       </div>
@@ -43,7 +43,7 @@ export default function DataExportSection() {
         onClick={download}
         disabled={pending}
         aria-busy={pending}
-        className="px-5 py-2.5 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.825rem] cursor-pointer transition-colors hover:bg-white/[0.10] disabled:opacity-60"
+        className="px-5 py-2.5 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body cursor-pointer transition-colors hover:bg-tint-4 disabled:opacity-60"
       >
         {pending ? "Preparing…" : "Download my data"}
       </button>

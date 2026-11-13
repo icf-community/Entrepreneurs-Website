@@ -11,9 +11,9 @@ import type { SpecOp } from "./actions";
 // counted action.
 // ════════════════════════════════════════════════════════════════════
 
-const CHIP = "inline-flex items-center gap-1 rounded-lg border border-border-strong bg-white/[0.04] text-[0.8rem]";
+const CHIP = "inline-flex items-center gap-1 rounded-lg border border-border-strong bg-tint-2 text-body";
 const CHIP_BUTTON =
-  "cursor-pointer rounded-md border border-border-strong bg-white/[0.05] px-2 py-1 text-[0.7rem] text-text-secondary " +
+  "cursor-pointer rounded-md border border-border-strong bg-tint-2 px-2 py-1 text-small text-text-secondary " +
   "hover:border-accent hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60";
 
 export function CriteriaBar({
@@ -34,7 +34,7 @@ export function CriteriaBar({
   return (
     <section aria-label="Search criteria" className="rounded-2xl border border-border bg-bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[0.7rem] uppercase tracking-wider text-text-muted">Criteria</h2>
+        <h2 className="text-small text-text-muted">Criteria</h2>
         {canUndo && (
           <button type="button" className={CHIP_BUTTON} disabled={busy} onClick={() => onEdit([{ op: "undo" }])}>
             Undo last change
@@ -43,7 +43,7 @@ export function CriteriaBar({
       </div>
 
       {spec.atoms.length === 0 ? (
-        <p className="mt-2 text-[0.8rem] text-text-muted">No criteria yet. Describe what you&apos;re looking for below.</p>
+        <p className="mt-2 text-body text-text-muted">No criteria yet. Describe what you&apos;re looking for below.</p>
       ) : (
         <ul className="mt-3 flex flex-wrap gap-2">
           {spec.atoms.map((atom) => (
@@ -51,7 +51,7 @@ export function CriteriaBar({
               <span className="text-text-primary">
                 {atom.negated ? "Not " : ""}{atom.label}
               </span>
-              <span className="text-[0.7rem] text-text-muted">
+              <span className="text-small text-text-muted">
                 {atom.negated ? "" : atom.group ? `· either of group ${atom.group.slice(1)}` : atom.required ? "· must have" : "· nice to have"}
                 {atom.source === "job" ? " · from the job" : ""}
               </span>
@@ -84,7 +84,7 @@ export function CriteriaBar({
         <AudiencePicker spec={spec} jobAudience={jobAudience} busy={busy} onEdit={onEdit} />
       )}
       {mode !== "network" && spec.atoms.some((a) => a.kind === "tool" || a.kind === "language") && (
-        <label className="mt-3 flex items-center gap-2 text-[0.8rem] text-text-secondary">
+        <label className="mt-3 flex items-center gap-2 text-body text-text-secondary">
           <input
             type="checkbox"
             checked={spec.transferable}
@@ -105,7 +105,7 @@ function AudiencePicker({
     jobAudience === "both" ? ["students", "graduates"] : [jobAudience as "students" | "graduates"];
   const current = spec.audience ?? allowed;
   if (allowed.length < 2) {
-    return <p className="mt-3 text-[0.8rem] text-text-muted">Searching {allowed[0]}, as this job is for {allowed[0]} only.</p>;
+    return <p className="mt-3 text-body text-text-muted">Searching {allowed[0]}, as this job is for {allowed[0]} only.</p>;
   }
   const toggle = (value: "students" | "graduates") => {
     const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
@@ -113,8 +113,8 @@ function AudiencePicker({
   };
   return (
     <fieldset className="mt-3">
-      <legend className="text-[0.75rem] text-text-muted">Search among</legend>
-      <div className="mt-1 flex flex-wrap gap-3 text-[0.8rem] text-text-secondary">
+      <legend className="text-small text-text-muted">Search among</legend>
+      <div className="mt-1 flex flex-wrap gap-3 text-body text-text-secondary">
         {allowed.map((value) => (
           <label key={value} className="flex items-center gap-1.5">
             {/* react-doctor-disable-next-line js-set-map-lookups -- array is provably bounded to a tiny fixed size (not user/data-scaled); O(n²) concern doesn't apply */}

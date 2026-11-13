@@ -145,7 +145,7 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
           <Link href="/" className="no-underline">
             <BrandLogo size="sm" />
           </Link>
-          <span className="text-[0.8rem] text-text-muted">
+          <span className="text-body text-text-muted">
             Signed in as <span className="text-text-secondary">{firstName} {surname}</span>
           </span>
         </div>
@@ -155,15 +155,15 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
         <div className="w-full max-w-[640px]">
           <div className="text-center mb-8">
             <p className="label-wide text-text-secondary mb-3">Step {step + 1} of {TOTAL_STEPS} · {STEP_TITLES[step]}</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight mb-4 text-[clamp(2rem,4vw,2.75rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight mb-4 text-display">
               Who let you <span className="font-light text-text-secondary">in?</span>
             </h1>
-            <p className="text-[0.9rem] text-text-secondary leading-[1.7]">
+            <p className="text-lead text-text-secondary leading-[1.7]">
               {role !== "student"
                 ? "Help us verify your Imperial connection and your work."
                 : "A couple of questions, then you're through."}
               <br />
-              <span className="text-text-muted text-[0.825rem]">
+              <span className="text-text-muted text-body">
                 You can go back to any step. There&apos;s more to add once you&apos;re in.
               </span>
             </p>
@@ -198,7 +198,7 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
                   type="button"
                   onClick={handleBack}
                   disabled={isLoading}
-                  className="px-5 py-3 rounded-xl bg-white/[0.05] border border-border-strong text-text-primary text-[0.85rem] hover:bg-white/[0.10] cursor-pointer transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-5 py-3 rounded-xl bg-tint-2 border border-border-strong text-text-primary text-body hover:bg-tint-4 cursor-pointer transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Back
                 </button>
@@ -236,13 +236,13 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
   const pct = (current / total) * 100;
   return (
     <div className="space-y-2" aria-label={`Step ${current} of ${total}`}>
-      <div className="h-1 w-full rounded-full bg-white/[0.04] overflow-hidden">
+      <div className="h-1 w-full rounded-full bg-tint-2 overflow-hidden">
         <div
           className="h-full bg-accent transition-[width] duration-300 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="flex justify-between text-[0.7rem] text-text-muted">
+      <div className="flex justify-between text-small text-text-muted">
         <span>{current} / {total}</span>
         <span>{Math.round(pct)}%</span>
       </div>
@@ -261,8 +261,8 @@ function EducationStep({
   return (
     <>
       <div>
-        <label htmlFor="course" className="block text-[0.75rem] text-text-muted mb-1.5">
-          {role === "student" ? "Course you're studying" : "Course studied"} <span className="text-[#ff6b6b]">*</span>
+        <label htmlFor="course" className="block text-small text-text-muted mb-1.5">
+          {role === "student" ? "Course you're studying" : "Course studied"} <span className="text-danger">*</span>
         </label>
         <input
           id="course"
@@ -276,8 +276,8 @@ function EducationStep({
         />
       </div>
       <div>
-        <label htmlFor="grad-year" className="block text-[0.75rem] text-text-muted mb-1.5">
-          {role === "student" ? "Expected graduation year" : "Graduation year"} <span className="text-[#ff6b6b]">*</span>
+        <label htmlFor="grad-year" className="block text-small text-text-muted mb-1.5">
+          {role === "student" ? "Expected graduation year" : "Graduation year"} <span className="text-danger">*</span>
         </label>
         <select
           id="grad-year"
@@ -308,10 +308,10 @@ function LinksStep({
   return (
     <>
       <div>
-        <label htmlFor="linkedin" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="linkedin" className="block text-small text-text-muted mb-1.5">
           LinkedIn URL{" "}
           {role !== "student"
-            ? <span className="text-[#ff6b6b]">*</span>
+            ? <span className="text-danger">*</span>
             : <span className="text-text-muted ml-1">— optional</span>}
         </label>
         <input
@@ -326,7 +326,7 @@ function LinksStep({
         />
       </div>
       <div>
-        <label htmlFor="github" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="github" className="block text-small text-text-muted mb-1.5">
           GitHub URL <span className="text-text-muted ml-1">— optional</span>
         </label>
         <input
@@ -340,7 +340,7 @@ function LinksStep({
         />
       </div>
       <div>
-        <label htmlFor="portfolio" className="block text-[0.75rem] text-text-muted mb-1.5">
+        <label htmlFor="portfolio" className="block text-small text-text-muted mb-1.5">
           Portfolio URL <span className="text-text-muted ml-1">— optional</span>
         </label>
         <input

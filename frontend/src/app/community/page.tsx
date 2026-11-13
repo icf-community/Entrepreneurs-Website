@@ -34,10 +34,10 @@ export default async function CommunityPage() {
         <div className="max-w-[720px] mx-auto">
           <div className="mb-8 rule-draw pt-4">
             <p className="label-wide text-text-muted mb-6">Community</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               What&rsquo;s happening
             </h1>
-            <p className="mt-3 text-[0.875rem] text-text-secondary leading-relaxed">
+            <p className="mt-3 text-body text-text-secondary leading-relaxed">
               Share what you&rsquo;re building, ask for help, or point people at something worth
               seeing. Posts are visible to approved members only and are deleted automatically
               after seven days.

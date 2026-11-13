@@ -8,6 +8,10 @@ import { Panel } from "@/components/ui/Panel";
 import { Lockup } from "@/design-system/logo/Lockup";
 import { Roundel } from "@/design-system/logo/Roundel";
 import { OrbitGlyph } from "@/design-system/OrbitGlyph";
+import { DataGallery } from "./DataGallery";
+import { FormsGallery } from "./FormsGallery";
+import { IconsGallery } from "./IconsGallery";
+import { OverlaysGallery } from "./OverlaysGallery";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/design-system
@@ -162,6 +166,10 @@ export default async function DesignSystemPage() {
             <Lockup height={64} label="Imperial Entrepreneurs" />
           </div>
         </Section>
+        <IconsGallery />
+        <FormsGallery />
+        <DataGallery />
+        <OverlaysGallery />
       </div>
     </main>
   );

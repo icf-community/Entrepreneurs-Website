@@ -225,20 +225,20 @@ export function ConnectionGraph({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <label htmlFor="cluster-by" className="text-[0.75rem] text-text-muted">
+        <label htmlFor="cluster-by" className="text-small text-text-muted">
           Group by
         </label>
         <select
           id="cluster-by"
           value={by}
           onChange={(e) => setBy(e.target.value as ClusterBy)}
-          className="rounded-lg border border-border-strong bg-white/[0.03] px-3 py-1.5 text-[0.8rem] text-text-primary"
+          className="rounded-lg border border-border-strong bg-tint-1 px-3 py-1.5 text-body text-text-primary"
         >
           {CLUSTER_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        <p className="text-[0.75rem] text-text-muted">
+        <p className="text-small text-text-muted">
           {total} {total === 1 ? "connection" : "connections"}
           <span aria-hidden className="mx-1.5">·</span>
           lines are your connections, never theirs to each other
@@ -326,7 +326,7 @@ export function ConnectionGraph({
 
 // A key, and it has to look like one.
 //
-// These used to be `rounded-lg border-border-strong bg-white/[0.02]` pills —
+// These used to be `rounded-lg border-border-strong bg-tint-1` pills —
 // pixel-identical to the unselected cluster buttons in ClusterSummary
 // below, which DO respond to a click. Two things that look the same and
 // behave differently is worse than either on its own: it teaches people the
@@ -337,12 +337,12 @@ function ClusterLegend({ clusters }: { clusters: [string, GraphNode[]][] }) {
   if (clusters.length === 0) return null;
   return (
     <div className="mt-4">
-      <h3 className="text-[0.7rem] uppercase tracking-wider text-text-muted">Groups</h3>
+      <h3 className="text-small text-text-muted">Groups</h3>
       <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
         {clusters.map(([key, members]) => (
           <li
             key={key}
-            className="flex items-center gap-1.5 text-[0.75rem] text-text-secondary"
+            className="flex items-center gap-1.5 text-small text-text-secondary"
           >
             <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-border-strong" />
             {key}
@@ -373,7 +373,7 @@ function ClusterSummary({
 
   return (
     <div className="rounded-2xl border border-border bg-bg-card p-5">
-      <p className="mb-4 text-[0.8rem] text-text-muted">
+      <p className="mb-4 text-body text-text-muted">
         Your network is large enough that individual dots stop being readable, so it is grouped.
         Pick a group to see who is in it.
       </p>
@@ -385,10 +385,10 @@ function ClusterSummary({
             aria-pressed={open === key}
             onClick={() => setOpen(key)}
             className={
-              "rounded-lg border px-3 py-1.5 text-[0.8rem] transition-colors cursor-pointer " +
+              "rounded-lg border px-3 py-1.5 text-body transition-colors cursor-pointer " +
               (open === key
                 ? "border-accent bg-accent text-bg-primary font-medium"
-                : "border-border-strong bg-white/[0.02] text-text-secondary hover:border-accent hover:text-text-primary")
+                : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary")
             }
           >
             {key} <span className="tnum">{list.length}</span>
@@ -402,11 +402,11 @@ function ClusterSummary({
             <button
               type="button"
               onClick={() => onSelect(m.id)}
-              className="w-full rounded-lg border border-border-strong bg-white/[0.02] px-3 py-2 text-left text-[0.8rem] text-text-primary transition-colors hover:border-accent"
+              className="w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-left text-body text-text-primary transition-colors hover:border-accent"
             >
               {m.firstName} {m.surname}
               {m.course && (
-                <span className="block truncate text-[0.7rem] text-text-muted">{m.course}</span>
+                <span className="block truncate text-small text-text-muted">{m.course}</span>
               )}
             </button>
           </li>

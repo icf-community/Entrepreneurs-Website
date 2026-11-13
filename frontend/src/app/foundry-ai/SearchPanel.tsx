@@ -88,7 +88,7 @@ function RunningStatus({
 }) {
   return (
     <>
-      <div aria-live="polite" className="text-[0.8rem] text-text-muted">
+      <div aria-live="polite" className="text-body text-text-muted">
         {running && (status ? stageLabel(status.stage) : stageLabel("queued"))}
       </div>
       {running && activeTurnId && (
@@ -155,7 +155,7 @@ export function SearchPanel({
       <RunDirtyButton dirty={dirty} conversation={conversation} running={running} sending={sending} onSend={onSend} />
       <RunningStatus running={running} status={status} activeTurnId={activeTurnId} />
 
-      {error && <p role="alert" className="text-[0.85rem] text-[#ff8080]">{error}</p>}
+      {error && <p role="alert" className="text-body text-danger">{error}</p>}
 
       <Composer
         draft={draft}

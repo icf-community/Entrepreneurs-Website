@@ -12,7 +12,7 @@ export function FullPageLink({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="inline-flex items-center rounded-lg border border-border-strong bg-transparent px-3 py-2 text-[0.8rem] text-text-secondary no-underline transition-colors hover:border-accent hover:text-text-primary"
+      className="inline-flex items-center rounded-lg border border-border-strong bg-transparent px-3 py-2 text-body text-text-secondary no-underline transition-colors hover:border-accent hover:text-text-primary"
     >
       Open full page →
     </Link>

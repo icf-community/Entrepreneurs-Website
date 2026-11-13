@@ -33,7 +33,7 @@ export function Composer({
               key={s}
               type="button"
               onClick={() => setDraft(s)}
-              className="cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-1.5 text-[0.75rem] text-text-secondary hover:border-accent"
+              className="cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-1.5 text-small text-text-secondary hover:border-accent"
             >
               {s}
             </button>
@@ -57,10 +57,10 @@ export function Composer({
             if (canSend) onSend();
           }
         }}
-        className="w-full resize-none rounded-lg border border-border bg-white/[0.03] px-3 py-2 text-[0.85rem] text-text-primary placeholder:text-text-muted focus:border-accent"
+        className="w-full resize-none rounded-lg border border-border bg-tint-1 px-3 py-2 text-body text-text-primary placeholder:text-text-muted focus:border-accent"
       />
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 text-[0.75rem] text-text-muted">
+        <div className="flex items-center gap-3 text-small text-text-muted">
           <span>{draft.length}/{MAX_MESSAGE}</span>
           {showTemporary && (
             <label className="flex items-center gap-1.5">

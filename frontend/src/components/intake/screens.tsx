@@ -91,7 +91,7 @@ export type ExistingCv = { blobKey: string; filename: string; downloadUrl: strin
 
 /** Shared lead paragraph under a screen heading. */
 function Lead({ children }: { children: React.ReactNode }) {
-  return <p className="mb-7 text-[0.95rem] leading-[1.65] text-text-secondary">{children}</p>;
+  return <p className="mb-7 text-lead leading-[1.65] text-text-secondary">{children}</p>;
 }
 
 // ─── 01 · Face & bio ─────────────────────────────────────────────────
@@ -134,14 +134,14 @@ export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, 
             onCancel={() => setPendingFile(null)}
           />
         ) : s.photoPreview ? (
-          <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
+          <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-tint-2 p-4">
             {/* eslint-disable-next-line @next/next/no-img-element -- object URL, not a remote asset */}
             <img src={s.photoPreview} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover" />
-            <span className="min-w-0 flex-1 text-[0.85rem] text-text-primary">Great! You can change your profile picture in your settings at any time.</span>
+            <span className="min-w-0 flex-1 text-body text-text-primary">Great! You can change your profile picture in your settings at any time.</span>
             <button
               type="button"
               onClick={() => replaceRef.current?.click()}
-              className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+              className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
             >
               Replace
             </button>
@@ -167,8 +167,8 @@ export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, 
             onClear={() => {}}
           />
         )}
-        {avatarUploading && <p className="mt-2 text-[0.775rem] text-text-muted">Uploading…</p>}
-        {avatarError && <p className="mt-2 text-[0.775rem] text-[#ff8080]">{avatarError}</p>}
+        {avatarUploading && <p className="mt-2 text-body text-text-muted">Uploading…</p>}
+        {avatarError && <p className="mt-2 text-body text-danger">{avatarError}</p>}
       </Field>
 
       <Field
@@ -237,24 +237,24 @@ function MatchCard({ member: m, onOpen }: { member: DirectoryMember; onOpen: () 
       <button
         type="button"
         onClick={onOpen}
-        className="block w-full cursor-pointer overflow-hidden rounded-lg border border-border bg-white/[0.03] text-left transition-colors duration-150 hover:border-accent"
+        className="block w-full cursor-pointer overflow-hidden rounded-lg border border-border bg-tint-1 text-left transition-colors duration-150 hover:border-accent"
       >
         {m.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- signed blob URL, not a static asset
           <img src={m.avatarUrl} alt="" className="h-28 w-full object-cover" />
         ) : (
-          <div className="flex h-28 w-full items-center justify-center bg-white/[0.06] font-display text-[1.5rem] text-text-secondary">
+          <div className="flex h-28 w-full items-center justify-center bg-tint-3 font-display text-heading text-text-secondary">
             {initialsOf(m)}
           </div>
         )}
         <div className="p-4">
-          <span className="block text-[0.875rem] font-medium text-text-primary">
+          <span className="block text-body font-medium text-text-primary">
             {m.firstName} {m.surname}
           </span>
-          <span className="mt-0.5 block text-[0.775rem] leading-[1.5] text-text-muted">
+          <span className="mt-0.5 block text-body leading-[1.5] text-text-muted">
             {memberSubtitle(m)}
           </span>
-          <span className="mt-3 block border-t border-border-subtle pt-3 text-[0.775rem] leading-[1.5] text-text-secondary">
+          <span className="mt-3 block border-t border-border-subtle pt-3 text-body leading-[1.5] text-text-secondary">
             {becauseLine(m)}
           </span>
         </div>
@@ -279,18 +279,18 @@ function SelfCard({ name, photoPreview, role, gradYear }: {
 }) {
   return (
     <li className={CARD_WIDTH}>
-      <div className="overflow-hidden rounded-lg border border-signal/50 bg-white/[0.03] text-left">
+      <div className="overflow-hidden rounded-lg border border-signal/50 bg-tint-1 text-left">
         {photoPreview ? (
           // eslint-disable-next-line @next/next/no-img-element -- local object URL, not a static asset
           <img src={photoPreview} alt="" className="h-28 w-full object-cover" />
         ) : (
-          <div className="flex h-28 w-full items-center justify-center bg-white/[0.06] font-display text-[1.5rem] text-text-secondary">
+          <div className="flex h-28 w-full items-center justify-center bg-tint-3 font-display text-heading text-text-secondary">
             {name[0]?.toUpperCase() ?? "?"}
           </div>
         )}
         <div className="p-4">
-          <span className="block text-[0.875rem] font-medium text-text-primary">{name}</span>
-          <span className="mt-0.5 block text-[0.775rem] leading-[1.5] text-text-muted">
+          <span className="block text-body font-medium text-text-primary">{name}</span>
+          <span className="mt-0.5 block text-body leading-[1.5] text-text-muted">
             {roleSubtitle(role, gradYear)}
           </span>
         </div>
@@ -309,13 +309,13 @@ export function YoureInScreen({ s, firstName, role, gradYear, matches }: ScreenP
         aria-hidden
         className="mx-auto mb-6 block h-3 w-3 rotate-45 rounded-[1px] bg-signal"
       />
-      <p className="mb-2 text-[0.75rem] font-medium uppercase tracking-[0.14em] text-signal">
+      <p className="mb-2 text-small font-medium tracking-[0.14em] text-signal">
         Welcome
       </p>
-      <h2 className="mb-4 font-display text-[clamp(1.75rem,3.5vw,2.5rem)] leading-[1.1] tracking-tight text-text-primary">
+      <h2 className="mb-4 font-display text-display leading-[1.1] tracking-tight text-text-primary">
         Good to have you, {name}.
       </h2>
-      <p className="mx-auto mb-9 max-w-[46ch] text-[0.95rem] leading-[1.65] text-text-secondary">
+      <p className="mx-auto mb-9 max-w-[46ch] text-lead leading-[1.65] text-text-secondary">
         A few more optional questions, and you&apos;re genuinely findable —
         not just a name in a list.
       </p>
@@ -327,8 +327,8 @@ export function YoureInScreen({ s, firstName, role, gradYear, matches }: ScreenP
         ))}
       </ul>
       {matches.length === 0 && (
-        <div className="mt-3 rounded-lg border border-border bg-white/[0.03] p-6 text-left">
-          <p className="text-[0.875rem] leading-[1.65] text-text-secondary">
+        <div className="mt-3 rounded-lg border border-border bg-tint-1 p-6 text-left">
+          <p className="text-body leading-[1.65] text-text-secondary">
             No one else to show yet — you are early, and the directory is
             still filling up. Adding your skills and interests on the next
             screens is what makes you findable when the next person joins.
@@ -360,20 +360,20 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
 
       <Field label={cvRequired ? "Your CV" : "Your CV, if you have one"} hint="PDF or DOCX · 8 MB maximum.">
         {alreadyUploaded ? (
-          <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
+          <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-tint-2 p-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-tint-1 font-mono text-caption text-text-secondary">
               {(s.cvOriginalFilename?.split(".").pop() ?? "file").slice(0, 4).toUpperCase()}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.85rem] text-text-primary">{s.cvOriginalFilename}</span>
-              <span className="block text-[0.75rem] text-text-muted">Already uploaded</span>
+              <span className="block truncate text-body text-text-primary">{s.cvOriginalFilename}</span>
+              <span className="block text-small text-text-muted">Already uploaded</span>
             </span>
             {existingCv?.downloadUrl && (
               <a
                 href={existingCv.downloadUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary no-underline transition-colors duration-150 hover:border-accent hover:text-text-primary"
+                className="shrink-0 rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary no-underline transition-colors duration-150 hover:border-accent hover:text-text-primary"
               >
                 View
               </a>
@@ -381,7 +381,7 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
             <button
               type="button"
               onClick={() => patch({ cvUploadedKey: null, cvOriginalFilename: null, suggestedSkillIds: [] })}
-              className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+              className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
             >
               Replace
             </button>
@@ -400,7 +400,7 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
 
       {s.cvFile && (
         ingestionEnabled ? (
-          <label htmlFor={consentId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
+          <label htmlFor={consentId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-tint-1 p-4">
             <input
               id={consentId}
               type="checkbox"
@@ -408,7 +408,7 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
               onChange={(e) => patch({ cvConsent: e.target.checked })}
               className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
             />
-            <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
+            <span className="text-body leading-[1.6] text-text-secondary">
               Read my CV to suggest skills to add on the next screen and generate a summary
               recruiters can search to find me. The extracted text and summary are stored and used
               to help match me to relevant opportunities. Before the text is analysed by our AI
@@ -418,7 +418,7 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
             </span>
           </label>
         ) : (
-          <p className="rounded-lg border border-border-strong bg-white/[0.03] p-4 text-[0.8rem] leading-[1.6] text-text-muted">
+          <p className="rounded-lg border border-border-strong bg-tint-1 p-4 text-body leading-[1.6] text-text-muted">
             CV-based skill matching is temporarily paused — your file is still saved, and you can
             add skills yourself on the next screen instead.
           </p>
@@ -472,7 +472,7 @@ export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: Sc
     return (
       <div className="space-y-4">
         <Lead>Saved — these are the projects recruiters will see first.</Lead>
-        <p className="text-[0.85rem] text-text-muted">
+        <p className="text-body text-text-muted">
           You can change them any time from your profile.
         </p>
       </div>
@@ -486,7 +486,7 @@ export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: Sc
         <Skeleton className="h-3 w-full" />
         <Skeleton className="h-3 w-5/6" />
         <Skeleton className="h-3 w-2/3" />
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           This usually takes a few seconds. You can keep going and choose your projects later from
           your profile.
         </p>
@@ -518,7 +518,7 @@ export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: Sc
           Optional. If you write code, connecting GitHub lets recruiters see what you&apos;ve actually
           built — not just what your CV says.
         </Lead>
-        <p className="text-[0.85rem] text-text-muted">
+        <p className="text-body text-text-muted">
           GitHub connections are temporarily paused — check back soon, or connect any time later
           from your profile.
         </p>
@@ -535,7 +535,7 @@ export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: Sc
       </Lead>
 
       {knownHandle && (
-        <p className="text-[0.85rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           We&apos;ve got <span className="text-text-primary">@{knownHandle}</span> from when you
           signed up — connect it to spotlight your projects.
         </p>
@@ -553,7 +553,7 @@ export function GithubScreen({ existingGithubUrl, github, ingestionEnabled }: Sc
         Connect GitHub
       </Button>
 
-      <p className="text-[0.8rem] text-text-muted">
+      <p className="text-body text-text-muted">
         You&apos;ll see GitHub&apos;s own authorisation screen — there&apos;s nothing to generate or
         paste in yourself. We only read public repository information.
       </p>
@@ -601,13 +601,13 @@ export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading, sugg
       >
         {suggestionsLoading && suggested.length === 0 && (
           <div className="mb-4 rounded-lg border border-dashed border-signal/50 bg-signal-muted/40 p-3">
-            <p className="mb-2 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-signal">
+            <p className="mb-2 text-small font-medium tracking-[0.14em] text-signal">
               Reading your CV for skill matches…
             </p>
             <div className="flex flex-wrap gap-2" aria-hidden>
-              <span className="h-7 w-24 animate-pulse rounded-lg bg-white/[0.08]" />
-              <span className="h-7 w-32 animate-pulse rounded-lg bg-white/[0.08]" />
-              <span className="h-7 w-20 animate-pulse rounded-lg bg-white/[0.08]" />
+              <span className="h-7 w-24 animate-pulse rounded-lg bg-tint-3" />
+              <span className="h-7 w-32 animate-pulse rounded-lg bg-tint-3" />
+              <span className="h-7 w-20 animate-pulse rounded-lg bg-tint-3" />
             </div>
           </div>
         )}
@@ -619,8 +619,8 @@ export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading, sugg
             uploadCv), so clicking this and then changing your mind
             leaves everything exactly as it was. */}
         {s.cvConsent && (s.cvFile || s.cvUploadedKey) && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border-strong bg-white/[0.03] p-3">
-            <p className="text-[0.7rem] text-text-secondary">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border-strong bg-tint-1 p-3">
+            <p className="text-small text-text-secondary">
               {suggestionsGaveUp && suggested.length === 0
                 ? "We couldn't find any matching skills in that document. You can still search for skills below in the meantime."
                 : "Not the right document? Uploading a different CV swaps out whatever it found — anything you've added yourself stays."}
@@ -629,7 +629,7 @@ export function SkillsScreen({ s, patch, skillTaxonomy, suggestionsLoading, sugg
               type="button"
               onClick={onRejectCv}
               disabled={rejectingCv}
-              className="shrink-0 cursor-pointer rounded-lg border border-border-strong px-3 py-1.5 text-[0.7rem] font-medium text-text-primary hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-60"
+              className="shrink-0 cursor-pointer rounded-lg border border-border-strong px-3 py-1.5 text-small font-medium text-text-primary hover:bg-tint-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {rejectingCv ? "Removing…" : "Upload a different CV"}
             </button>

@@ -62,20 +62,20 @@ export default function EventReviewCard({ ev }: { ev: Ev }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full px-6 py-5 text-left bg-transparent border-0 cursor-pointer transition-colors duration-150 hover:bg-white/[0.02]"
+        className="w-full px-6 py-5 text-left bg-transparent border-0 cursor-pointer transition-colors duration-150 hover:bg-tint-1"
       >
         <div>
-          <div className="text-[1.05rem] font-medium text-text-primary">{ev.title}</div>
-          <div className="text-[0.8rem] text-text-muted mt-1">
+          <div className="text-lead font-medium text-text-primary">{ev.title}</div>
+          <div className="text-body text-text-muted mt-1">
             {when} · {ev.location} · Organised by {ev.organiserName}
           </div>
-          <div className="text-[0.75rem] text-text-muted mt-1">
+          <div className="text-small text-text-muted mt-1">
             Posted by <span className="text-text-secondary">{ev.postedBy.firstName} {ev.postedBy.surname}</span>
             {ev.postedBy.signupEmail && (<> · <span className="text-text-secondary">{ev.postedBy.signupEmail}</span></>)}
             {" · submitted "}{submittedOn}
           </div>
         </div>
-        <div className="text-[0.7rem] text-text-muted mt-3">
+        <div className="text-small text-text-muted mt-3">
           {open ? "▾ Hide details" : "▸ Show details"}
         </div>
       </button>
@@ -83,10 +83,10 @@ export default function EventReviewCard({ ev }: { ev: Ev }) {
       {open && (
         <div className="px-6 pb-6 pt-1 border-t border-border-subtle space-y-5">
           <DetailBlock label="Description">
-            <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{ev.description}</p>
+            <p className="text-body text-text-secondary leading-relaxed whitespace-pre-wrap">{ev.description}</p>
           </DetailBlock>
           <DetailBlock label="Luma link">
-            <a href={externalHref(ev.lumaLink)} target="_blank" rel="noreferrer noopener" className="text-[0.85rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
+            <a href={externalHref(ev.lumaLink)} target="_blank" rel="noreferrer noopener" className="text-body text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
               {ev.lumaLink} ↗
             </a>
           </DetailBlock>
@@ -103,7 +103,7 @@ export default function EventReviewCard({ ev }: { ev: Ev }) {
       <div className="px-6 pb-6">
         {showReject ? (
           <div className="space-y-3 pt-3 border-t border-border-subtle">
-            <label htmlFor={`reason-${ev.id}`} className="block text-[0.75rem] text-text-muted">
+            <label htmlFor={`reason-${ev.id}`} className="block text-small text-text-muted">
               Reason for rejection (internal)
             </label>
             <textarea
@@ -111,7 +111,7 @@ export default function EventReviewCard({ ev }: { ev: Ev }) {
               rows={2}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.8rem] text-text-primary placeholder:text-text-muted focus:border-accent/50 resize-none"
+              className="w-full px-3 py-2 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted focus:border-accent/50 resize-none"
             />
             <div className="flex gap-2">
               <Button
@@ -164,7 +164,7 @@ export default function EventReviewCard({ ev }: { ev: Ev }) {
 function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">{label}</div>
+      <div className="text-small text-text-muted mb-1">{label}</div>
       {children}
     </div>
   );

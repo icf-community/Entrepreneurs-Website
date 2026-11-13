@@ -32,7 +32,7 @@ export default function ListingDetailShell({
         <div className="mx-auto max-w-[820px]">
           <Link
             href={backHref}
-            className="mb-6 inline-flex items-center text-[0.8rem] text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary"
+            className="mb-6 inline-flex items-center text-body text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary"
           >
             ← {backLabel}
           </Link>
@@ -42,7 +42,7 @@ export default function ListingDetailShell({
               {title}
             </h1>
             {meta && (
-              <p className="mt-3 text-[0.875rem] leading-relaxed text-text-muted">{meta}</p>
+              <p className="mt-3 text-body leading-relaxed text-text-muted">{meta}</p>
             )}
           </header>
           {children}
@@ -71,13 +71,13 @@ export function ListingGone({
 }) {
   return (
     <div className="rounded-2xl border border-border bg-bg-card px-6 py-12 text-center">
-      <p className="mx-auto max-w-[46ch] text-[0.85rem] leading-relaxed text-text-muted">
+      <p className="mx-auto max-w-[46ch] text-body leading-relaxed text-text-muted">
         This {kind} has closed, or the poster or an admin removed it. Everything
         still open is on the list.
       </p>
       <Link
         href={backHref}
-        className="mt-6 inline-flex items-center rounded-lg border border-border-strong bg-white/[0.05] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors hover:bg-white/[0.10] hover:border-accent"
+        className="mt-6 inline-flex items-center rounded-lg border border-border-strong bg-tint-2 px-4 py-2 text-body text-text-primary no-underline transition-colors hover:bg-tint-4 hover:border-accent"
       >
         {backLabel}
       </Link>
@@ -90,8 +90,8 @@ export function Fact({ label, children }: { label: string; children: ReactNode }
   if (children == null || children === "") return null;
   return (
     <div>
-      <div className="mb-1 text-[0.7rem] uppercase tracking-wider text-text-muted">{label}</div>
-      <div className="text-[0.85rem] text-text-secondary">{children}</div>
+      <div className="mb-1 text-small text-text-muted">{label}</div>
+      <div className="text-body text-text-secondary">{children}</div>
     </div>
   );
 }
@@ -100,8 +100,8 @@ export function Fact({ label, children }: { label: string; children: ReactNode }
 export function Description({ text }: { text: string }) {
   return (
     <section>
-      <h2 className="mb-2 text-[0.7rem] uppercase tracking-wider text-text-muted">Description</h2>
-      <p className="whitespace-pre-wrap text-[0.9rem] leading-relaxed text-text-secondary">{text}</p>
+      <h2 className="mb-2 text-small text-text-muted">Description</h2>
+      <p className="whitespace-pre-wrap text-lead leading-relaxed text-text-secondary">{text}</p>
     </section>
   );
 }

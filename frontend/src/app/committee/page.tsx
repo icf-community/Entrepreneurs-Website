@@ -13,16 +13,16 @@ export default async function CommitteePage() {
         <div className="max-w-[1100px] mx-auto">
           <div className="mb-8 rule-draw pt-4 max-w-[820px]">
             <p className="label-wide text-text-muted mb-6">Meet the Committee</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               The people running the Foundry
             </h1>
-            <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed">
+            <p className="text-body text-text-muted mt-3 leading-relaxed">
               Use the arrows (or ← →) to page through everyone. Click a card for their full profile.
             </p>
           </div>
 
           {members.length === 0 ? (
-            <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted max-w-[820px] mx-auto">
+            <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted max-w-[820px] mx-auto">
               No committee members have been added yet.
             </div>
           ) : (

@@ -30,7 +30,7 @@ export function Field({
       <label className={`${labelCls} mb-1.5`} htmlFor={htmlFor}>
         {label}
       </label>
-      {hint && <p className="mb-2.5 text-[0.8rem] leading-[1.6] text-text-muted">{hint}</p>}
+      {hint && <p className="mb-2.5 text-body leading-[1.6] text-text-muted">{hint}</p>}
       {children}
     </div>
   );
@@ -64,17 +64,17 @@ export function ChoiceCards<T extends string>({
             onClick={() => onChange(o.value)}
             className={`cursor-pointer rounded-lg border px-4 py-3 text-left transition-colors duration-150 ${
               on
-                ? "border-accent bg-white/[0.10]"
-                : "border-border-strong bg-white/[0.03] hover:border-accent hover:bg-white/[0.06]"
+                ? "border-accent bg-tint-4"
+                : "border-border-strong bg-tint-1 hover:border-accent hover:bg-tint-3"
             }`}
           >
             <span
-              className={`block text-[0.85rem] font-medium ${on ? "text-text-primary" : "text-text-secondary"}`}
+              className={`block text-body font-medium ${on ? "text-text-primary" : "text-text-secondary"}`}
             >
               {o.label}
             </span>
             {o.blurb && (
-              <span className="mt-0.5 block text-[0.75rem] leading-[1.5] text-text-muted">{o.blurb}</span>
+              <span className="mt-0.5 block text-small leading-[1.5] text-text-muted">{o.blurb}</span>
             )}
           </button>
         );
@@ -108,10 +108,10 @@ export function PillChoice({
             role="radio"
             aria-checked={on}
             onClick={() => onChange(o.value)}
-            className={`cursor-pointer rounded-lg border px-4 py-2 text-[0.8rem] transition-colors duration-150 ${
+            className={`cursor-pointer rounded-lg border px-4 py-2 text-body transition-colors duration-150 ${
               on
                 ? "border-accent bg-accent font-medium text-bg-primary"
-                : "border-border-strong bg-white/[0.03] text-text-secondary hover:border-accent hover:text-text-primary"
+                : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary"
             }`}
           >
             {o.label}
@@ -181,7 +181,7 @@ export function TagInput({
         <ul className="mb-2 flex flex-wrap gap-2">
           {values.map((v) => (
             <li key={v}>
-              <span className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-white/[0.06] py-1 pl-3 pr-1 text-[0.775rem] text-text-primary">
+              <span className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-tint-3 py-1 pl-3 pr-1 text-body text-text-primary">
                 {v}
                 <button
                   type="button"
@@ -191,7 +191,7 @@ export function TagInput({
                   // the actual tap target extends 4px past it on every side via the
                   // pseudo-element below — safe because chips sit in an 8px gap-2
                   // grid, so two adjacent extended targets meet without overlapping.
-                  className="relative ml-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 before:absolute before:-inset-1 before:content-[''] hover:border-accent hover:text-text-primary"
+                  className="relative ml-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-border-strong bg-tint-2 text-text-secondary transition-colors duration-150 before:absolute before:-inset-1 before:content-[''] hover:border-accent hover:text-text-primary"
                 >
                   <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden>
                     <path
@@ -237,7 +237,7 @@ export function TagInput({
         <button
           type="button"
           onClick={() => commit(draft)}
-          className="mt-2 cursor-pointer rounded-lg border border-border-strong bg-white/[0.06] px-3 py-1.5 text-[0.775rem] font-medium text-text-primary transition-colors duration-150 hover:border-accent"
+          className="mt-2 cursor-pointer rounded-lg border border-border-strong bg-tint-3 px-3 py-1.5 text-body font-medium text-text-primary transition-colors duration-150 hover:border-accent"
         >
           + Add &quot;{trimmed}&quot;
         </button>
@@ -250,7 +250,7 @@ export function TagInput({
               <button
                 type="button"
                 onClick={() => commit(m)}
-                className="cursor-pointer rounded-lg border border-border bg-white/[0.02] px-3 py-1.5 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+                className="cursor-pointer rounded-lg border border-border bg-tint-1 px-3 py-1.5 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
               >
                 + {m}
               </button>
@@ -319,7 +319,7 @@ export function SkillPicker({
     <div>
       {suggested.length > 0 && (
         <div className="mb-4 rounded-lg border border-dashed border-signal/50 bg-signal-muted/40 p-3">
-          <p className="mb-2 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-signal">
+          <p className="mb-2 text-small font-medium tracking-[0.14em] text-signal">
             Found in your CV
           </p>
           <div className="flex flex-wrap gap-2">
@@ -328,7 +328,7 @@ export function SkillPicker({
                 key={s.id}
                 type="button"
                 onClick={() => acceptSuggestion(s.id)}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-signal/40 bg-white/[0.03] px-3 py-1.5 text-[0.775rem] text-text-primary transition-colors duration-150 hover:border-signal hover:bg-signal-muted"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-signal/40 bg-tint-1 px-3 py-1.5 text-body text-text-primary transition-colors duration-150 hover:border-signal hover:bg-signal-muted"
               >
                 <span aria-hidden className="text-signal">+</span>
                 {s.name}
@@ -345,7 +345,7 @@ export function SkillPicker({
             if (!skill) return null;
             return (
               <li key={id}>
-                <span className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-white/[0.06] py-1 pl-3 pr-1 text-[0.775rem] text-text-primary">
+                <span className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-tint-3 py-1 pl-3 pr-1 text-body text-text-primary">
                   {skill.name}
                   <button
                     type="button"
@@ -354,7 +354,7 @@ export function SkillPicker({
                     // See TagInput's matching remove button above for why this
                     // extends its hit area via a pseudo-element instead of just
                     // growing the visible box.
-                    className="relative ml-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 before:absolute before:-inset-1 before:content-[''] hover:border-accent hover:text-text-primary"
+                    className="relative ml-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-border-strong bg-tint-2 text-text-secondary transition-colors duration-150 before:absolute before:-inset-1 before:content-[''] hover:border-accent hover:text-text-primary"
                   >
                     <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden>
                       <path d="M1 1L8 8M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -386,7 +386,7 @@ export function SkillPicker({
                   onAdd(m.id);
                   setDraft("");
                 }}
-                className="cursor-pointer rounded-lg border border-border bg-white/[0.02] px-3 py-1.5 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+                className="cursor-pointer rounded-lg border border-border bg-tint-1 px-3 py-1.5 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
               >
                 + {m.name}
                 {m.category && <span className="ml-1.5 text-text-muted">· {m.category}</span>}
@@ -397,7 +397,7 @@ export function SkillPicker({
       )}
 
       {query && matches.length === 0 && (
-        <p className="mt-2 text-[0.8rem] leading-[1.6] text-text-muted">
+        <p className="mt-2 text-body leading-[1.6] text-text-muted">
           Nothing matches that — the list is curated,{" "}
           <Link href="/contact" className="text-text-secondary underline underline-offset-2">
             tell us what&apos;s missing
@@ -424,10 +424,10 @@ export function SkillPicker({
                   disabled={locked}
                   aria-pressed={isCore}
                   onClick={() => onToggleCore(id)}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-[0.775rem] transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-body transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
                     isCore
                       ? "border-signal/50 bg-signal-muted text-text-primary"
-                      : "border-border-strong bg-white/[0.03] text-text-secondary hover:border-accent hover:text-text-primary"
+                      : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary"
                   }`}
                 >
                   <span aria-hidden className={isCore ? "text-signal" : "text-text-muted"}>★</span>
@@ -470,7 +470,7 @@ export function FilePicker({
 
   if (file) {
     return (
-      <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
+      <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-tint-2 p-4">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element -- object URL, not a remote asset
           <img
@@ -479,20 +479,20 @@ export function FilePicker({
             className="h-16 w-16 shrink-0 rounded-lg object-cover"
           />
         ) : (
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-tint-1 font-mono text-caption text-text-secondary">
             {(file.name.split(".").pop() ?? "file").slice(0, 4).toUpperCase()}
           </span>
         )}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.85rem] text-text-primary">{file.name}</span>
-          <span className="block text-[0.75rem] text-text-muted">
+          <span className="block truncate text-body text-text-primary">{file.name}</span>
+          <span className="block text-small text-text-muted">
             {(file.size / 1024).toFixed(0)} KB
           </span>
         </span>
         <button
           type="button"
           onClick={onClear}
-          className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
+          className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-3 py-2 text-body text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
         >
           Replace
         </button>
@@ -517,12 +517,12 @@ export function FilePicker({
           if (f) onPick(f);
         }}
         className={`w-full cursor-pointer rounded-lg border border-dashed px-6 py-8 text-center transition-colors duration-150 ${
-          over ? "border-accent bg-white/[0.08]" : "border-border-strong bg-white/[0.03] hover:bg-white/[0.06]"
+          over ? "border-accent bg-tint-3" : "border-border-strong bg-tint-1 hover:bg-tint-3"
         }`}
       >
-        <span className="block text-[0.9rem] font-medium text-text-primary">{label}</span>
-        <span className="mt-1 block text-[0.775rem] text-text-muted">{hint}</span>
-        <span className="mt-4 inline-block rounded-lg border border-border-strong bg-white/[0.06] px-4 py-2 text-[0.8rem] text-text-primary">
+        <span className="block text-lead font-medium text-text-primary">{label}</span>
+        <span className="mt-1 block text-body text-text-muted">{hint}</span>
+        <span className="mt-4 inline-block rounded-lg border border-border-strong bg-tint-3 px-4 py-2 text-body text-text-primary">
           Choose a file
         </span>
       </button>
@@ -569,14 +569,14 @@ export function RankPicker({
             disabled={full}
             aria-pressed={on}
             onClick={() => onToggle(o.value)}
-            className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-[0.8rem] transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-body transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
               on
-                ? "border-accent bg-white/[0.10] text-text-primary"
-                : "border-border-strong bg-white/[0.03] text-text-secondary hover:border-accent hover:text-text-primary"
+                ? "border-accent bg-tint-4 text-text-primary"
+                : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary"
             }`}
           >
             {on && (
-              <span className="flex h-5 w-5 items-center justify-center rounded border border-signal/50 bg-signal-muted font-mono text-[0.65rem] text-signal">
+              <span className="flex h-5 w-5 items-center justify-center rounded border border-signal/50 bg-signal-muted font-mono text-caption text-signal">
                 {rank + 1}
               </span>
             )}

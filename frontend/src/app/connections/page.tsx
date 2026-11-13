@@ -88,10 +88,10 @@ export default async function ConnectionsPage({
         <div className="max-w-[1200px] mx-auto">
           <div className="mb-8 rule-draw pt-4">
             <p className="label-wide text-text-muted mb-6">Connections</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               People you can reach
             </h1>
-            <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed max-w-[62ch]">
+            <p className="text-body text-text-muted mt-3 leading-relaxed max-w-[62ch]">
               A connection is a mutual agreement to share email addresses. Either of you
               can undo it at any time.
             </p>

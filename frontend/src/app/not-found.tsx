@@ -48,11 +48,11 @@ export default function NotFound() {
             404
           </div>
 
-          <h1 className="font-display text-text-primary leading-[1.15] tracking-tight mb-5 text-[clamp(1.75rem,3.5vw,2.5rem)]">
+          <h1 className="font-display text-text-primary leading-[1.15] tracking-tight mb-5 text-display">
             This page doesn&apos;t exist.
           </h1>
 
-          <p className="text-[0.95rem] text-text-secondary leading-[1.7] mb-10">
+          <p className="text-lead text-text-secondary leading-[1.7] mb-10">
             The link may be broken, the page may have been moved, or you may have
             mistyped the address. Let&apos;s get you back on track.
           </p>
@@ -69,7 +69,7 @@ export default function NotFound() {
             </Link>
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.05] px-7 py-3.5 text-sm text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
+              className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-tint-2 px-7 py-3.5 text-sm text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-tint-4"
             >
               Join Foundry
             </Link>
@@ -80,7 +80,7 @@ export default function NotFound() {
       {/* Footer */}
       <footer className="relative z-10 px-8 py-5">
         <div className="max-w-[1200px] mx-auto flex justify-center">
-          <p className="text-[0.75rem] text-text-muted">
+          <p className="text-small text-text-muted">
             Foundry · Imperial Entrepreneurs
           </p>
         </div>

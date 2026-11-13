@@ -54,7 +54,7 @@ export default function MyActivityClient({ items }: { items: ActivityItem[] }) {
 
   if (items.length === 0 || counts.all === 0) {
     return (
-      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
         Nothing here yet. When you apply to an opportunity or VC, or RSVP to an event, hit the &quot;Mark as applied&quot; / &quot;Mark as going&quot; button on the listing — it&apos;ll show up here.
       </div>
     );
@@ -68,10 +68,10 @@ export default function MyActivityClient({ items }: { items: ActivityItem[] }) {
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded-lg text-[0.775rem] border transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-body border transition-colors cursor-pointer ${
               tab === t
                 ? "bg-accent-muted border-accent/50 text-accent-light"
-                : "bg-white/[0.02] border-border text-text-secondary hover:border-accent hover:text-text-primary"
+                : "bg-tint-1 border-border text-text-secondary hover:border-accent hover:text-text-primary"
             }`}
           >
             {TAB_LABEL[t]} <span className="opacity-60">· {counts[t]}</span>
@@ -80,7 +80,7 @@ export default function MyActivityClient({ items }: { items: ActivityItem[] }) {
       </div>
 
       {visible.length === 0 ? (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
           Nothing in this tab.
         </div>
       ) : (
@@ -116,28 +116,28 @@ function Row({ item, onUnmark }: { item: ActivityItem; onUnmark: () => void }) {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2 py-0.5 rounded-lg text-[0.65rem] uppercase tracking-wider border bg-white/[0.02] border-border text-text-muted">
+            <span className="px-2 py-0.5 rounded-lg text-caption border bg-tint-1 border-border text-text-muted">
               {KIND_BADGE[item.listingKind]}
             </span>
-            <span className="px-2 py-0.5 rounded-lg text-[0.65rem] uppercase tracking-wider border bg-accent-muted text-accent-light border-accent/30">
+            <span className="px-2 py-0.5 rounded-lg text-caption border bg-accent-muted text-accent-light border-accent/30">
               {item.actionType === "going" ? "Going" : "Applied"}
             </span>
             {expired && (
-              <span className="px-2 py-0.5 rounded-lg text-[0.65rem] uppercase tracking-wider border bg-white/[0.02] border-border-subtle text-text-muted">
+              <span className="px-2 py-0.5 rounded-lg text-caption border bg-tint-1 border-border-subtle text-text-muted">
                 Listing expired
               </span>
             )}
           </div>
           <Link
             href={internalHref}
-            className="block mt-2 text-[0.95rem] text-text-primary no-underline hover:text-accent-light transition-colors"
+            className="block mt-2 text-lead text-text-primary no-underline hover:text-accent-light transition-colors"
           >
             {item.title}
           </Link>
           {item.subtitle && (
-            <div className="text-[0.75rem] text-text-muted mt-0.5">{item.subtitle}</div>
+            <div className="text-small text-text-muted mt-0.5">{item.subtitle}</div>
           )}
-          <div className="text-[0.7rem] text-text-muted mt-2 flex items-center gap-3 flex-wrap">
+          <div className="text-small text-text-muted mt-2 flex items-center gap-3 flex-wrap">
             {occursLabel && <span>{occursLabel}</span>}
             <span>Marked {markedLabel}</span>
           </div>
@@ -148,7 +148,7 @@ function Row({ item, onUnmark }: { item: ActivityItem; onUnmark: () => void }) {
               href={externalHref(item.url)}
               target="_blank"
               rel="noreferrer noopener"
-              className="inline-flex items-center px-3 py-1.5 rounded-lg bg-transparent border border-border text-text-secondary text-[0.75rem] no-underline transition-colors hover:border-accent hover:text-accent-light"
+              className="inline-flex items-center px-3 py-1.5 rounded-lg bg-transparent border border-border text-text-secondary text-small no-underline transition-colors hover:border-accent hover:text-accent-light"
             >
               Open ↗
             </a>
@@ -156,7 +156,7 @@ function Row({ item, onUnmark }: { item: ActivityItem; onUnmark: () => void }) {
           <button
             type="button"
             onClick={onUnmark}
-            className="px-3 py-1.5 rounded-lg bg-white/[0.05] border border-border-strong text-text-secondary text-[0.75rem] cursor-pointer transition-colors hover:bg-[#ff4d4d]/10 hover:border-[#ff4d4d]/50 hover:text-[#ff8b8b]"
+            className="px-3 py-1.5 rounded-lg bg-tint-2 border border-border-strong text-text-secondary text-small cursor-pointer transition-colors hover:bg-danger/10 hover:border-danger/50 hover:text-danger"
           >
             Unmark
           </button>

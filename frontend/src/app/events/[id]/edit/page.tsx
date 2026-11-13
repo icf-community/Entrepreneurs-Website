@@ -71,12 +71,12 @@ export default async function EditEventPage({ params }: { params: Promise<Params
     <AppShell active="events" name={displayName} isAdmin={isAdmin}>
       <div className="px-4 sm:px-8 py-10 sm:py-12">
         <div className="max-w-[820px] mx-auto">
-          <Link href="/my-submissions" className="inline-flex items-center text-[0.8rem] text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6">
+          <Link href="/my-submissions" className="inline-flex items-center text-body text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6">
             ← Your submissions
           </Link>
           <div className="mb-10 rule-draw pt-6">
             <p className="label-wide text-text-secondary mb-3">Edit event</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
+            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
               {row.title}
             </h1>
             <EditStatusNote status={row.status} noun="event" />

@@ -152,7 +152,7 @@ export default function OpportunitiesClient({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
           {items.length === 0 ? "No opportunities posted yet." : "No opportunities match your search."}
         </div>
       ) : (
@@ -224,19 +224,19 @@ function OpportunityCard({
         type="button"
         onClick={toggleOpen}
         aria-expanded={open}
-        className="w-full px-6 py-5 text-left bg-transparent cursor-pointer transition-colors duration-150 hover:bg-white/[0.02]"
+        className="w-full px-6 py-5 text-left bg-transparent cursor-pointer transition-colors duration-150 hover:bg-tint-1"
       >
         <div className="flex items-start justify-between gap-4 flex-wrap pr-10">
           <div>
-            <div className="text-[1.05rem] font-medium text-text-primary">
+            <div className="text-lead font-medium text-text-primary">
               {o.positionName}
             </div>
-            <div className="text-[0.8rem] text-text-muted mt-1">
+            <div className="text-body text-text-muted mt-1">
               {o.company} · {location} · Starts {start}
               {audienceLabel(o.audience) && <> · {audienceLabel(o.audience)}</>}
             </div>
           </div>
-          <div className="text-[0.75rem] text-accent-light shrink-0">
+          <div className="text-small text-accent-light shrink-0">
             {o.pay}
           </div>
         </div>
@@ -244,15 +244,15 @@ function OpportunityCard({
         {(o.sectors.length > 0 || o.skills.length > 0) && (
           <div className="flex flex-wrap gap-1.5 mt-3">
             {o.sectors.map((s) => (
-              <span key={`sec-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-accent-muted text-accent-light border border-accent/20">{s}</span>
+              <span key={`sec-${s}`} className="px-2 py-0.5 rounded-lg text-small bg-accent-muted text-accent-light border border-accent/20">{s}</span>
             ))}
             {o.skills.map((s) => (
-              <span key={`skl-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-white/[0.03] text-text-secondary border border-border">{s}</span>
+              <span key={`skl-${s}`} className="px-2 py-0.5 rounded-lg text-small bg-tint-1 text-text-secondary border border-border">{s}</span>
             ))}
           </div>
         )}
 
-        <div className="text-[0.7rem] text-text-muted mt-3">
+        <div className="text-small text-text-muted mt-3">
           {open ? "▾ Hide details" : "▸ Show details"} · Apply by {deadline}
         </div>
       </button>
@@ -264,14 +264,14 @@ function OpportunityCard({
       {open && !stale && (
         <div className="px-6 pb-6 pt-1 border-t border-border-subtle">
           {checking && (
-            <div className="text-[0.7rem] text-text-muted mt-3">Loading latest details…</div>
+            <div className="text-small text-text-muted mt-3">Loading latest details…</div>
           )}
-          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1 mt-4">Description</div>
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{o.description}</p>
+          <div className="text-small text-text-muted mb-1 mt-4">Description</div>
+          <p className="text-body text-text-secondary leading-relaxed whitespace-pre-wrap">{o.description}</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 text-[0.8rem]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 text-body">
             <div>
-              <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Posted by</div>
+              <div className="text-small text-text-muted mb-1">Posted by</div>
               <div className="text-text-secondary">
                 {o.postedBy.firstName} {o.postedBy.surname}
               </div>
@@ -282,7 +282,7 @@ function OpportunityCard({
                     href={externalHref(o.postedBy.linkedinUrl)}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
+                    className="text-small text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
                   >
                     LinkedIn ↗
                   </a>
@@ -290,13 +290,13 @@ function OpportunityCard({
               </div>
             </div>
             <div>
-              <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Apply by</div>
+              <div className="text-small text-text-muted mb-1">Apply by</div>
               <div className="text-text-secondary">{deadline}</div>
             </div>
           </div>
 
           <div className="mt-5">
-            <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">How to apply</div>
+            <div className="text-small text-text-muted mb-1">How to apply</div>
             <div className="flex items-start gap-2 flex-wrap">
               {o.applyMethod === "link" && o.applyUrl ? (
                 <a
@@ -304,7 +304,7 @@ function OpportunityCard({
                   target="_blank"
                   rel="noreferrer noopener"
                   onClick={() => recordListingEvent("opportunity", o.id, "apply_click")}
-                  className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.825rem] font-medium no-underline transition-colors hover:bg-accent-light"
+                  className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-body font-medium no-underline transition-colors hover:bg-accent-light"
                 >
                   Open application portal ↗
                 </a>
@@ -312,12 +312,12 @@ function OpportunityCard({
                 <a
                   href={mailtoHref(o.contactEmail, o.positionName)}
                   onClick={() => recordListingEvent("opportunity", o.id, "contact_click")}
-                  className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.825rem] font-medium no-underline transition-colors hover:bg-accent-light"
+                  className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-body font-medium no-underline transition-colors hover:bg-accent-light"
                 >
                   Email to apply ↗
                 </a>
               ) : (
-                <p className="text-[0.8rem] text-text-secondary">
+                <p className="text-body text-text-secondary">
                   Contact <span className="text-text-primary">{o.postedBy.firstName} {o.postedBy.surname}</span> via LinkedIn to apply.
                 </p>
               )}

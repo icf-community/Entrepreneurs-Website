@@ -45,24 +45,24 @@ export default function AffiliationSection({ role }: { role: Affiliation }) {
   if (role === "student") {
     return (
       <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-        <h2 className="mb-1 text-[1rem] font-medium text-text-primary">Your affiliation</h2>
-        <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
+        <h2 className="mb-1 text-lead font-medium text-text-primary">Your affiliation</h2>
+        <p className="mb-5 text-body leading-[1.6] text-text-muted">
           Set when you signed up with your Imperial address.
         </p>
 
-        <div className="flex items-center gap-3 rounded-lg border border-border-strong bg-white/[0.06] px-4 py-3">
+        <div className="flex items-center gap-3 rounded-lg border border-border-strong bg-tint-3 px-4 py-3">
           <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-signal" />
           <span className="min-w-0">
-            <span className="block text-[0.85rem] font-medium text-text-primary">
+            <span className="block text-body font-medium text-text-primary">
               {current?.label}
             </span>
-            <span className="mt-0.5 block text-[0.775rem] leading-[1.5] text-text-muted">
+            <span className="mt-0.5 block text-body leading-[1.5] text-text-muted">
               {current?.blurb}
             </span>
           </span>
         </div>
 
-        <p className="mt-4 text-[0.8rem] leading-[1.6] text-text-secondary">
+        <p className="mt-4 text-body leading-[1.6] text-text-secondary">
           When you graduate, your student account is closed and you&apos;ll get an
           email inviting you to sign up again as an alum. That&apos;s how the
           transition works — there&apos;s nothing to change here.
@@ -101,8 +101,8 @@ export default function AffiliationSection({ role }: { role: Affiliation }) {
 
   return (
     <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">Your affiliation</h2>
-      <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
+      <h2 className="mb-1 text-lead font-medium text-text-primary">Your affiliation</h2>
+      <p className="mb-5 text-body leading-[1.6] text-text-muted">
         How the directory describes you. Change it whenever it stops being
         accurate — it doesn&apos;t send you back for review.
       </p>
@@ -137,7 +137,7 @@ export default function AffiliationSection({ role }: { role: Affiliation }) {
           Save affiliation
         </Button>
         {choice !== role && (
-          <span className="text-[0.8rem] text-text-muted">
+          <span className="text-body text-text-muted">
             Changing from {current?.label}
           </span>
         )}

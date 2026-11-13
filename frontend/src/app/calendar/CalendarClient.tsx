@@ -80,7 +80,7 @@ export default function CalendarClient({ items }: { items: CalItem[] }) {
       <div className="flex items-center gap-1.5 mb-6">
         <ViewTab label="List"  active={view === "list"}  onClick={() => setView("list")} />
         <ViewTab label="Month" active={view === "month"} onClick={() => setView("month")} />
-        <span className="ml-auto text-[0.8rem] text-text-muted">
+        <span className="ml-auto text-body text-text-muted">
           {upcoming.length} upcoming
         </span>
       </div>
@@ -106,10 +106,10 @@ function ViewTab({ label, active, onClick }: { label: string; active: boolean; o
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-[0.775rem] border transition-colors cursor-pointer ${
+      className={`px-3 py-1.5 rounded-lg text-body border transition-colors cursor-pointer ${
         active
           ? "bg-accent-muted border-accent/50 text-accent-light"
-          : "bg-white/[0.02] border-border text-text-secondary hover:border-accent hover:text-text-primary"
+          : "bg-tint-1 border-border text-text-secondary hover:border-accent hover:text-text-primary"
       }`}
     >
       {label}
@@ -119,7 +119,7 @@ function ViewTab({ label, active, onClick }: { label: string; active: boolean; o
 
 function LegendRow() {
   return (
-    <div className="flex items-center gap-3 mb-4 text-[0.7rem] text-text-muted flex-wrap">
+    <div className="flex items-center gap-3 mb-4 text-small text-text-muted flex-wrap">
       <LegendDot kind="event"       label="Event" />
       <LegendDot kind="opportunity" label="Opportunity deadline" />
       <LegendDot kind="vc_grant"    label="VC / grant deadline" />
@@ -154,7 +154,7 @@ function ListView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalItem
 
   if (groups.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
         Nothing upcoming. Items you post or mark as going/applied show up here automatically.
       </div>
     );
@@ -166,7 +166,7 @@ function ListView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalItem
         const dateLabel = formatDayKeyLong(g.dateKey);
         return (
           <section key={g.dateKey}>
-            <h2 className="text-[0.85rem] text-accent-light mb-2">{dateLabel}</h2>
+            <h2 className="text-body text-accent-light mb-2">{dateLabel}</h2>
             <div className="rounded-2xl bg-bg-card border border-border divide-y divide-border-subtle">
               {g.rows.map((r) => <ListRow key={`${r.listingKind}:${r.listingId}`} item={r} onSelect={onSelect} />)}
             </div>
@@ -183,23 +183,23 @@ function ListRow({ item, onSelect }: { item: CalItem; onSelect: (i: CalItem) => 
     <button
       type="button"
       onClick={() => onSelect(item)}
-      className="w-full flex items-start gap-3 p-4 text-left bg-transparent border-0 cursor-pointer transition-colors hover:bg-white/[0.02]"
+      className="w-full flex items-start gap-3 p-4 text-left bg-transparent border-0 cursor-pointer transition-colors hover:bg-tint-1"
     >
       <span className={`mt-1.5 shrink-0 inline-block w-2 h-2 rounded-full ${KIND_DOT[item.listingKind]}`} aria-hidden />
       <div className="min-w-0 flex-1">
-        <div className="text-[0.7rem] text-text-muted">
+        <div className="text-small text-text-muted">
           {timeLabel} <span className="opacity-60">· {KIND_LABEL[item.listingKind]}</span>
         </div>
-        <div className="text-[0.9rem] text-text-primary mt-0.5">{item.title}</div>
-        {item.subtitle && <div className="text-[0.75rem] text-text-muted mt-0.5">{item.subtitle}</div>}
+        <div className="text-lead text-text-primary mt-0.5">{item.title}</div>
+        {item.subtitle && <div className="text-small text-text-muted mt-0.5">{item.subtitle}</div>}
       </div>
       <span className="shrink-0 flex items-center gap-1.5">
         {item.status === "pending" && (
-          <span className="px-2 py-0.5 rounded-lg text-[0.6rem] uppercase tracking-wider border border-border text-text-muted">
+          <span className="px-2 py-0.5 rounded-lg text-caption border border-border text-text-muted">
             In review
           </span>
         )}
-        <span className="px-2 py-0.5 rounded-lg text-[0.65rem] tracking-wide border border-border-subtle text-text-muted">
+        <span className="px-2 py-0.5 rounded-lg text-caption tracking-wide border border-border-subtle text-text-muted">
           {ROLE_LABEL[item.role]}
         </span>
       </span>
@@ -232,23 +232,23 @@ function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalIte
         <button
           type="button"
           onClick={() => setCursor((c) => shiftMonth(c, -1))}
-          className="px-3 py-1.5 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.8rem] cursor-pointer transition-colors hover:bg-white/[0.10] hover:border-accent hover:text-accent-light"
+          className="px-3 py-1.5 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body cursor-pointer transition-colors hover:bg-tint-4 hover:border-accent hover:text-accent-light"
           aria-label="Previous month"
         >
           ◀
         </button>
-        <div className="px-3 py-1.5 text-[0.9rem] text-text-primary">{monthLabel}</div>
+        <div className="px-3 py-1.5 text-lead text-text-primary">{monthLabel}</div>
         <button
           type="button"
           onClick={() => setCursor((c) => shiftMonth(c, 1))}
-          className="px-3 py-1.5 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.8rem] cursor-pointer transition-colors hover:bg-white/[0.10] hover:border-accent hover:text-accent-light"
+          className="px-3 py-1.5 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-body cursor-pointer transition-colors hover:bg-tint-4 hover:border-accent hover:text-accent-light"
           aria-label="Next month"
         >
           ▶
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-px bg-border-subtle border border-border-subtle rounded-2xl overflow-hidden text-[0.7rem]">
+      <div className="grid grid-cols-7 gap-px bg-border-subtle border border-border-subtle rounded-2xl overflow-hidden text-small">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <div key={d} className="px-2 py-2 bg-bg-card text-text-muted uppercase tracking-wider">{d}</div>
         ))}
@@ -262,8 +262,8 @@ function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalIte
             <div
               className={
                 cell.isToday
-                  ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[0.7rem] font-medium text-bg-primary mb-1"
-                  : "text-[0.7rem] text-text-muted mb-1"
+                  ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-small font-medium text-bg-primary mb-1"
+                  : "text-small text-text-muted mb-1"
               }
             >
               {cell.day}
@@ -278,7 +278,7 @@ function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalIte
                   className="w-full flex items-center gap-1.5 bg-transparent border-0 p-0 text-left cursor-pointer transition-colors hover:opacity-80"
                 >
                   <span className={`shrink-0 inline-block w-1.5 h-1.5 rounded-full ${KIND_DOT[i.listingKind]}`} aria-hidden />
-                  <span className="truncate text-[0.7rem] text-text-secondary">{i.title}</span>
+                  <span className="truncate text-small text-text-secondary">{i.title}</span>
                 </button>
               ))}
             </div>
@@ -287,7 +287,7 @@ function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalIte
       </div>
 
       {items.length === 0 && (
-        <p className="mt-4 text-center text-[0.8rem] text-text-muted">
+        <p className="mt-4 text-center text-body text-text-muted">
           Nothing upcoming. Items you post or mark as going/applied show up here automatically.
         </p>
       )}
@@ -310,37 +310,37 @@ function DetailDialog({ item, onClose }: { item: CalItem; onClose: () => void })
     >
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[0.7rem] text-text-muted">
+          <div className="flex items-center gap-2 text-small text-text-muted">
             <span className={`inline-block w-2 h-2 rounded-full ${KIND_DOT[item.listingKind]}`} aria-hidden />
             {KIND_LABEL[item.listingKind]}
             <span className="opacity-50">·</span>
             <span>{ROLE_LABEL[item.role]}</span>
           </div>
-          <h2 className="font-display text-text-primary text-[1.4rem] leading-tight mt-1">{item.title}</h2>
-          {item.subtitle && <div className="text-[0.8rem] text-text-muted mt-1">{item.subtitle}</div>}
+          <h2 className="font-display text-text-primary text-heading leading-tight mt-1">{item.title}</h2>
+          {item.subtitle && <div className="text-body text-text-muted mt-1">{item.subtitle}</div>}
         </div>
         <button
           type="button"
           onClick={closeDialog}
           aria-label="Close"
-          className="shrink-0 w-11 h-11 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary cursor-pointer hover:bg-white/[0.10] hover:border-accent transition-colors flex items-center justify-center text-lg leading-none"
+          className="shrink-0 w-11 h-11 rounded-lg bg-tint-2 border border-border-strong text-text-primary cursor-pointer hover:bg-tint-4 hover:border-accent transition-colors flex items-center justify-center text-lg leading-none"
         >
           ×
         </button>
       </div>
 
       {item.status === "pending" && (
-        <div className="mb-4 px-4 py-3 rounded-xl border border-accent/25 bg-accent/[0.06] text-[0.8rem] text-text-secondary leading-relaxed">
+        <div className="mb-4 px-4 py-3 rounded-xl border border-accent/25 bg-accent/[0.06] text-body text-text-secondary leading-relaxed">
           <span className="text-accent-light font-medium">Still in review.</span> This listing is awaiting admin approval, so it doesn&apos;t have a public page yet. The details below are what you submitted.
         </div>
       )}
 
-      <div className="text-[0.85rem] text-text-primary mb-4">{when}</div>
+      <div className="text-body text-text-primary mb-4">{when}</div>
 
       {item.meta.length > 0 && (
         <dl className="space-y-2.5 mb-4">
           {item.meta.map((m) => (
-            <div key={m.label} className="flex gap-3 text-[0.825rem]">
+            <div key={m.label} className="flex gap-3 text-body">
               <dt className="shrink-0 w-28 text-text-muted">{m.label}</dt>
               <dd className="min-w-0 flex-1 text-text-secondary break-words">
                 {m.href ? (
@@ -356,8 +356,8 @@ function DetailDialog({ item, onClose }: { item: CalItem; onClose: () => void })
 
       {item.description && (
         <div className="pt-3 border-t border-border-subtle">
-          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-2">Description</div>
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-line">{item.description}</p>
+          <div className="text-small text-text-muted mb-2">Description</div>
+          <p className="text-body text-text-secondary leading-relaxed whitespace-pre-line">{item.description}</p>
         </div>
       )}
 
@@ -366,7 +366,7 @@ function DetailDialog({ item, onClose }: { item: CalItem; onClose: () => void })
       {item.status === "approved" && (
         <Link
           href={`${SECTION[item.listingKind]}/${item.listingId}`}
-          className="mt-5 inline-flex items-center rounded-lg border border-border-strong bg-white/[0.05] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors hover:bg-white/[0.10] hover:border-accent"
+          className="mt-5 inline-flex items-center rounded-lg border border-border-strong bg-tint-2 px-4 py-2 text-body text-text-primary no-underline transition-colors hover:bg-tint-4 hover:border-accent"
         >
           Open full page →
         </Link>

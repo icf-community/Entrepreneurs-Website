@@ -29,10 +29,10 @@ type Item = {
 // the one place --color-signal (the retired gold) still earns its keep: it
 // marks "approved" without reading as an action, which a white fill would.
 const STATUS_BADGE: Record<Status, string> = {
-  pending:  "bg-white/[0.04] text-text-secondary border-border-strong",
+  pending:  "bg-tint-2 text-text-secondary border-border-strong",
   approved: "bg-signal-muted text-signal border-signal/40",
-  rejected: "bg-[#ff4d4d]/10 text-[#ff8b8b] border-[#ff4d4d]/30",
-  expired:  "bg-white/[0.02] text-text-muted border-border",
+  rejected: "bg-danger/10 text-danger border-danger/30",
+  expired:  "bg-tint-1 text-text-muted border-border",
 };
 
 type Props = {
@@ -45,7 +45,7 @@ export default function MySubmissionsClient({ opportunities, events, vcs }: Prop
   const total = opportunities.length + events.length + vcs.length;
   if (total === 0) {
     return (
-      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-body text-text-muted">
         Nothing pending or rejected. New submissions will appear here while they wait for admin approval.
       </div>
     );
@@ -74,7 +74,7 @@ function Section({ type, label, items }: { type: ListingType; label: string; ite
   const hidden = items.length - 3;
   return (
     <section>
-      <h2 className="text-[0.85rem] text-text-muted mb-3">
+      <h2 className="text-body text-text-muted mb-3">
         {label} <span className="text-text-muted">— {items.length}</span>
       </h2>
       <div className="rounded-2xl bg-bg-card border border-border overflow-hidden">
@@ -95,7 +95,7 @@ function Section({ type, label, items }: { type: ListingType; label: string; ite
           <button
             type="button"
             onClick={() => setExpanded((e) => !e)}
-            className="lg:hidden w-full px-4 py-3 border-t border-border-subtle bg-transparent text-[0.8rem] text-text-secondary cursor-pointer transition-colors hover:text-accent-light"
+            className="lg:hidden w-full px-4 py-3 border-t border-border-subtle bg-transparent text-body text-text-secondary cursor-pointer transition-colors hover:text-accent-light"
           >
             {expanded ? "Show less" : `Show all ${items.length} (${hidden} more)`}
           </button>
@@ -132,15 +132,15 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <div className="text-[0.9rem] text-text-primary truncate">{item.title}</div>
-            <span className={`px-2 py-0.5 rounded-lg text-[0.65rem] uppercase tracking-wider border ${STATUS_BADGE[item.status]}`}>
+            <div className="text-lead text-text-primary truncate">{item.title}</div>
+            <span className={`px-2 py-0.5 rounded-lg text-caption border ${STATUS_BADGE[item.status]}`}>
               {item.status}
             </span>
           </div>
           {item.subtitle && (
-            <div className="text-[0.75rem] text-text-muted mt-0.5 truncate">{item.subtitle}</div>
+            <div className="text-small text-text-muted mt-0.5 truncate">{item.subtitle}</div>
           )}
-          <div className="text-[0.7rem] text-text-muted mt-1 flex items-center gap-3 flex-wrap">
+          <div className="text-small text-text-muted mt-1 flex items-center gap-3 flex-wrap">
             <span>Submitted {submitted}</span>
             {(item.status === "approved" || item.status === "expired") && (
               <span className="flex items-center gap-2 text-text-secondary">
@@ -153,7 +153,7 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
             )}
           </div>
           {item.status === "rejected" && item.rejectedReason && (
-            <div className="mt-3 px-3 py-2 rounded-lg bg-[#ff4d4d]/8 border border-[#ff4d4d]/15 text-[0.75rem] text-[#ff8b8b] leading-relaxed">
+            <div className="mt-3 px-3 py-2 rounded-lg bg-danger/8 border border-danger/15 text-small text-danger leading-relaxed">
               <span className="font-medium">Reviewer:</span> {item.rejectedReason}
             </div>
           )}
@@ -163,7 +163,7 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
             {(item.status === "pending" || item.status === "approved") && (
               <Link
                 href={EDIT_HREF[type](item.id)}
-                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-transparent border border-border text-text-secondary text-[0.75rem] no-underline transition-colors hover:border-accent hover:text-accent-light"
+                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-transparent border border-border text-text-secondary text-small no-underline transition-colors hover:border-accent hover:text-accent-light"
               >
                 {item.status === "approved" ? "Propose a change" : "Edit"}
               </Link>
@@ -172,7 +172,7 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
               type="button"
               onClick={() => setConfirming(true)}
               disabled={pending}
-              className="px-3 py-1.5 rounded-lg bg-transparent border border-[#ff4d4d]/25 text-[#ff6b6b] text-[0.75rem] cursor-pointer transition-colors hover:bg-[#ff4d4d]/10 disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg bg-transparent border border-danger/25 text-danger text-small cursor-pointer transition-colors hover:bg-danger/10 disabled:opacity-50"
             >
               Delete
             </button>
@@ -180,7 +180,7 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
         ) : (
           <div className="shrink-0 flex flex-col items-end gap-1.5">
             {item.status === "approved" && (
-              <span className="text-[0.7rem] text-[#ff8b8b] text-right max-w-[200px] leading-snug">
+              <span className="text-small text-danger text-right max-w-[200px] leading-snug">
                 This is live in the community directory. Deleting it removes it for everyone, immediately, and is irreversible.
               </span>
             )}
@@ -189,7 +189,7 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
                 type="button"
                 onClick={handleDelete}
                 disabled={pending}
-                className="px-3 py-1.5 rounded-lg bg-[#ff4d4d]/15 border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.75rem] font-medium cursor-pointer transition-colors hover:bg-[#ff4d4d]/25 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-lg bg-danger/15 border border-danger/30 text-danger text-small font-medium cursor-pointer transition-colors hover:bg-danger/25 disabled:opacity-50"
               >
                 {pending ? "Deleting…" : "Confirm"}
               </button>
@@ -197,7 +197,7 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
                 type="button"
                 onClick={() => setConfirming(false)}
                 disabled={pending}
-                className="px-3 py-1.5 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.75rem] cursor-pointer transition-colors hover:bg-white/[0.10] disabled:opacity-50"
+                className="px-3 py-1.5 rounded-lg bg-tint-2 border border-border-strong text-text-primary text-small cursor-pointer transition-colors hover:bg-tint-4 disabled:opacity-50"
               >
                 Cancel
               </button>

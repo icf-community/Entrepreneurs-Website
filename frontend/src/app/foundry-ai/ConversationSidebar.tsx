@@ -17,7 +17,7 @@ export function ConversationSidebar({
   return (
     <aside className="order-2 lg:order-1">
       <details className="rounded-2xl border border-border bg-bg-card" open>
-        <summary className="cursor-pointer px-4 py-3 text-[0.8rem] text-text-primary lg:hidden">Recent searches</summary>
+        <summary className="cursor-pointer px-4 py-3 text-body text-text-primary lg:hidden">Recent searches</summary>
         <div className="space-y-2 px-4 pb-4 lg:pt-4">
           <Button variant="ghost" size="sm" className="w-full" onClick={() => onSelect(null)} disabled={running}>
             New search
@@ -25,7 +25,7 @@ export function ConversationSidebar({
           {conversations === null ? (
             <Skeleton className="h-16 w-full" />
           ) : conversations.length === 0 ? (
-            <p className="text-[0.75rem] text-text-muted">No recent searches.</p>
+            <p className="text-small text-text-muted">No recent searches.</p>
           ) : (
             <ul className="space-y-1">
               {conversations.map((c) => (
@@ -34,7 +34,7 @@ export function ConversationSidebar({
                     type="button"
                     onClick={() => onSelect(c.id)}
                     aria-current={c.id === conversationId ? "true" : undefined}
-                    className={`w-full cursor-pointer truncate rounded-lg border px-3 py-2 text-left text-[0.8rem] ${
+                    className={`w-full cursor-pointer truncate rounded-lg border px-3 py-2 text-left text-body ${
                       c.id === conversationId ? "border-accent text-text-primary" : "border-border-strong text-text-secondary hover:border-accent"
                     }`}
                   >
@@ -45,7 +45,7 @@ export function ConversationSidebar({
               ))}
             </ul>
           )}
-          <p className="pt-2 text-[0.7rem] text-text-muted">
+          <p className="pt-2 text-small text-text-muted">
             Chats are kept for 7 days. <Link href="/ai-notice" className="underline">How AI search works</Link>
           </p>
           <Button variant="dangerGhost" size="sm" className="w-full" onClick={onDeleteAll}>

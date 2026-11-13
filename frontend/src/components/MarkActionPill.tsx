@@ -53,7 +53,7 @@ export function MarkActionPill({ kind, id, initial, onChange }: Props) {
         onClick={(e) => { e.stopPropagation(); void toggle(); }}
         disabled={pending}
         aria-pressed={marked}
-        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[0.8rem] font-medium transition-colors cursor-pointer disabled:opacity-60 ${
+        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-body font-medium transition-colors cursor-pointer disabled:opacity-60 ${
           marked
             ? "bg-accent-muted text-accent-light border-accent/40 hover:border-accent"
             : "bg-transparent text-text-secondary border-border hover:border-accent hover:text-text-primary"
@@ -63,7 +63,7 @@ export function MarkActionPill({ kind, id, initial, onChange }: Props) {
         {label}
       </button>
       {error && (
-        <span role="alert" className="text-[0.7rem] text-[#ff8b8b]">{error}</span>
+        <span role="alert" className="text-small text-danger">{error}</span>
       )}
     </div>
   );

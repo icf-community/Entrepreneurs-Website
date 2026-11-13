@@ -388,11 +388,11 @@ export default function IntakeFlow({
               <IntakeProgressBar pct={pct} />
 
               <div key={step} className={dir === "fwd" ? "anim-step-fwd" : "anim-step-back"}>
-                <p className="mb-3 text-[0.75rem] font-medium uppercase tracking-[0.14em] text-text-muted">
+                <p className="mb-3 text-small font-medium tracking-[0.14em] text-text-muted">
                   {meta.eyebrow}
                 </p>
                 {step !== "youre-in" && (
-                  <h1 className="mb-5 font-display text-[clamp(1.75rem,3.5vw,2.5rem)] leading-[1.1] tracking-tight text-text-primary">
+                  <h1 className="mb-5 font-display text-display leading-[1.1] tracking-tight text-text-primary">
                     {/* STEPS.cv.title is static and reads "if you have one" —
                         wrong for a student, for whom the paragraph right
                         below it says the opposite. Only this one screen's
@@ -431,7 +431,7 @@ export default function IntakeFlow({
               />
 
               <div className="mt-10 lg:hidden">
-                <p className="mb-3 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-muted">
+                <p className="mb-3 text-small font-medium tracking-[0.14em] text-text-muted">
                   {GROUPS.length} groups · {TOTAL_SCREENS} screens
                 </p>
                 <StepRail current={step} onJump={(to) => go(to, "back")} />

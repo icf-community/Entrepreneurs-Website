@@ -27,15 +27,15 @@ export default function Error({
 
       <main id="main-content" tabIndex={-1} className="relative z-10 flex-1 flex items-center justify-center px-8 py-12">
         <div className="w-full max-w-[560px] text-center">
-          <div className="font-display text-text-muted text-[clamp(2rem,5vw,3rem)] leading-none mb-4">
+          <div className="font-display text-text-muted text-display leading-none mb-4">
             Oops
           </div>
 
-          <h1 className="font-display text-text-primary leading-[1.15] tracking-tight mb-5 text-[clamp(1.75rem,3.5vw,2.5rem)]">
+          <h1 className="font-display text-text-primary leading-[1.15] tracking-tight mb-5 text-display">
             Something went wrong.
           </h1>
 
-          <p className="text-[0.95rem] text-text-secondary leading-[1.7] mb-10">
+          <p className="text-lead text-text-secondary leading-[1.7] mb-10">
             We couldn&apos;t load this page. This is usually a brief hiccup on our side
             and nothing is wrong with your account — try again in a moment.
           </p>
@@ -50,14 +50,14 @@ export default function Error({
             </button>
             <Link
               href="/"
-              className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.05] px-7 py-3.5 text-sm text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
+              className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-tint-2 px-7 py-3.5 text-sm text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-tint-4"
             >
               Back to home
             </Link>
           </div>
 
           {error.digest && (
-            <p className="mt-8 text-[0.7rem] text-text-muted">
+            <p className="mt-8 text-small text-text-muted">
               Error ID: <span className="font-mono">{error.digest}</span>
             </p>
           )}
