@@ -151,7 +151,7 @@
     box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-ink) 4%, transparent);
   }
   .lm-panel[data-tone="inset"]  { background: var(--color-bg-secondary); border-color: var(--color-border-subtle); box-shadow: none; }
-  .lm-panel[data-tone="plain"]  { background: transparent; box-shadow: none; }
+  .lm-panel[data-tone="plain"]  { background: transparent; border-color: transparent; box-shadow: none; }
   .lm-panel[data-tone="lit"]    { border-color: var(--color-lit-line); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-warm) 14%, transparent), 0 18px 60px -28px color-mix(in oklab, var(--color-warm) 45%, transparent); }
   .lm-panel[data-tone="danger"] { border-color: var(--color-danger-line); background: color-mix(in oklab, var(--color-danger) 6%, var(--color-bg-card)); }
   .lm-panel[data-interactive] { transition: border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out); }
