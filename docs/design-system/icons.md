@@ -82,7 +82,7 @@ Props: `name` (a `GlyphName`), `size` (the whole 48 grid in px, default 48; **ne
 - Restyle by colour and size only. Do not redraw, outline, fill the ring, add a second ring, rotate or stretch. One colour per glyph.
 - Meaning lives in the drawing, in `title` and in the words beside it; the kit's rule is "never visible text at rest", but where the product shows the word (a member card says "Mentor") keep it.
 - Touch targets are 44 px even when the drawing is smaller.
-- The landing page keeps its own copy (`components/landing/Glyph.tsx`, `lib/landing/glyphs.ts`) because the WebGL scene rasterises the same strings. The drawings are the kit's, character for character, and so are these (a pixel diff of all 18 against the kit's own renderer: 0 pixels differ). Do not fork them again.
+- The landing page uses these same glyphs (`Glyph`, `glyphs.ts`); its WebGL scene reads the page's own `svg[data-glyph]` elements for its textures, so there is one drawing, in one place. The drawings are the kit's, character for character (a pixel diff of all 18 against the kit's own renderer: 0 pixels differ). Do not fork them.
 
 ### Disc: which ring where
 

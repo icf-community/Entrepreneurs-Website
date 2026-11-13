@@ -284,10 +284,10 @@ that two sites gain a state attribute they lacked), URL-as-state (`useUrlFilters
 
 ## Things worth knowing
 
-- **`base.css` is unlayered, and unlayered CSS beats `@layer components`.** Two things bit during this work: `p { text-wrap: pretty }` resets
-  `white-space: nowrap` (the `text-wrap` shorthand includes the wrap mode), so a nowrap sentence must not be a `<p>` (the pager's status is a `div`); and the
-  global `:focus-visible { outline-offset }` beats a component's own `outline-offset`, so a component that needs a different ring offset sets the `--focus-offset`
-  variable the global rule reads (the disclosure's trigger does).
+- **`base.css` is mostly unlayered, and unlayered CSS beats `@layer components` and Tailwind's utilities.** The global `:focus-visible { outline-offset }`
+  beats a component's own `outline-offset`, so a component that needs a different ring offset sets the `--focus-offset` variable the global rule reads (the
+  disclosure's trigger does). (The `p { text-wrap: pretty }` and `h1, h2, h3 { text-wrap: balance }` defaults used to bite too, because `text-wrap` resets
+  `white-space: nowrap`; they now sit in `@layer base`, so `truncate` and `whitespace-nowrap` work on a `<p>`.)
 - A **table that stacks** relies on a container query (Chrome 105, Safari 16, Firefox 110 and later). Where unsupported it simply stays a table with its
   scroll region, which is still correct.
 - `Disclosure` needs a **client boundary** only because it keeps state; a page that passes it `open` still owns the state.
