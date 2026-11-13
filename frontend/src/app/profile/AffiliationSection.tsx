@@ -3,8 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Panel } from "@/components/ui/Panel";
 import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
 import { ChoiceCards } from "@/components/intake/controls";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
+import { SettingsSection } from "@/app/settings/SettingsSection";
 import { describeSupabaseError } from "@/lib/supabaseErrors";
 import { createClient } from "@/lib/supabase/client";
 import { AFFILIATIONS, NON_STUDENT_AFFILIATIONS, type Affiliation } from "@/lib/intake/steps";
@@ -44,30 +48,27 @@ export default function AffiliationSection({ role }: { role: Affiliation }) {
 
   if (role === "student") {
     return (
-      <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-        <h2 className="mb-1 text-lead font-medium text-text-primary">Your affiliation</h2>
-        <p className="mb-5 text-body leading-[1.6] text-text-muted">
-          Set when you signed up with your Imperial address.
-        </p>
+      <SettingsSection title="Your affiliation" description="Set when you signed up with your Imperial address.">
+        <div className="grid gap-5">
+          <Panel tone="inset" size="sm" className="flex items-start gap-4 p-4">
+            <Disc size="sm"><Icon name="user-check" size={18} /></Disc>
+            <span className="min-w-0">
+              <span className="block text-body font-medium text-text-primary">
+                {current?.label}
+              </span>
+              <span className="mt-0.5 block text-small text-text-muted">
+                {current?.blurb}
+              </span>
+            </span>
+          </Panel>
 
-        <div className="flex items-center gap-3 rounded-lg border border-border-strong bg-tint-3 px-4 py-3">
-          <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-signal" />
-          <span className="min-w-0">
-            <span className="block text-body font-medium text-text-primary">
-              {current?.label}
-            </span>
-            <span className="mt-0.5 block text-body leading-[1.5] text-text-muted">
-              {current?.blurb}
-            </span>
-          </span>
+          <p className="text-body leading-relaxed text-text-secondary">
+            When you graduate, your student account is closed and you&apos;ll get an
+            email inviting you to sign up again as an alum. That&apos;s how the
+            transition works — there&apos;s nothing to change here.
+          </p>
         </div>
-
-        <p className="mt-4 text-body leading-[1.6] text-text-secondary">
-          When you graduate, your student account is closed and you&apos;ll get an
-          email inviting you to sign up again as an alum. That&apos;s how the
-          transition works — there&apos;s nothing to change here.
-        </p>
-      </section>
+      </SettingsSection>
     );
   }
 
@@ -100,48 +101,39 @@ export default function AffiliationSection({ role }: { role: Affiliation }) {
   };
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-      <h2 className="mb-1 text-lead font-medium text-text-primary">Your affiliation</h2>
-      <p className="mb-5 text-body leading-[1.6] text-text-muted">
-        How the directory describes you. Change it whenever it stops being
-        accurate — it doesn&apos;t send you back for review.
-      </p>
+    <SettingsSection
+      title="Your affiliation"
+      description="How the directory describes you. Change it whenever it stops being accurate — it doesn't send you back for review."
+    >
+      <div className="grid gap-5">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
+        {saved && <SuccessBanner>Affiliation updated.</SuccessBanner>}
 
-      {error && (
-        <div className="mb-5">
-          <ErrorBanner>{error}</ErrorBanner>
+        <ChoiceCards<Affiliation>
+          name="Affiliation"
+          options={options}
+          value={choice}
+          onChange={setChoice}
+        />
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={save}
+            loading={isLoading}
+            disabled={choice === role}
+          >
+            Save affiliation
+          </Button>
+          {choice !== role && (
+            <span className="text-body text-text-muted">
+              Changing from {current?.label}
+            </span>
+          )}
         </div>
-      )}
-      {saved && (
-        <div className="mb-5">
-          <SuccessBanner>Affiliation updated.</SuccessBanner>
-        </div>
-      )}
-
-      <ChoiceCards<Affiliation>
-        name="Affiliation"
-        options={options}
-        value={choice}
-        onChange={setChoice}
-      />
-
-      <div className="mt-5 flex items-center gap-3">
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={save}
-          loading={isLoading}
-          disabled={choice === role}
-        >
-          Save affiliation
-        </Button>
-        {choice !== role && (
-          <span className="text-body text-text-muted">
-            Changing from {current?.label}
-          </span>
-        )}
       </div>
-    </section>
+    </SettingsSection>
   );
 }

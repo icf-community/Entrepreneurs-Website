@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Dialog } from "@/components/ui/Dialog";
-import { closeDialog } from "@/components/ui/dialogCloser";
+import { Dialog, DialogClose } from "@/components/ui/Dialog";
+import { Badge } from "@/components/ui/Badge";
+import { Notice } from "@/components/ui/Notice";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { watchProgress } from "@/lib/realtime/progress";
@@ -84,38 +85,28 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
   const processing = status === null || PROCESSING_STATUSES.includes(status);
 
   return (
-    <Dialog
-      onClose={onClose}
-      label="CV processing"
-      className="w-full max-w-[520px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto p-7"
-    >
-      <div className="mb-4 flex items-center justify-between">
+    <Dialog onClose={onClose} label="CV processing" className="my-auto w-full max-w-[520px] p-7">
+      <div className="mb-5 flex items-center justify-between gap-4">
         <h2 className="font-display text-title text-text-primary">Your CV</h2>
-        <button
-          type="button"
-          onClick={closeDialog}
-          aria-label="Close"
-          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 text-text-muted transition-colors hover:bg-tint-3"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
+        <DialogClose className="-mr-2" />
       </div>
 
       {loadFailed && (
-        <div className="space-y-3">
-          <p role="alert" className="text-body text-text-muted">
-            We couldn&apos;t check your CV&apos;s status just now. It&apos;s already saved.
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setLoadFailed(false); setStatus(null); setAttempt((n) => n + 1); }}
-          >
-            Try again
-          </Button>
-        </div>
+        <Notice
+          tone="danger"
+          role="alert"
+          action={
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setLoadFailed(false); setStatus(null); setAttempt((n) => n + 1); }}
+            >
+              Try again
+            </Button>
+          }
+        >
+          We couldn&apos;t check your CV&apos;s status just now. It&apos;s already saved.
+        </Notice>
       )}
 
       {!loadFailed && processing && (
@@ -145,14 +136,9 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
           {profile.skills.length > 0 && (
             <section>
               <div className="mb-2 text-small text-text-muted">Skills detected</div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {profile.skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-lg border border-border bg-tint-1 px-2.5 py-1 text-small text-text-secondary"
-                  >
-                    {skill}
-                  </span>
+                  <Badge key={skill}>{skill}</Badge>
                 ))}
               </div>
             </section>

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Dialog } from "@/components/ui/Dialog";
-import { closeDialog } from "@/components/ui/dialogCloser";
+import { Dialog, DialogClose } from "@/components/ui/Dialog";
+import { Notice } from "@/components/ui/Notice";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { watchProgress } from "@/lib/realtime/progress";
@@ -153,38 +153,28 @@ export function GithubDialog({
   }, [phase, onClose]);
 
   return (
-    <Dialog
-      onClose={onClose}
-      label="Your GitHub projects"
-      className="w-full max-w-[560px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto p-7"
-    >
-      <div className="mb-4 flex items-center justify-between">
+    <Dialog onClose={onClose} label="Your GitHub projects" className="my-auto w-full max-w-[560px] p-7">
+      <div className="mb-5 flex items-center justify-between gap-4">
         <h2 className="font-display text-title text-text-primary">Your GitHub</h2>
-        <button
-          type="button"
-          onClick={closeDialog}
-          aria-label="Close"
-          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 text-text-muted transition-colors hover:bg-tint-3"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
+        <DialogClose className="-mr-2" />
       </div>
 
       {phase === "loadFailed" && (
-        <div className="space-y-3">
-          <p role="alert" className="text-body text-text-muted">
-            We couldn&apos;t load your repositories just now. Your GitHub is still connected.
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setPhase(startAtPicker ? "picking" : "scanning"); setAttempt((n) => n + 1); }}
-          >
-            Try again
-          </Button>
-        </div>
+        <Notice
+          tone="danger"
+          role="alert"
+          action={
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setPhase(startAtPicker ? "picking" : "scanning"); setAttempt((n) => n + 1); }}
+            >
+              Try again
+            </Button>
+          }
+        >
+          We couldn&apos;t load your repositories just now. Your GitHub is still connected.
+        </Notice>
       )}
 
       {/* Picker requested but the repositories haven't arrived yet: a

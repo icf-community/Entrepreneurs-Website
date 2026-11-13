@@ -3,9 +3,12 @@
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
+import { Field } from "@/components/forms/Field";
+import { SettingsSection } from "./SettingsSection";
 
 export default function PasswordChangeForm({ hasPassword, email }: { hasPassword: boolean; email: string }) {
   const supabase = createClient();
@@ -34,9 +37,6 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
     turnstileTokenRef.current = "";
     setTurnstileNonce((n) => n + 1);
   };
-
-  const inputCls =
-    "w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-tint-2";
 
   // OAuth-only (Google) accounts have no password to manage — hide the card entirely.
   if (!hasPassword) return null;
@@ -123,72 +123,61 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
-      <div>
-        <div className="text-lead font-medium text-text-primary mb-1">Change password</div>
-        <p className="text-body text-text-muted leading-relaxed">
-          You&apos;ll stay signed in on this device. Every other device you&apos;re signed in on will be signed out automatically.
-        </p>
-      </div>
+    <SettingsSection
+      title="Change password"
+      description="You'll stay signed in on this device. Every other device you're signed in on will be signed out automatically."
+    >
+      <form onSubmit={handleSubmit} className="grid gap-5">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
+        {saved && !error && <SuccessBanner>Password updated.</SuccessBanner>}
 
-      {error && <ErrorBanner>{error}</ErrorBanner>}
-      {saved && !error && <SuccessBanner>Password updated.</SuccessBanner>}
+        <Field label="Current password">
+          <Input
+            id="current-password"
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            required
+          />
+        </Field>
 
-      <div>
-        <label htmlFor="current-password" className="block text-small text-text-muted mb-1.5">Current password</label>
-        <input
-          id="current-password"
-          type="password"
-          autoComplete="current-password"
-          value={currentPassword}
-          onChange={(e) => setCurrentPassword(e.target.value)}
-          className={inputCls}
-          required
-        />
-      </div>
+        <Field label="New password">
+          <Input
+            id="new-password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={8}
+            required
+          />
+        </Field>
 
-      <div>
-        <label htmlFor="new-password" className="block text-small text-text-muted mb-1.5">New password</label>
-        <input
-          id="new-password"
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className={inputCls}
-          minLength={8}
-          required
-        />
-      </div>
+        <Field label="Confirm new password">
+          <Input
+            id="confirm-password"
+            type="password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            minLength={8}
+            required
+          />
+        </Field>
 
-      <div>
-        <label htmlFor="confirm-password" className="block text-small text-text-muted mb-1.5">Confirm new password</label>
-        <input
-          id="confirm-password"
-          type="password"
-          autoComplete="new-password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          className={inputCls}
-          minLength={8}
-          required
-        />
-      </div>
+        {turnstileConfigured && (
+          <div>
+            <TurnstileWidget key={turnstileNonce} onToken={(t) => { turnstileTokenRef.current = t; }} />
+          </div>
+        )}
 
-      {turnstileConfigured && (
-        <div className="flex justify-center">
-          <TurnstileWidget key={turnstileNonce} onToken={(t) => { turnstileTokenRef.current = t; }} />
+        <div>
+          <Button type="submit" loading={isLoading} variant="primary" size="md">
+            Update password
+          </Button>
         </div>
-      )}
-
-      <Button
-        type="submit"
-        loading={isLoading}
-        variant="primary"
-        size="md"
-      >
-        Update password
-      </Button>
-    </form>
+      </form>
+    </SettingsSection>
   );
 }

@@ -5,10 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { isImperialEmail } from "@/lib/auth/imperialEmail";
 import { verifyOtpServerSide } from "@/lib/auth/verifyOtpGate";
-import { ErrorBanner } from "@/components/forms/Banners";
+import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
+import { Field } from "@/components/forms/Field";
+import { Icon } from "@/design-system/icons/Icon";
 import type { Affiliation } from "@/lib/intake/steps";
+import { SettingsSection } from "./SettingsSection";
 
 // ════════════════════════════════════════════════════════════════════
 // Change your email address.
@@ -89,9 +93,8 @@ export default function EmailChangeForm({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const inputCls =
-    "w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-tint-2";
-  const codeCls = `${inputCls} font-mono tracking-[0.3em] text-center`;
+  // A six-digit code: figures, centred and spaced out so each one can be checked against the email. Tabular figures, not a monospace face.
+  const codeCls = "data text-center tracking-[0.3em]";
 
   const pending = newEmail.trim().toLowerCase();
 
@@ -204,125 +207,116 @@ export default function EmailChangeForm({
 
   if (stage === "done") {
     return (
-      <div className="space-y-3 rounded-2xl bg-bg-card border border-border p-8">
-        <div className="text-lead font-medium text-text-primary">Email address</div>
-        <div className="px-4 py-3 rounded-lg bg-accent-muted border border-accent/30 text-body text-accent-light leading-relaxed">
+      <SettingsSection title="Email address">
+        <SuccessBanner>
           Your email address has been changed. Use the new address next time you sign in.
-        </div>
-      </div>
+        </SuccessBanner>
+      </SettingsSection>
     );
   }
 
   return (
-    <form
-      onSubmit={stage === "idle" ? handleRequest : handleConfirm}
-      className="space-y-5 rounded-2xl bg-bg-card border border-border p-8"
+    <SettingsSection
+      title="Change email address"
+      description={
+        stage === "idle" ? (
+          <>
+            We&apos;ll send a code to your old address and another to the new one. Both are needed:
+            the first confirms it&apos;s you, the second confirms you can read the new inbox.
+            {role === "student" && " Student accounts must stay on an Imperial address."}
+          </>
+        ) : (
+          <>Enter both codes to complete the change. They expire in 30 minutes.</>
+        )
+      }
     >
-      <div>
-        <div className="text-lead font-medium text-text-primary mb-1">Change email address</div>
-        <p className="text-body text-text-muted leading-relaxed">
-          {stage === "idle" ? (
-            <>
-              We&apos;ll send a code to your old address and another to the new one. Both are needed:
-              the first confirms it&apos;s you, the second confirms you can read the new inbox.
-              {role === "student" && " Student accounts must stay on an Imperial address."}
-            </>
-          ) : (
-            <>Enter both codes to complete the change. They expire in 30 minutes.</>
-          )}
-        </p>
-      </div>
+      <form onSubmit={stage === "idle" ? handleRequest : handleConfirm} className="grid gap-5">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
 
-      {error && <ErrorBanner>{error}</ErrorBanner>}
+        {stage === "idle" ? (
+          <>
+            <Field label="New email address">
+              <Input
+                id="new-email"
+                type="email"
+                autoComplete="email"
+                value={newEmail}
+                onChange={(ev) => setNewEmail(ev.target.value)}
+                placeholder={role === "student" ? "you@imperial.ac.uk" : "you@example.com"}
+                required
+              />
+            </Field>
 
-      {stage === "idle" ? (
+            <Field label="Confirm new email address">
+              <Input
+                id="confirm-email"
+                type="email"
+                autoComplete="off"
+                value={confirmEmail}
+                onChange={(ev) => setConfirmEmail(ev.target.value)}
+                placeholder="Type it again"
+                required
+              />
+            </Field>
+          </>
+        ) : (
+          <>
+            <div>
+              <Field label="Code sent to your old email address">
+                <Input
+                  id="code-current"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={codeCurrent}
+                  onChange={(ev) => setCodeCurrent(ev.target.value.replace(/\D/g, ""))}
+                  className={codeCls}
+                  placeholder="000000"
+                  disabled={currentConfirmed}
+                  required={!currentConfirmed}
+                />
+              </Field>
+              {currentConfirmed && (
+                <p className="mt-2 flex items-center gap-2 text-small text-accent-light">
+                  <Icon name="check" size={16} />
+                  Confirmed. Only the code sent to your new address is still needed.
+                </p>
+              )}
+            </div>
+
+            <Field label="Code sent to your new email address">
+              <Input
+                id="code-new"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={6}
+                value={codeNew}
+                onChange={(ev) => setCodeNew(ev.target.value.replace(/\D/g, ""))}
+                className={codeCls}
+                placeholder="000000"
+                required
+              />
+            </Field>
+
+            {/* An unrequested email change is an account-takeover signal, so the
+                way out has to be on the screen at the moment it is noticed. */}
+            <p className="text-small leading-relaxed text-text-muted">
+              Didn&apos;t ask for this? Don&apos;t enter the codes —{" "}
+              <Link href="/contact" className="text-accent-light underline underline-offset-2">
+                contact the team
+              </Link>{" "}
+              and we&apos;ll secure the account.
+            </p>
+          </>
+        )}
+
         <div>
-          <label htmlFor="new-email" className="block text-small text-text-muted mb-1.5">
-            New email address
-          </label>
-          <input
-            id="new-email"
-            type="email"
-            autoComplete="email"
-            value={newEmail}
-            onChange={(ev) => setNewEmail(ev.target.value)}
-            className={inputCls}
-            placeholder={role === "student" ? "you@imperial.ac.uk" : "you@example.com"}
-            required
-          />
-
-          <label htmlFor="confirm-email" className="block text-small text-text-muted mb-1.5 mt-4">
-            Confirm new email address
-          </label>
-          <input
-            id="confirm-email"
-            type="email"
-            autoComplete="off"
-            value={confirmEmail}
-            onChange={(ev) => setConfirmEmail(ev.target.value)}
-            className={inputCls}
-            placeholder="Type it again"
-            required
-          />
+          <Button type="submit" loading={isLoading} variant="primary" size="md">
+            {stage === "idle" ? "Send codes" : "Confirm change"}
+          </Button>
         </div>
-      ) : (
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="code-current" className="block text-small text-text-muted mb-1.5">
-              Code sent to your old email address
-            </label>
-            <input
-              id="code-current"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={codeCurrent}
-              onChange={(ev) => setCodeCurrent(ev.target.value.replace(/\D/g, ""))}
-              className={codeCls}
-              placeholder="000000"
-              disabled={currentConfirmed}
-              required={!currentConfirmed}
-            />
-            {currentConfirmed && (
-              <p className="mt-2 text-small text-accent-light">
-                Confirmed. Only the code sent to your new address is still needed.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="code-new" className="block text-small text-text-muted mb-1.5">
-              Code sent to your new email address
-            </label>
-            <input
-              id="code-new"
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={6}
-              value={codeNew}
-              onChange={(ev) => setCodeNew(ev.target.value.replace(/\D/g, ""))}
-              className={codeCls}
-              placeholder="000000"
-              required
-            />
-          </div>
-
-          {/* An unrequested email change is an account-takeover signal, so the
-              way out has to be on the screen at the moment it is noticed. */}
-          <p className="text-small text-text-muted leading-relaxed">
-            Didn&apos;t ask for this? Don&apos;t enter the codes —{" "}
-            <Link href="/contact" className="text-accent hover:text-accent-light">
-              contact the team
-            </Link>{" "}
-            and we&apos;ll secure the account.
-          </p>
-        </div>
-      )}
-
-      <Button type="submit" loading={isLoading} variant="primary" size="md">
-        {stage === "idle" ? "Send codes" : "Confirm change"}
-      </Button>
-    </form>
+      </form>
+    </SettingsSection>
   );
 }
 

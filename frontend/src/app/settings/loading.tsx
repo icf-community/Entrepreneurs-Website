@@ -3,17 +3,25 @@ import { FormSkeleton, PageHeaderSkeleton, Skeleton } from "@/components/ui/Skel
 
 // Same reasoning as members/loading.tsx: painted the instant navigation
 // starts, sized like the real page so nothing jumps when it streams in
-// (launch programme C1).
+// (launch programme C1). Three rows, each drawn as a settings row is: the
+// title and its sentence at the side, the fields beside them.
 export default function Loading() {
   return (
     <AppShell active="settings">
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[640px] mx-auto space-y-6">
-          <PageHeaderSkeleton />
+      <div className="mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)] pb-24 pt-4 sm:pt-6">
+        <PageHeaderSkeleton />
+        <div className="mt-8">
           {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="rounded-2xl bg-bg-card border border-border p-8">
-              <Skeleton className="h-4 w-1/3 mb-6" />
-              <FormSkeleton fields={2} />
+            <div
+              key={i}
+              className="grid gap-x-12 gap-y-6 border-t border-border-subtle py-9 xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]"
+            >
+              <div className="grid content-start gap-3">
+                <Skeleton className="h-6 w-2/3" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-4/5" />
+              </div>
+              <FormSkeleton fields={2} className="max-w-[34rem]" />
             </div>
           ))}
         </div>

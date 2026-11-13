@@ -1,30 +1,30 @@
 import AppShell from "@/components/app/AppShell";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Panel } from "@/components/ui/Panel";
+import { FormSkeleton, PageHeaderSkeleton, Skeleton } from "@/components/ui/Skeleton";
 
-// Same reasoning as members/loading.tsx.
+// Same reasoning as members/loading.tsx. Drawn as the page is: the head, then
+// rows with the title and its sentence at the side and the fields beside them.
 export default function Loading() {
   return (
     <AppShell active="settings">
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[640px] mx-auto">
-          <Skeleton className="h-3 w-20 mb-6" />
-          <div className="mb-10 pt-6">
-            <Skeleton className="h-3 w-24 mb-3" />
-            <Skeleton className="h-9 w-2/3" />
-            <Skeleton className="h-3 w-full max-w-[30rem] mt-4" />
-          </div>
-
-          <div className="space-y-6">
-            <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-tint-1 p-4">
-              <Skeleton className="h-16 w-16 rounded-full shrink-0" />
-              <Skeleton className="h-4 w-1/3" />
+      <div className="mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)] pb-24 pt-4 sm:pt-6">
+        <PageHeaderSkeleton />
+        <div className="mt-8">
+          <div className="grid gap-x-12 gap-y-6 border-t border-border-subtle py-9 xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+            <div className="grid content-start gap-3">
+              <Skeleton className="h-6 w-1/3" />
+              <Skeleton className="h-3 w-full" />
             </div>
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i}>
-                <Skeleton className="h-3 w-1/4 mb-2" />
-                <Skeleton className="h-11 w-full rounded-lg" />
-              </div>
-            ))}
+            <Panel className="flex max-w-[34rem] items-center gap-4 p-5">
+              <Skeleton shape="ring" className="size-16 shrink-0" />
+              <Skeleton className="h-4 w-1/3" />
+            </Panel>
+          </div>
+          <div className="grid gap-x-12 gap-y-6 border-t border-border-subtle py-9 xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+            <div className="grid content-start gap-3">
+              <Skeleton className="h-6 w-1/4" />
+            </div>
+            <FormSkeleton fields={4} className="max-w-[34rem]" />
           </div>
         </div>
       </div>

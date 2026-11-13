@@ -7,6 +7,8 @@ import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unava
 import { computeDisplayName } from "@/lib/auth/guard";
 import { destinationForStatus } from "@/lib/auth/status";
 import AppShell from "@/components/app/AppShell";
+import { PageHead } from "@/components/ui/PageHead";
+import { Icon } from "@/design-system/icons/Icon";
 import { listSkillsDetailed, listSectors, type ProfileIntakeData } from "@/lib/data/taxonomy";
 import { signedImageUrls } from "@/lib/storage/blobRead";
 import AffiliationSection from "./AffiliationSection";
@@ -125,29 +127,25 @@ export default async function ProfilePage() {
       isApproved={profile.status === "approved"}
       isAdmin={isAdmin}
     >
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[640px] mx-auto">
-          <Link
-            href="/settings"
-            className="inline-flex items-center text-body text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6"
-          >
-            ← Settings
-          </Link>
-          <div className="mb-10 rule-draw pt-6">
-            <p className="label-wide text-text-secondary mb-3">Your profile</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
-              Edit your details
-            </h1>
-            <p className="text-body text-text-muted mt-3 leading-relaxed">
-              Changes are visible in the directory once you&apos;re approved.
-            </p>
-          </div>
+      <div className="mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)] pb-24 pt-4 sm:pt-6">
+        <PageHead
+          context={
+            <>
+              <Link href="/settings">
+                <Icon name="arrow-left" size={16} className="mr-1.5" />
+                <span className="sr-only">← </span>Settings
+              </Link>
+              <span aria-hidden="true">/</span>
+              <span>Your profile</span>
+            </>
+          }
+          title="Edit your details"
+          lede="Changes are visible in the directory once you're approved."
+        />
 
+        <div>
           <ProfileForm {...profileFormProps} />
-
-          <div className="mt-8">
-            <AffiliationSection role={profile.role} />
-          </div>
+          <AffiliationSection role={profile.role} />
         </div>
       </div>
     </AppShell>

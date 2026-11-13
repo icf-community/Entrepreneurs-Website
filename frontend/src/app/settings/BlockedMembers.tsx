@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
+import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import { Entry } from "@/components/ui/Entry";
+import { Notice } from "@/components/ui/Notice";
+import { Panel } from "@/components/ui/Panel";
+import { FieldError } from "@/components/forms/Field";
 import { unblockMember } from "@/app/connections/actions";
+import { SettingsSection } from "./SettingsSection";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Who you have blocked
@@ -80,20 +86,23 @@ export default function BlockedMembers() {
 
   if (loadFailed) {
     return (
-      <section className="rounded-2xl border border-border bg-bg-card p-6">
-        <h2 className="text-lead font-medium text-text-primary">Blocked members</h2>
-        <p role="alert" className="mt-1 text-body text-text-muted">
-          Couldn&apos;t load the people you&apos;ve blocked.
-        </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mt-3"
-          onClick={() => { setLoadFailed(false); setAttempt((n) => n + 1); }}
+      <SettingsSection title="Blocked members">
+        <Notice
+          tone="danger"
+          role="alert"
+          action={
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setLoadFailed(false); setAttempt((n) => n + 1); }}
+            >
+              Try again
+            </Button>
+          }
         >
-          Try again
-        </Button>
-      </section>
+          Couldn&apos;t load the people you&apos;ve blocked.
+        </Notice>
+      </SettingsSection>
     );
   }
 
@@ -103,41 +112,45 @@ export default function BlockedMembers() {
   if (!list || list.length === 0) return null;
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6">
-      <h2 className="text-lead font-medium text-text-primary">Blocked members</h2>
-      <p className="mt-1 text-small text-text-muted leading-relaxed">
-        They can&apos;t send you connection requests, and they were never told. Unblocking
-        does not restore a connection you had before.
-      </p>
+    <SettingsSection
+      title="Blocked members"
+      description={
+        <>
+          They can&apos;t send you connection requests, and they were never told. Unblocking
+          does not restore a connection you had before.
+        </>
+      }
+    >
+      <Panel size="sm" className="p-1.5">
+        <ul className="grid">
+          {list.map((b) => (
+            <Entry
+              key={b.member_id}
+              as="li"
+              glyph={<Avatar name={`${b.first_name} ${b.surname}`} size="md" />}
+              title={
+                <span className="block truncate">
+                  {b.first_name} {b.surname}
+                </span>
+              }
+              meta={b.course ? <span className="block truncate">{b.course}</span> : undefined}
+              trailing={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  loading={busy.has(b.member_id)}
+                  onClick={() => unblock(b.member_id)}
+                  className="shrink-0"
+                >
+                  Unblock
+                </Button>
+              }
+            />
+          ))}
+        </ul>
+      </Panel>
 
-      <ul className="mt-4 space-y-2">
-        {list.map((b) => (
-          <li
-            key={b.member_id}
-            className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-          >
-            <div className="min-w-0">
-              <div className="truncate text-body text-text-primary">
-                {b.first_name} {b.surname}
-              </div>
-              {b.course && (
-                <div className="truncate text-small text-text-muted">{b.course}</div>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              loading={busy.has(b.member_id)}
-              onClick={() => unblock(b.member_id)}
-              className="shrink-0"
-            >
-              Unblock
-            </Button>
-          </li>
-        ))}
-      </ul>
-
-      {error && <p role="alert" className="mt-3 text-body text-danger">{error}</p>}
-    </section>
+      <FieldError>{error ?? undefined}</FieldError>
+    </SettingsSection>
   );
 }

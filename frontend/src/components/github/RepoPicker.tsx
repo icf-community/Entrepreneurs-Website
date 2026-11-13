@@ -1,8 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { inputCls } from "@/components/forms/styles";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
+import { SearchField } from "@/components/ui/SearchField";
+import { Icon } from "@/design-system/icons/Icon";
 import {
   SHOWCASE_BLURB_MAX,
   SHOWCASE_MAX_PICKS,
@@ -38,18 +43,6 @@ function relativePush(pushedAt: string | null): string | null {
   if (days < 30) return `${days}d ago`;
   if (days < 365) return `${Math.floor(days / 30)}mo ago`;
   return `${Math.floor(days / 365)}y ago`;
-}
-
-function Chip({ tone, children }: { tone: "suggested" | "new"; children: string }) {
-  const cls =
-    tone === "suggested"
-      ? "border-accent/60 text-accent"
-      : "border-border-strong text-text-secondary";
-  return (
-    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-caption tracking-[0.1em] ${cls}`}>
-      {children}
-    </span>
-  );
 }
 
 export function RepoPicker({
@@ -126,7 +119,7 @@ export function RepoPicker({
 
   if (availableRepos.length === 0) {
     return (
-      <div className="space-y-4">
+      <div className="grid justify-items-start gap-4">
         <p className="text-body text-text-secondary">
           Your GitHub is connected — we just didn&apos;t find any public repositories on it yet. Push
           something public and we&apos;ll pick it up automatically.
@@ -141,8 +134,8 @@ export function RepoPicker({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
+    <div className="grid gap-4">
+      <div className="grid gap-1">
         <p className="text-body text-text-secondary">
           Choose up to {SHOWCASE_MAX_PICKS} projects to spotlight to recruiters. Add a line about each
           one in your own words.
@@ -153,13 +146,11 @@ export function RepoPicker({
         </p>
       </div>
 
-      <input
-        type="search"
+      <SearchField
+        label="Filter repositories"
         value={filter}
-        onChange={(event) => setFilter(event.target.value)}
+        onChange={setFilter}
         placeholder={`Filter ${availableRepos.length} repositories…`}
-        aria-label="Filter repositories"
-        className={inputCls}
       />
 
       {/* Picked projects and their blurbs live in their own block, separate
@@ -169,24 +160,20 @@ export function RepoPicker({
           fast run down a checklist into a misclick, since the row you meant
           to hit next has already moved by the time the click lands. */}
       {picks.length > 0 && (
-        <div className="space-y-2 rounded-lg border border-accent/40 bg-tint-1 p-3">
+        <Panel tone="inset" size="sm" className="grid gap-3 p-4">
           <p className="text-small text-text-muted">
             {picks.length} of {SHOWCASE_MAX_PICKS} chosen — in the order recruiters will see them
           </p>
-          <ul className="space-y-3">
+          <ul className="grid gap-4">
             {picks.map((pick) => (
               <li key={pick.name}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-body text-text-primary">{pick.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => remove(pick.name)}
-                    className="shrink-0 cursor-pointer text-small text-text-muted hover:text-danger"
-                  >
+                  <Button type="button" variant="quiet" size="sm" onClick={() => remove(pick.name)} className="shrink-0">
                     Remove
-                  </button>
+                  </Button>
                 </div>
-                <input
+                <Input
                   id={`blurb-${pick.name}`}
                   type="text"
                   value={pick.blurb}
@@ -194,15 +181,15 @@ export function RepoPicker({
                   onChange={(event) => setBlurb(pick.name, event.target.value)}
                   placeholder="What it does, and what you built"
                   aria-label={`One line about ${pick.name}`}
-                  className={`${inputCls} mt-1`}
+                  className="mt-1"
                 />
-                <p className="mt-1 text-right text-caption text-text-muted">
+                <p className="mt-1 text-right text-caption text-text-muted data">
                   {pick.blurb.length}/{SHOWCASE_BLURB_MAX}
                 </p>
               </li>
             ))}
           </ul>
-        </div>
+        </Panel>
       )}
 
       <p className="text-small text-text-muted" aria-live="polite">
@@ -210,51 +197,58 @@ export function RepoPicker({
         {atLimit && " — deselect one below to swap it out"}
       </p>
 
-      <ul className="max-h-[45vh] space-y-2 overflow-y-auto overscroll-contain pr-1">
+      <ul className="grid max-h-[45vh] gap-2 overflow-y-auto overscroll-contain pr-1">
         {visible.map((repo) => {
           const picked = pickedNames.has(repo.name);
           const pushed = relativePush(repo.pushed_at);
+          const facts: ReactNode[] = [];
+          if (repo.language) facts.push(repo.language);
+          if (repo.stargazers_count > 0) {
+            facts.push(
+              <span key="stars" className="inline-flex items-center gap-1">
+                <Icon name="star-filled" size={14} />
+                {repo.stargazers_count}
+                <span className="sr-only"> stars</span>
+              </span>,
+            );
+          }
+          if (pushed) facts.push(pushed);
           return (
-            <li
-              key={repo.name}
-              className={`rounded-lg border p-3 transition-colors ${
-                picked ? "border-accent bg-tint-2" : "border-border-strong bg-tint-1"
-              }`}
-            >
-              <label className="flex cursor-pointer items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={picked}
-                  onChange={() => toggle(repo)}
-                  // Disabling the unpicked ones at the limit, rather than
-                  // silently ignoring the click, is what makes the cap
-                  // legible instead of feeling broken.
-                  disabled={!picked && atLimit}
-                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)] disabled:opacity-40"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-body text-text-primary">{repo.name}</span>
-                    {suggestedNames.has(repo.name) && <Chip tone="suggested">Suggested</Chip>}
-                    {!seenSet.has(repo.name) && <Chip tone="new">New</Chip>}
-                  </span>
-                  {repo.description && (
-                    <span className="mt-1 block text-body text-text-secondary">
-                      {repo.description}
+            <li key={repo.name}>
+              <Checkbox
+                card
+                checked={picked}
+                onChange={() => toggle(repo)}
+                // Disabling the unpicked ones at the limit, rather than
+                // silently ignoring the click, is what makes the cap
+                // legible instead of feeling broken.
+                disabled={!picked && atLimit}
+                label={
+                  <span className="grid gap-1 py-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-body text-text-primary">{repo.name}</span>
+                      {suggestedNames.has(repo.name) && <Badge tone="lit">Suggested</Badge>}
+                      {!seenSet.has(repo.name) && <Badge>New</Badge>}
                     </span>
-                  )}
-                  <span className="mt-1 block text-small text-text-muted">
-                    {[repo.language, repo.stargazers_count > 0 ? `★ ${repo.stargazers_count}` : null, pushed]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {repo.description && (
+                      <span className="block text-body text-text-secondary">{repo.description}</span>
+                    )}
+                    <span className="block text-small text-text-muted">
+                      {facts.map((fact, i) => (
+                        <Fragment key={i}>
+                          {i > 0 && " · "}
+                          {fact}
+                        </Fragment>
+                      ))}
+                    </span>
                   </span>
-                </span>
-              </label>
+                }
+              />
             </li>
           );
         })}
         {visible.length === 0 && (
-          <li className="rounded-lg border border-border-strong p-3 text-body text-text-muted">
+          <li className="py-3 text-body text-text-muted">
             No repositories match “{filter}”.
           </li>
         )}
