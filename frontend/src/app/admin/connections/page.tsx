@@ -1,5 +1,4 @@
 import { pageParam } from "@/lib/filters/serverParams";
-import Link from "next/link";
 import {
   adminConnectionReportsPage,
   adminFlaggedSenders,
@@ -9,6 +8,7 @@ import {
 import { getConnectionsStatus } from "../actions";
 import ConnectionsAdminClient from "./ConnectionsAdminClient";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/connections
@@ -60,26 +60,14 @@ export default async function AdminConnectionsPage({
     <main
       id="main-content"
       tabIndex={-1}
-      className="min-h-screen bg-bg-primary text-text-primary px-8 py-12"
+      className="min-h-screen px-[var(--gutter)] pb-24 pt-10 text-text-primary"
     >
-      <div className="max-w-[1200px] mx-auto">
-        <div className="mb-8 rule-draw pt-6">
-          <Link
-            href="/admin"
-            className="text-body text-text-secondary hover:text-text-primary"
-          >
-            ← Admin home
-          </Link>
-          <p className="label-wide text-text-muted mt-6 mb-4">Admin · connections</p>
-          <h1 className="font-display leading-[1.1] tracking-tight text-display">
-            Connections
-          </h1>
-          <p className="mt-3 max-w-[60ch] text-body text-text-secondary leading-relaxed">
-            Members connect to exchange email addresses. Reports here are about a specific
-            connection and the note that came with it — resolving one emails the reporter with
-            the outcome, whichever way it goes.
-          </p>
-        </div>
+      <div className="mx-auto max-w-[var(--content-max)]">
+        <AdminPageHeader
+          eyebrow="Admin · connections"
+          title="Connections"
+          description="Members connect to exchange email addresses. Reports here are about a specific connection and the note that came with it — resolving one emails the reporter with the outcome, whichever way it goes."
+        />
 
         <ConnectionsAdminClient
           reports={reports}

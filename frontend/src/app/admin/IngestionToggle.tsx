@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Panel } from "@/components/ui/Panel";
+import { Section } from "@/components/ui/Section";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { setIngestionEnabled, type IngestionStatus } from "./actions";
 
@@ -21,6 +24,10 @@ import { setIngestionEnabled, type IngestionStatus } from "./actions";
 // connections already made, or a member's already-picked showcase
 // repos — those stay fully visible and editable regardless of this
 // switch, by design.
+//
+// It looks like the state it is in: a calm panel while it runs, a danger
+// panel while it is paused, so a paused switch cannot be missed from across
+// the room.
 // ════════════════════════════════════════════════════════════════════
 
 export default function IngestionToggle({ initial }: { initial: IngestionStatus }) {
@@ -39,25 +46,16 @@ export default function IngestionToggle({ initial }: { initial: IngestionStatus 
   };
 
   return (
-    <div className="mt-12 rule-draw pt-6">
-      <p className="label-wide text-text-secondary mb-3">GitHub / CV ingestion</p>
-      <p className="text-body text-text-muted mb-4 leading-relaxed">
-        Pauses new CV parsing, new GitHub connections, and the weekly GitHub rescan — a fast stop
-        for new AI spend. Files, connections and picks a member already has stay untouched and
-        visible either way.
-      </p>
-      {error && <div className="mb-3"><ErrorBanner>{error}</ErrorBanner></div>}
-      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-tint-1 p-4">
-        <span
-          className={
-            "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-small font-semibold " +
-            (status.enabled
-              ? "border border-border text-text-muted"
-              : "border border-danger/40 bg-danger/15 text-danger")
-          }
-        >
+    <Section
+      rule
+      title="GitHub / CV ingestion"
+      description="Pauses new CV parsing, new GitHub connections, and the weekly GitHub rescan — a fast stop for new AI spend. Files, connections and picks a member already has stay untouched and visible either way."
+    >
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+      <Panel tone={status.enabled ? "default" : "danger"} className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4 sm:px-5">
+        <Badge tone={status.enabled ? "success" : "danger"} dot>
           {status.enabled ? "Running" : "Paused"}
-        </span>
+        </Badge>
         {status.lastChangedAt && (
           // suppressHydrationWarning: this formats in the viewer's local time,
           // which legitimately differs from whatever the server rendered.
@@ -76,7 +74,7 @@ export default function IngestionToggle({ initial }: { initial: IngestionStatus 
         >
           {status.enabled ? "Pause ingestion" : "Resume ingestion"}
         </Button>
-      </div>
-    </div>
+      </Panel>
+    </Section>
   );
 }

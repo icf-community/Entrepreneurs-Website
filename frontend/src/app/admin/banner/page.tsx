@@ -20,8 +20,8 @@ export default async function AdminBannerPage() {
   );
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
-      <div className="max-w-[760px] mx-auto">
+    <main id="main-content" tabIndex={-1} className="min-h-screen px-[var(--gutter)] pb-24 pt-10 text-text-primary">
+      <div className="mx-auto max-w-[760px]">
         <AdminPageHeader
           eyebrow="Admin"
           title="Site banner"

@@ -1,6 +1,6 @@
-import Link from "next/link";
 import GraduatesClient from "./GraduatesClient";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 // Default cutoff = last calendar year. The admin can override.
 function defaultCutoff(): number {
@@ -10,25 +10,13 @@ function defaultCutoff(): number {
 export default async function AdminGraduatesPage() {
   await requireAdminPage();
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
-      <div className="max-w-[820px] mx-auto">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
-          <div className="min-w-0">
-            <p className="label-wide text-text-secondary mb-3">Admin · graduates</p>
-            <h1 className="font-display text-display leading-[1.1] tracking-tight">
-              Ask graduating students to confirm
-            </h1>
-            <p className="text-body text-text-muted mt-2 leading-relaxed">
-              Graduates keep their accounts. Each student asked confirms once and, if they&apos;ve graduated, becomes a recent graduate.
-            </p>
-          </div>
-          <Link
-            href="/admin"
-            className="text-body text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary"
-          >
-            ← Admin home
-          </Link>
-        </div>
+    <main id="main-content" tabIndex={-1} className="min-h-screen px-[var(--gutter)] pb-24 pt-10 text-text-primary">
+      <div className="mx-auto max-w-[820px]">
+        <AdminPageHeader
+          eyebrow="Admin · graduates"
+          title="Ask graduating students to confirm"
+          description="Graduates keep their accounts. Each student asked confirms once and, if they've graduated, becomes a recent graduate."
+        />
 
         <GraduatesClient defaultCutoff={defaultCutoff()} />
       </div>
