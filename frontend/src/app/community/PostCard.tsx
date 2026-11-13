@@ -2,9 +2,17 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
 import { Dialog } from "@/components/ui/Dialog";
 import { closeDialog } from "@/components/ui/dialogCloser";
+import { Panel } from "@/components/ui/Panel";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { Field } from "@/components/forms/Field";
+import { Icon } from "@/design-system/icons/Icon";
 import { REPORT_CATEGORIES } from "@/lib/validation/posts";
 import { adminDeletePost, deleteMyPost, reportPost, toggleLike } from "./actions";
 import { ErrorBanner } from "@/components/forms/Banners";
@@ -24,6 +32,10 @@ import { useToast } from "@/components/ui/Toast";
 // All three are real buttons with a visible shape rather than bare text.
 // A control that does not read as a control is one nobody uses, and the
 // takedown and report routes only work if members can find them.
+//
+// The look: a quiet panel. The author is a person (a ring with their
+// initials), the title is the post's own heading, and the one hairline is the
+// one above the actions. Your own posts wear the lit ring.
 // ════════════════════════════════════════════════════════════════════
 
 const SOURCE_HREF: Record<string, string> = {
@@ -81,30 +93,27 @@ export default function PostCard({
   };
 
   return (
-    <article className="rounded-xl border border-border-subtle bg-tint-1 p-5 sm:p-6">
-      <header className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-body text-text-primary font-medium truncate">{post.authorName}</p>
+    <Panel as="article" className="p-5 sm:p-7">
+      <header className="flex items-center gap-3.5">
+        <Avatar name={post.authorName} size="md" tone={isAuthor ? "lit" : "neutral"} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-body font-medium text-text-primary">{post.authorName}</p>
           {/* suppressHydrationWarning: this formats in the viewer's local
               zone, which legitimately differs from the server's. */}
-          <p className="mt-0.5 text-small text-text-muted" suppressHydrationWarning>
+          <p className="data mt-0.5 text-caption text-text-muted" suppressHydrationWarning>
             {new Date(post.createdAt).toLocaleDateString("en-GB", {
               day: "numeric", month: "short", year: "numeric",
             })}
           </p>
         </div>
-        {post.kind === "system" && (
-          <span className="shrink-0 rounded-full border border-border-strong px-2.5 py-1 text-caption text-text-muted">
-            From listings
-          </span>
-        )}
+        {post.kind === "system" && <Badge className="shrink-0">From listings</Badge>}
       </header>
 
-      <h2 className="mt-4 text-lead font-medium tracking-tight text-text-primary break-words">
+      <h2 className="mt-5 break-words font-display text-title text-text-primary">
         {post.title}
       </h2>
 
-      <div className="mt-2">
+      <div className="mt-2.5">
         <PostBody body={post.body} />
       </div>
 
@@ -113,9 +122,13 @@ export default function PostCard({
       {sourceHref && (
         <Link
           href={sourceHref}
-          className="mt-4 inline-block text-body text-text-primary underline decoration-border-strong underline-offset-2 hover:decoration-accent"
+          className="mt-5 inline-flex items-center gap-1.5 text-body text-accent-light underline decoration-lit-line underline-offset-[3px] transition-colors hover:decoration-current"
         >
-          View in {sourceHref.replace("/", "")} →
+          <span>
+            View in {sourceHref.replace("/", "")}
+            <span className="sr-only"> →</span>
+          </span>
+          <Icon name="arrow-right" size={16} />
         </Link>
       )}
 
@@ -136,15 +149,16 @@ export default function PostCard({
         <AdminRemove post={post} onClose={() => setDialog(null)} onDone={onRemoved} />
       )}
       {dialog === "report" && <ReportPost post={post} onClose={() => setDialog(null)} />}
-    </article>
+    </Panel>
   );
 }
 
 // ─── Images grid ────────────────────────────────────────────────────
-function PostImages({ images }: { images: FeedPostView["images"] }) {
+// Shared with My posts (it used to be copied there).
+export function PostImages({ images }: { images: FeedPostView["images"] }) {
   if (images.length === 0) return null;
   return (
-    <div className={`mt-4 grid gap-3 ${images.length > 1 ? "sm:grid-cols-2" : ""}`}>
+    <div className={`mt-5 grid gap-3 ${images.length > 1 ? "sm:grid-cols-2" : ""}`}>
       {images.map((image) =>
         image.url ? (
           // Plain <img>, not next/image. The optimiser caches by URL and
@@ -165,7 +179,7 @@ function PostImages({ images }: { images: FeedPostView["images"] }) {
             // for anything not already 4:3 that silently cuts off edges
             // and looks nothing like what was uploaded. contain scales
             // to fit inside the box instead, letterboxed on the bg fill.
-            className="w-full aspect-[4/3] rounded-lg border border-border-subtle bg-tint-1 object-contain"
+            className="aspect-[4/3] w-full rounded-lg border border-border-subtle bg-tint-1 object-contain"
           />
         ) : (
           <div
@@ -192,36 +206,45 @@ function PostFooterActions({
   onToggleLike: () => void;
   onOpenDialog: (dialog: "delete" | "remove" | "report") => void;
 }) {
+  const isMember = post.kind === "member";
+  // A listing-sourced post has nothing to like or report, and only an admin can remove it: no controls, no footer.
+  if (!isMember && !(isAdmin && !isAuthor)) return null;
   return (
-    <footer className="mt-5 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-4">
-      {post.kind === "member" && isAuthor && (
-        <span className="tnum px-1 text-body text-text-muted">
+    <footer className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border-subtle pt-4">
+      {/* The optimistic count stays visible while the request runs; a
+          spinner in its place hid the very number that changed (B7). A like
+          is a toggle, so it is a chip: it lights, with a tick, once it is on. */}
+      {isMember && (isAuthor ? (
+        <span className="tnum inline-flex items-center gap-2 px-1 text-body text-text-muted">
+          <Icon name="star" size={16} />
           {likeCount === 1 ? "1 like" : `${likeCount} likes`}
         </span>
-      )}
-      {/* The optimistic count stays visible while the request runs; a
-          spinner in its place hid the very number that changed (B7). */}
-      {post.kind === "member" && !isAuthor && (
-        <Button variant="ghost" size="sm" aria-pressed={liked} onClick={onToggleLike}>
+      ) : (
+        <Chip pressed={liked} onClick={onToggleLike}>
           {liked ? "Liked" : "Like"} ({likeCount})
-        </Button>
-      )}
-      {isAuthor && (
-        <Button variant="dangerGhost" size="sm" onClick={() => onOpenDialog("delete")}>
-          Delete
-        </Button>
-      )}
-      {isAdmin && !isAuthor && (
-        <Button variant="danger" size="sm" onClick={() => onOpenDialog("remove")}>
-          Delete post
-        </Button>
-      )}
-      {!isAuthor && post.kind === "member" && (
-        <Button variant="ghost" size="sm" onClick={() => onOpenDialog("report")}>
-          Report
-        </Button>
-      )}
+        </Chip>
+      ))}
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        {isAuthor && <PostAction kind="delete" onOpen={onOpenDialog} />}
+        {isAdmin && !isAuthor && <PostAction kind="remove" onOpen={onOpenDialog} />}
+        {isMember && !isAuthor && <PostAction kind="report" onOpen={onOpenDialog} />}
+      </div>
     </footer>
+  );
+}
+
+const ACTIONS = {
+  delete: { label: "Delete", variant: "dangerGhost", icon: "trash" },
+  remove: { label: "Delete post", variant: "danger", icon: "trash" },
+  report: { label: "Report", variant: "ghost", icon: "flag" },
+} as const;
+
+function PostAction({ kind, onOpen }: { kind: keyof typeof ACTIONS; onOpen: (dialog: keyof typeof ACTIONS) => void }) {
+  const a = ACTIONS[kind];
+  return (
+    <Button variant={a.variant} size="sm" leading={<Icon name={a.icon} size={18} />} onClick={() => onOpen(kind)}>
+      {a.label}
+    </Button>
   );
 }
 
@@ -233,20 +256,20 @@ function ConfirmDelete({
   const [error, setError] = useState("");
 
   return (
-    <Dialog onClose={onClose} label="Delete your post" className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6">
-      <h3 className="font-display text-lead text-text-primary">Delete this post?</h3>
-      <p className="mt-2 text-body text-text-secondary leading-relaxed">
+    <Dialog onClose={onClose} label="Delete your post" tone="danger" className="w-full max-w-[30rem] p-6 sm:p-7 my-auto">
+      <h3 className="font-display text-title text-text-primary">Delete this post?</h3>
+      <p className="mt-3 text-body leading-relaxed text-text-secondary">
         &ldquo;{post.title}&rdquo; and any images on it will be removed straight away. This cannot
         be undone.
       </p>
       {error && (
         <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>
       )}
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={(e) => closeDialog(e)}>Cancel</Button>
+      <div className="mt-7 flex flex-wrap justify-end gap-2">
+        <Button variant="quiet" size="md" onClick={(e) => closeDialog(e)}>Cancel</Button>
         <Button
           variant="danger"
-          size="sm"
+          size="md"
           loading={pending}
           onClick={() =>
             start(async () => {
@@ -276,38 +299,38 @@ function AdminRemove({
   const [error, setError] = useState("");
 
   return (
-    <Dialog onClose={onClose} label="Remove this post" className="w-full max-w-md rounded-xl border border-danger/30 bg-bg-primary p-6">
-      <p className="label-wide text-danger">Danger zone</p>
-      <h3 className="mt-3 font-display text-lead text-text-primary">
+    <Dialog onClose={onClose} label="Remove this post" tone="danger" className="w-full max-w-[30rem] p-6 sm:p-7 my-auto">
+      <Badge tone="danger" dot>Danger zone</Badge>
+      <h3 className="mt-4 font-display text-title text-text-primary">
         Remove {post.authorName}&rsquo;s post?
       </h3>
-      <p className="mt-2 text-body text-text-secondary leading-relaxed">
+      <p className="mt-3 text-body leading-relaxed text-text-secondary">
         The post and its images are deleted immediately. A record is kept for 12 months, and the
         author is emailed your reason. This cannot be undone.
       </p>
 
-      <label htmlFor={`reason-${post.id}`} className="mt-5 block text-small text-text-muted">
-        Reason (sent to the author)
-      </label>
-      <textarea
-        id={`reason-${post.id}`}
-        rows={3}
-        value={reason}
-        maxLength={2000}
-        onChange={(e) => setReason(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-body text-text-primary"
-        placeholder="Which guideline does this breach?"
-      />
+      <div className="mt-5">
+        <Field label="Reason (sent to the author)">
+          <Textarea
+            id={`reason-${post.id}`}
+            rows={3}
+            value={reason}
+            maxLength={2000}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Which guideline does this breach?"
+          />
+        </Field>
+      </div>
 
       {error && (
         <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>
       )}
 
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={(e) => closeDialog(e)}>Cancel</Button>
+      <div className="mt-7 flex flex-wrap justify-end gap-2">
+        <Button variant="quiet" size="md" onClick={(e) => closeDialog(e)}>Cancel</Button>
         <Button
           variant="danger"
-          size="sm"
+          size="md"
           loading={pending}
           disabled={!reason.trim()}
           onClick={() =>
@@ -336,63 +359,61 @@ function ReportPost({ post, onClose }: { post: FeedPostView; onClose: () => void
 
   if (done) {
     return (
-      <Dialog onClose={onClose} label="Report received" className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6">
-        <h3 className="font-display text-lead text-text-primary">Thanks — that&rsquo;s with us</h3>
-        <p className="mt-2 text-body text-text-secondary leading-relaxed">
+      <Dialog onClose={onClose} label="Report received" className="w-full max-w-[30rem] p-6 sm:p-7 my-auto">
+        <h3 className="font-display text-title text-text-primary">Thanks — that&rsquo;s with us</h3>
+        <p className="mt-3 text-body leading-relaxed text-text-secondary">
           An admin will review this post. We&rsquo;ll email you once they&rsquo;ve made a decision,
           either way.
         </p>
-        <div className="mt-6 flex justify-end">
-          <Button variant="ghost" size="sm" onClick={(e) => closeDialog(e)}>Close</Button>
+        <div className="mt-7 flex justify-end">
+          <Button variant="ghost" size="md" onClick={(e) => closeDialog(e)}>Close</Button>
         </div>
       </Dialog>
     );
   }
 
   return (
-    <Dialog onClose={onClose} label="Report this post" className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6">
-      <h3 className="font-display text-lead text-text-primary">Report this post</h3>
-      <p className="mt-2 text-body text-text-secondary leading-relaxed">
+    <Dialog onClose={onClose} label="Report this post" className="w-full max-w-[30rem] p-6 sm:p-7 my-auto">
+      <h3 className="font-display text-title text-text-primary">Report this post</h3>
+      <p className="mt-3 text-body leading-relaxed text-text-secondary">
         Tell us what&rsquo;s wrong with &ldquo;{post.title}&rdquo;. Reports go to the admin team,
         and the author is never told who reported them.
       </p>
 
-      <label htmlFor={`cat-${post.id}`} className="mt-5 block text-small text-text-muted">
-        Reason
-      </label>
-      <select
-        id={`cat-${post.id}`}
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-body text-text-primary"
-      >
-        <option value="">Choose one…</option>
-        {REPORT_CATEGORIES.map((c) => (
-          <option key={c.value} value={c.value}>{c.label}</option>
-        ))}
-      </select>
+      <div className="mt-5 grid gap-4">
+        <Field label="Reason">
+          <Select
+            id={`cat-${post.id}`}
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">Choose one…</option>
+            {REPORT_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </Select>
+        </Field>
 
-      <label htmlFor={`detail-${post.id}`} className="mt-4 block text-small text-text-muted">
-        What should an admin know?
-      </label>
-      <textarea
-        id={`detail-${post.id}`}
-        rows={3}
-        value={reason}
-        maxLength={1000}
-        onChange={(e) => setReason(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-body text-text-primary"
-      />
+        <Field label="What should an admin know?">
+          <Textarea
+            id={`detail-${post.id}`}
+            rows={3}
+            value={reason}
+            maxLength={1000}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </Field>
+      </div>
 
       {error && (
         <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>
       )}
 
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={(e) => closeDialog(e)}>Cancel</Button>
+      <div className="mt-7 flex flex-wrap justify-end gap-2">
+        <Button variant="quiet" size="md" onClick={(e) => closeDialog(e)}>Cancel</Button>
         <Button
           variant="primary"
-          size="sm"
+          size="md"
           loading={pending}
           disabled={!category || reason.trim().length < 10}
           onClick={() =>

@@ -1,9 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Icon } from "@/design-system/icons/Icon";
 import { loadMoreFeed, refreshLikeCounts } from "./actions";
 import PostCard from "./PostCard";
 import PostComposer from "./PostComposer";
@@ -32,6 +34,10 @@ import type { FeedPostView } from "./feedView";
 // without an action here: once, when the reader comes back to the tab —
 // see the effect below for why not live, and how it avoids fighting an
 // in-flight optimistic update on any one card.
+//
+// The actions row keeps its order: "My posts", then the button that opens the
+// composer, then the composer, so the keyboard's next Tab after the button
+// lands on the Title field (a11y.spec drives exactly that).
 // ════════════════════════════════════════════════════════════════════
 
 export default function CommunityClient({
@@ -93,15 +99,17 @@ export default function CommunityClient({
   }, []);
 
   return (
-    <div className="space-y-6">
-      <nav aria-label="Community actions" className="flex justify-end gap-2">
-        <Link
-          href="/community/mine"
-          className="rounded-lg border border-border-strong bg-tint-1 px-4 py-2 text-body text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
-        >
+    <div className="mt-8 grid grid-cols-1 gap-6">
+      <nav aria-label="Community actions" className="flex flex-wrap items-center justify-end gap-3">
+        <ButtonLink href="/community/mine" variant="ghost" size="sm">
           My posts
-        </Link>
-        <Button variant={composerOpen ? "ghost" : "primary"} size="sm" onClick={() => setComposerOpen((v) => !v)}>
+        </ButtonLink>
+        <Button
+          variant={composerOpen ? "ghost" : "primary"}
+          size="sm"
+          leading={composerOpen ? undefined : <Icon name="plus" size={18} />}
+          onClick={() => setComposerOpen((v) => !v)}
+        >
           {composerOpen ? "Cancel" : "Create a post"}
         </Button>
       </nav>
@@ -117,11 +125,9 @@ export default function CommunityClient({
       )}
 
       {posts.length === 0 ? (
-        <p className="rounded-xl border border-border-subtle bg-tint-1 px-6 py-12 text-center text-body text-text-secondary">
-          Nothing here yet. Be the first to post something.
-        </p>
+        <EmptyState icon="community">Nothing here yet. Be the first to post something.</EmptyState>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4">
           {posts.map((post) => (
             <PostCard
               key={post.id}

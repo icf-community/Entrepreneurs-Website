@@ -2,6 +2,11 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
+import { Textarea } from "@/components/ui/Textarea";
+import { Field } from "@/components/forms/Field";
+import { Icon } from "@/design-system/icons/Icon";
 import {
   POST_ALT_MAX,
   POST_BODY_MAX,
@@ -29,6 +34,10 @@ import { track } from "@/lib/analytics/track";
 // If the gateway is unconfigured or unreachable, the image control is
 // hidden and posting still works. A storage outage must not be able to
 // take down the Community tab.
+//
+// The look: one calm panel with two fields. The body grows with what is
+// written (field-sizing, where the browser has it) instead of scrolling in a
+// small box; the one hairline separates the writing from the actions.
 // ════════════════════════════════════════════════════════════════════
 
 type Attached = {
@@ -112,45 +121,48 @@ export default function PostComposer({
   const canPost = title.trim().length >= 3 && body.trim().length >= 10 && !missingAlt;
 
   return (
-    <section className="rounded-xl border border-border-subtle bg-tint-1 p-5 sm:p-6">
-      <h2 className="text-lead font-medium tracking-tight text-text-primary">
+    <Panel as="section" className="anim-panel p-5 sm:p-7">
+      <h2 className="font-display text-title text-text-primary">
         Post to the community
       </h2>
 
-      <label htmlFor="post-title" className="mt-4 block text-small text-text-muted">
-        Title
-      </label>
-      <input
-        id="post-title"
-        value={title}
-        maxLength={POST_TITLE_MAX}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="What's this about?"
-        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-lead text-text-primary"
-      />
+      <div className="mt-5 grid gap-5">
+        <Field label="Title">
+          <Input
+            id="post-title"
+            value={title}
+            maxLength={POST_TITLE_MAX}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="What's this about?"
+          />
+        </Field>
 
-      <label htmlFor="post-body" className="mt-4 block text-small text-text-muted">
-        Post
-      </label>
-      <textarea
-        id="post-body"
-        rows={5}
-        value={body}
-        maxLength={POST_BODY_MAX}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="Share what you're building, ask for help, or point people at something."
-        className="mt-2 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-lead text-text-primary"
-      />
-      <p className="mt-1 text-right text-small text-text-muted tnum">
-        {body.length}/{POST_BODY_MAX}
-      </p>
+        {/* The counter stays outside the label: it is not part of the field's name. */}
+        <div>
+          <Field label="Post">
+            <Textarea
+              id="post-body"
+              rows={5}
+              value={body}
+              maxLength={POST_BODY_MAX}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Share what you're building, ask for help, or point people at something."
+              className="max-h-[60vh] field-sizing-content"
+            />
+          </Field>
+          <p className="data mt-2 text-right text-small text-text-muted">
+            {body.length}/{POST_BODY_MAX}
+          </p>
+        </div>
+      </div>
 
       {images.length > 0 && (
-        <ul className="mt-3 space-y-3">
+        <ul className="mt-5 grid gap-5">
           {images.map((image, i) => (
-            <li key={image.blob_key} className="rounded-lg border border-border-subtle p-3">
+            <li key={image.blob_key} className="grid gap-3 border-t border-border-subtle pt-5">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-small text-text-secondary tnum">
+                <p className="data inline-flex items-center gap-2 text-small text-text-secondary">
+                  <Icon name="image" size={16} />
                   Image {i + 1} · {image.width}×{image.height}
                 </p>
                 <Button
@@ -161,29 +173,28 @@ export default function PostComposer({
                   Remove
                 </Button>
               </div>
-              <label htmlFor={`alt-${i}`} className="mt-3 block text-small text-text-muted">
-                Describe this image (required)
-              </label>
-              <input
-                id={`alt-${i}`}
-                value={image.alt_text}
-                maxLength={POST_ALT_MAX}
-                onChange={(e) =>
-                  setImages((prev) =>
-                    prev.map((img, n) => (n === i ? { ...img, alt_text: e.target.value } : img)),
-                  )
-                }
-                placeholder="e.g. Our team demoing at the showcase"
-                className="mt-1.5 w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-1.5 text-body text-text-primary"
-              />
+              <Field label="Describe this image (required)">
+                <Input
+                  id={`alt-${i}`}
+                  compact
+                  value={image.alt_text}
+                  maxLength={POST_ALT_MAX}
+                  onChange={(e) =>
+                    setImages((prev) =>
+                      prev.map((img, n) => (n === i ? { ...img, alt_text: e.target.value } : img)),
+                    )
+                  }
+                  placeholder="e.g. Our team demoing at the showcase"
+                />
+              </Field>
             </li>
           ))}
         </ul>
       )}
 
-      {error && <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>}
+      {error && <div className="mt-5"><ErrorBanner>{error}</ErrorBanner></div>}
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5">
         {uploadsAvailable && images.length < POST_MAX_IMAGES ? (
           <>
             <input
@@ -202,6 +213,7 @@ export default function PostComposer({
               variant="ghost"
               size="sm"
               loading={uploading}
+              leading={<Icon name="image" size={18} />}
               onClick={() => fileRef.current?.click()}
             >
               Add image
@@ -240,6 +252,6 @@ export default function PostComposer({
           Add a description for each image before posting.
         </p>
       )}
-    </section>
+    </Panel>
   );
 }

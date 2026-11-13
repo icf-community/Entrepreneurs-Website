@@ -40,17 +40,18 @@ function withKeys(segments: PostSegment[]): (PostSegment & { key: number })[] {
 
 export default function PostBody({ body }: { body: string }) {
   return (
-    <p className="text-lead text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
+    <p className="text-body leading-relaxed text-text-secondary whitespace-pre-wrap break-words">
       {withKeys(segmentPostBody(body)).map((segment) =>
         segment.kind === "text" ? (
           <span key={segment.key}>{segment.text}</span>
         ) : (
+          // The underline stays: an in-text link must be told apart without colour.
           <a
             key={segment.key}
             href={segment.href}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
-            className="text-text-primary underline decoration-border-strong underline-offset-2 hover:decoration-accent break-all"
+            className="break-all text-accent-light underline decoration-lit-line underline-offset-[3px] transition-colors hover:decoration-current"
           >
             {segment.href}
             <span className="ml-1 whitespace-nowrap text-small text-text-muted">

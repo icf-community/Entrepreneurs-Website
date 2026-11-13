@@ -6,8 +6,13 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { closeDialog } from "@/components/ui/dialogCloser";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { LinkTabs } from "@/components/ui/LinkTabs";
+import { Panel } from "@/components/ui/Panel";
+import { Icon } from "@/design-system/icons/Icon";
 import { deleteMyPost, loadMoreMyPosts } from "../actions";
 import PostBody from "../PostBody";
+import { PostImages } from "../PostCard";
 import type { MyPostView } from "../feedView";
 import { ErrorBanner } from "@/components/forms/Banners";
 
@@ -16,6 +21,9 @@ import { ErrorBanner } from "@/components/forms/Banners";
 //
 // Every post here still expires 7 days after posting (purge_expired_posts,
 // unchanged) — this view just no longer surfaces a countdown for it.
+//
+// The two views of the feed are real routes, so they are link tabs: the URL
+// says which one you are on, and "My posts" can be linked and bookmarked.
 // ════════════════════════════════════════════════════════════════════
 
 export default function MyPostsClient({
@@ -33,37 +41,34 @@ export default function MyPostsClient({
   const [pending, start] = useTransition();
 
   return (
-    <div className="space-y-6">
-      <nav aria-label="Community views" className="flex gap-2">
-        <Link
-          href="/community"
-          className="rounded-lg border border-border-strong bg-tint-1 px-4 py-2 text-body text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
-        >
-          All posts
-        </Link>
-        <span className="rounded-lg border border-accent bg-tint-2 px-4 py-2 text-body text-text-primary">
-          My posts
-        </span>
-      </nav>
+    <div className="mt-8 grid grid-cols-1 gap-6">
+      <LinkTabs
+        label="Community views"
+        value="mine"
+        items={[
+          { value: "all", href: "/community", label: "All posts" },
+          { value: "mine", href: "/community/mine", label: "My posts" },
+        ]}
+      />
 
       {posts.length === 0 ? (
-        <p className="rounded-xl border border-border-subtle bg-tint-1 px-6 py-12 text-center text-body text-text-secondary">
+        <EmptyState icon="community">
           You haven&rsquo;t posted anything yet, or your posts have expired.{" "}
-          <Link href="/community" className="text-text-primary underline underline-offset-2">
+          <Link
+            href="/community"
+            className="text-accent-light underline decoration-lit-line underline-offset-[3px] transition-colors hover:decoration-current"
+          >
             Write one
           </Link>
           .
-        </p>
+        </EmptyState>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4">
           {posts.map((post) => (
-            <article
-              key={post.id}
-              className="rounded-xl border border-border-subtle bg-tint-1 p-5 sm:p-6"
-            >
+            <Panel as="article" key={post.id} className="p-5 sm:p-7">
               {/* suppressHydrationWarning: this formats in the viewer's local
                   zone, which legitimately differs from the server's. */}
-              <p className="text-small text-text-muted" suppressHydrationWarning>
+              <p className="data text-small text-text-muted" suppressHydrationWarning>
                 {new Date(post.createdAt).toLocaleDateString("en-GB", {
                   day: "numeric", month: "short", year: "numeric",
                 })}
@@ -71,47 +76,26 @@ export default function MyPostsClient({
                 <span className="tnum">{post.likeCount === 1 ? "1 like" : `${post.likeCount} likes`}</span>
               </p>
 
-              <h2 className="mt-3 text-lead font-medium tracking-tight text-text-primary break-words">
+              <h2 className="mt-3 break-words font-display text-title text-text-primary">
                 {post.title}
               </h2>
-              <div className="mt-2">
+              <div className="mt-2.5">
                 <PostBody body={post.body} />
               </div>
 
-              {post.images.length > 0 && (
-                <div className={`mt-4 grid gap-3 ${post.images.length > 1 ? "sm:grid-cols-2" : ""}`}>
-                  {post.images.map((image) =>
-                    image.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        key={image.blobKey}
-                        src={image.url}
-                        alt={image.altText}
-                        width={image.width}
-                        height={image.height}
-                        loading="lazy"
-                        // object-contain: see PostCard.tsx's own image for why —
-                        // object-cover crops anything that isn't already 4:3.
-                        className="w-full aspect-[4/3] rounded-lg border border-border-subtle bg-tint-1 object-contain"
-                      />
-                    ) : (
-                      <div
-                        key={image.blobKey}
-                        className="flex aspect-[4/3] items-center justify-center rounded-lg border border-border-subtle bg-tint-1 px-4 text-center text-small text-text-muted"
-                      >
-                        {image.altText}
-                      </div>
-                    ),
-                  )}
-                </div>
-              )}
+              <PostImages images={post.images} />
 
-              <div className="mt-5 border-t border-border-subtle pt-4">
-                <Button variant="dangerGhost" size="sm" onClick={() => setConfirming(post)}>
+              <div className="mt-6 flex border-t border-border-subtle pt-4">
+                <Button
+                  variant="dangerGhost"
+                  size="sm"
+                  leading={<Icon name="trash" size={18} />}
+                  onClick={() => setConfirming(post)}
+                >
                   Delete
                 </Button>
               </div>
-            </article>
+            </Panel>
           ))}
         </div>
       )}
@@ -163,19 +147,20 @@ function DeleteDialog({
     <Dialog
       onClose={onClose}
       label="Delete your post"
-      className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6"
+      tone="danger"
+      className="w-full max-w-[30rem] p-6 sm:p-7 my-auto"
     >
-      <h3 className="font-display text-lead text-text-primary">Delete this post?</h3>
-      <p className="mt-2 text-body text-text-secondary leading-relaxed">
+      <h3 className="font-display text-title text-text-primary">Delete this post?</h3>
+      <p className="mt-3 text-body leading-relaxed text-text-secondary">
         &ldquo;{post.title}&rdquo; and any images on it will be removed straight away. This cannot
         be undone.
       </p>
       {error && <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>}
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={(e) => closeDialog(e)}>Cancel</Button>
+      <div className="mt-7 flex flex-wrap justify-end gap-2">
+        <Button variant="quiet" size="md" onClick={(e) => closeDialog(e)}>Cancel</Button>
         <Button
           variant="danger"
-          size="sm"
+          size="md"
           loading={pending}
           onClick={() =>
             start(async () => {

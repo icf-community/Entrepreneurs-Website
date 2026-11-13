@@ -7,6 +7,14 @@ import SearchableMultiSelect from "@/components/forms/SearchableMultiSelect";
 import { useUrlFilters, useSearchDraft } from "@/lib/filters/useUrlFilters";
 import { SearchInput, FilterPanel, ChipGroup, RangeFilter } from "@/components/filters/FilterBar";
 import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { ButtonTabs, TabCount } from "@/components/ui/Tabs";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Notice } from "@/components/ui/Notice";
+import { Panel } from "@/components/ui/Panel";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { ErrorBanner } from "@/components/forms/Banners";
+import type { IconName } from "@/design-system/icons/names";
 import { MemberCard } from "@/components/members/MemberCard";
 import { MemberDialog } from "@/components/members/MemberDialog";
 import { EmailCopy } from "@/components/connections/EmailCopy";
@@ -48,13 +56,7 @@ const ConnectionGraph = dynamic(
   () => import("@/components/connections/ConnectionGraph").then((m) => m.ConnectionGraph),
   {
     ssr: false,
-    loading: () => (
-      <div
-        className="h-[420px] animate-pulse rounded-2xl border border-border bg-bg-card"
-        aria-busy="true"
-        aria-label="Loading your network"
-      />
-    ),
+    loading: () => <GraphSkeleton label="Loading your network" />,
   },
 );
 
@@ -75,16 +77,19 @@ const ConnectionGraph = dynamic(
 // component seeds state from props and React ignores prop changes after
 // mount — the lesson community/actions.ts records. The list the member
 // is looking at has to be told.
+//
+// The look: the three lists are line tabs (the URL says which), each person
+// is the directory's own card with a quiet tray under it (the address and
+// the actions on one inset surface), and every empty list is the system's
+// empty state with the same next step, the directory. The row actions stay
+// real buttons on the page, named for the person they act on.
 // ════════════════════════════════════════════════════════════════════
 
 export type Tab = "connections" | "pending" | "sent";
 export type View = "cards" | "graph";
 
-const TAB_LABELS: Record<Tab, string> = {
-  connections: "Your connections",
-  pending: "Requests",
-  sent: "Sent",
-};
+// One grid for every list of people here (connections, requests, sent).
+const CARD_GRID = "grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3";
 
 export default function ConnectionsClient({
   tab, view, displayName, graph, filters, myEmail, consentVersion,
@@ -118,27 +123,34 @@ export default function ConnectionsClient({
 
   return (
     <>
-      <nav aria-label="Connections views" className="mb-6 flex flex-wrap gap-1.5">
-        {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (
-          <button
-            key={t}
-            type="button"
-            aria-current={t === tab ? "page" : undefined}
-            // The tab lives in the URL so the digest email can link
-            // straight at ?tab=pending. Changing it drops the cursor:
-            // a keyset cursor from one list means nothing in another.
-            onClick={() => url.apply({ tab: t === "connections" ? null : t, cursor: null })}
-            className={`cursor-pointer rounded-lg border px-3.5 py-2 text-body transition-colors duration-150 ${
-              t === tab
-                ? "border-accent bg-accent font-medium text-bg-primary"
-                : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary"
-            }`}
-          >
-            {TAB_LABELS[t]}
-            {t === "pending" && pending?.total ? ` (${pending.total})` : ""}
-          </button>
-        ))}
-      </nav>
+      {/* The tab lives in the URL so the digest email can link straight at
+          ?tab=pending. Changing it drops the cursor: a keyset cursor from one
+          list means nothing in another. */}
+      <ButtonTabs
+        semantics="current"
+        label="Connections views"
+        value={tab}
+        className="mb-6"
+        items={[
+          { value: "connections", label: "Your connections" },
+          {
+            value: "pending",
+            label: (
+              <>
+                Requests
+                {pending?.total ? (
+                  <>
+                    {" "}
+                    <TabCount>({pending.total})</TabCount>
+                  </>
+                ) : null}
+              </>
+            ),
+          },
+          { value: "sent", label: "Sent" },
+        ]}
+        onSelect={(next) => url.apply({ tab: next === "connections" ? null : next, cursor: null })}
+      />
 
       <div className={`relative ${url.pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={url.pending || undefined}>
         {url.pending && <Updating />}
@@ -328,9 +340,11 @@ function ConnectionsFilterPanel({
   return (
     <>
       {facets?.unavailable && (
-        <p role="status" className="mt-4 text-body text-text-muted">
-          Couldn&apos;t load the filters. Reload to try again.
-        </p>
+        <div className="mb-6">
+          <Notice role="status" tone="lit">
+            Couldn&apos;t load the filters. Reload to try again.
+          </Notice>
+        </div>
       )}
       {facets && !facets.unavailable && (
         <FilterPanel
@@ -463,7 +477,9 @@ function ConnectionsResultsView({
 // written out at both call sites below.
 function connectionsEmptyCopy(activeFilterCount: number, filters: MemberFilters) {
   const filtered = activeFilterCount > 0 || filters.q;
+  const icon: IconName = filtered ? "search" : "connections";
   return {
+    icon,
     title: filtered ? "Nothing matches those filters." : "No connections yet.",
     body: filtered
       ? "Clear the filters to see everyone you're connected to."
@@ -498,19 +514,13 @@ function ConnectionsBody({
     // Mid-navigation back to the card view. The same skeleton the graph
     // itself loads behind, so the swap reads as one load rather than two,
     // and it is never on screen long enough to need copy.
-    return (
-      <div
-        className="h-[420px] animate-pulse rounded-2xl border border-border bg-bg-card"
-        aria-busy="true"
-        aria-label="Loading your connections"
-      />
-    );
+    return <GraphSkeleton label="Loading your connections" />;
   }
 
   if (view === "graph" && graph) {
     if (graph.nodes.length === 0) {
       const copy = connectionsEmptyCopy(activeFilterCount, filters);
-      return <EmptyState title={copy.title} body={copy.body} />;
+      return <DirectoryEmpty icon={copy.icon} title={copy.title}>{copy.body}</DirectoryEmpty>;
     }
     return (
       <ConnectionGraph
@@ -541,7 +551,7 @@ function ConnectionsBody({
 
   if (items.length === 0) {
     const copy = connectionsEmptyCopy(activeFilterCount, filters);
-    return <EmptyState title={copy.title} body={copy.body} />;
+    return <DirectoryEmpty icon={copy.icon} title={copy.title}>{copy.body}</DirectoryEmpty>;
   }
 
   return (
@@ -560,11 +570,11 @@ function ConnectionsCardGrid({
   onReport: (c: Connection) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className={CARD_GRID}>
       {items.map((c) => (
         <div key={c.connectionId} className="flex flex-col gap-2">
-          <MemberCard member={c} onClick={() => onOpen(c)} />
-          <div className="rounded-xl border border-border bg-bg-card p-3 space-y-2">
+          <CardFrame><MemberCard member={c} onClick={() => onOpen(c)} /></CardFrame>
+          <Panel tone="inset" size="sm" className="grid grid-cols-1 gap-3 p-3">
             {c.email ? (
               <EmailCopy email={c.email} name={c.firstName} />
             ) : (
@@ -575,27 +585,33 @@ function ConnectionsCardGrid({
                 This member&apos;s address is no longer available.
               </p>
             )}
-            <div className="flex items-center gap-1.5">
-              <ActionButton
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="dangerGhost"
+                size="sm"
                 onClick={() => onRemove(c)}
-                label={`Remove your connection with ${c.firstName} ${c.surname}`}
+                aria-label={`Remove your connection with ${c.firstName} ${c.surname}`}
               >
                 Remove
-              </ActionButton>
-              <ActionButton
+              </Button>
+              <Button
+                variant="dangerGhost"
+                size="sm"
                 onClick={() => onBlock(c)}
-                label={`Block ${c.firstName} ${c.surname}`}
+                aria-label={`Block ${c.firstName} ${c.surname}`}
               >
                 Block
-              </ActionButton>
-              <ActionButton
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => onReport(c)}
-                label={`Report ${c.firstName} ${c.surname}`}
+                aria-label={`Report ${c.firstName} ${c.surname}`}
               >
                 Report
-              </ActionButton>
+              </Button>
             </div>
-          </div>
+          </Panel>
         </div>
       ))}
     </div>
@@ -725,72 +741,75 @@ function PendingTab({
   return (
     <>
       {justAccepted && (
-        <p
-          role="status"
-          className="mb-4 rounded-lg border border-border-strong bg-tint-2 px-4 py-3 text-body text-text-secondary"
-        >
-          You&apos;re connected with {justAccepted}.{" "}
-          <Link
-            href="/connections"
-            className="text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
-          >
-            View your network
-          </Link>
-        </p>
+        <div className="mb-6">
+          <Notice role="status" tone="success">
+            You&apos;re connected with {justAccepted}.{" "}
+            <Link href="/connections">View your network</Link>
+          </Notice>
+        </div>
       )}
 
       {items.length === 0 ? (
-        <EmptyState
-          title="No requests waiting."
-          body="When someone asks to connect, it shows up here with their profile and anything they wrote."
-        />
+        <DirectoryEmpty icon="user-plus" title="No requests waiting.">
+          When someone asks to connect, it shows up here with their profile and anything they wrote.
+        </DirectoryEmpty>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className={CARD_GRID}>
           {items.map((r) => (
             <div key={r.connectionId} className="flex flex-col gap-2">
-              <MemberCard member={r} onClick={() => setOpen(r)} />
-              <div className="rounded-xl border border-border bg-bg-card p-3 space-y-2.5">
+              <CardFrame><MemberCard member={r} onClick={() => setOpen(r)} /></CardFrame>
+              <Panel tone="inset" size="sm" className="grid grid-cols-1 gap-3 p-3">
                 {r.note && (
                   // Plain text, never HTML, and it never leaves the app —
                   // the digest email carries names and counts only, so an
                   // abusive note cannot reach an inbox.
-                  <blockquote className="rounded-lg border-l-2 border-border-strong bg-tint-1 px-3 py-2 text-body text-text-secondary leading-relaxed whitespace-pre-wrap break-words">
+                  <blockquote className="rounded-lg bg-tint-2 px-3.5 py-3 text-body leading-relaxed text-text-secondary whitespace-pre-wrap break-words">
                     {r.note}
                   </blockquote>
                 )}
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant="primary"
                     size="sm"
+                    className="w-full"
                     onClick={() => setAccepting(r)}
                     aria-label={`Accept the request from ${r.firstName} ${r.surname}`}
                   >
                     Accept
                   </Button>
-                  <ActionButton
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
                     onClick={() => setDeclining(r)}
-                    label={`Decline the request from ${r.firstName} ${r.surname}`}
+                    aria-label={`Decline the request from ${r.firstName} ${r.surname}`}
                   >
                     Decline
-                  </ActionButton>
+                  </Button>
                   {/* Block is its own control, never folded into decline.
                       Buried inside a decline flow, people decline when
                       they mean to block and the one signal that drives
                       the reputation throttle goes quiet. */}
-                  <ActionButton
+                  <Button
+                    variant="dangerGhost"
+                    size="sm"
+                    className="w-full"
                     onClick={() => setBlocking(r)}
-                    label={`Block ${r.firstName} ${r.surname}`}
+                    aria-label={`Block ${r.firstName} ${r.surname}`}
                   >
                     Block
-                  </ActionButton>
-                  <ActionButton
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
                     onClick={() => setReporting(r)}
-                    label={`Report ${r.firstName} ${r.surname}`}
+                    aria-label={`Report ${r.firstName} ${r.surname}`}
                   >
                     Report
-                  </ActionButton>
+                  </Button>
                 </div>
-              </div>
+              </Panel>
             </div>
           ))}
         </div>
@@ -909,30 +928,32 @@ function SentTab({ page }: { page: RequestsPage<SentRequest> }) {
           you expect. A decline removes the row entirely and tells nobody,
           which is the point — but without saying so, a member watching a
           request vanish concludes the site lost it. */}
-      <p className="mb-4 text-body text-text-muted leading-relaxed max-w-[62ch]">
+      <p className="measure-prose mb-6 text-body leading-relaxed text-text-muted">
         Requests you&apos;ve sent that haven&apos;t been answered yet. Answered ones move
-        to <strong className="text-text-secondary">Your connections</strong>; declined
+        to <strong className="font-semibold text-text-secondary">Your connections</strong>; declined
         ones simply disappear, and we don&apos;t tell you which.
       </p>
 
       {items.length === 0 ? (
-        <EmptyState
-          title="No requests outstanding."
-          body="Anyone you ask to connect will show up here until they reply."
-        />
+        <DirectoryEmpty icon="send" title="No requests outstanding.">
+          Anyone you ask to connect will show up here until they reply.
+        </DirectoryEmpty>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className={CARD_GRID}>
           {items.map((r) => (
             <div key={r.connectionId} className="flex flex-col gap-2">
-              <MemberCard member={r} onClick={() => setOpen(r)} />
-              <div className="rounded-xl border border-border bg-bg-card p-3">
-                <ActionButton
+              <CardFrame><MemberCard member={r} onClick={() => setOpen(r)} /></CardFrame>
+              <Panel tone="inset" size="sm" className="p-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
                   onClick={() => setWithdrawing(r)}
-                  label={`Withdraw your request to ${r.firstName} ${r.surname}`}
+                  aria-label={`Withdraw your request to ${r.firstName} ${r.surname}`}
                 >
                   Withdraw request
-                </ActionButton>
-              </div>
+                </Button>
+              </Panel>
             </div>
           ))}
         </div>
@@ -986,64 +1007,25 @@ function SentTab({ page }: { page: RequestsPage<SentRequest> }) {
  */
 function ViewToggle({ view, url }: { view: View; url: ReturnType<typeof useUrlFilters> }) {
   return (
-    <div className="mb-5 hidden sm:flex items-center gap-1.5">
-      {([
-        { value: "cards", label: "Cards" },
-        { value: "graph", label: "Network" },
-      ] as const).map((v) => (
-        <button
-          key={v.value}
-          type="button"
-          disabled={url.pending}
-          aria-pressed={view === v.value}
-          onClick={() => url.apply({ view: v.value === "cards" ? null : v.value, cursor: null })}
-          className={
-            "cursor-pointer rounded-lg border px-3 py-1.5 text-small transition-colors duration-150 " +
-            (view === v.value
-              ? "border-accent bg-tint-2 text-text-primary"
-              : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary")
-          }
-        >
-          {v.label}
-        </button>
-      ))}
-      <p className="ml-2 text-small text-text-muted">
+    <div className="mb-6 hidden items-center gap-4 sm:flex">
+      <ButtonTabs
+        label="View"
+        variant="segmented"
+        size="sm"
+        value={view}
+        disabled={url.pending}
+        items={[
+          { value: "cards", label: "Cards" },
+          { value: "graph", label: "Network" },
+        ]}
+        onSelect={(next) => url.apply({ view: next === "cards" ? null : next, cursor: null })}
+      />
+      <p className="text-small text-text-muted">
         {view === "graph"
           ? "Your connections, grouped. Email addresses are on the cards."
           : "The list, with each person's email address."}
       </p>
     </div>
-  );
-}
-
-// `label` is REQUIRED and is the accessible name, not a decoration.
-//
-// The visible text has to stay short enough to sit three-across under a
-// card, which means a full page of connections renders 144 buttons whose
-// names are "Remove", "Block" and "Report" — forty-eight times each. Read
-// out of context, as a screen reader's element list reads them, that is
-// not a list of controls, it is the same three words repeated, and none of
-// them says who they act on. The visible label is for people who can see
-// which card it is under; `label` is for everyone else.
-function ActionButton({
-  onClick, label, children,
-}: {
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      // A visible shape, not bare text. Every control in this app has an
-      // outline and a surface — bare-text controls are a recurring
-      // regression here and they do not read as controls at all.
-      className="cursor-pointer rounded-lg border border-border-strong bg-tint-2 px-2.5 py-1.5 text-small text-text-secondary transition-colors hover:border-accent hover:text-text-primary hover:bg-tint-4"
-    >
-      {children}
-    </button>
   );
 }
 
@@ -1063,32 +1045,52 @@ function LoadMore({
 }) {
   if (!cursor) return null;
   return (
-    <div className="mt-6 flex flex-col items-center gap-2">
+    <div className="mt-8 flex flex-col items-center gap-3">
       <Button variant="ghost" size="sm" loading={loading} onClick={onClick}>
         Load more
       </Button>
-      {error && (
-        <p role="alert" className="text-center text-body text-danger">
-          {error}
-        </p>
-      )}
+      {error && <ErrorBanner>{error}</ErrorBanner>}
     </div>
   );
 }
 
-function EmptyState({ title, body }: { title: string; body: string }) {
+/**
+ * Holds a member card to its cell. A long name or course on a 320 px phone can be wider than the card's
+ * own grid track, and the page would then scroll sideways; the frame (same 14 px corner as the card)
+ * keeps whatever does not fit inside the cell.
+ */
+function CardFrame({ children }: { children: React.ReactNode }) {
+  return <div className="min-w-0 overflow-hidden rounded-xl">{children}</div>;
+}
+
+/** What every empty list here says, and the one thing to do next: the directory. */
+function DirectoryEmpty({
+  icon, title, children,
+}: {
+  icon: IconName;
+  title: string;
+  children: string;
+}) {
   return (
-    <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center">
-      <p className="text-lead text-text-primary">{title}</p>
-      <p className="mx-auto mt-2 max-w-[48ch] text-body text-text-muted leading-relaxed">
-        {body}
-      </p>
-      <Link
-        href="/members"
-        className="mt-5 inline-flex rounded-lg border border-border-strong bg-tint-2 px-4 py-2 text-body text-text-primary no-underline transition-colors hover:border-accent hover:bg-tint-4"
-      >
-        Browse the directory
-      </Link>
+    <EmptyState
+      icon={icon}
+      title={title}
+      action={
+        <ButtonLink href="/members" variant="ghost" size="md">
+          Browse the directory
+        </ButtonLink>
+      }
+    >
+      {children}
+    </EmptyState>
+  );
+}
+
+/** The graph's own loading shape, and the beat between leaving it and the card list arriving. */
+function GraphSkeleton({ label }: { label: string }) {
+  return (
+    <div role="status" aria-busy="true" aria-label={label}>
+      <Skeleton className="h-[420px] w-full rounded-xl" />
     </div>
   );
 }

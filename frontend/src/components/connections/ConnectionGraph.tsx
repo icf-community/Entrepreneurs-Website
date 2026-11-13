@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide, forceX, forceY,
   type SimulationNodeDatum,
 } from "d3-force";
+import { Avatar } from "@/components/ui/Avatar";
+import { Chip } from "@/components/ui/Chip";
+import { Entry } from "@/components/ui/Entry";
+import { Panel } from "@/components/ui/Panel";
+import { Select } from "@/components/ui/Select";
+import { labelCls } from "@/components/forms/styles";
 import type { GraphNode } from "@/lib/data/connections";
 
 // ════════════════════════════════════════════════════════════════════
@@ -44,6 +50,14 @@ import type { GraphNode } from "@/lib/data/connections";
 // prefers-reduced-motion renders a SETTLED layout: the simulation is run
 // to completion synchronously before the first paint, so there is a
 // finished picture rather than a visibly running physics engine.
+//
+// THE LOOK is drawn from the system's tokens, never from a value written
+// here. You are the one lit thing: a ring in amber light with a warm core
+// behind it. Everyone else is a ring at rest (a firm edge, the panel's own
+// fill), joined to you by a hairline. Pointing at a person, or arriving at
+// them with the keyboard, lights their ring and the one hairline that joins
+// them to you; nothing else changes. Colours are classes, so the whole
+// picture follows tokens.css.
 // ════════════════════════════════════════════════════════════════════
 
 type ClusterBy = "sector" | "role" | "course" | "gradYear";
@@ -98,7 +112,12 @@ export function ConnectionGraph({
 }) {
   const [by, setBy] = useState<ClusterBy>("sector");
   const [focusedRaw, setFocused] = useState(0);
+  // The person being pointed at or focused: their ring and their hairline light.
+  const [hot, setHot] = useState<string | null>(null);
   const listRef = useRef<SVGGElement>(null);
+  // url(#id) cannot hold the punctuation useId returns.
+  const reactId = useId();
+  const glowId = `glow-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
   const clusters = useMemo(() => {
     const map = new Map<string, GraphNode[]>();
@@ -224,22 +243,23 @@ export function ConnectionGraph({
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <label htmlFor="cluster-by" className="text-small text-text-muted">
-          Group by
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <label className="inline-flex items-center gap-3">
+          <span className={labelCls}>Group by</span>
+          <Select
+            id="cluster-by"
+            compact
+            value={by}
+            onChange={(e) => setBy(e.target.value as ClusterBy)}
+            className="w-auto min-w-44"
+          >
+            {CLUSTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </Select>
         </label>
-        <select
-          id="cluster-by"
-          value={by}
-          onChange={(e) => setBy(e.target.value as ClusterBy)}
-          className="rounded-lg border border-border-strong bg-tint-1 px-3 py-1.5 text-body text-text-primary"
-        >
-          {CLUSTER_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
         <p className="text-small text-text-muted">
-          {total} {total === 1 ? "connection" : "connections"}
+          <span className="data">{total}</span> {total === 1 ? "connection" : "connections"}
           <span aria-hidden className="mx-1.5">·</span>
           lines are your connections, never theirs to each other
         </p>
@@ -248,7 +268,7 @@ export function ConnectionGraph({
       {summarising ? (
         <ClusterSummary clusters={clusters} onSelect={onSelect} />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border bg-bg-card">
+        <Panel className="overflow-x-auto">
           <svg
             viewBox={`0 0 ${W} ${H}`}
             className="h-auto w-full min-w-[640px]"
@@ -263,24 +283,42 @@ export function ConnectionGraph({
             aria-label={`Your network, grouped by ${(CLUSTER_OPTIONS.find((o) => o.value === by)?.label ?? by).toLowerCase()}. ${peers.length} people. Use the arrow keys to move between them, and Enter to show someone's card, with their email address, in the list.`}
             onKeyDown={onKeyDown}
           >
+            {/* The warm core behind you, and two orbits: pure atmosphere, drawn before anything that carries meaning. */}
+            <defs>
+              <radialGradient id={glowId} cx={W / 2} cy={H / 2} r={300} gradientUnits="userSpaceOnUse">
+                <stop offset="0" stopOpacity={0.2} className="[stop-color:var(--color-warm)]" />
+                <stop offset="1" stopOpacity={0} className="[stop-color:var(--color-warm)]" />
+              </radialGradient>
+            </defs>
+            <rect aria-hidden width={W} height={H} fill={`url(#${glowId})`} />
+            <ellipse aria-hidden cx={W / 2} cy={H / 2} rx={150} ry={150} fill="none" className="stroke-border-subtle" strokeWidth={1} />
+            <ellipse aria-hidden cx={W / 2} cy={H / 2} rx={230} ry={230} fill="none" className="stroke-border-subtle" strokeWidth={1} strokeDasharray="2 7" />
+
             {self && peers.map((n) => (
               <line
                 key={`edge-${n.id}`}
                 x1={self.x} y1={self.y} x2={n.x} y2={n.y}
-                stroke="currentColor"
-                className="text-border-strong"
-                strokeWidth={1}
+                className={`transition-colors duration-150 ${hot === n.id ? "stroke-lit" : "stroke-border"}`}
+                strokeWidth={hot === n.id ? 1.75 : 1}
               />
             ))}
 
             {self && (
               <g aria-hidden>
-                <circle cx={self.x} cy={self.y} r={22} className="fill-accent" />
+                <ellipse cx={self.x} cy={self.y} rx={36} ry={36} fill="none" className="stroke-lit-line" strokeWidth={1} />
+                <circle
+                  cx={self.x} cy={self.y} r={22}
+                  className="fill-lit-muted stroke-lit [filter:drop-shadow(0_0_14px_var(--color-lit-glow))]"
+                  strokeWidth={2}
+                />
                 <text
-                  x={self.x} y={(self.y ?? 0) + 38}
+                  x={self.x} y={(self.y ?? 0) + 58}
                   textAnchor="middle"
-                  className="fill-current text-text-primary"
-                  style={{ fontSize: 12, fontWeight: 500 }}
+                  fontSize={13}
+                  fontWeight={500}
+                  className="fill-text-primary stroke-bg-card [paint-order:stroke]"
+                  strokeWidth={4}
+                  strokeLinejoin="round"
                 >
                   You
                 </text>
@@ -296,19 +334,26 @@ export function ConnectionGraph({
                   role="button"
                   aria-label={`${n.label}, ${n.cluster}`}
                   onClick={() => onSelect(n.id)}
-                  onFocus={() => setFocused(i)}
-                  className="cursor-pointer outline-none [&:focus-visible>circle]:stroke-accent [&:focus-visible>circle]:stroke-[3px]"
+                  onFocus={() => { setFocused(i); setHot(n.id); }}
+                  onBlur={() => setHot(null)}
+                  onPointerEnter={() => setHot(n.id)}
+                  onPointerLeave={() => setHot(null)}
+                  // The ring on the circle is the focus indicator, so the browser's rectangle round the whole group is switched off.
+                  style={{ outline: "none" }}
+                  className="group/node cursor-pointer [&:focus-visible>circle]:stroke-accent [&:focus-visible>circle]:stroke-[3px]"
                 >
                   <circle
                     cx={n.x} cy={n.y} r={14}
-                    className="fill-bg-secondary stroke-border-strong"
+                    className="fill-bg-card stroke-border-strong transition-colors duration-150 group-hover/node:fill-lit-muted group-hover/node:stroke-lit"
                     strokeWidth={1.5}
                   />
                   <text
-                    x={n.x} y={(n.y ?? 0) + 28}
+                    x={n.x} y={(n.y ?? 0) + 30}
                     textAnchor="middle"
-                    className="fill-current text-text-secondary"
-                    style={{ fontSize: 10 }}
+                    fontSize={11}
+                    className={`stroke-bg-card [paint-order:stroke] transition-colors duration-150 ${hot === n.id ? "fill-text-primary" : "fill-text-secondary"}`}
+                    strokeWidth={4}
+                    strokeLinejoin="round"
                   >
                     {n.label.length > 18 ? `${n.label.slice(0, 17)}…` : n.label}
                   </text>
@@ -316,7 +361,7 @@ export function ConnectionGraph({
               ))}
             </g>
           </svg>
-        </div>
+        </Panel>
       )}
 
       <ClusterLegend clusters={clusters} />
@@ -332,21 +377,21 @@ export function ConnectionGraph({
 // behave differently is worse than either on its own: it teaches people the
 // pills are inert right up until they meet the ones that are not. So the
 // legend drops the outline and the surface entirely and becomes labelled
-// text with a swatch, which is what it always was.
+// text with a small ring, which is what it always was.
 function ClusterLegend({ clusters }: { clusters: [string, GraphNode[]][] }) {
   if (clusters.length === 0) return null;
   return (
-    <div className="mt-4">
-      <h3 className="text-small text-text-muted">Groups</h3>
-      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+    <div className="mt-6">
+      <h3 className="text-small font-medium text-text-secondary">Groups</h3>
+      <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
         {clusters.map(([key, members]) => (
           <li
             key={key}
-            className="flex items-center gap-1.5 text-small text-text-secondary"
+            className="flex items-center gap-2 text-small text-text-secondary"
           >
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-border-strong" />
+            <span aria-hidden className="size-2.5 rounded-full border border-border-strong" />
             {key}
-            <span className="tnum text-text-muted">{members.length}</span>
+            <span className="data text-text-muted">{members.length}</span>
           </li>
         ))}
       </ul>
@@ -372,46 +417,38 @@ function ClusterSummary({
   const members = clusters.find(([k]) => k === open)?.[1] ?? [];
 
   return (
-    <div className="rounded-2xl border border-border bg-bg-card p-5">
+    <Panel className="p-5 sm:p-6">
       <p className="mb-4 text-body text-text-muted">
         Your network is large enough that individual dots stop being readable, so it is grouped.
         Pick a group to see who is in it.
       </p>
       <div className="flex flex-wrap gap-2">
         {clusters.map(([key, list]) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={open === key}
-            onClick={() => setOpen(key)}
-            className={
-              "rounded-lg border px-3 py-1.5 text-body transition-colors cursor-pointer " +
-              (open === key
-                ? "border-accent bg-accent text-bg-primary font-medium"
-                : "border-border-strong bg-tint-1 text-text-secondary hover:border-accent hover:text-text-primary")
-            }
-          >
+          <Chip key={key} pressed={open === key} onClick={() => setOpen(key)}>
             {key} <span className="tnum">{list.length}</span>
-          </button>
+          </Chip>
         ))}
       </div>
 
       <ul className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {members.map((m) => (
-          <li key={m.id}>
-            <button
-              type="button"
-              onClick={() => onSelect(m.id)}
-              className="w-full rounded-lg border border-border-strong bg-tint-1 px-3 py-2 text-left text-body text-text-primary transition-colors hover:border-accent"
-            >
-              {m.firstName} {m.surname}
-              {m.course && (
-                <span className="block truncate text-small text-text-muted">{m.course}</span>
-              )}
-            </button>
-          </li>
+          <Entry
+            key={m.id}
+            as="li"
+            glyph={<Avatar name={`${m.firstName} ${m.surname}`} size="md" />}
+            title={
+              <button
+                type="button"
+                onClick={() => onSelect(m.id)}
+                className="cursor-pointer text-left text-inherit after:absolute after:inset-0 after:content-['']"
+              >
+                {m.firstName} {m.surname}
+              </button>
+            }
+            meta={m.course ? <span className="block truncate">{m.course}</span> : undefined}
+          />
         ))}
       </ul>
-    </div>
+    </Panel>
   );
 }
