@@ -2,6 +2,8 @@ import { isUuid } from "@/lib/uuid";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/app/AppShell";
+import { PageHead } from "@/components/ui/PageHead";
+import { Icon } from "@/design-system/icons/Icon";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { posterName } from "@/lib/data/profiles";
 import { listingEditSnapshot } from "@/lib/listings/editSnapshot";
@@ -69,18 +71,25 @@ export default async function EditEventPage({ params }: { params: Promise<Params
 
   return (
     <AppShell active="events" name={displayName} isAdmin={isAdmin}>
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[820px] mx-auto">
-          <Link href="/my-submissions" className="inline-flex items-center text-body text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6">
-            ← Your submissions
-          </Link>
-          <div className="mb-10 rule-draw pt-6">
-            <p className="label-wide text-text-secondary mb-3">Edit event</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
-              {row.title}
-            </h1>
-            <EditStatusNote status={row.status} noun="event" />
-          </div>
+      <div className="px-[var(--gutter)] py-10 sm:py-12">
+        <div className="mx-auto max-w-[820px]">
+          <PageHead
+            className="mb-8"
+            context={
+              <>
+                {/* The arrow is drawn; the character stays as hidden text so the link's name is still "← Your submissions". */}
+                <Link href="/my-submissions" className="inline-flex items-center gap-1.5">
+                  <Icon name="arrow-left" size={16} />
+                  <span className="sr-only">← </span>
+                  Your submissions
+                </Link>
+                <span aria-hidden="true">/</span>
+                Edit event
+              </>
+            }
+            title={row.title}
+            lede={<EditStatusNote status={row.status} noun="event" />}
+          />
           {revision && <QueuedRevisionBanner queuedAt={revision.createdAt} />}
           <EventForm
             signupEmail={user.email ?? ""}

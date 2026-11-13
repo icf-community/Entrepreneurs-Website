@@ -4,13 +4,17 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Field } from "@/components/forms/Field";
 import { ErrorBanner } from "@/components/forms/Banners";
-import { inputCls } from "@/components/forms/styles";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { submitVcGrant, updateOwnVcGrant } from "@/app/vcs/actions";
 import { vcGrantSchema, type VcGrantPayload } from "@/lib/validation/listings";
 import { collectFieldErrors, showFieldErrors, FORM_ERROR, type FieldErrors } from "@/lib/validation/fields";
 import { Button } from "@/components/ui/Button";
+import { FormActions } from "@/components/ui/FormActions";
+import { FormSection } from "@/components/ui/FormSection";
+import { Input } from "@/components/ui/Input";
+import { Radio } from "@/components/ui/Radio";
+import { Textarea } from "@/components/ui/Textarea";
 import RevisionQueuedNotice from "@/components/forms/RevisionQueuedNotice";
 import { track } from "@/lib/analytics/track";
 
@@ -177,15 +181,9 @@ function KindField({
 }) {
   return (
     <Field label="Kind" required group error={error}>
-      <div className="grid grid-cols-2 gap-3">
-        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${value === "vc" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
-          <input type="radio" name="kind" value="vc" checked={value === "vc"} onChange={() => onChange("vc")} className="mr-2" />
-          Venture capital
-        </label>
-        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${value === "grant" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
-          <input type="radio" name="kind" value="grant" checked={value === "grant"} onChange={() => onChange("grant")} className="mr-2" />
-          Grant
-        </label>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Radio card name="kind" value="vc" checked={value === "vc"} onChange={() => onChange("vc")} label="Venture capital" />
+        <Radio card name="kind" value="grant" checked={value === "grant"} onChange={() => onChange("grant")} label="Grant" />
       </div>
     </Field>
   );
@@ -256,49 +254,45 @@ export default function VcForm({ mode, editingId, editVersion, initialValues, re
   if (staged) return <RevisionQueuedNotice noun="listing" />;
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
+    <FormSection as="form" ref={formRef} onSubmit={handleSubmit}>
       <ErrorBannerIfAny error={error} />
 
       <KindField value={kind} onChange={setKind} error={fieldErrors.kind} />
 
       <Field label="Name" required error={fieldErrors.name}>
-        <input type="text" maxLength={200} value={name} onChange={(e) => setName(e.target.value)} className={inputCls} required />
+        <Input type="text" maxLength={200} value={name} onChange={(e) => setName(e.target.value)} required />
       </Field>
 
       <Field label="Description" required hint={`${description.length}/5000`} error={fieldErrors.description}>
-        <textarea rows={5} maxLength={5000} value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputCls} resize-none`} required />
+        <Textarea rows={5} maxLength={5000} value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none" required />
       </Field>
 
       <Field label="Link" required hint="Their site, application form, or fund page" error={fieldErrors.link}>
         {/* react-doctor-disable-next-line react-doctor/no-placeholder-only-field -- input is a child of the shared <Field label=...> wrapper, which already renders a real associated <label> */}
-        <input type="url" maxLength={512} placeholder="https://example.com" value={link} onChange={(e) => setLink(e.target.value)} className={inputCls} required />
+        <Input type="url" maxLength={512} placeholder="https://example.com" value={link} onChange={(e) => setLink(e.target.value)} required />
       </Field>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
         <Field label="Amount" hint="optional" error={fieldErrors.amount}>
           {/* react-doctor-disable-next-line react-doctor/no-placeholder-only-field -- input is a child of the shared <Field label=...> wrapper, which already renders a real associated <label> */}
-          <input type="text" placeholder="e.g. £25k–£500k" maxLength={100} value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} />
+          <Input type="text" placeholder="e.g. £25k–£500k" maxLength={100} value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
         <Field label="Stage" hint="optional" error={fieldErrors.stage}>
           {/* react-doctor-disable-next-line react-doctor/no-placeholder-only-field -- input is a child of the shared <Field label=...> wrapper, which already renders a real associated <label> */}
-          <input type="text" placeholder="e.g. Pre-seed, Seed" maxLength={100} value={stage} onChange={(e) => setStage(e.target.value)} className={inputCls} />
+          <Input type="text" placeholder="e.g. Pre-seed, Seed" maxLength={100} value={stage} onChange={(e) => setStage(e.target.value)} />
         </Field>
         <Field label="Deadline" hint="optional" error={fieldErrors.deadline}>
-          <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputCls} />
+          <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
         </Field>
       </div>
 
       <TurnstileSection show={showTurnstile} onToken={setTurnstileToken} />
 
-      <Button
-        type="submit"
-        loading={isLoading}
-        variant="primary"
-        size="lg"
-        className="w-full mt-3"
-      >
-        {submitButtonLabel(editingId, reviewOnSave, mode)}
-      </Button>
-    </form>
+      <FormActions>
+        <Button type="submit" loading={isLoading} variant="primary" size="lg">
+          {submitButtonLabel(editingId, reviewOnSave, mode)}
+        </Button>
+      </FormActions>
+    </FormSection>
   );
 }

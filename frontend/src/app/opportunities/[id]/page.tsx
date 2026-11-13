@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { ViewProfileButton } from "@/components/members/ViewProfileButton";
 import { audienceLabel } from "@/lib/listings/audience";
 import ListingDetailShell, {
-  ListingGone, Fact, Description,
+  ActionSection, Description, Fact, Facts, ListingGone,
 } from "@/components/ListingDetailShell";
+import { OutArrow } from "@/components/FullPageLink";
+import { Badge } from "@/components/ui/Badge";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { markedIds } from "@/lib/data/activity";
 import { approvedOpportunity, bookmarkedOpportunityIds } from "@/lib/data/opportunities";
@@ -78,53 +80,55 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
     >
       {revisionPending && <PendingRevisionNotice noun="role" />}
 
-      {(o.sectors.length > 0 || o.skills.length > 0) && (
-        <div className="mb-8 flex flex-wrap gap-1.5">
-          {o.sectors.map((s) => (
-            <span key={`sec-${s}`} className="rounded-lg border border-accent/20 bg-accent-muted px-2 py-0.5 text-small text-accent-light">{s}</span>
-          ))}
-          {o.skills.map((s) => (
-            <span key={`skl-${s}`} className="rounded-lg border border-border bg-tint-1 px-2 py-0.5 text-small text-text-secondary">{s}</span>
-          ))}
-        </div>
-      )}
-
-      <Description text={o.description} />
-
-      <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Fact label="Pay">{o.pay}</Fact>
-        <Fact label="Apply by">{formatDate(o.applicationDeadline)}</Fact>
-        <Fact label="Starts">{startLabel(o)}</Fact>
-        <Fact label="Location">{locationLabel(o)}</Fact>
-        {audienceLabel(o.audience) && <Fact label="Who can apply">{audienceLabel(o.audience)}</Fact>}
-        <Fact label="Posted by">
-          {posterName}
-          {o.postedBy.linkedinUrl && (
-            <>
-              {" · "}
-              <a
-                href={externalHref(o.postedBy.linkedinUrl)}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="text-body text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
-              >
-                LinkedIn ↗
-              </a>
-            </>
-          )}
-          <div className="mt-2">
-            <ViewProfileButton memberId={o.postedBy.id} />
+      <div className="grid gap-10">
+        {(o.sectors.length > 0 || o.skills.length > 0) && (
+          <div className="flex flex-wrap gap-1.5">
+            {o.sectors.map((s) => (
+              <Badge key={`sec-${s}`} tone="lit">{s}</Badge>
+            ))}
+            {o.skills.map((s) => (
+              <Badge key={`skl-${s}`}>{s}</Badge>
+            ))}
           </div>
-        </Fact>
-      </div>
+        )}
 
-      <div className="mt-9 border-t border-border-subtle pt-7">
-        <h2 className="mb-3 text-small text-text-muted">How to apply</h2>
-        <OpportunityActions
-          opportunity={o}
-          applied={appliedIds.includes(o.id)}
-          bookmarked={bookmarkedIds.includes(o.id)}
-        />
+        <Description text={o.description} />
+
+        <Facts>
+          <Fact label="Pay">{o.pay}</Fact>
+          <Fact label="Apply by">{formatDate(o.applicationDeadline)}</Fact>
+          <Fact label="Starts">{startLabel(o)}</Fact>
+          <Fact label="Location">{locationLabel(o)}</Fact>
+          {audienceLabel(o.audience) && <Fact label="Who can apply">{audienceLabel(o.audience)}</Fact>}
+          <Fact label="Posted by">
+            {posterName}
+            {o.postedBy.linkedinUrl && (
+              <>
+                {" · "}
+                <a
+                  href={externalHref(o.postedBy.linkedinUrl)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1 text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
+                >
+                  LinkedIn
+                  <OutArrow />
+                </a>
+              </>
+            )}
+            <div className="mt-2">
+              <ViewProfileButton memberId={o.postedBy.id} />
+            </div>
+          </Fact>
+        </Facts>
+
+        <ActionSection title="How to apply">
+          <OpportunityActions
+            opportunity={o}
+            applied={appliedIds.includes(o.id)}
+            bookmarked={bookmarkedIds.includes(o.id)}
+          />
+        </ActionSection>
       </div>
     </ListingDetailShell>
   );

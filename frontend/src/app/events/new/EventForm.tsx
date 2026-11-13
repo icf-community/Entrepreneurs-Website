@@ -5,13 +5,17 @@ import { useRef, useState } from "react";
 import { Field } from "@/components/forms/Field";
 import { ContactEmailSection } from "@/components/forms/ContactEmailSection";
 import { ErrorBanner } from "@/components/forms/Banners";
-import { inputCls } from "@/components/forms/styles";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { submitEvent, updateOwnEvent } from "@/app/events/actions";
 import { eventSchema, type EventPayload } from "@/lib/validation/listings";
 import { collectFieldErrors, showFieldErrors, FORM_ERROR, type FieldErrors } from "@/lib/validation/fields";
 import { Button } from "@/components/ui/Button";
+import { FormActions } from "@/components/ui/FormActions";
+import { FormSection } from "@/components/ui/FormSection";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
 import RevisionQueuedNotice from "@/components/forms/RevisionQueuedNotice";
 import { track } from "@/lib/analytics/track";
 
@@ -211,14 +215,13 @@ function SocietyTypeField({
   if (!show) return null;
   return (
     <Field label="Event type" required hint="Society events are highlighted in accent in the directory." error={error}>
-      <select
+      <Select
         value={value ? "society" : "external"}
         onChange={(e) => onChange(e.target.value === "society")}
-        className={inputCls}
       >
         <option value="external">External event</option>
         <option value="society">Society event</option>
-      </select>
+      </Select>
     </Field>
   );
 }
@@ -307,35 +310,35 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
+    <FormSection as="form" ref={formRef} onSubmit={handleSubmit}>
       <ErrorBannerIfAny error={error} />
 
       <SocietyTypeField show={showSocietyToggle} value={isSocietyEvent} onChange={setIsSocietyEvent} error={fieldErrors.isSocietyEvent} />
 
       <Field label="Title" required error={fieldErrors.title}>
-        <input type="text" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} required />
+        <Input type="text" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} required />
       </Field>
 
       <Field label="Description" required hint={`${description.length}/5000`} error={fieldErrors.description}>
-        <textarea rows={5} maxLength={5000} value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputCls} resize-none`} required />
+        <Textarea rows={5} maxLength={5000} value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none" required />
       </Field>
 
       <Field label="Luma link" required error={fieldErrors.lumaLink}>
         {/* react-doctor-disable-next-line react-doctor/no-placeholder-only-field -- input is a child of the shared <Field label=...> wrapper, which already renders a real associated <label> */}
-        <input type="url" maxLength={512} placeholder="https://lu.ma/your-event" value={lumaLink} onChange={(e) => setLumaLink(e.target.value)} className={inputCls} required />
+        <Input type="url" maxLength={512} placeholder="https://lu.ma/your-event" value={lumaLink} onChange={(e) => setLumaLink(e.target.value)} required />
       </Field>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <Field label="Date & time" required error={fieldErrors.eventAtIso}>
-          <input type="datetime-local" value={eventAt} onChange={(e) => setEventAt(e.target.value)} className={inputCls} required />
+          <Input type="datetime-local" value={eventAt} onChange={(e) => setEventAt(e.target.value)} required />
         </Field>
         <Field label="Location" required hint="e.g. Imperial Business School, or 'Online'" error={fieldErrors.location}>
-          <input type="text" maxLength={200} value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} required />
+          <Input type="text" maxLength={200} value={location} onChange={(e) => setLocation(e.target.value)} required />
         </Field>
       </div>
 
       <Field label="Organiser name" required error={fieldErrors.organiserName}>
-        <input type="text" maxLength={200} value={organiserName} onChange={(e) => setOrganiserName(e.target.value)} className={inputCls} required />
+        <Input type="text" maxLength={200} value={organiserName} onChange={(e) => setOrganiserName(e.target.value)} required />
       </Field>
 
       <ContactEmailSection
@@ -354,15 +357,11 @@ export default function EventForm({ signupEmail, defaultOrganiser, mode, editing
 
       <TurnstileSection show={showTurnstile} onToken={setTurnstileToken} />
 
-      <Button
-        type="submit"
-        loading={isLoading}
-        variant="primary"
-        size="lg"
-        className="w-full mt-3"
-      >
-        {submitButtonLabel(editingId, reviewOnSave, mode)}
-      </Button>
-    </form>
+      <FormActions>
+        <Button type="submit" loading={isLoading} variant="primary" size="lg">
+          {submitButtonLabel(editingId, reviewOnSave, mode)}
+        </Button>
+      </FormActions>
+    </FormSection>
   );
 }

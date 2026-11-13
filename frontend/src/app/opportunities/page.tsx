@@ -1,8 +1,10 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import ListingPageShell from "@/components/ListingPageShell";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Panel } from "@/components/ui/Panel";
 import { Skeleton, FilterBarSkeleton, RowListSkeleton } from "@/components/ui/Skeleton";
+import { Icon } from "@/design-system/icons/Icon";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { markedIds } from "@/lib/data/activity";
 import {
@@ -51,23 +53,23 @@ export default async function OpportunitiesPage({
       eyebrow="Opportunities"
       title="Roles from the Foundry network"
       summary={
-        <Suspense fallback={<Skeleton className="h-3 w-36" />}>
+        <Suspense fallback={<Skeleton className="h-5 w-36" />}>
           <OpportunityCount data={data} />
         </Suspense>
       }
       cta={{ href: "/opportunities/new", label: "Post an opportunity →" }}
       actions={
-        <Suspense fallback={<Skeleton className="h-3 w-28" />}>
+        <Suspense fallback={<Skeleton className="h-11 w-44 rounded-full" />}>
           <BookmarksLink data={data} />
         </Suspense>
       }
     >
       {education && !education.known && (
-        <section className="mb-8 rounded-2xl border border-border bg-bg-card p-6" aria-labelledby="confirm-status">
-          <h2 id="confirm-status" className="text-lead font-medium text-text-primary">Confirm your status to see jobs</h2>
-          <p className="mt-1 mb-4 text-body text-text-muted">Each job is for students, graduates or both.</p>
+        <Panel as="section" className="mb-8 p-5 sm:p-6" aria-labelledby="confirm-status">
+          <h2 id="confirm-status" className="font-display text-title text-text-primary">Confirm your status to see jobs</h2>
+          <p className="mb-5 mt-1.5 text-body text-text-secondary">Each job is for students, graduates or both.</p>
           <EducationForm initialEnrolled={null} initialGraduated={null} compact />
-        </section>
+        </Panel>
       )}
       <Suspense
         fallback={
@@ -106,15 +108,9 @@ async function OpportunityCount({ data }: { data: Promise<OpportunitiesData> }) 
 async function BookmarksLink({ data }: { data: Promise<OpportunitiesData> }) {
   const { bookmarkedIds } = await data;
   return (
-    <Link
-      href="/my-bookmarks"
-      className="text-body text-text-secondary no-underline transition-colors duration-150 hover:text-accent-light flex items-center gap-1.5"
-    >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-      </svg>
+    <ButtonLink href="/my-bookmarks" variant="ghost" size="md" leading={<Icon name="bookmark" size={18} />}>
       Your bookmarks{bookmarkedIds.length > 0 ? ` (${bookmarkedIds.length})` : ""}
-    </Link>
+    </ButtonLink>
   );
 }
 

@@ -10,7 +10,8 @@ import { FilterBarSkeleton, CardGridSkeleton, RowListSkeleton, PageHeaderSkeleto
 //
 // The opening is PageHeaderSkeleton (the same rule, context line, title and lede
 // PageHead draws), so the page does not jump when the real one streams in. The
-// container classes below are the ones the list pages use; if the pages change
+// container classes below are the system's rhythm (--gutter at the sides,
+// --content-max for the column) that the list pages use; if the pages change
 // theirs, change them here too.
 export function FilteredListLoadingSkeleton({
   active,
@@ -22,8 +23,8 @@ export function FilteredListLoadingSkeleton({
 }) {
   return (
     <AppShell active={active}>
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[1200px] mx-auto">
+      <div className="px-[var(--gutter)] py-10 sm:py-12">
+        <div className="mx-auto max-w-[var(--content-max)]">
           <PageHeaderSkeleton />
           <FilterBarSkeleton />
           <div className="mt-8">

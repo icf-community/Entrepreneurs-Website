@@ -39,7 +39,7 @@ export default async function EventsPage({
       eyebrow="Events"
       title="Upcoming Foundry events"
       summary={
-        <Suspense fallback={<Skeleton className="h-3 w-40" />}>
+        <Suspense fallback={<Skeleton className="h-5 w-40" />}>
           <EventCount data={data} />
         </Suspense>
       }

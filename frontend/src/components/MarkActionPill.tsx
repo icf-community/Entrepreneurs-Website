@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { FieldError } from "@/components/forms/Field";
+import { Chip } from "@/components/ui/Chip";
+import { Icon } from "@/design-system/icons/Icon";
 import { actionLabel, markAction, unmarkAction, type ListingKind } from "@/lib/listingActions";
 import { settle } from "@/lib/settle";
 
@@ -9,8 +12,14 @@ import { settle } from "@/lib/settle";
 //
 // Inline self-attestation control rendered next to the external apply
 // or RSVP CTA on each listing card. Optimistic local toggle with
-// rollback on RPC failure. Failure state is surfaced inline (small
-// red caption) rather than via a modal — the action is low-stakes.
+// rollback on RPC failure. Failure state is surfaced inline (a drawn
+// mark and a sentence) rather than via a modal — the action is low-stakes.
+//
+// It is the system's toggle chip: chosen is lit and carries the drawn tick,
+// not chosen carries the open ring (the icon set's "not yet"), so the state
+// never rests on colour alone. While the write is in flight it is aria-busy
+// and ignores a second press, but stays enabled, so a keyboard user's focus
+// is not thrown to the top of the page.
 // ════════════════════════════════════════════════════════════════════
 
 type Props = {
@@ -47,38 +56,19 @@ export function MarkActionPill({ kind, id, initial, onChange }: Props) {
   const label = actionLabel(kind, marked);
 
   return (
-    <div className="inline-flex flex-col items-start gap-1">
-      <button
-        type="button"
+    <div className="inline-flex flex-col items-start gap-2">
+      <Chip
+        pressed={marked}
         onClick={(e) => { e.stopPropagation(); void toggle(); }}
-        disabled={pending}
-        aria-pressed={marked}
-        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-body font-medium transition-colors cursor-pointer disabled:opacity-60 ${
-          marked
-            ? "bg-accent-muted text-accent-light border-accent/40 hover:border-accent"
-            : "bg-transparent text-text-secondary border-border hover:border-accent hover:text-text-primary"
-        }`}
+        aria-busy={pending || undefined}
+        className="min-h-[var(--touch)] aria-busy:cursor-progress"
       >
-        <CheckIcon active={marked} />
-        {label}
-      </button>
-      {error && (
-        <span role="alert" className="text-small text-danger">{error}</span>
-      )}
+        <span className="inline-flex items-center gap-2">
+          {marked ? null : <Icon name="ring" size={16} />}
+          {label}
+        </span>
+      </Chip>
+      {error && <FieldError>{error}</FieldError>}
     </div>
-  );
-}
-
-function CheckIcon({ active }: { active: boolean }) {
-  return (
-    <svg
-      width="13" height="13" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor"
-      strokeWidth={active ? 2.5 : 2}
-      strokeLinecap="round" strokeLinejoin="round"
-      aria-hidden
-    >
-      {active ? <polyline points="20 6 9 17 4 12" /> : <circle cx="12" cy="12" r="9" />}
-    </svg>
   );
 }

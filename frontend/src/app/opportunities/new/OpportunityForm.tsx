@@ -6,13 +6,18 @@ import { Field, FieldError } from "@/components/forms/Field";
 import { ContactEmailSection } from "@/components/forms/ContactEmailSection";
 import { ChipGroup, type ChipItem } from "@/components/forms/ChipGroup";
 import { ErrorBanner } from "@/components/forms/Banners";
-import { inputCls } from "@/components/forms/styles";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { submitOpportunity, updateOwnOpportunity } from "@/app/opportunities/actions";
 import { opportunitySchema, type OpportunityPayload } from "@/lib/validation/listings";
 import { collectFieldErrors, showFieldErrors, FORM_ERROR, type FieldErrors } from "@/lib/validation/fields";
 import { Button } from "@/components/ui/Button";
+import { FieldGroup, FormSection } from "@/components/ui/FormSection";
+import { FormActions } from "@/components/ui/FormActions";
+import { Input } from "@/components/ui/Input";
+import { Radio } from "@/components/ui/Radio";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
 import RevisionQueuedNotice from "@/components/forms/RevisionQueuedNotice";
 import { track } from "@/lib/analytics/track";
 
@@ -268,20 +273,13 @@ function ApplyMethodSection({
   error?: string;
 }) {
   return (
-    <div className="pt-2 border-t border-border-subtle">
-      <div className="text-body text-text-primary mb-3 mt-3">How should applicants apply?</div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${applyMethod === "email" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
-          <input type="radio" name="apply-method" value="email" checked={applyMethod === "email"} onChange={() => onApplyMethodChange("email")} className="mr-2" />
-          Contact me directly
-        </label>
-        <label className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${applyMethod === "link" ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
-          <input type="radio" name="apply-method" value="link" checked={applyMethod === "link"} onChange={() => onApplyMethodChange("link")} className="mr-2" />
-          Application portal link
-        </label>
+    <FieldGroup legend="How should applicants apply?">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Radio card name="apply-method" value="email" checked={applyMethod === "email"} onChange={() => onApplyMethodChange("email")} label="Contact me directly" />
+        <Radio card name="apply-method" value="link" checked={applyMethod === "link"} onChange={() => onApplyMethodChange("link")} label="Application portal link" />
       </div>
       <ApplyUrlField show={applyMethod === "link"} value={applyUrl} onChange={onApplyUrlChange} error={error} />
-    </div>
+    </FieldGroup>
   );
 }
 
@@ -295,8 +293,8 @@ function ApplyUrlField({
 }) {
   if (!show) return null;
   return (
-    <div className="mt-3" data-invalid={error ? "" : undefined}>
-      <input type="url" aria-label="Application portal URL" maxLength={512} placeholder="https://yourcompany.com/careers/role-id" value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} required />
+    <div data-invalid={error ? "" : undefined}>
+      <Input type="url" aria-label="Application portal URL" maxLength={512} placeholder="https://yourcompany.com/careers/role-id" value={value} onChange={(e) => onChange(e.target.value)} required />
       <FieldError>{error}</FieldError>
     </div>
   );
@@ -310,21 +308,18 @@ function EligibleAudienceFieldset({
   error?: string;
 }) {
   return (
-    <fieldset className="pt-2 border-t border-border-subtle" data-invalid={error ? "" : undefined}>
-      <legend className="text-body text-text-primary mb-1 mt-3">Who is this job for? <span className="text-text-muted">*</span></legend>
-      <p className="text-small text-text-muted leading-relaxed mb-3">
-        Graduates means anyone who has finished a degree, whatever their role here.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <FieldGroup
+      legend={<>Who is this job for? <span className="lm-label__req">*</span></>}
+      description="Graduates means anyone who has finished a degree, whatever their role here."
+      data-invalid={error ? "" : undefined}
+    >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {AUDIENCES.map((a) => (
-          <label key={a.value} className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${value === a.value ? "bg-accent-muted border-accent/50 text-accent-light" : "bg-tint-1 border-border text-text-secondary hover:border-accent"}`}>
-            <input type="radio" name="eligible-audience" value={a.value} checked={value === a.value} onChange={() => onChange(a.value)} className="mr-2" />
-            {a.label}
-          </label>
+          <Radio card key={a.value} name="eligible-audience" value={a.value} checked={value === a.value} onChange={() => onChange(a.value)} label={a.label} />
         ))}
       </div>
       <FieldError>{error}</FieldError>
-    </fieldset>
+    </FieldGroup>
   );
 }
 
@@ -416,53 +411,53 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
   if (staged) return <RevisionQueuedNotice noun="opportunity" />;
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
+    <FormSection as="form" ref={formRef} onSubmit={handleSubmit}>
       <ErrorBannerIfAny error={error} />
 
       <Field label="Role title" required error={fieldErrors.positionName}>
-        <input type="text" maxLength={200} value={positionName} onChange={(e) => setPositionName(e.target.value)} className={inputCls} required />
+        <Input type="text" maxLength={200} value={positionName} onChange={(e) => setPositionName(e.target.value)} required />
       </Field>
 
       <Field label="Company" required error={fieldErrors.company}>
-        <input type="text" maxLength={200} value={company} onChange={(e) => setCompany(e.target.value)} className={inputCls} required />
+        <Input type="text" maxLength={200} value={company} onChange={(e) => setCompany(e.target.value)} required />
       </Field>
 
       <Field label="Salary / compensation" required hint="e.g. £80k–£100k, equity 0.1–0.5%, daily rate, etc." error={fieldErrors.pay}>
-        <input type="text" maxLength={100} value={pay} onChange={(e) => setPay(e.target.value)} className={inputCls} required />
+        <Input type="text" maxLength={100} value={pay} onChange={(e) => setPay(e.target.value)} required />
       </Field>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
         <Field label="Location type" required error={fieldErrors.locationType}>
-          <select value={locationType} onChange={(e) => setLocationType(e.target.value as "remote" | "hybrid" | "onsite")} className={inputCls}>
+          <Select value={locationType} onChange={(e) => setLocationType(e.target.value as "remote" | "hybrid" | "onsite")}>
             <option value="remote">Remote</option>
             <option value="hybrid">Hybrid</option>
             <option value="onsite">Onsite</option>
-          </select>
+          </Select>
         </Field>
         <div className="sm:col-span-2">
           <Field label="City / region" hint={locationType === "remote" ? "Optional for remote" : "Required"} error={fieldErrors.locationText}>
-            <input type="text" maxLength={200} value={locationText} onChange={(e) => setLocationText(e.target.value)} className={inputCls} />
+            <Input type="text" maxLength={200} value={locationText} onChange={(e) => setLocationText(e.target.value)} />
           </Field>
         </div>
       </div>
 
       <Field label="Job description" required hint={`${description.length}/5000`} error={fieldErrors.description}>
-        <textarea rows={6} maxLength={5000} value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputCls} resize-none`} required />
+        <Textarea rows={6} maxLength={5000} value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none" required />
       </Field>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
         <Field label="Start month" required error={fieldErrors.startMonth}>
-          <select value={startMonth} onChange={(e) => setStartMonth(e.target.value)} className={inputCls}>
+          <Select value={startMonth} onChange={(e) => setStartMonth(e.target.value)}>
             {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Start year" required error={fieldErrors.startYear}>
-          <select value={startYear} onChange={(e) => setStartYear(e.target.value)} className={inputCls}>
+          <Select value={startYear} onChange={(e) => setStartYear(e.target.value)}>
             {START_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Final date to apply" required error={fieldErrors.applicationDeadline}>
-          <input type="date" value={applicationDeadline} onChange={(e) => setApplicationDeadline(e.target.value)} className={inputCls} required />
+          <Input type="date" value={applicationDeadline} onChange={(e) => setApplicationDeadline(e.target.value)} required />
         </Field>
       </div>
 
@@ -495,15 +490,11 @@ export default function OpportunityForm({ signupEmail, skills, sectors, mode, ed
 
       <TurnstileSection show={showTurnstile} onToken={setTurnstileToken} />
 
-      <Button
-        type="submit"
-        loading={isLoading}
-        variant="primary"
-        size="lg"
-        className="w-full mt-3"
-      >
-        {submitButtonLabel(editingId, reviewOnSave, mode)}
-      </Button>
-    </form>
+      <FormActions>
+        <Button type="submit" loading={isLoading} variant="primary" size="lg">
+          {submitButtonLabel(editingId, reviewOnSave, mode)}
+        </Button>
+      </FormActions>
+    </FormSection>
   );
 }

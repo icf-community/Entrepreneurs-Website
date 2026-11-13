@@ -1,8 +1,10 @@
 import { isUuid } from "@/lib/uuid";
 import { notFound } from "next/navigation";
 import ListingDetailShell, {
-  ListingGone, Fact, Description,
+  ActionSection, Description, Fact, Facts, ListingGone,
 } from "@/components/ListingDetailShell";
+import { OutArrow } from "@/components/FullPageLink";
+import { Badge } from "@/components/ui/Badge";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { markedIds } from "@/lib/data/activity";
 import { approvedEvent } from "@/lib/data/events";
@@ -72,46 +74,46 @@ export default async function EventPage({ params }: { params: Promise<Params> })
     >
       {revisionPending && <PendingRevisionNotice noun="event" />}
 
-      {ev.isSocietyEvent && (
-        <div className="mb-8">
-          <span className="inline-block rounded-lg bg-accent px-2.5 py-0.5 text-small font-semibold text-bg-primary">
-            Society event
-          </span>
-        </div>
-      )}
-
-      <Description text={ev.description} />
-
-      <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Fact label="When">{formatDateTimeLong(ev.eventAt)}</Fact>
-        <Fact label="Where">{ev.location}</Fact>
-        <Fact label="Organiser">{ev.organiserName}</Fact>
-        <Fact label="Posted by">
-          {posterName}
-          {ev.postedBy.linkedinUrl && (
-            <>
-              {" · "}
-              <a
-                href={externalHref(ev.postedBy.linkedinUrl)}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="text-body text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
-              >
-                LinkedIn ↗
-              </a>
-            </>
-          )}
-        </Fact>
-        {ev.contactEmail && (
-          <Fact label="Contact organiser">
-            <ContactOrganiserLink id={ev.id} email={ev.contactEmail} subject={ev.title} />
-          </Fact>
+      <div className="grid gap-10">
+        {ev.isSocietyEvent && (
+          <div>
+            <Badge tone="lit">Society event</Badge>
+          </div>
         )}
-      </div>
 
-      <div className="mt-9 border-t border-border-subtle pt-7">
-        <h2 className="mb-3 text-small text-text-muted">Attend</h2>
-        <EventActions event={ev} going={goingIds.includes(ev.id)} />
+        <Description text={ev.description} />
+
+        <Facts>
+          <Fact label="When">{formatDateTimeLong(ev.eventAt)}</Fact>
+          <Fact label="Where">{ev.location}</Fact>
+          <Fact label="Organiser">{ev.organiserName}</Fact>
+          <Fact label="Posted by">
+            {posterName}
+            {ev.postedBy.linkedinUrl && (
+              <>
+                {" · "}
+                <a
+                  href={externalHref(ev.postedBy.linkedinUrl)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1 text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
+                >
+                  LinkedIn
+                  <OutArrow />
+                </a>
+              </>
+            )}
+          </Fact>
+          {ev.contactEmail && (
+            <Fact label="Contact organiser">
+              <ContactOrganiserLink id={ev.id} email={ev.contactEmail} subject={ev.title} />
+            </Fact>
+          )}
+        </Facts>
+
+        <ActionSection title="Attend">
+          <EventActions event={ev} going={goingIds.includes(ev.id)} />
+        </ActionSection>
       </div>
     </ListingDetailShell>
   );

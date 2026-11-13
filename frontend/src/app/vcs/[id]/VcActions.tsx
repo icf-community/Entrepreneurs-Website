@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ExternalButtonLink } from "@/components/FullPageLink";
 import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import type { Vc } from "@/lib/data/vcs";
-import { externalHref } from "@/lib/safeUrl";
 
 // The browser-side half of /vcs/[id]: the click-through to the fund's own
 // site, and the applied pill.
@@ -21,16 +21,14 @@ export default function VcActions({ vc: v, applied }: { vc: Vc; applied: boolean
   }, [v.id]);
 
   return (
-    <div className="flex flex-wrap items-start gap-2">
-      <a
-        href={externalHref(v.link)}
-        target="_blank"
-        rel="noreferrer noopener"
+    <div className="flex flex-wrap items-start gap-3">
+      <ExternalButtonLink
+        href={v.link}
+        lit
         onClick={() => recordListingEvent("vc_grant", v.id, "external_click")}
-        className="inline-block rounded-lg bg-accent px-4 py-2 text-body font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
       >
-        Open link ↗
-      </a>
+        Open link
+      </ExternalButtonLink>
       <MarkActionPill kind="vc_grant" id={v.id} initial={applied} />
     </div>
   );

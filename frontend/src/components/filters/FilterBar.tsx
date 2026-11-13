@@ -85,9 +85,10 @@ export function FilterPanel({
         )}
 
         {/* Announced as filters change, so a screen-reader user hears the
-            result count without having to go hunting for it. tabular-nums
-            stops the row shifting as the digits change width. */}
-        <span role="status" className="ml-auto text-small text-text-secondary tabular-nums">
+            result count without having to go hunting for it. A measured value,
+            so .data: tabular figures stop the row shifting as the digits change
+            width. The one role="status" in the bar (admin.spec reads the first). */}
+        <span role="status" className="data ml-auto text-small text-text-secondary">
           {resultCount}
         </span>
       </div>

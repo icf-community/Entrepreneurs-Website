@@ -4,7 +4,9 @@ import { EmptyState } from "@/components/ui/EmptyState";
 // Rendered inside an expanded listing card when useListingFreshness
 // reports the row is gone. The viewer gets a friendly message and a
 // button to remove the now-irrelevant card from their local list.
-// Drawn as a compact EmptyState inside the card, under a hairline.
+// Drawn as a compact EmptyState inside the card, under a hairline: where the
+// card is a Disclosure its panel already draws that rule, so this one steps
+// aside there rather than doubling it.
 
 export function ListingGoneNotice({
   kind, onDismiss,
@@ -13,7 +15,7 @@ export function ListingGoneNotice({
   onDismiss: () => void;
 }) {
   return (
-    <div className="border-t border-border-subtle">
+    <div className="border-t border-border-subtle [.lm-disclosure__body_&]:border-t-0">
       <EmptyState
         bare
         size="compact"
