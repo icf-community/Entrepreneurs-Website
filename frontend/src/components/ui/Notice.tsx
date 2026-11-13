@@ -60,7 +60,7 @@ export function Notice({
   dismissLabel?: string;
   /** `bar` is full-bleed: no radius, a hairline underneath, the page's gutter at the sides. */
   shape?: "box" | "bar";
-  role?: "alert" | "status";
+  role?: "alert" | "status" | "note";
   className?: string;
   children?: ReactNode;
 }) {

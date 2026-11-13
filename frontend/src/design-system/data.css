@@ -333,6 +333,17 @@
   .lm-table td[data-actions] > * + * { margin-inline-start: 8px; }
   /* a compact table keeps its rows short: its buttons are 36 px, still twice the 24 px floor */
   .lm-table[data-density="compact"] td[data-actions] .lm-btn { --_h: 36px; --_px: 16px; }
+  /* a table that scrolls sideways keeps its actions in view: the actions cell sticks to the region's right edge, opaque so what scrolls
+     under it does not show through (the stacked layout below puts it back in the card) */
+  .lm-table td[data-actions] {
+    position: sticky;
+    right: 0;
+    background: linear-gradient(var(--color-tint-1), var(--color-tint-1)), var(--color-bg-card);
+    box-shadow: inset 1px 0 0 var(--color-border-subtle);
+  }
+  @media (hover: hover) {
+    .lm-table tbody tr:hover > td[data-actions] { background: linear-gradient(var(--color-tint-3), var(--color-tint-3)), var(--color-bg-card); }
+  }
   /* the chosen row: a wash of warm light and an amber edge */
   .lm-table tr[data-selected] > :is(th, td) { background: color-mix(in oklab, var(--color-warm) 8%, transparent); }
   .lm-table tr[data-selected] > :first-child { box-shadow: inset 2px 0 0 var(--color-warm); }
@@ -382,7 +393,7 @@
       letter-spacing: -0.012em;
       color: var(--color-text-primary);
     }
-    .lm-table[data-narrow="stack"] td[data-actions] { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; padding: 14px 0; text-align: left; white-space: normal; }
+    .lm-table[data-narrow="stack"] td[data-actions] { position: static; background: none; box-shadow: none; display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; padding: 14px 0; text-align: left; white-space: normal; }
     .lm-table[data-narrow="stack"] td[data-actions] > * + * { margin-inline-start: 0; }
     .lm-table[data-narrow="stack"] td[data-nowrap] { white-space: normal; }
     /* a cell with nothing in it (an action that does not apply to this row) leaves no gap and no rule */
