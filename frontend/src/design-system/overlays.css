@@ -1,3 +1,494 @@
-/* LUMEN · overlays. Owned by the overlays family; imported from src/app/globals.css. Reads tokens.css only. */
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · overlays and feedback. The classes behind everything that sits over a page or answers an action: Dialog, Sheet, Popover and Menu,
+   Tooltip, Toast, Notice, EmptyState, Spinner and the Skeleton family (src/components/ui and a few of src/components).
+
+   One rule for depth: an overlay is raised. It gets the raised surface (bg-raised), a hairline, a whisper of warm light along its top edge,
+   and the one soft shadow (--shadow-pop); nothing here uses another shadow. Status is a tone (info, lit, danger, success) that colours a
+   hairline, a wash and a drawn icon, never a coloured stripe. Everything reads tokens.css.
+
+   Motion is transform and opacity, one curve, and lands on its end state under prefers-reduced-motion (motion.css zeroes the durations; every
+   keyframe below ends on the element's resting style, so "no animation" and "finished animation" look the same).
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes lm-skel-sweep   { 0% { transform: translateX(-100%); } 55%, 100% { transform: translateX(100%); } }
+@keyframes lm-toast-in     { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes lm-toast-timer  { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes lm-pop-in       { from { opacity: 0; transform: translateY(var(--_dy, -6px)); } to { opacity: 1; transform: none; } }
+@keyframes lm-sheet-in-left  { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes lm-sheet-in-right { from { transform: translateX(100%); } to { transform: none; } }
+
+/* The one rule that is not in the components layer. The e2e suite still counts `.animate-pulse` on skeleton blocks (and waits for it to
+   go), so the class stays on every block; Tailwind's utility would pulse their opacity, which Lumen replaces with a slow sweep of light
+   (.lm-skel::after). A utility outranks a components-layer rule whatever its specificity, so this one sits outside the layers. */
+.lm-skel.animate-pulse { animation: none; }
+
 @layer components {
+
+  /* ── Dialog and Sheet: a native <dialog>, opened with showModal() ──────────────────────────────────────────────
+     The <dialog> is only a transparent full-viewport layer; the panel inside it is what is drawn. The backdrop is a deep night wash with a
+     touch of warm light from above, like the page's own atmosphere seen through glass. (.lm-wash is the same wash for a static specimen.) */
+  .lm-dialog {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-text-primary);
+  }
+  .lm-dialog::backdrop,
+  .lm-wash {
+    background:
+      radial-gradient(70rem 36rem at 50% -8%, color-mix(in oklab, var(--color-warm) 9%, transparent), transparent 72%),
+      color-mix(in oklab, var(--color-void) 82%, transparent);
+  }
+
+  /* The panel: raised, 18 px, the one shadow, and a hairline of warm light along the top edge (it stops short of the corners). */
+  .lm-dialog__panel {
+    position: relative;
+    color: var(--color-text-primary);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-pop);
+  }
+  .lm-dialog__panel::before {
+    content: "";
+    position: absolute;
+    inset: 0 var(--radius-2xl) auto;
+    z-index: 1;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-warm) 58%, transparent) 50%, transparent);
+  }
+  .lm-dialog__panel[data-tone="danger"] { border-color: var(--color-danger-line); }
+  .lm-dialog__panel[data-tone="danger"]::before {
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-danger) 62%, transparent) 50%, transparent);
+  }
+
+  /* Sheet: the same dialog, drawn as a drawer on one edge. It keeps its inner corners round and its outer edge flush with the screen. */
+  .lm-sheet__layer { display: flex; width: 100%; height: 100%; }
+  .lm-sheet[data-side="right"] .lm-sheet__layer { justify-content: flex-end; }
+  .lm-sheet__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(90vw, 22rem);
+    height: 100%;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    color: var(--color-text-primary);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-warm) 12%, transparent), var(--shadow-pop);
+    animation: lm-sheet-in-right var(--duration-slow) var(--ease-out) both;
+  }
+  .lm-sheet[data-side="left"] .lm-sheet__panel {
+    border-left-width: 0;
+    border-radius: 0 var(--radius-2xl) var(--radius-2xl) 0;
+    animation-name: lm-sheet-in-left;
+  }
+  .lm-sheet[data-side="right"] .lm-sheet__panel {
+    border-right-width: 0;
+    border-radius: var(--radius-2xl) 0 0 var(--radius-2xl);
+  }
+  .lm-sheet__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 12px 12px 22px;
+    background: var(--color-bg-raised);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+  .lm-sheet__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--text-title);
+    line-height: var(--text-title--line-height);
+    letter-spacing: var(--tracking-display);
+    color: var(--color-text-primary);
+  }
+
+  /* ── Popover and Menu: a button and an anchored panel ──────────────────────────────────────────────────────────
+     The panel is a popover="manual" element, so it lives in the top layer (never clipped, always above), and the UA's own styles for it
+     are reset here: its position (JS writes left and top, anchored.ts), its margin and its default surface. Where the Popover API is
+     missing it is a fixed element with a z-index. The panel is always in the DOM and is hidden by display, so its words stay findable. */
+  .lm-pop {
+    position: fixed;
+    inset: auto;
+    z-index: 90;
+    width: max-content;
+    min-width: 0;
+    max-width: min(24rem, calc(100vw - 16px));
+    max-height: min(32rem, calc(100dvh - 16px));
+    margin: 0;
+    padding: 16px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    color: var(--color-text-primary);
+    font-size: var(--text-small);
+    line-height: 1.4;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-warm) 12%, transparent), var(--shadow-pop);
+  }
+  .lm-pop:not([data-open]) { display: none; }
+  .lm-pop[data-open] { animation: lm-pop-in var(--duration-base) var(--ease-out) both; }
+  .lm-pop[data-side="top"] { --_dy: 6px; }
+  .lm-pop[data-kind="menu"] { min-width: 13rem; padding: 6px; }
+
+  .lm-pop__caret { flex: none; transition: transform var(--duration-base) var(--ease-out); }
+  [aria-expanded="true"] > .lm-pop__caret { transform: rotate(180deg); }
+  /* the button of an open panel stays lit, so it is plain which button the panel belongs to */
+  .lm-pop__trigger[aria-expanded="true"]:is(.lm-iconbtn, [data-variant="ghost"], [data-variant="quiet"]) {
+    color: var(--color-text-primary);
+    background: var(--color-tint-3);
+    border-color: var(--color-lit-line);
+  }
+
+  /* A menu item: a full-width row, 44 px, concentric with the panel's corners (14 px outer, 6 px padding, 8 px inner). */
+  .lm-pop__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: var(--touch);
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-small);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  }
+  .lm-pop__item-icon { flex: none; color: var(--color-text-muted); transition: color var(--duration-fast) var(--ease-out); }
+  .lm-pop__item-label { min-width: 0; flex: 1; }
+  @media (hover: hover) {
+    .lm-pop__item:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--color-tint-3); color: var(--color-text-primary); }
+    .lm-pop__item:hover:not(:disabled):not([aria-disabled="true"]) .lm-pop__item-icon { color: var(--color-accent-light); }
+  }
+  /* The global focus ring is offset 3 px outside the element, which a scrolling panel would clip: inside the row it is drawn inset. */
+  .lm-pop__item:focus-visible { outline-offset: -2px; background: var(--color-tint-3); color: var(--color-text-primary); }
+  .lm-pop__item:focus-visible .lm-pop__item-icon { color: var(--color-accent-light); }
+  .lm-pop__item[data-tone="danger"] { color: var(--color-danger); }
+  .lm-pop__item[data-tone="danger"] .lm-pop__item-icon { color: inherit; }
+  @media (hover: hover) {
+    .lm-pop__item[data-tone="danger"]:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--color-danger-muted); color: var(--color-danger); }
+    .lm-pop__item[data-tone="danger"]:hover:not(:disabled):not([aria-disabled="true"]) .lm-pop__item-icon { color: inherit; }
+  }
+  .lm-pop__item[data-tone="danger"]:focus-visible { background: var(--color-danger-muted); color: var(--color-danger); }
+  .lm-pop__item:disabled, .lm-pop__item[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+  .lm-pop__sep { height: 1px; margin: 6px 8px; border: 0; background: var(--color-border-subtle); }
+
+  /* ── Tooltip: a sentence on hover, focus or tap ───────────────────────────────────────────────────────────────
+     The wrapper has no box (it only listens); the bubble is a popover="manual" element, always in the DOM so the trigger's
+     aria-describedby always has something to point at. The invisible ::before bridges the gap, so the pointer can travel
+     from the trigger onto the bubble without it closing (WCAG 1.4.13: hoverable). */
+  .lm-tip { display: contents; }
+  .lm-tip__bubble {
+    position: fixed;
+    inset: auto;
+    z-index: 95;
+    width: max-content;
+    max-width: min(18rem, calc(100vw - 16px));
+    margin: 0;
+    padding: 8px 12px;
+    color: var(--color-text-primary);
+    font-size: var(--text-caption);
+    font-weight: 400;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-warm) 12%, transparent), var(--shadow-pop);
+  }
+  .lm-tip__bubble::before { content: ""; position: absolute; inset: -10px; }
+  .lm-tip__bubble:not([data-open]) { display: none; }
+  .lm-tip__bubble[data-open] { animation: lm-pop-in var(--duration-fast) var(--ease-out) both; }
+  .lm-tip__bubble[data-side="top"] { --_dy: 4px; }
+  .lm-tip__bubble[data-side="bottom"] { --_dy: -4px; }
+
+  /* The small "i" that holds a sentence which would otherwise crowd a row: 28 px drawn, 44 px to hit. */
+  .lm-infotip {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    vertical-align: middle;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 50%;
+    background: var(--color-tint-1);
+    color: var(--color-text-secondary);
+    cursor: help;
+    transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+  }
+  .lm-infotip::before { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
+  @media (hover: hover) {
+    .lm-infotip:hover { color: var(--color-text-primary); border-color: var(--color-lit-line); background: var(--color-tint-3); }
+  }
+
+  /* ── Toast: a pill with a drawn tone and a hairline that runs out as the time does ───────────────────────────── */
+  .lm-toasts {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    pointer-events: none;
+  }
+  .lm-toasts__region { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+  .lm-toasts__region:not(:empty) ~ .lm-toasts__region:not(:empty) { margin-top: 8px; }
+
+  .lm-toast {
+    --_tone: var(--color-info);
+    --_line: var(--color-border-strong);
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 26rem;
+    min-height: 56px;
+    padding: 6px 8px 6px 18px;
+    overflow: hidden;
+    color: var(--color-text-primary);
+    font-size: var(--text-small);
+    line-height: 1.4;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--_line);
+    border-radius: 28px;
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-warm) 10%, transparent), var(--shadow-pop);
+    pointer-events: auto;
+    animation: lm-toast-in var(--duration-slow) var(--ease-out) both;
+  }
+  .lm-toast[data-tone="error"]   { --_tone: var(--color-danger);  --_line: var(--color-danger-line); }
+  .lm-toast[data-tone="success"] { --_tone: var(--color-success); --_line: color-mix(in oklab, var(--color-success) 45%, transparent); }
+  .lm-toast__glyph { flex: none; display: grid; place-items: center; width: 24px; height: 24px; color: var(--_tone); }
+  .lm-toast__text { flex: 1; min-width: 0; margin: 0; padding-block: 6px; }
+  .lm-toast__x {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: var(--touch);
+    height: var(--touch);
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .lm-toast__x:hover { color: var(--color-text-primary); border-color: var(--color-border-strong); background: var(--color-tint-3); }
+  }
+  .lm-toast__timer {
+    position: absolute;
+    inset: auto 26px 0;
+    height: 1px;
+    background: var(--_tone);
+    opacity: 0.7;
+    transform-origin: left center;
+    animation: lm-toast-timer linear both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lm-toast__timer { display: none; }
+  }
+
+  /* ── Notice: the one banner every callout is built from ───────────────────────────────────────────────────────
+     A hairline and a wash in the tone's light, a drawn icon in a ring, the words in ink. The tone is info (the cold light), lit
+     (amber: look at this), danger or success. data-shape="bar" is the full-bleed strip that sits above a page (the incident banner). */
+  .lm-notice {
+    --_tone: var(--color-info);
+    --_wash: color-mix(in oklab, var(--color-info) 9%, transparent);
+    --_line: color-mix(in oklab, var(--color-info) 38%, transparent);
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 16px;
+    color: var(--color-text-primary);
+    font-size: var(--text-body);
+    line-height: 1.5;
+    background: var(--_wash);
+    border: 1px solid var(--_line);
+    border-radius: var(--radius-lg);
+  }
+  .lm-notice[data-tone="lit"]     { --_tone: var(--color-lit);     --_wash: var(--color-lit-muted);     --_line: var(--color-lit-line); }
+  .lm-notice[data-tone="danger"]  { --_tone: var(--color-danger);  --_wash: var(--color-danger-muted);  --_line: var(--color-danger-line); }
+  .lm-notice[data-tone="success"] { --_tone: var(--color-success); --_wash: var(--color-success-muted); --_line: color-mix(in oklab, var(--color-success) 45%, transparent); }
+  .lm-notice__icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin-block: -4px;
+    color: var(--_tone);
+    background: color-mix(in oklab, var(--_tone) 8%, transparent);
+    border: 1.5px solid var(--_line);
+    border-radius: 50%;
+  }
+  .lm-notice[data-tone="lit"] .lm-notice__icon { box-shadow: 0 0 20px -6px var(--color-lit-glow); }
+  .lm-notice__body { flex: 1 1 auto; min-width: 0; }
+  .lm-notice__title { margin: 0; color: var(--color-text-primary); font-weight: 600; line-height: 1.35; }
+  .lm-notice__title + .lm-notice__text { margin-top: 2px; color: var(--color-text-secondary); font-size: var(--text-small); }
+  .lm-notice__text { overflow-wrap: anywhere; }
+  .lm-notice__text a:not(.lm-btn),
+  .lm-notice__action a:not(.lm-btn) { color: var(--color-accent-light); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--_line); }
+  @media (hover: hover) {
+    .lm-notice__text a:not(.lm-btn):hover,
+    .lm-notice__action a:not(.lm-btn):hover { text-decoration-color: currentColor; }
+  }
+  .lm-notice__action { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+  /* the dismiss control: 44 px to hit, drawn as a quiet ring that appears on point; it hangs into the padding so a one-line notice stays one line */
+  .lm-notice__x {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: var(--touch);
+    height: var(--touch);
+    margin: -9px -9px -9px 0;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .lm-notice__x:hover { color: var(--color-text-primary); border-color: var(--_line); background: var(--color-tint-3); }
+  }
+  .lm-notice[data-shape="bar"] {
+    align-items: center;
+    padding: 10px var(--gutter);
+    font-size: var(--text-small);
+    background: color-mix(in oklab, var(--_tone) 9%, var(--color-bg-secondary));
+    border-width: 0 0 1px;
+    border-radius: 0;
+  }
+  .lm-notice[data-shape="bar"] .lm-notice__icon { width: 28px; height: 28px; margin-block: 0; }
+  .lm-notice[data-shape="bar"] .lm-notice__x { margin-block: -9px; }
+
+  /* ── Empty state: a glyph in a ring with an orbit hairline, a title, one line, an action ─────────────────────── */
+  .lm-empty {
+    --_g: 56px;
+    --_o: 14px;
+    --_r: calc(var(--_g) / 2 + var(--_o));
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 36px 24px 40px;
+    color: var(--color-text-secondary);
+    text-align: center;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-xl);
+  }
+  .lm-empty[data-size="compact"] { --_g: 44px; --_o: 10px; padding: 22px 20px 26px; }
+  .lm-empty[data-bare] { background: transparent; border-color: transparent; }
+  .lm-empty__glyph {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--_g);
+    height: var(--_g);
+    margin: calc(var(--_o) + 2px) 0 calc(var(--_o) + 8px);
+    color: var(--color-text-secondary);
+    background: var(--color-tint-1);
+    border: 1.5px solid var(--color-border-strong);
+    border-radius: 50%;
+  }
+  /* the orbit: one hairline circle round the ring, with a single body on it, a little above and to the right */
+  .lm-empty__glyph::before {
+    content: "";
+    position: absolute;
+    inset: calc(var(--_o) * -1);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 50%;
+  }
+  .lm-empty__glyph::after {
+    content: "";
+    position: absolute;
+    left: calc(50% + var(--_r) * 0.766 - 3px);
+    top: calc(50% - var(--_r) * 0.643 - 3px);
+    width: 6px;
+    height: 6px;
+    background: var(--color-warm);
+    border-radius: 50%;
+    box-shadow: 0 0 10px 1px var(--color-lit-glow);
+  }
+  .lm-empty__title {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--text-title);
+    line-height: var(--text-title--line-height);
+    letter-spacing: var(--tracking-display);
+    text-wrap: balance;
+  }
+  .lm-empty[data-size="compact"] .lm-empty__title { font-size: var(--text-lead); line-height: 1.25; }
+  .lm-empty__text { max-width: 44ch; font-size: var(--text-body); line-height: 1.5; text-wrap: pretty; }
+  .lm-empty__action { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 12px; margin-top: 14px; }
+
+  /* ── Spinner: the orbit glyph, turning ──────────────────────────────────────────────────────────────────────── */
+  .lm-spinner { display: inline-flex; flex: none; vertical-align: middle; }
+  .lm-spinner .lm-orbit { width: var(--_s, 22px); height: var(--_s, 22px); }
+  .lm-spinner[data-size="sm"] { --_s: 16px; }
+  .lm-spinner[data-size="lg"] { --_s: 32px; }
+  /* "updating results" over a list that is re-rendering: a small ring in a ring */
+  .lm-updating {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    color: var(--color-text-secondary);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    box-shadow: var(--shadow-pop);
+  }
+
+  /* ── Skeleton: quiet blocks with a very slow sweep of light ──────────────────────────────────────────────────── */
+  .lm-skel {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    background: var(--color-tint-2);
+    border-radius: var(--radius-sm);
+  }
+  .lm-skel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 15%, color-mix(in oklab, var(--color-ink) 7%, transparent) 50%, transparent 85%);
+    transform: translateX(-100%);
+    animation: lm-skel-sweep 4.2s var(--ease-in-out) infinite;
+  }
+  /* a ring: where an avatar or a glyph will be */
+  .lm-skel[data-shape="ring"] { background: var(--color-tint-1); border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--color-border-subtle); }
+  /* a page's opening: the same rule, context line, title and lede as PageHead, sized so nothing jumps when the real head arrives */
+  .lm-skel-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding-top: 28px; padding-bottom: 8px; border-top: 1px solid var(--color-border); }
+  .lm-skel--title { height: calc(var(--text-display) * var(--text-display--line-height)); }
 }

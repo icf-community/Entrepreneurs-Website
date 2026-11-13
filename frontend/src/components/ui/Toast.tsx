@@ -1,9 +1,11 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Icon } from "@/design-system/icons/Icon";
+import type { IconName } from "@/design-system/icons/names";
 
 // ════════════════════════════════════════════════════════════════════
-// Foundry · Toasts (launch programme C3)
+// Foundry · Toasts (launch programme C3; drawn in Lumen)
 //
 // For outcomes that have nowhere else to appear: an optimistic toggle that
 // rolled back, a background action that failed, a confirmation after a
@@ -14,6 +16,11 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 // register them before anything is announced: errors are role="alert"
 // (assertive), everything else role="status" (polite). Copy is one short
 // sentence, per the owner's "one sentence and a link" rule.
+//
+// Drawn as a pill: the tone is a drawn glyph and a hairline in the tone's
+// light (danger, success, or the cold info light), and a hairline along the
+// bottom edge runs out as the five seconds do. The look is in
+// src/design-system/overlays.css (.lm-toast).
 // ════════════════════════════════════════════════════════════════════
 
 type Tone = "error" | "success" | "info";
@@ -24,6 +31,8 @@ const ToastContext = createContext<ToastFn | null>(null);
 
 const VISIBLE_MS = 5000;
 const MAX = 3;
+
+const GLYPH: Record<Tone, IconName> = { error: "error", success: "success", info: "info" };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -45,11 +54,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[100] flex flex-col items-center gap-2 px-4">
-        <div role="alert" className="flex w-full flex-col items-center gap-2">
+      <div className="lm-toasts">
+        <div role="alert" className="lm-toasts__region">
           {errors.map((t) => <ToastItem key={t.id} toast={t} onDismiss={dismiss} />)}
         </div>
-        <div role="status" className="flex w-full flex-col items-center gap-2">
+        <div role="status" className="lm-toasts__region">
           {others.map((t) => <ToastItem key={t.id} toast={t} onDismiss={dismiss} />)}
         </div>
       </div>
@@ -63,24 +72,37 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
     return () => clearTimeout(timer);
   }, [toast.id, onDismiss]);
 
-  const tone =
-    toast.tone === "error"
-      ? "border-[#ff4d4d]/50 text-[#ffb3b3]"
-      : "border-border-strong text-text-primary";
+  return <ToastView message={toast.message} tone={toast.tone} onDismiss={() => onDismiss(toast.id)} timed />;
+}
 
+/**
+ * One toast, drawn. The provider uses it for every live toast; it is also what the style guide shows at rest
+ * (leave `onDismiss` out for a toast with no control and `timed` off for one whose hairline does not run).
+ */
+export function ToastView({
+  message,
+  tone = "info",
+  onDismiss,
+  timed = false,
+}: {
+  message: string;
+  tone?: Tone;
+  onDismiss?: () => void;
+  /** Draw the hairline that runs out over the toast's five seconds. The provider's own timer is what dismisses it. */
+  timed?: boolean;
+}) {
   return (
-    <div
-      className={`pointer-events-auto flex w-full max-w-[420px] items-start gap-3 rounded-xl border bg-bg-card px-4 py-3 text-[0.85rem] shadow-2xl ${tone}`}
-    >
-      <p className="flex-1 leading-relaxed">{toast.message}</p>
-      <button
-        type="button"
-        onClick={() => onDismiss(toast.id)}
-        aria-label="Dismiss"
-        className="-mr-1 shrink-0 cursor-pointer rounded-md border border-border-strong px-1.5 text-text-muted transition-colors hover:border-accent hover:text-text-primary"
-      >
-        ✕
-      </button>
+    <div className="lm-toast" data-tone={tone}>
+      <span className="lm-toast__glyph" aria-hidden="true">
+        <Icon name={GLYPH[tone]} size={20} />
+      </span>
+      <p className="lm-toast__text">{message}</p>
+      {onDismiss ? (
+        <button type="button" onClick={onDismiss} aria-label="Dismiss" className="lm-toast__x">
+          <Icon name="close" size={16} />
+        </button>
+      ) : null}
+      {timed ? <span className="lm-toast__timer" aria-hidden="true" style={{ animationDuration: `${VISIBLE_MS}ms` }} /> : null}
     </div>
   );
 }

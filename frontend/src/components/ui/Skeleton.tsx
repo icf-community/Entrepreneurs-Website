@@ -1,24 +1,27 @@
+import { Panel } from "./Panel";
+
 // ════════════════════════════════════════════════════════════════════
-// Foundry · Skeleton
+// Foundry · Skeleton (Lumen)
 //
 // Placeholder blocks shown while a Suspense boundary resolves. Sized to
 // the real content so the layout doesn't jump when the data lands —
 // a skeleton that shifts everything on arrival is worse than a spinner.
 //
-// The pulse animates opacity from 1, so the global reduced-motion rule
-// in globals.css (duration 0.01ms, iteration-count 1) lands it on a
-// visible static block rather than an invisible one. That's why this
-// doesn't need its own reduced-motion special case, unlike the hero
-// fade-ups which start at opacity 0.
+// Quiet by design: a block is a faint tint of ink, and a very slow sweep of
+// light crosses it (4 s, with a long rest). Where an avatar or a glyph will be,
+// a ring. The look and the motion are in src/design-system/overlays.css
+// (.lm-skel); under prefers-reduced-motion the sweep stops and what is left is
+// the still block.
+//
+// The e2e suite counts on two things, and both stay: a region is aria-busy
+// ("wait for streamed sections to replace their skeletons") and every block
+// keeps the `animate-pulse` class (the specs assert there are none left once a
+// page has settled). Tailwind's pulse itself is switched off by .lm-skel, which
+// replaces it with the sweep.
 // ════════════════════════════════════════════════════════════════════
 
-export function Skeleton({ className = "" }: { className?: string }) {
-  return (
-    <div
-      aria-hidden
-      className={`animate-pulse rounded-md bg-white/[0.055] ${className}`}
-    />
-  );
+export function Skeleton({ className = "", shape = "line" }: { className?: string; shape?: "line" | "ring" }) {
+  return <div aria-hidden className={`animate-pulse lm-skel ${className}`} data-shape={shape === "ring" ? "ring" : undefined} />;
 }
 
 /**
@@ -43,40 +46,48 @@ export function SkeletonRegion({
   );
 }
 
-/** Card grid placeholder, sized to the listing/member cards. */
+/** Card grid placeholder, sized to the listing/member cards: a ring, two lines of name, two of text, two chips. */
 export function CardGridSkeleton({ count = 6, className = "" }: { count?: number; className?: string }) {
   return (
     <SkeletonRegion className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${className}`}>
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="p-6 rounded-2xl bg-bg-card border border-border">
-          <Skeleton className="h-4 w-3/5" />
-          <Skeleton className="h-3 w-2/5 mt-3" />
+        <Panel key={i} className="p-6">
+          <div className="flex items-center gap-4">
+            <Skeleton shape="ring" className="size-11 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <Skeleton className="h-4 w-3/5" />
+              <Skeleton className="h-3 w-2/5 mt-2.5" />
+            </div>
+          </div>
           <Skeleton className="h-3 w-full mt-5" />
           <Skeleton className="h-3 w-11/12 mt-2" />
           <div className="flex gap-2 mt-5">
-            <Skeleton className="h-5 w-16 rounded-full" />
-            <Skeleton className="h-5 w-20 rounded-full" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+            <Skeleton className="h-6 w-20 rounded-full" />
           </div>
-        </div>
+        </Panel>
       ))}
     </SkeletonRegion>
   );
 }
 
-/** Stacked-row placeholder, for the list-style pages. */
+/** Stacked-row placeholder, for the list-style pages: a ring, a name and a line, a control at the end. */
 export function RowListSkeleton({ count = 5, className = "" }: { count?: number; className?: string }) {
   return (
     <SkeletonRegion className={`space-y-3 ${className}`}>
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="p-5 rounded-2xl bg-bg-card border border-border">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <Skeleton className="h-4 w-2/5" />
-              <Skeleton className="h-3 w-1/4 mt-2.5" />
+        <Panel key={i} className="p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-4">
+              <Skeleton shape="ring" className="size-11 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-1/4 mt-2.5" />
+              </div>
             </div>
-            <Skeleton className="h-8 w-24 rounded-lg shrink-0" />
+            <Skeleton className="h-11 w-24 rounded-full shrink-0" />
           </div>
-        </div>
+        </Panel>
       ))}
     </SkeletonRegion>
   );
@@ -86,10 +97,10 @@ export function RowListSkeleton({ count = 5, className = "" }: { count?: number;
 export function FilterBarSkeleton() {
   return (
     <SkeletonRegion label="Loading filters…">
-      <Skeleton className="h-[46px] w-full rounded-xl" />
+      <Skeleton className="h-12 w-full rounded-lg" />
       <div className="flex items-center gap-3 mt-4">
-        <Skeleton className="h-7 w-24 rounded-full" />
-        <Skeleton className="h-7 w-20 rounded-full" />
+        <Skeleton className="h-11 w-24 rounded-full" />
+        <Skeleton className="h-11 w-20 rounded-full" />
         <Skeleton className="h-4 w-16 ml-auto" />
       </div>
     </SkeletonRegion>
@@ -99,27 +110,31 @@ export function FilterBarSkeleton() {
 /** Table placeholder, for the admin list views. */
 export function TableSkeleton({ rows = 8, className = "" }: { rows?: number; className?: string }) {
   return (
-    <SkeletonRegion className={`rounded-2xl bg-bg-card border border-border overflow-hidden ${className}`}>
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-border-subtle last:border-0">
-          <Skeleton className="h-3 w-40" />
-          <Skeleton className="h-3 w-56" />
-          <Skeleton className="h-3 w-16" />
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-7 w-16 rounded-lg ml-auto" />
-        </div>
-      ))}
+    <SkeletonRegion className={`min-w-0 ${className}`}>
+      <Panel className="overflow-hidden">
+        {Array.from({ length: rows }, (_, i) => (
+          <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-border-subtle last:border-0">
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-3 w-56" />
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-8 w-16 rounded-full ml-auto" />
+          </div>
+        ))}
+      </Panel>
     </SkeletonRegion>
   );
 }
 
-/** Eyebrow + title + subtitle, the header every page opens with. */
+/** A page's opening: the context line, the title and the lede, drawn to the size PageHead sets them at. */
 export function PageHeaderSkeleton({ className = "" }: { className?: string }) {
   return (
-    <div className={`mb-8 ${className}`}>
+    <div className={`lm-skel-head mb-8 ${className}`}>
       <Skeleton className="h-3 w-24" />
-      <Skeleton className="h-9 w-[22rem] max-w-full mt-3" />
-      <Skeleton className="h-3 w-40 mt-4" />
+      <div className="grid grid-cols-1 gap-3">
+        <Skeleton className="lm-skel--title w-[22rem] max-w-full" />
+        <Skeleton className="h-4 w-full max-w-[24rem]" />
+      </div>
     </div>
   );
 }
@@ -131,7 +146,7 @@ export function FormSkeleton({ fields = 4, className = "" }: { fields?: number; 
       {Array.from({ length: fields }, (_, i) => (
         <div key={i}>
           <Skeleton className="h-3 w-1/4 mb-2" />
-          <Skeleton className="h-11 w-full rounded-lg" />
+          <Skeleton className="h-12 w-full rounded-lg" />
         </div>
       ))}
     </SkeletonRegion>
