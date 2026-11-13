@@ -69,6 +69,9 @@ input:-webkit-autofill, textarea:-webkit-autofill, select:-webkit-autofill {
   caret-color: var(--color-sun);
 }
 
-/* Headings are short enough for the browser to even out their lines; body copy avoids orphans. */
-h1, h2, h3 { text-wrap: balance; }
-p { text-wrap: pretty; }
+/* Headings are short enough for the browser to even out their lines; body copy avoids orphans. In the base layer on purpose: an unlayered
+   `p { text-wrap: pretty }` beats Tailwind's utilities, so `truncate` or `whitespace-nowrap` on a <p> silently stopped working. */
+@layer base {
+  h1, h2, h3 { text-wrap: balance; }
+  p { text-wrap: pretty; }
+}

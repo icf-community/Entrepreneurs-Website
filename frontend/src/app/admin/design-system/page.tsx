@@ -162,9 +162,9 @@ export default async function DesignSystemPage() {
             <Lockup height={51} label="Imperial Entrepreneurs" className="text-star" />
             <Lockup height={72} label="Imperial Entrepreneurs" className="text-star" />
           </div>
-          <div className="flex flex-wrap items-end gap-10 rounded-xl bg-star p-8 text-void">
+          <div className="flex flex-wrap items-end gap-10 rounded-xl bg-star p-6 text-void sm:p-8">
             <Roundel size={72} label="Imperial Entrepreneurs" />
-            <Lockup height={64} label="Imperial Entrepreneurs" />
+            <Lockup height={64} label="Imperial Entrepreneurs" className="h-auto max-w-full" />
           </div>
         </Section>
         <IconsGallery />

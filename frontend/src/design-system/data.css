@@ -1,3 +1,743 @@
-/* LUMEN · data. Owned by the data family; imported from src/app/globals.css. Reads tokens.css only. */
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · data display and structure. The classes behind Tabs, Avatar, Stat, Table, Disclosure, DefinitionList, Pager, ProgressBar, Meter,
+   StepDots, Divider and Section in src/components/ui. Variants are modifier classes or data attributes, never a long utility string in a page.
+   Everything reads tokens.css. Owned by the data family.
+
+   Two devices come from the logo and recur here, so the family reads as one hand:
+     the hairline with a lit end   a rule of --color-border and a 5 px point of warm light (PageHead's rule, Divider, the current tab, a
+                                   progress bar's leading edge, a pager's position)
+     the ring                      a circle of --color-border-strong that turns lit-line when it is the chosen thing (Avatar, Meter, StepDots)
+
+   State is read off ARIA, not off a class, wherever the markup already carries it: [aria-current], [aria-pressed="true"], [aria-selected="true"],
+   [aria-expanded="true"]. A site that must keep its own markup takes the look and keeps its semantics.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 @layer components {
+
+  :root {
+    /* One rhythm between the sections of a page, and one inside a section between its title row and its content. */
+    --section-gap: clamp(2.75rem, 2rem + 2.4vw, 3.75rem);
+    --section-gap-inner: 1.25rem;
+  }
+
+  /* ── Tabs ─────────────────────────────────────────────────────────────────────────────────────────────────────
+     One treatment, three kinds of markup (LinkTabs, ButtonTabs, TabList/Tab). Line tabs sit on a hairline; the current one draws an amber rule
+     from its left end and lights a point at the end of it (the masthead's gesture, the rule that draws and its lit end). Segmented is a pill
+     that holds two or three short choices; the chosen one is outlined in amber light with a soft fill, the way a chosen tag is. */
+  .lm-tabs { display: flex; flex-wrap: wrap; align-items: stretch; min-width: 0; margin: 0; padding: 0; list-style: none; }
+  .lm-tabs > li { display: flex; min-width: 0; margin: 0; padding: 0; }
+  /* the hairline carries on to the end of the measure after the last tab */
+  .lm-tabs::after { content: ""; flex: 1 1 0; min-width: 0; box-shadow: inset 0 -1px 0 var(--color-border); }
+
+  .lm-tab {
+    --_h: var(--touch);
+    --_px: 16px;
+    --_fs: var(--text-small);
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: var(--_h);
+    padding: 0 var(--_px);
+    border: 0;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    background: transparent;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+    color: var(--color-text-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--_fs);
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.005em;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out),
+      opacity var(--duration-fast) var(--ease-out);
+  }
+  /* the rule that draws under the current tab, and the point of light at its end */
+  .lm-tab::after {
+    content: "";
+    position: absolute;
+    left: var(--_px);
+    right: var(--_px);
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--color-warm);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--duration-base) var(--ease-out);
+    pointer-events: none;
+  }
+  .lm-tab::before {
+    content: "";
+    position: absolute;
+    right: calc(var(--_px) - 2.5px);
+    bottom: -1.5px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-warm);
+    box-shadow: 0 0 10px 1px color-mix(in oklab, var(--color-warm) 70%, transparent);
+    opacity: 0;
+    transform: scale(0.4);
+    transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+    pointer-events: none;
+  }
+  .lm-tab:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-selected="true"]) { color: var(--color-text-primary); }
+  .lm-tab:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-selected="true"])::after {
+    transform: scaleX(1);
+    animation: rule-draw var(--duration-slow) var(--ease-out) both;
+  }
+  .lm-tab:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-selected="true"])::before {
+    opacity: 1;
+    transform: none;
+    animation: rule-light var(--duration-base) var(--ease-out) 240ms both;
+  }
+  @media (hover: hover) {
+    .lm-tab:hover:not(:disabled):not([aria-disabled="true"]) { color: var(--color-text-primary); background: var(--color-tint-1); }
+  }
+  .lm-tab:disabled, .lm-tab[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+  /* a group disabled while a navigation is in flight must not blink: the current tab keeps its full light */
+  .lm-tab:disabled:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-selected="true"]) { opacity: 1; cursor: progress; }
+
+  /* a count or a note inside a tab's label */
+  .lm-tab__count { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+
+  .lm-tabs--sm .lm-tab { --_h: 36px; --_px: 12px; --_fs: var(--text-caption); }
+  .lm-tabs--fill { display: flex; width: 100%; }
+  .lm-tabs--fill::after { display: none; }
+  .lm-tabs--fill > .lm-tab, .lm-tabs--fill > li { flex: 1 1 0; }
+  .lm-tabs--fill > li > .lm-tab { flex: 1 1 auto; }
+
+  .lm-tabs--segmented {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    max-width: 100%;
+    padding: 3px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--color-tint-1);
+  }
+  .lm-tabs--segmented.lm-tabs--fill { display: flex; }
+  .lm-tabs--segmented::after { display: none; }
+  .lm-tabs--segmented .lm-tab { --_h: 38px; --_px: 14px; gap: 8px; border-radius: var(--radius-pill); box-shadow: none; }
+  .lm-tabs--segmented.lm-tabs--sm .lm-tab { --_h: 30px; --_px: 10px; gap: 6px; }
+  /* the point of light is the first thing in the segment and an empty spacer of the same size is the last, so the label stays centred and
+     choosing a segment never moves its words */
+  .lm-tabs--segmented .lm-tab::before { position: static; flex: none; order: -1; }
+  .lm-tabs--segmented .lm-tab::after {
+    content: "";
+    position: static;
+    flex: none;
+    order: 1;
+    width: 5px;
+    height: 5px;
+    border-radius: 0;
+    background: none;
+    transform: none;
+    animation: none;
+  }
+  .lm-tabs--segmented .lm-tab:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-selected="true"])::after { transform: none; animation: none; }
+  .lm-tabs--segmented .lm-tab:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-selected="true"]) {
+    background: var(--color-lit-muted);
+    box-shadow: inset 0 0 0 1px var(--color-lit-line);
+    color: var(--color-accent-light);
+  }
+
+  .lm-tabpanel[hidden] { display: none; }
+
+  /* ── Avatar ───────────────────────────────────────────────────────────────────────────────────────────────────
+     A person in a ring: a photo, or their initials in the display face. The lit ring is the current or chosen person. An avatar placed in an
+     Entry's glyph disc takes the disc's ring instead of drawing a second one inside it. */
+  .lm-avatar {
+    --_d: 44px;
+    --_f: 0.38;
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: var(--_d);
+    height: var(--_d);
+    overflow: hidden;
+    border: 1.5px solid var(--color-border-strong);
+    border-radius: 50%;
+    background: linear-gradient(var(--color-tint-2), var(--color-tint-2)), var(--color-bg-card);
+    color: var(--color-text-secondary);
+    font-family: var(--font-display);
+    font-size: calc(var(--_d) * var(--_f));
+    font-weight: 400;
+    font-synthesis: none;
+    line-height: 1;
+    letter-spacing: 0;
+    vertical-align: middle;
+    user-select: none;
+    transition: border-color var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out), color var(--duration-base) var(--ease-out);
+  }
+  .lm-avatar[data-size="xs"] { --_d: 20px; --_f: 0.54; border-width: 1px; }
+  .lm-avatar[data-size="sm"] { --_d: 32px; --_f: 0.4; }
+  .lm-avatar[data-size="md"] { --_d: 44px; }
+  .lm-avatar[data-size="lg"] { --_d: 64px; --_f: 0.36; }
+  .lm-avatar[data-size="xl"] { --_d: 96px; --_f: 0.34; border-width: 2px; }
+  .lm-avatar[data-tone="lit"] { background: var(--color-lit-muted); border-color: var(--color-lit-line); color: var(--color-accent-light); }
+  .lm-avatar[data-lit] { border-color: var(--color-warm); color: var(--color-accent-light); box-shadow: 0 0 0 3px var(--color-lit-muted), 0 0 24px -3px var(--color-lit-glow); }
+  .lm-avatar[data-ring="none"] { border-color: transparent; }
+  .lm-avatar__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+  .lm-disc > .lm-avatar, .lm-disc > .lm-avatar[data-tone="lit"], .lm-disc > .lm-avatar[data-lit] { width: 100%; height: 100%; border-color: transparent; background: none; box-shadow: none; }
+
+  /* a few people, overlapping; the surplus is a count in the same ring */
+  .lm-avatars { display: inline-flex; align-items: center; vertical-align: middle; }
+  .lm-avatars > .lm-avatar + .lm-avatar, .lm-avatars > .lm-avatar + .lm-avatars__more { margin-inline-start: calc(var(--_d, 32px) * -0.3); }
+  .lm-avatars[data-size="xs"] { --_d: 20px; }
+  .lm-avatars[data-size="sm"] { --_d: 32px; }
+  .lm-avatars[data-size="md"] { --_d: 44px; }
+  .lm-avatars[data-size="lg"] { --_d: 64px; }
+  .lm-avatars[data-size="xl"] { --_d: 96px; }
+  .lm-avatars__more { font-family: var(--font-sans); font-size: calc(var(--_d) * 0.34); font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: 0; color: var(--color-text-secondary); }
+  .lm-avatars__more[data-size="xs"] { font-size: 10px; }
+
+  /* ── Stat ─────────────────────────────────────────────────────────────────────────────────────────────────────
+     A label and a measured value, the unit of every admin counter. A StatGrid is one ruled sheet (a single surface, hairlines between its cells),
+     not a wall of boxed cards. A ring or a bar may draw the value against its limit; the numbers stay in the text, so the drawing is only a glance. */
+  .lm-statgrid {
+    --_min: 14rem;
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(var(--_min), 100%), 1fr));
+    margin: 0;
+    overflow: hidden;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-ink) 4%, transparent);
+  }
+  .lm-statgrid[data-min="sm"] { --_min: 10.5rem; }
+  @media (max-width: 560px) { .lm-statgrid[data-min="sm"] { --_min: 8.25rem; } }
+  .lm-statgrid[data-min="lg"] { --_min: 19rem; }
+  .lm-stat {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    row-gap: 4px;
+    min-width: 0;
+    margin: 0;
+    padding: 18px 20px;
+  }
+  /* a ring sits at the cell's trailing edge; the words keep clear of it */
+  .lm-stat[data-meter="ring"] { padding-inline-end: calc(20px + 48px + 14px); }
+  .lm-stat[data-meter="ring"][data-size="sm"] { padding-inline-end: calc(18px + 36px + 10px); }
+  /* each cell draws its own right and bottom hairline just outside itself; the sheet clips the outermost ones, so a ragged last row has no blocks */
+  .lm-stat::after {
+    content: "";
+    position: absolute;
+    inset: 0 -1px -1px 0;
+    border-right: 1px solid var(--color-border-subtle);
+    border-bottom: 1px solid var(--color-border-subtle);
+    pointer-events: none;
+  }
+  .lm-stat__label { margin: 0; color: var(--color-text-muted); font-size: var(--text-caption); font-weight: 500; line-height: 1.35; letter-spacing: 0.012em; }
+  .lm-stat__value {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-title);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: -0.005em;
+    overflow-wrap: anywhere;
+  }
+  .lm-stat[data-size="sm"] .lm-stat__value { font-size: var(--text-lead); line-height: 1.3; }
+  .lm-stat[data-tone="lit"] .lm-stat__value { color: var(--color-accent-light); }
+  .lm-stat[data-tone="danger"] .lm-stat__value { color: var(--color-danger); }
+  .lm-stat__hint { margin: 0; color: var(--color-text-muted); font-size: var(--text-caption); line-height: 1.4; }
+  .lm-stat .lm-stat__ring { position: absolute; inset-inline-end: 20px; top: 50%; transform: translateY(-50%); }
+  .lm-stat[data-size="sm"] .lm-stat__ring { --_d: 36px; inset-inline-end: 18px; }
+  /* a tile only two to a row has no room beside its words: the ring sits in the corner, level with the label */
+  @media (max-width: 560px) {
+    .lm-stat[data-meter="ring"][data-size="sm"] { padding-inline-end: 20px; }
+    .lm-stat[data-meter="ring"][data-size="sm"] .lm-stat__label { padding-inline-end: 30px; }
+    .lm-stat[data-size="sm"] .lm-stat__ring { --_d: 28px; top: 14px; inset-inline-end: 14px; transform: none; }
+  }
+  .lm-stat .lm-stat__bar { margin-top: 10px; }
+
+  /* ── Table ────────────────────────────────────────────────────────────────────────────────────────────────────
+     Real <table> semantics, drawn quietly: hairline rows, a tinted header that stays put, a row that lights when pointed at, and an amber edge on the
+     chosen row. The scroll region is focusable so a keyboard can pan a wide table. Below 640 px of its own width (a container query, so a table in a
+     dialog or a narrow column stacks too) each row becomes a card, the same DOM: the header row steps aside and each cell carries its own label. */
+  .lm-tablebox { container: lm-table / inline-size; min-width: 0; }
+  .lm-tablescroll {
+    position: relative;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    /* a soft light at an edge that has more table beyond it (the covers scroll with the content and hide the light once the edge is reached) */
+    background:
+      linear-gradient(90deg, var(--color-bg-card) 30%, transparent) left center / 28px 100% no-repeat local,
+      linear-gradient(270deg, var(--color-bg-card) 30%, transparent) right center / 28px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, color-mix(in oklab, var(--color-ink) 14%, transparent), transparent) left center / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, color-mix(in oklab, var(--color-ink) 14%, transparent), transparent) right center / 12px 100% no-repeat scroll,
+      var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-ink) 4%, transparent);
+  }
+  .lm-tablescroll[data-tall] { max-height: var(--lm-table-max); overflow-y: auto; }
+  .lm-table {
+    --_py: 14px;
+    --_px: 18px;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-small);
+    line-height: 1.4;
+  }
+  .lm-table[data-narrow="scroll"] { min-width: var(--lm-table-min, 40rem); }
+  .lm-table[data-density="compact"] { --_py: 9px; --_px: 14px; }
+  .lm-table :is(th, td) {
+    padding: var(--_py) var(--_px);
+    border-bottom: 1px solid var(--color-border-subtle);
+    text-align: left;
+    vertical-align: middle;
+  }
+  .lm-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom-color: var(--color-border);
+    background: linear-gradient(var(--color-tint-2), var(--color-tint-2)), var(--color-bg-card);
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    font-weight: 500;
+    letter-spacing: 0.012em;
+    white-space: nowrap;
+  }
+  .lm-table tbody tr:last-child > :is(th, td) { border-bottom: 0; }
+  .lm-table tbody th { color: var(--color-text-primary); font-weight: 500; }
+  .lm-table tbody tr > :is(th, td) { transition: background-color var(--duration-fast) var(--ease-out); }
+  @media (hover: hover) {
+    .lm-table tbody tr:hover > :is(th, td) { background: var(--color-tint-2); }
+  }
+  .lm-table :is(th, td)[data-numeric] { text-align: right; font-variant-numeric: tabular-nums; }
+  .lm-table td[data-primary] { color: var(--color-text-primary); }
+  .lm-table td[data-nowrap] { white-space: nowrap; }
+  .lm-table td[data-actions] { text-align: right; white-space: nowrap; }
+  .lm-table td[data-actions] > * + * { margin-inline-start: 8px; }
+  /* a compact table keeps its rows short: its buttons are 36 px, still twice the 24 px floor */
+  .lm-table[data-density="compact"] td[data-actions] .lm-btn { --_h: 36px; --_px: 16px; }
+  /* the chosen row: a wash of warm light and an amber edge */
+  .lm-table tr[data-selected] > :is(th, td) { background: color-mix(in oklab, var(--color-warm) 8%, transparent); }
+  .lm-table tr[data-selected] > :first-child { box-shadow: inset 2px 0 0 var(--color-warm); }
+  .lm-table caption { caption-side: top; padding: 0 0 12px; color: var(--color-text-secondary); font-size: var(--text-small); text-align: left; }
+  .lm-table caption.sr-only { padding: 0; }
+
+  @container lm-table (max-width: 639px) {
+    .lm-tablescroll[data-narrow="stack"] { overflow: visible; max-height: none; background: none; border: 0; border-radius: 0; box-shadow: none; }
+    .lm-table[data-narrow="stack"], .lm-table[data-narrow="stack"] :is(thead, tbody, tr, th, td) { display: block; }
+    .lm-table[data-narrow="stack"] { min-width: 0; }
+    /* the header row steps aside for the eye and stays for assistive technology; every cell names itself */
+    .lm-table[data-narrow="stack"] thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .lm-table[data-narrow="stack"] tbody { display: grid; gap: 12px; }
+    .lm-table[data-narrow="stack"] tr {
+      padding: 0 18px;
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-ink) 4%, transparent);
+    }
+    .lm-table[data-narrow="stack"] tr[data-selected] {
+      border-color: var(--color-lit-line);
+      box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-warm) 14%, transparent), 0 14px 40px -24px color-mix(in oklab, var(--color-warm) 45%, transparent);
+    }
+    .lm-table[data-narrow="stack"] tr[data-selected] > :is(th, td) { background: none; box-shadow: none; }
+    .lm-table[data-narrow="stack"] :is(th, td) { padding: 11px 0; border-bottom: 0; text-align: left; transition: none; }
+    .lm-table[data-narrow="stack"] tr > :is(th, td) + :is(th, td) { border-top: 1px solid var(--color-border-subtle); }
+    .lm-table[data-narrow="stack"] tr:hover > :is(th, td) { background: none; }
+    /* a cell with a label is a line: the label, then whatever the cell holds */
+    .lm-table[data-narrow="stack"] td[data-label]:not([data-label=""], [data-primary]) { display: flex; align-items: baseline; gap: 4px 12px; overflow-wrap: anywhere; }
+    .lm-table[data-narrow="stack"] td[data-label]:not([data-label=""], [data-primary])::before {
+      content: attr(data-label);
+      flex: 0 0 clamp(4.5rem, 30%, 10rem);
+      color: var(--color-text-muted);
+      font-size: var(--text-caption);
+      font-weight: 500;
+      letter-spacing: 0.012em;
+    }
+    /* the first cell is the card's title */
+    .lm-table[data-narrow="stack"] :is(td[data-primary], tbody th) {
+      display: block;
+      padding: 15px 0 12px;
+      font-family: var(--font-display);
+      font-size: var(--text-lead);
+      font-weight: 400;
+      line-height: 1.25;
+      letter-spacing: -0.012em;
+      color: var(--color-text-primary);
+    }
+    .lm-table[data-narrow="stack"] td[data-actions] { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; padding: 14px 0; text-align: left; white-space: normal; }
+    .lm-table[data-narrow="stack"] td[data-actions] > * + * { margin-inline-start: 0; }
+    .lm-table[data-narrow="stack"] td[data-nowrap] { white-space: normal; }
+    /* a cell with nothing in it (an action that does not apply to this row) leaves no gap and no rule */
+    .lm-table[data-narrow="stack"] td:empty { display: none !important; }
+  }
+
+  /* ── Disclosure ───────────────────────────────────────────────────────────────────────────────────────────────
+     The expandable card. The header is one button (aria-expanded, aria-controls) that holds the whole summary, so the card's title is read once;
+     the panel opens by the grid-rows trick, so its height animates without being measured. Closed, the panel is hidden from sight and from the
+     keyboard (visibility, and inert from the component) but stays in the DOM. */
+  .lm-disclosure { --_px: 26px; --_py: 22px; position: relative; }
+  .lm-disclosure[data-pad="sm"] { --_px: 20px; --_py: 16px; }
+  .lm-disclosure__accessory { position: absolute; top: 12px; right: 12px; z-index: 2; }
+  .lm-disclosure__trigger {
+    display: grid;
+    gap: 14px;
+    width: 100%;
+    margin: 0;
+    padding: var(--_py) var(--_px);
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--duration-base) var(--ease-out);
+  }
+  .lm-disclosure[data-open] > .lm-disclosure__trigger { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  @media (hover: hover) {
+    .lm-disclosure__trigger:hover { background: var(--color-tint-1); }
+  }
+  /* the card's own edge is the ring, so the focus ring is drawn inside it (the offset is the variable the global :focus-visible reads) */
+  .lm-disclosure__trigger { --focus-offset: -3px; }
+  .lm-disclosure__summary { display: block; min-width: 0; }
+  .lm-disclosure[data-accessory] .lm-disclosure__summary { padding-inline-end: 44px; }
+  .lm-disclosure__state { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--color-text-muted); font-size: var(--text-small); line-height: 1.3; }
+  .lm-disclosure__label { color: var(--color-text-secondary); font-weight: 500; }
+  .lm-disclosure__chev { flex: none; transition: transform var(--duration-base) var(--ease-out); }
+  .lm-disclosure[data-open] > .lm-disclosure__trigger .lm-disclosure__chev { transform: rotate(180deg); }
+  @media (hover: hover) {
+    .lm-disclosure__trigger:hover .lm-disclosure__label { color: var(--color-text-primary); }
+  }
+  .lm-disclosure__body { padding: 4px var(--_px) var(--_px); border-top: 1px solid var(--color-border-subtle); }
+  .lm-disclosure__foot { padding: 0 var(--_px) var(--_px); }
+
+  .lm-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--duration-slow) var(--ease-out); }
+  .lm-collapse[data-open] { grid-template-rows: 1fr; }
+  .lm-collapse__inner {
+    min-height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    transition: visibility 0s linear var(--duration-slow);
+  }
+  /* where it is supported, the open panel lets a focus ring breathe past its edge */
+  @supports (overflow: clip) {
+    .lm-collapse__inner { overflow: clip; overflow-clip-margin: 6px; }
+  }
+  .lm-collapse[data-open] > .lm-collapse__inner { visibility: visible; transition-delay: 0s; }
+
+  /* ── DefinitionList ───────────────────────────────────────────────────────────────────────────────────────────
+     Terms and what they mean, in a grid that reflows to the room it has. A term is a small sentence-case label (no tracked capitals), the
+     definition is the thing. The inline layout is a ruled list for dialogs. */
+  .lm-deflist {
+    --_min: 13rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(var(--_min), 100%), 1fr));
+    gap: 20px 32px;
+    margin: 0;
+  }
+  .lm-deflist[data-min="sm"] { --_min: 9rem; }
+  .lm-deflist[data-min="lg"] { --_min: 18rem; }
+  .lm-deflist > div { min-width: 0; }
+  .lm-deflist dt { margin: 0 0 4px; color: var(--color-text-muted); font-size: var(--text-caption); font-weight: 500; line-height: 1.35; letter-spacing: 0.012em; }
+  .lm-deflist dd { margin: 0; color: var(--color-text-secondary); font-size: var(--text-body); line-height: 1.5; overflow-wrap: anywhere; }
+  .lm-deflist[data-tone="strong"] dd { color: var(--color-text-primary); }
+  .lm-deflist[data-layout="inline"] { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .lm-deflist[data-layout="inline"] > div {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, 9rem) minmax(0, 1fr);
+    align-items: baseline;
+    gap: 4px 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+  .lm-deflist[data-layout="inline"] > div:last-child { border-bottom: 0; }
+  .lm-deflist[data-layout="inline"] dt { margin: 0; }
+  .lm-deflist[data-layout="inline"] dd { font-size: var(--text-small); }
+
+  /* ── Pager ────────────────────────────────────────────────────────────────────────────────────────────────────
+     Two ring buttons and where you are: the page number lit, and a hairline gauge with a point at the current position (the rail's gesture). */
+  .lm-pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 2rem; }
+  .lm-pager__status { display: grid; justify-items: center; gap: 10px; min-width: 7.5rem; margin: 0; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.2; white-space: nowrap; }
+  .lm-pager__now {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.1em;
+    height: 2.1em;
+    padding: 0 0.5em;
+    border: 1px solid var(--color-lit-line);
+    border-radius: var(--radius-pill);
+    background: var(--color-lit-muted);
+    color: var(--color-accent-light);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-pager__total { font-variant-numeric: tabular-nums; }
+  .lm-pager__gauge { position: relative; display: block; width: 100%; max-width: 8.5rem; height: 1px; background: var(--color-border); container-type: inline-size; }
+  .lm-pager__gauge::before {
+    content: "";
+    position: absolute;
+    inset: -0.5px auto -0.5px 0;
+    width: 100%;
+    background: var(--color-warm);
+    transform: scaleX(var(--lm-p, 0));
+    transform-origin: left center;
+    transition: transform var(--duration-slow) var(--ease-out);
+  }
+  .lm-pager__gauge::after {
+    content: "";
+    position: absolute;
+    left: -2.5px;
+    top: -2px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-warm);
+    box-shadow: 0 0 10px 1px color-mix(in oklab, var(--color-warm) 70%, transparent);
+    transform: translateX(calc(var(--lm-p, 0) * 100cqw));
+    transition: transform var(--duration-slow) var(--ease-out);
+  }
+  /* on a phone the sentence takes its own row above the two buttons, which share the width, so nothing is wider than the screen at 320 px */
+  @media (max-width: 480px) {
+    .lm-pager { flex-wrap: wrap; gap: 14px 10px; }
+    .lm-pager__status { order: -1; flex: 1 0 100%; min-width: 0; }
+    .lm-pager > .lm-btn { flex: 1 1 0; min-width: 0; padding-inline: 12px; }
+  }
+
+  /* ── ProgressBar ──────────────────────────────────────────────────────────────────────────────────────────────
+     A hairline track and a lit fill with a point of light at its leading edge. role=progressbar, so the number is announced; with no value the
+     bar is indeterminate and a short light travels along it. */
+  .lm-progress { display: grid; gap: 8px; min-width: 0; }
+  .lm-progress__row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .lm-progress__foot { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--color-text-muted); font-size: var(--text-caption); font-variant-numeric: tabular-nums; line-height: 1.35; }
+  .lm-progress__text { flex: none; color: var(--color-text-muted); font-size: var(--text-caption); font-variant-numeric: tabular-nums; line-height: 1.35; }
+  .lm-progress__track {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 2px;
+    border-radius: var(--radius-pill);
+    background: var(--color-border);
+    container-type: inline-size;
+  }
+  .lm-progress[data-size="md"] .lm-progress__track { height: 4px; }
+  .lm-progress__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 100%;
+    border-radius: inherit;
+    background: var(--color-warm);
+    transform: scaleX(var(--lm-p, 0));
+    transform-origin: left center;
+    transition: transform var(--duration-slow) var(--ease-out);
+  }
+  .lm-progress[data-tone="success"] .lm-progress__fill, .lm-progress[data-tone="success"] .lm-progress__point { background: var(--color-success); }
+  .lm-progress__point {
+    position: absolute;
+    left: -3px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
+    border-radius: 50%;
+    background: var(--color-warm);
+    box-shadow: 0 0 10px 1px color-mix(in oklab, var(--color-warm) 70%, transparent);
+    transform: translateX(calc(var(--lm-p, 0) * 100cqw));
+    transition: transform var(--duration-slow) var(--ease-out);
+  }
+  /* the travelling light is clipped to the track, or it would push the page wider while it leaves */
+  .lm-progress[data-indeterminate] .lm-progress__track { overflow: hidden; }
+  .lm-progress[data-indeterminate] .lm-progress__fill {
+    width: 36%;
+    transform: none;
+    animation: lm-progress-sweep 2.4s var(--ease-in-out) infinite;
+  }
+  .lm-progress[data-indeterminate] .lm-progress__point { display: none; }
+  @keyframes lm-progress-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(280%); } }
+  @media (prefers-reduced-motion: reduce) {
+    /* still, and spread across the whole track: busy, and plainly not a bar that is part way done */
+    .lm-progress[data-indeterminate] .lm-progress__fill { animation: none; width: 100%; opacity: 0.4; }
+  }
+
+  /* ── Meter ────────────────────────────────────────────────────────────────────────────────────────────────────
+     A value inside a known range (a spend against its cap, a score out of ten): a ring of light that fills, or a bar. role=meter. */
+  .lm-meter { --_d: 48px; position: relative; display: inline-grid; place-items: center; flex: none; width: var(--_d); height: var(--_d); color: var(--color-text-primary); font-size: var(--text-caption); font-variant-numeric: tabular-nums; line-height: 1; }
+  .lm-meter[data-size="sm"] { --_d: 32px; }
+  .lm-meter[data-size="lg"] { --_d: 72px; font-size: var(--text-small); }
+  .lm-meter__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
+  .lm-meter__track { fill: none; stroke: var(--color-border); stroke-width: 2.4; }
+  .lm-meter__arc {
+    fill: none;
+    stroke: var(--color-warm);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 3px color-mix(in oklab, var(--color-warm) 55%, transparent));
+    transition: stroke-dasharray var(--duration-slow) var(--ease-out);
+  }
+  .lm-meter[data-tone="success"] .lm-meter__arc { stroke: var(--color-success); filter: none; }
+  .lm-meter[data-tone="danger"] .lm-meter__arc { stroke: var(--color-danger); filter: none; }
+  .lm-meter[data-tone="info"] .lm-meter__arc { stroke: var(--color-info); filter: none; }
+  .lm-meter__text { position: relative; }
+  .lm-meter[data-variant="bar"] { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; height: auto; place-items: stretch; }
+  .lm-meter__bar { position: relative; display: block; height: 4px; border-radius: var(--radius-pill); background: var(--color-border); overflow: hidden; }
+  .lm-meter__barfill {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--color-warm);
+    transform: scaleX(var(--lm-p, 0));
+    transform-origin: left center;
+    transition: transform var(--duration-slow) var(--ease-out);
+  }
+  .lm-meter[data-tone="success"] .lm-meter__barfill { background: var(--color-success); }
+  .lm-meter[data-tone="danger"] .lm-meter__barfill { background: var(--color-danger); }
+  .lm-meter[data-tone="info"] .lm-meter__barfill { background: var(--color-info); }
+
+  /* ── StepDots ─────────────────────────────────────────────────────────────────────────────────────────────────
+     Where you are in a short flow. Done steps are lit, the current one is a lit ring, the rest are hollow. Horizontal for a few steps; vertical with
+     labels for a long, grouped rail. Steps are buttons only when the flow lets you jump. */
+  .lm-steps { display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .lm-steps > li { display: flex; align-items: center; min-width: 0; margin: 0; padding: 0; }
+  .lm-steps > li + li::before { content: ""; flex: none; width: 22px; height: 1px; background: var(--color-border-strong); }
+  .lm-steps > li[data-state="done"]::before, .lm-steps > li[data-state="current"]::before { background: var(--color-warm); }
+  /* with words, the hairline keeps clear of the label before it */
+  .lm-steps[data-labelled] > li + li::before { margin-inline-start: 12px; }
+  .lm-step { position: relative; display: inline-flex; align-items: center; gap: 12px; min-width: 32px; min-height: 32px; margin: 0; padding: 0; border: 0; background: none; color: var(--color-text-muted); font: inherit; text-align: left; }
+  .lm-step:is(button) { cursor: pointer; }
+  .lm-step__dot {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    margin-inline: 10px;
+    border: 1.5px solid var(--color-border-strong);
+    border-radius: 50%;
+    transition: border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
+  }
+  .lm-steps > li[data-state="done"] .lm-step__dot { background: var(--color-warm); border-color: var(--color-warm); }
+  .lm-steps > li[data-state="current"] .lm-step__dot { border-color: var(--color-warm); box-shadow: 0 0 0 4px var(--color-lit-muted), 0 0 14px 0 var(--color-lit-glow); }
+  .lm-steps > li[data-state="current"] .lm-step__dot::after { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--color-warm); }
+  @media (hover: hover) {
+    .lm-step:is(button):hover .lm-step__dot { border-color: var(--color-lit-line); }
+    .lm-step:is(button):hover { color: var(--color-text-primary); }
+  }
+  .lm-step__num { flex: none; min-width: 1.4em; color: var(--color-text-muted); font-size: var(--text-caption); font-variant-numeric: tabular-nums; line-height: 1; }
+  .lm-step__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-small); line-height: 1.3; }
+  .lm-steps > li[data-state="done"] .lm-step__num { color: var(--color-accent-light); }
+  .lm-steps > li[data-state="current"] .lm-step { color: var(--color-text-primary); font-weight: 500; }
+
+  .lm-steps[data-orientation="vertical"] { display: grid; align-items: stretch; gap: 2px; }
+  .lm-steps[data-orientation="vertical"] > li { display: block; }
+  .lm-steps[data-orientation="vertical"] > li + li::before { content: none; }
+  .lm-steps[data-orientation="vertical"] .lm-step {
+    display: flex;
+    width: 100%;
+    min-height: var(--touch);
+    padding-inline-end: 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+    transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .lm-steps[data-orientation="vertical"] .lm-step:is(button):hover { background: var(--color-tint-2); }
+  }
+  .lm-steps[data-orientation="vertical"] > li[data-state="current"] .lm-step { background: var(--color-tint-3); border-color: var(--color-border-strong); }
+
+  /* ── Divider ──────────────────────────────────────────────────────────────────────────────────────────────────
+     The hairline with a lit end: the same device as a masthead's rule. */
+  .lm-divider { position: relative; display: block; flex: none; width: 100%; height: 1px; margin: 0; border: 0; background: var(--color-border); }
+  .lm-divider::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    right: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-warm);
+    box-shadow: 0 0 10px 1px color-mix(in oklab, var(--color-warm) 70%, transparent);
+  }
+  .lm-divider[data-end="start"]::after { right: auto; left: 0; }
+  .lm-divider[data-end="none"]::after { content: none; }
+  .lm-divider[data-vertical] { width: 1px; height: auto; min-height: 1.5rem; align-self: stretch; }
+  .lm-divider[data-vertical]::after { content: none; }
+
+  /* ── Section ──────────────────────────────────────────────────────────────────────────────────────────────────
+     A page section with its own title row in the display face. Sections stack on one rhythm (--section-gap): put them in .lm-sections. */
+  .lm-sections { display: grid; gap: var(--section-gap); min-width: 0; }
+  .lm-section { display: grid; gap: var(--section-gap-inner); min-width: 0; }
+  /* the masthead's rule, static: a hairline across the top and a point of light at its end */
+  .lm-section[data-rule] { position: relative; padding-top: 24px; }
+  .lm-section[data-rule]::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: var(--color-border); }
+  .lm-section[data-rule]::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    right: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-warm);
+    box-shadow: 0 0 10px 1px color-mix(in oklab, var(--color-warm) 70%, transparent);
+  }
+  .lm-section__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+  .lm-section__titles { display: grid; gap: 6px; min-width: 0; }
+  .lm-section__title {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-title);
+    font-synthesis: none;
+    font-weight: 300;
+    line-height: var(--text-title--line-height);
+    letter-spacing: var(--tracking-display);
+    text-wrap: balance;
+  }
+  .lm-section__title[data-level="3"] { font-size: var(--text-lead); font-weight: 400; line-height: 1.2; }
+  .lm-section__desc { max-width: 62ch; margin: 0; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.5; }
+  .lm-section__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+  /* ── Forced colours (Windows high contrast) ─────────────────────────────────────────────────────────────────────
+     Backgrounds and shadows are not painted there, and every text colour becomes one, so what carries a chosen state here (a rule's fill, a wash, a
+     lit dot) would vanish. Borders survive, so the state moves to a border in the system's own highlight. */
+  @media (forced-colors: active) {
+    .lm-tab { border-bottom: 1px solid GrayText; }
+    .lm-tabs--segmented .lm-tab { border-bottom: 0; }
+    .lm-tab:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-selected="true"]) { border-bottom: 3px solid Highlight; }
+    .lm-tabs--segmented .lm-tab:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-selected="true"]) { border: 2px solid Highlight; }
+    .lm-tab:disabled, .lm-tab[aria-disabled="true"] { color: GrayText; }
+    .lm-table tr[data-selected] > :first-child { border-inline-start: 3px solid Highlight; }
+    .lm-avatar[data-lit] { border-color: Highlight; }
+    .lm-progress__track, .lm-meter__bar { border: 1px solid CanvasText; }
+    .lm-progress__fill, .lm-meter__barfill, .lm-progress__point, .lm-divider::after { forced-color-adjust: none; background: Highlight; }
+    .lm-meter__arc { stroke: Highlight; }
+    .lm-meter__track { stroke: GrayText; }
+    .lm-steps > li[data-state="done"] .lm-step__dot { border-width: 6px; border-color: Highlight; }
+    .lm-steps > li[data-state="current"] .lm-step__dot { border-color: Highlight; border-width: 3px; }
+    .lm-steps > li[data-state="current"] .lm-step__dot::after { content: none; }
+    .lm-steps[data-orientation="vertical"] > li[data-state="current"] .lm-step { border-color: Highlight; }
+    .lm-pager__now { border-color: Highlight; }
+    .lm-pager__gauge, .lm-divider, .lm-steps > li + li::before { forced-color-adjust: none; background: GrayText; }
+    .lm-pager__gauge::before, .lm-pager__gauge::after, .lm-steps > li[data-state="done"]::before, .lm-steps > li[data-state="current"]::before { forced-color-adjust: none; background: Highlight; }
+    .lm-section[data-rule]::before { forced-color-adjust: none; background: GrayText; }
+  }
 }
