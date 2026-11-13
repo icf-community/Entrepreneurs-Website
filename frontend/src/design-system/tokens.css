@@ -1,0 +1,137 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · design tokens. The one place the look is decided. Change a value here and every page follows.
+
+   Lumen treats colour as light direction, not decoration. There are six lights and nothing else:
+
+     void   the night everything sits in
+     ink    what is read on it (and the surfaces' own steps of it)
+     star   ring white: the logo, nothing else
+     sun    cream: what is lit in words. The one action, a lit name, the focus ring
+     warm   amber: light itself. The glow behind a mark, a lit body, a chosen tag, the travelled part of a gauge
+     cool   one cold for dust and hairlines
+
+   Everything below is a role built from those six. Components never name a hue; they name a role (bg-bg-card, text-text-muted,
+   border-border-strong, bg-accent, text-lit …). Tailwind's token utilities read these variables, so a change here is a change everywhere.
+   Contrast for the pairs that carry text and controls is pinned by src/design-system/tokens.contrast.test.ts.
+
+   Written in OKLCH. `@theme static` so every variable is always emitted (the landing scene reads them at runtime for WebGL colours).
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+@theme static {
+  /* ── 1. The six lights ───────────────────────────────────────────────────────────────────────────────────── */
+  --color-void: oklch(0.13 0.016 255);
+  --color-ink:  oklch(0.96 0.006 250);
+  --color-star: oklch(1 0 0);
+  --color-sun:  oklch(0.95 0.035 85);
+  --color-warm: oklch(0.78 0.13 68);
+  --color-cool: oklch(0.72 0.04 250);
+
+  /* ── 2. Surfaces: what things sit on. Steps of the night, a little bluer and lighter each time. ─────────────────
+        bg-primary the page · bg-secondary bands and the sidebar · bg-card panels · bg-card-hover a panel being pointed at · bg-raised overlays */
+  --color-bg-primary:    var(--color-void);
+  --color-bg-secondary:  oklch(0.165 0.018 255);
+  --color-bg-card:       oklch(0.195 0.02 255);
+  --color-bg-card-hover: oklch(0.225 0.022 255);
+  --color-bg-raised:     oklch(0.215 0.021 255);
+
+  /* Tints: ink laid over whatever is behind it, in four steps. These replace every hand-written bg-white/[0.0x].
+        tint-1 a quiet field · tint-2 a resting control · tint-3 a raised row · tint-4 a hovered or pressed one (fleeting, never a resting surface) */
+  --color-tint-1: color-mix(in oklch, var(--color-ink) 3%, transparent);
+  --color-tint-2: color-mix(in oklch, var(--color-ink) 5%, transparent);
+  --color-tint-3: color-mix(in oklch, var(--color-ink) 8%, transparent);
+  --color-tint-4: color-mix(in oklch, var(--color-ink) 12%, transparent);
+
+  /* ── 3. Ink: text. Three steps, all ≥ 4.5:1 on every surface above, tint-3 included (pinned by the contrast test). ── */
+  --color-text-primary:   var(--color-ink);
+  --color-text-secondary: color-mix(in oklch, var(--color-ink) 78%, var(--color-void));
+  --color-text-muted:     color-mix(in oklch, var(--color-ink) 68%, var(--color-void));
+
+  /* ── 4. Lines. border is a rule (decorative, below 3:1 on purpose); border-strong is the edge of anything you can press and
+        clears WCAG 1.4.11's 3:1 on the page and on a panel (pinned by the contrast test). ─────────────────────────────── */
+  --color-border:        color-mix(in oklch, var(--color-ink) 28%, var(--color-void));
+  --color-border-subtle: color-mix(in oklch, var(--color-ink) 17%, var(--color-void));
+  --color-border-strong: oklch(0.56 0.024 255);
+
+  /* ── 5. Action: sun. A cream fill with void on it is the strongest control the system makes. Also the focus ring. ── */
+  --color-accent:        var(--color-sun);
+  --color-accent-light:  color-mix(in oklch, var(--color-sun) 70%, var(--color-star));   /* a lit word, a link at rest or hovered */
+  --color-accent-dim:    color-mix(in oklch, var(--color-sun) 72%, var(--color-void));   /* pressed, or lit text that must not shout */
+  --color-accent-muted:  color-mix(in oklch, var(--color-warm) 14%, transparent);        /* the wash behind a chosen thing */
+  --color-focus:         var(--color-sun);
+
+  /* ── 6. Light: warm. Selection, glow, the lit part of a gauge. Never an action fill. ───────────────────────────── */
+  --color-lit:        var(--color-warm);
+  --color-lit-muted:  color-mix(in oklch, var(--color-warm) 14%, transparent);
+  --color-lit-line:   color-mix(in oklch, var(--color-warm) 38%, transparent);
+  --color-lit-glow:   color-mix(in oklch, var(--color-warm) 19%, transparent);
+  /* the older name for "a status that must not read as primary": a review waiting, a listing about to expire */
+  --color-signal:       var(--color-warm);
+  --color-signal-muted: color-mix(in oklch, var(--color-warm) 14%, transparent);
+
+  /* ── 7. Status. Used sparingly, always with a word or a drawn mark beside the colour. ──────────────────────────── */
+  --color-danger:        oklch(0.75 0.15 28);
+  --color-danger-muted:  color-mix(in oklch, var(--color-danger) 13%, transparent);
+  --color-danger-line:   color-mix(in oklch, var(--color-danger) 55%, transparent);
+  --color-success:       oklch(0.8 0.11 165);
+  --color-success-muted: color-mix(in oklch, var(--color-success) 13%, transparent);
+  --color-info:          var(--color-cool);
+
+  /* ── 8. Type. Two faces: Funnel Display for headings (light, tight), Host Grotesk for everything else. Both come from
+        next/font in layout.tsx, so they are self-hosted. ──────────────────────────────────────────────────────────── */
+  --font-display: var(--font-funnel), "Helvetica Neue", Arial, sans-serif;
+  --font-sans:    var(--font-host), "Helvetica Neue", Arial, sans-serif;
+  /* No monospace in this system: measured values (dates, counts, ids) are Host Grotesk with tabular figures (.data in typography.css). */
+  --font-mono:    var(--font-host), "Helvetica Neue", Arial, sans-serif;
+
+  /* The scale is a 1.25 ratio from a 16 px body (Lumen's own), with one extra step, small, for dense rows.
+     The app runs a 125 % root (see base.css), so a 16 px body is 0.8rem here. px in the comments is the rendered size. */
+  --text-caption: 0.65rem;     --text-caption--line-height: 1.35;   /* 13 px  meta, helper text, badges */
+  --text-small:   0.725rem;    --text-small--line-height:   1.4;    /* 14.5 px dense rows, table cells */
+  --text-body:    0.8rem;      --text-body--line-height:    1.5;    /* 16 px  body */
+  --text-lead:    1rem;        --text-lead--line-height:    1.42;   /* 20 px  ledes, entry titles */
+  --text-title:   1.25rem;     --text-title--line-height:   1.25;   /* 25 px  panel and section titles */
+  --text-heading: 1.5625rem;   --text-heading--line-height: 1.18;   /* 31 px  */
+  --text-display: clamp(1.56rem, 0.96vw + 1.16rem, 2.44rem);        /* 31–49 px  a page's own h1 and a section's h2 (Lumen h2) */
+  --text-display--line-height: 1.16;
+  --text-hero:    clamp(1.68rem, 1.52vw + 0.92rem, 2.72rem);        /* 34–54 px  the landing h1 (Lumen h1) */
+  --text-hero--line-height: 1.16;
+
+  --tracking-display: -0.02em;
+  --tracking-hero:    -0.024em;
+
+  /* ── 9. Shape. Pills for small controls, 12–18 px for surfaces, circles for people and glyphs. ─────────────────── */
+  --radius-sm:   8px;
+  --radius-md:   10px;
+  --radius-lg:   12px;    /* inputs, rows, small panels */
+  --radius-xl:   14px;    /* panels */
+  --radius-2xl:  18px;    /* dialogs, large panels */
+  --radius-pill: 999px;
+
+  /* ── 10. Depth: declared once. Surfaces are lit by a hairline and, when lit, by their own light; overlays get one soft shadow. ── */
+  --shadow-lit:    0 0 0 1px var(--color-lit-line), 0 14px 46px -12px color-mix(in oklch, var(--color-warm) 55%, transparent);
+  --shadow-pop:    0 18px 50px -14px oklch(0 0 0 / 0.65), 0 2px 8px -2px oklch(0 0 0 / 0.4);
+  --shadow-button: inset 0 1px 0 oklch(1 0 0 / 0.55), inset 0 -1px 0 oklch(0 0 0 / 0.08);
+
+  /* ── 11. Motion. One curve (an exponential ease-out) and four durations. Idle loops are slow (8 s and up). ──────── */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast:   140ms;
+  --duration-base:   220ms;
+  --duration-slow:   420ms;
+  --duration-settle: 760ms;
+
+  /* ── 12. Spacing extensions (Tailwind's own scale is kept) ─────────────────────────────────────────────────────── */
+  --spacing-18: 4.5rem;
+  --spacing-22: 5.5rem;
+  --spacing-28: 7rem;
+  --spacing-32: 8rem;
+}
+
+/* Layout tokens that are not Tailwind theme keys. */
+:root {
+  --gutter: clamp(20px, 3.6vw, 56px);        /* the page's side margin, everywhere */
+  --content-max: 72rem;                       /* the widest a page's column grows */
+  --measure: 34ch;                            /* a lede or a caption never runs wider */
+  --touch: 44px;                              /* the smallest a control may be */
+  --focus-ring: 2px solid var(--color-focus);
+  --focus-offset: 3px;                        /* the offset puts the ring on the page, so it reads on a cream fill too */
+}

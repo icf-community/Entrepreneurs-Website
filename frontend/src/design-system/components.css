@@ -1,0 +1,234 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · components. The classes behind the components in src/components/ui. Each component sets state through data attributes
+   (data-variant, data-size, data-tone …), so a variant is a selector here, never a long utility string in a page.
+   Everything reads tokens.css. To change how every button, panel or badge in the product looks, change it here.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── Button ───────────────────────────────────────────────────────────────────────────────────────────────────
+     A pill. The primary is cream (sun) with the night on it: the strongest control the system makes. Pointing at it lights a ring one step
+     off the edge, like a body coming into orbit; pressing it sinks it one pixel. The same shapes serve <button> and <a> (ButtonLink). */
+  .lm-btn {
+    --_h: 52px;
+    --_px: 26px;
+    --_fs: var(--text-body);
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: var(--_h);
+    padding: 0 var(--_px);
+    border: 1px solid transparent;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-sans);
+    font-size: var(--_fs);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: 0.005em;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      transform var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-base) var(--ease-out),
+      opacity var(--duration-fast) var(--ease-out);
+  }
+  .lm-btn[data-size="sm"] { --_h: 44px; --_px: 20px; --_fs: var(--text-small); gap: 8px; }
+  .lm-btn[data-size="md"] { --_h: 50px; --_px: 24px; }
+  .lm-btn[data-size="lg"] { --_h: 58px; --_px: 30px; }
+  .lm-btn:active:not(:disabled):not([aria-disabled="true"]) { transform: translateY(1px); }
+  .lm-btn:disabled, .lm-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+  /* a disabled cream button would read as beige mud at half opacity: it becomes a quiet surface instead */
+  .lm-btn[data-variant="primary"]:disabled:not([aria-busy="true"]) {
+    opacity: 1;
+    background: var(--color-tint-4);
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+    box-shadow: none;
+  }
+  /* a busy button is not a disabled one: it keeps its fill and shows the orbit turning */
+  .lm-btn[aria-busy="true"] { opacity: 1; cursor: progress; }
+
+  /* the ring that lights when you point at it (pointer only: keyboard focus uses the global focus ring) */
+  .lm-btn::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border: 1.5px solid var(--color-warm);
+    border-radius: var(--radius-pill);
+    opacity: 0;
+    transform: scale(0.96);
+    pointer-events: none;
+    transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .lm-btn[data-variant="primary"]:hover:not(:disabled)::after,
+    .lm-btn[data-variant="danger"]:hover:not(:disabled)::after { opacity: 1; transform: scale(1); }
+  }
+
+  .lm-btn[data-variant="primary"] {
+    background: var(--color-sun);
+    color: var(--color-void);
+    font-weight: 650;
+    box-shadow: var(--shadow-button);
+  }
+  @media (hover: hover) {
+    .lm-btn[data-variant="primary"]:hover:not(:disabled) { background: color-mix(in oklch, var(--color-sun) 70%, var(--color-star)); }
+  }
+  /* the page's one lit action: a hairline of warm light round it and a pool of it underneath */
+  .lm-btn[data-lit] { box-shadow: var(--shadow-button), var(--shadow-lit); }
+
+  .lm-btn[data-variant="ghost"] {
+    background: var(--color-tint-2);
+    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
+  }
+  @media (hover: hover) {
+    .lm-btn[data-variant="ghost"]:hover:not(:disabled) { background: var(--color-tint-3); border-color: var(--color-lit-line); color: var(--color-star); }
+  }
+  .lm-btn[data-variant="ghost"]:active:not(:disabled) { background: var(--color-tint-4); }
+
+  .lm-btn[data-variant="quiet"] { background: transparent; color: var(--color-text-secondary); padding-inline: calc(var(--_px) * 0.6); }
+  @media (hover: hover) {
+    .lm-btn[data-variant="quiet"]:hover:not(:disabled) { background: var(--color-tint-2); color: var(--color-text-primary); }
+  }
+
+  .lm-btn[data-variant="dangerGhost"] {
+    background: var(--color-tint-2);
+    border-color: var(--color-border-strong);
+    color: var(--color-text-secondary);
+  }
+  @media (hover: hover) {
+    .lm-btn[data-variant="dangerGhost"]:hover:not(:disabled) { background: var(--color-danger-muted); border-color: var(--color-danger-line); color: var(--color-danger); }
+  }
+
+  .lm-btn[data-variant="danger"] {
+    background: var(--color-danger-muted);
+    border-color: var(--color-danger-line);
+    color: var(--color-danger);
+  }
+  .lm-btn[data-variant="danger"]::after { border-color: var(--color-danger); }
+  @media (hover: hover) {
+    .lm-btn[data-variant="danger"]:hover:not(:disabled) { background: color-mix(in oklch, var(--color-danger) 22%, transparent); }
+  }
+
+  /* an icon-only round button (close, collapse, more): a ring, 44 px */
+  .lm-iconbtn {
+    display: inline-grid;
+    place-items: center;
+    width: var(--touch);
+    height: var(--touch);
+    flex: none;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 50%;
+    background: var(--color-tint-1);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .lm-iconbtn:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-lit-line); background: var(--color-tint-3); }
+  }
+  .lm-iconbtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Orbit glyph: a ring with one body in orbit. It leads a lit button and stands in for a spinner. ─────────── */
+  .lm-orbit { width: 22px; height: 22px; flex: none; display: block; overflow: visible; }
+  .lm-orbit .o { transform-origin: 12px 12px; animation: orbit-spin 8s linear infinite; }
+  .lm-btn:hover .lm-orbit .o, .lm-btn:focus-visible .lm-orbit .o { animation-duration: 2.4s; }
+  .lm-orbit[data-spin="fast"] .o { animation-duration: 1.1s; }
+
+  /* ── Panel: a surface. Lit by a hairline and a whisper of top light; never by a shadow. ────────────────────── */
+  .lm-panel {
+    position: relative;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: inset 0 1px 0 color-mix(in oklch, var(--color-ink) 4%, transparent);
+  }
+  .lm-panel[data-tone="inset"]  { background: var(--color-bg-secondary); border-color: var(--color-border-subtle); box-shadow: none; }
+  .lm-panel[data-tone="plain"]  { background: transparent; box-shadow: none; }
+  .lm-panel[data-tone="lit"]    { border-color: var(--color-lit-line); box-shadow: inset 0 1px 0 color-mix(in oklch, var(--color-warm) 14%, transparent), 0 18px 60px -28px color-mix(in oklch, var(--color-warm) 45%, transparent); }
+  .lm-panel[data-tone="danger"] { border-color: var(--color-danger-line); background: color-mix(in oklch, var(--color-danger) 6%, var(--color-bg-card)); }
+  .lm-panel[data-interactive] { transition: border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out); }
+  @media (hover: hover) {
+    .lm-panel[data-interactive]:hover { background: var(--color-bg-card-hover); border-color: var(--color-border-strong); }
+  }
+  .lm-panel[data-size="sm"] { border-radius: var(--radius-lg); }
+  .lm-panel[data-size="lg"] { border-radius: var(--radius-2xl); }
+
+  /* ── Glyph disc: a figure inside Lumen's ring, the unit identity icons are drawn on. ─────────────────────── */
+  .lm-disc {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: var(--_d, 44px);
+    height: var(--_d, 44px);
+    border-radius: 50%;
+    border: 1.5px solid var(--color-border-strong);
+    color: var(--color-text-secondary);
+    background: var(--color-tint-1);
+    transition: color var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
+  }
+  .lm-disc[data-size="sm"] { --_d: 36px; }
+  .lm-disc[data-size="lg"] { --_d: 56px; }
+  .lm-disc[data-lit], .lm-entry:hover .lm-disc, .lm-entry:focus-within .lm-disc {
+    color: var(--color-accent-light);
+    border-color: var(--color-lit-line);
+    box-shadow: 0 0 22px -4px var(--color-lit-glow);
+  }
+
+  /* ── Entry: one row of a list (a member, a listing, a notification): glyph, words, a trailing control. ─────── */
+  .lm-entry {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 16px;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    transition: background-color var(--duration-base) var(--ease-out);
+  }
+  .lm-entry:not([data-glyph]) { grid-template-columns: minmax(0, 1fr) auto; }
+  @media (hover: hover) {
+    .lm-entry:hover { background: var(--color-tint-1); }
+  }
+  .lm-entry__title { font-family: var(--font-display); font-weight: 400; font-size: var(--text-lead); line-height: 1.2; letter-spacing: -0.012em; color: var(--color-text-primary); }
+  .lm-entry__meta  { margin-top: 2px; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.4; }
+
+  /* ── Badge: a small pill that says what state or kind something is. ───────────────────────────────────────── */
+  .lm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--color-tint-1);
+    color: var(--color-text-secondary);
+    font-size: var(--text-caption);
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .lm-badge[data-dot]::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .lm-badge[data-tone="lit"]     { color: var(--color-accent-light); border-color: var(--color-lit-line); background: var(--color-lit-muted); }
+  .lm-badge[data-tone="danger"]  { color: var(--color-danger);  border-color: var(--color-danger-line); background: var(--color-danger-muted); }
+  .lm-badge[data-tone="success"] { color: var(--color-success); border-color: color-mix(in oklch, var(--color-success) 50%, transparent); background: var(--color-success-muted); }
+  .lm-badge[data-tone="info"]    { color: var(--color-info);    border-color: color-mix(in oklch, var(--color-info) 45%, transparent); background: color-mix(in oklch, var(--color-info) 10%, transparent); }
+
+  /* ── Page head: a page's own opening. Context, the title, a lede, actions; a rule draws under it and lights its end. ───── */
+  .lm-pagehead { position: relative; display: grid; gap: 14px; padding-top: 28px; padding-bottom: 8px; }
+  .lm-pagehead__context { display: inline-flex; align-items: center; gap: 8px; color: var(--color-text-muted); font-size: var(--text-caption); font-weight: 500; line-height: 1.3; }
+  .lm-pagehead__context::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--color-warm); box-shadow: 0 0 8px 0 var(--color-lit-glow); flex: none; }
+  .lm-pagehead__context a { color: inherit; text-decoration: none; }
+  .lm-pagehead__context a:hover { color: var(--color-text-primary); text-decoration: underline; text-underline-offset: 3px; }
+  .lm-pagehead__title { font-family: var(--font-display); font-weight: 300; font-size: var(--text-display); line-height: var(--text-display--line-height); letter-spacing: var(--tracking-display); color: var(--color-text-primary); margin: 0; text-wrap: balance; }
+  .lm-pagehead__lede { max-width: 46ch; margin: 0; color: var(--color-text-secondary); font-size: var(--text-body); line-height: 1.5; }
+  .lm-pagehead__row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
+}

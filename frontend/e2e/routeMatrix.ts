@@ -105,6 +105,7 @@ export const ROUTES: { path: string; gate: Gate }[] = [
   { path: "/admin/banner", gate: "adminPage" },
   { path: "/admin/community", gate: "adminPage" },
   { path: "/admin/connections", gate: "adminPage" },
+  { path: "/admin/design-system", gate: "adminPage" },
   { path: "/admin/edits", gate: "adminPage" },
   { path: "/admin/events", gate: "adminPage" },
   { path: "/admin/events/new", gate: "adminPage" },

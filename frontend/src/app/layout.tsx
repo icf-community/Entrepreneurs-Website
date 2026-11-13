@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, IBM_Plex_Mono } from "next/font/google";
+import { Funnel_Display, Host_Grotesk } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -8,28 +8,20 @@ import { SITE_URL, SITE_NAME } from "@/lib/structuredData";
 // Canonical host: the apex 307-redirects to www, so www is the indexable origin.
 
 
-// One grotesque for the whole app. The wordmark builds its hierarchy from
-// weight and tracking inside a single family, so a second display face would
-// be arguing with the logo rather than extending it. Archivo is variable, so
-// every step from 400 to 700 costs the same single file.
-const archivo = Archivo({
+// Lumen's two faces (src/design-system/tokens.css names them --font-display and
+// --font-sans). Funnel Display sets headings, light and tight; Host Grotesk sets
+// everything else, including measured values (tabular figures, no monospace).
+// Both are variable on weight, so each is one file, and next/font self-hosts them,
+// which keeps the CSP's `font-src 'self'` true.
+const funnel = Funnel_Display({
   subsets: ["latin"],
-  // Archivo is variable on BOTH weight and width, and the width axis is the
-  // point. The wordmark is a condensed grotesque; at the default width this
-  // family is a competent neutral sans and looks like every other one. Pulling
-  // `wdth` down to ~80 on display sizes is what makes a heading read as
-  // belonging to that lockup rather than merely sharing a page with it.
-  axes: ["wdth"],
-  variable: "--font-archivo",
+  variable: "--font-funnel",
   display: "swap",
 });
 
-// Measured values only — dates, counts, money, IDs. Two weights is the whole
-// range this needs; it never sets a heading or a paragraph.
-const plexMono = IBM_Plex_Mono({
-  weight: ["400", "500"],
+const host = Host_Grotesk({
   subsets: ["latin"],
-  variable: "--font-plex-mono",
+  variable: "--font-host",
   display: "swap",
 });
 
@@ -67,10 +59,10 @@ export const metadata: Metadata = {
   },
 };
 
-// Matches --color-bg-primary so mobile browser chrome blends into the page
-// instead of framing it in white.
+// Matches --color-bg-primary (the void in tokens.css, oklch(0.13 0.016 255)) so
+// mobile browser chrome blends into the page instead of framing it in white.
 export const viewport: Viewport = {
-  themeColor: "#08080a",
+  themeColor: "#04080d",
 };
 
 // Origins the app opens a connection to on nearly every page. Warming the
@@ -113,8 +105,10 @@ const PRECONNECT_ORIGINS = [
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${archivo.variable} ${plexMono.variable}`} data-scroll-behavior="smooth">
+    <html lang="en" className={`${funnel.variable} ${host.variable}`} data-scroll-behavior="smooth">
       <body suppressHydrationWarning>
+        {/* The night behind every page: one fixed layer of CSS (surfaces.css). */}
+        <div className="atmosphere" aria-hidden="true" />
         {/* First thing in the tab order on every page: lets a keyboard or
             screen-reader user jump the nav instead of tabbing through it on
             each navigation. Hidden until it takes focus. */}

@@ -1,0 +1,29 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · surfaces and atmosphere.
+
+   The atmosphere is the night behind every page: a barely-there warm core high on the left (the light behind the mark), one cold breath in
+   the opposite corner, and two tiles of sparse star dust that never line up. It is one fixed layer of plain CSS (no canvas, no script,
+   nothing that animates), so internal pages stay calm and cheap; the landing page draws the real scene over it.
+   Render it once, in the root layout: <div className="atmosphere" aria-hidden />. The body background is transparent so it shows through.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+:root {
+  --lm-dust-a: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='380' height='380'%3E%3Ccircle cx='353' cy='117' r='1.11' fill='%23a9bdd3' opacity='0.55'/%3E%3Ccircle cx='318' cy='195' r='1.39' fill='%23a9bdd3' opacity='0.50'/%3E%3Ccircle cx='158' cy='363' r='0.69' fill='%23a9bdd3' opacity='0.20'/%3E%3Ccircle cx='104' cy='316' r='0.93' fill='%23a9bdd3' opacity='0.51'/%3E%3Ccircle cx='46' cy='27' r='0.61' fill='%23a9bdd3' opacity='0.15'/%3E%3Ccircle cx='53' cy='263' r='0.70' fill='%23a9bdd3' opacity='0.22'/%3E%3Ccircle cx='277' cy='24' r='1.27' fill='%23a9bdd3' opacity='0.42'/%3E%3Ccircle cx='375' cy='291' r='0.73' fill='%23a9bdd3' opacity='0.23'/%3E%3Ccircle cx='56' cy='336' r='0.68' fill='%23a9bdd3' opacity='0.14'/%3E%3Ccircle cx='98' cy='159' r='0.49' fill='%23a9bdd3' opacity='0.30'/%3E%3Ccircle cx='314' cy='228' r='1.27' fill='%23a9bdd3' opacity='0.65'/%3E%3Ccircle cx='295' cy='358' r='0.67' fill='%23a9bdd3' opacity='0.16'/%3E%3Ccircle cx='104' cy='378' r='0.51' fill='%23a9bdd3' opacity='0.17'/%3E%3Ccircle cx='168' cy='68' r='0.62' fill='%23a9bdd3' opacity='0.31'/%3E%3Ccircle cx='78' cy='45' r='0.67' fill='%23a9bdd3' opacity='0.28'/%3E%3Ccircle cx='201' cy='115' r='0.70' fill='%23a9bdd3' opacity='0.22'/%3E%3Ccircle cx='54' cy='99' r='0.45' fill='%23a9bdd3' opacity='0.24'/%3E%3Ccircle cx='94' cy='74' r='0.45' fill='%23a9bdd3' opacity='0.25'/%3E%3Ccircle cx='355' cy='45' r='0.49' fill='%23a9bdd3' opacity='0.36'/%3E%3Ccircle cx='201' cy='354' r='0.89' fill='%23a9bdd3' opacity='0.15'/%3E%3Ccircle cx='194' cy='29' r='0.69' fill='%23a9bdd3' opacity='0.15'/%3E%3Ccircle cx='148' cy='164' r='0.78' fill='%23a9bdd3' opacity='0.23'/%3E%3Ccircle cx='269' cy='297' r='0.58' fill='%23a9bdd3' opacity='0.24'/%3E%3Ccircle cx='262' cy='74' r='0.74' fill='%23a9bdd3' opacity='0.14'/%3E%3Ccircle cx='230' cy='242' r='0.82' fill='%23a9bdd3' opacity='0.18'/%3E%3Ccircle cx='174' cy='267' r='0.49' fill='%23a9bdd3' opacity='0.16'/%3E%3Ccircle cx='40' cy='172' r='0.96' fill='%23a9bdd3' opacity='0.65'/%3E%3Ccircle cx='365' cy='141' r='0.77' fill='%23a9bdd3' opacity='0.22'/%3E%3Ccircle cx='226' cy='188' r='0.73' fill='%23a9bdd3' opacity='0.14'/%3E%3Ccircle cx='160' cy='49' r='0.84' fill='%23a9bdd3' opacity='0.15'/%3E%3C/svg%3E");
+  --lm-dust-b: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='610' height='610'%3E%3Ccircle cx='275' cy='42' r='0.48' fill='%23f2dcb0' opacity='0.27'/%3E%3Ccircle cx='352' cy='335' r='1.28' fill='%23a9bdd3' opacity='0.47'/%3E%3Ccircle cx='588' cy='254' r='0.82' fill='%23a9bdd3' opacity='0.26'/%3E%3Ccircle cx='213' cy='53' r='1.07' fill='%23a9bdd3' opacity='0.39'/%3E%3Ccircle cx='397' cy='566' r='0.72' fill='%23a9bdd3' opacity='0.19'/%3E%3Ccircle cx='302' cy='421' r='0.78' fill='%23a9bdd3' opacity='0.26'/%3E%3Ccircle cx='159' cy='350' r='0.51' fill='%23a9bdd3' opacity='0.34'/%3E%3Ccircle cx='423' cy='298' r='0.84' fill='%23a9bdd3' opacity='0.22'/%3E%3Ccircle cx='411' cy='474' r='0.65' fill='%23a9bdd3' opacity='0.18'/%3E%3Ccircle cx='134' cy='418' r='0.62' fill='%23a9bdd3' opacity='0.15'/%3E%3Ccircle cx='27' cy='366' r='0.71' fill='%23a9bdd3' opacity='0.19'/%3E%3Ccircle cx='54' cy='571' r='0.75' fill='%23a9bdd3' opacity='0.23'/%3E%3Ccircle cx='333' cy='593' r='0.86' fill='%23a9bdd3' opacity='0.24'/%3E%3Ccircle cx='38' cy='468' r='0.70' fill='%23a9bdd3' opacity='0.29'/%3E%3Ccircle cx='554' cy='201' r='0.64' fill='%23a9bdd3' opacity='0.19'/%3E%3Ccircle cx='85' cy='22' r='1.03' fill='%23a9bdd3' opacity='0.48'/%3E%3Ccircle cx='504' cy='70' r='0.88' fill='%23a9bdd3' opacity='0.31'/%3E%3Ccircle cx='227' cy='541' r='1.25' fill='%23a9bdd3' opacity='0.49'/%3E%3Ccircle cx='593' cy='401' r='1.05' fill='%23a9bdd3' opacity='0.46'/%3E%3Ccircle cx='189' cy='135' r='0.75' fill='%23a9bdd3' opacity='0.28'/%3E%3Ccircle cx='383' cy='217' r='0.74' fill='%23a9bdd3' opacity='0.27'/%3E%3Ccircle cx='562' cy='517' r='1.28' fill='%23a9bdd3' opacity='0.65'/%3E%3C/svg%3E");
+}
+
+body { background-color: transparent; }
+
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(62rem 40rem at 12% -10%, color-mix(in oklch, var(--color-warm) 7%, transparent), transparent 70%),
+    radial-gradient(54rem 46rem at 104% 108%, color-mix(in oklch, var(--color-cool) 6%, transparent), transparent 70%),
+    var(--lm-dust-a),
+    var(--lm-dust-b);
+  background-size: auto, auto, 380px 380px, 610px 610px;
+  background-position: 0 0, 0 0, 0 0, 150px 95px;
+  background-repeat: no-repeat, no-repeat, repeat, repeat;
+}

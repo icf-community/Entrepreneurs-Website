@@ -1,65 +1,43 @@
-import Image from "next/image";
+import { Lockup } from "@/design-system/logo/Lockup";
 
-// Imperial Entrepreneurs logo + "Foundry" wordmark.
+// ════════════════════════════════════════════════════════════════════
+// Foundry · brand lockup (Lumen, 2026 logo)
 //
-// Single source of truth for the brand mark across both the public
-// marketing site and the authenticated app.
+// The Imperial Entrepreneurs lockup, with the product name "Foundry" beside it.
+// Single source of truth for the brand across the public site, the sign-in and
+// onboarding screens and the footer. It is the 2026 logo drawn as inline SVG
+// (src/design-system/logo): one flat colour, sharp at any size, no image to load.
 //
-// The asset is /logo-lockup.png: the roundel and wordmark cut out of the
-// original artwork with a real alpha channel. Two things that fixes.
-//
-//   * The old source was the full 2416x1270 canvas — mostly black field. At
-//     `h-9` the roundel rendered about 12px tall inside a box of nothing.
-//     This asset's bounding box IS the artwork, so the height prop means what
-//     it says.
-//   * It was composited with mixBlendMode:"screen" to knock the black out.
-//     That only approximates transparency, and the source carried a 3px
-//     #717171 frame on three edges which screen mode lifted into a visible
-//     rectangle on every surface the mark appeared on.
+// Sizes are lockup heights, and none goes under 51 px: below that the ring
+// drops under 45 px and the plume slits stop reading. (The previous PNG
+// lockup was shown at 20–32 px, under that floor.) Inside the signed-in app
+// the brand is the roundel alone (AppShell/Sidebar): the lockup does not
+// fit a 4.5 rem rail.
+// ════════════════════════════════════════════════════════════════════
 
 type Size = "xs" | "sm" | "md";
-const HEIGHT: Record<Size, string> = {
-  xs: "h-5",  // 20px — footer
-  sm: "h-6",  // 24px — app headers
-  md: "h-8",  // 32px — marketing site
-};
-const WORDMARK_TEXT: Record<Size, string> = {
-  xs: "text-[0.8rem]",
-  sm: "text-[0.875rem]",
-  md: "text-[0.95rem]",
+const HEIGHT: Record<Size, number> = {
+  xs: 51, // footer
+  sm: 56, // sign-in, onboarding, intake, error screens
+  md: 64, // marketing
 };
 
 export function BrandLogo({
   size = "sm",
   showWordmark = true,
-  priority = false,
 }: {
   size?: Size;
   showWordmark?: boolean;
-  /**
-   * Preload the mark. Opt-in, because this renders in the footer of every page
-   * as well as the header — `priority` there preloaded a below-the-fold image
-   * and competed with LCP. Set it only where the logo is above the fold.
-   */
+  /** Kept so existing call sites compile; an inline SVG has nothing to preload. */
   priority?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <Image
-        src="/logo-lockup.png"
-        alt="Imperial Entrepreneurs"
-        width={1024}
-        height={206}
-        priority={priority}
-        loading={priority ? undefined : "lazy"}
-        className={`${HEIGHT[size]} w-auto`}
-      />
+    <div className="flex items-center gap-4">
+      <Lockup height={HEIGHT[size]} label="Imperial Entrepreneurs" className="shrink-0 text-star" />
       {showWordmark && (
-        // Set to match the wordmark it sits beside rather than contrast with
-        // it: same grotesque, uppercase, tracked out. The rule is the divider.
-        <span
-          className={`${WORDMARK_TEXT[size]} hidden font-medium uppercase tracking-[0.16em] text-text-primary border-l border-border pl-3 min-[380px]:inline-block`}
-        >
+        // The product name is a second voice beside the lockup, set in the
+        // display face and divided from it by a hairline.
+        <span className="font-display hidden border-l border-border pl-4 text-lead text-text-primary min-[380px]:inline-block">
           Foundry
         </span>
       )}
