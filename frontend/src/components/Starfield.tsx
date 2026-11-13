@@ -82,6 +82,9 @@ export default function Starfield({ className = "" }: { className?: string }) {
 
     const draw = (t: number) => {
       ctx.clearRect(0, 0, w, h);
+      // The stars are ring white, the logo's own light: the canvas carries `text-star` (see the return below) and `currentColor` reads it,
+      // so the one place the value lives is tokens.css and nothing here names a colour.
+      ctx.fillStyle = "currentColor";
       // Drift is deliberately near-imperceptible: a full pass takes minutes.
       // Anything faster reads as a screensaver rather than a sky.
       const drift = reduced.matches ? 0 : t * 0.000004;
@@ -106,7 +109,6 @@ export default function Starfield({ className = "" }: { className?: string }) {
         ctx.globalAlpha = Math.max(0, base * twinkle * falloff);
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffffff";
         ctx.fill();
       }
       ctx.globalAlpha = 1;
@@ -155,5 +157,5 @@ export default function Starfield({ className = "" }: { className?: string }) {
     };
   }, []);
 
-  return <canvas ref={ref} aria-hidden className={className} />;
+  return <canvas ref={ref} aria-hidden className={`text-star ${className}`.trim()} />;
 }

@@ -37,7 +37,7 @@ export function BrandLogo({
       {showWordmark && (
         // The product name is a second voice beside the lockup, set in the
         // display face and divided from it by a hairline.
-        <span className="font-display hidden border-l border-border pl-4 text-lead text-text-primary min-[380px]:inline-block">
+        <span className="font-display hidden border-l border-border pl-4 text-lead text-text-primary min-[400px]:inline-block">
           Foundry
         </span>
       )}

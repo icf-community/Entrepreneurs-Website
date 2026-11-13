@@ -7,10 +7,12 @@ import { FormSkeleton, PageHeaderSkeleton } from "@/components/ui/Skeleton";
 export default function Loading() {
   return (
     <AppShell active="settings">
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[640px] mx-auto">
+      <div className="px-[var(--gutter)] py-10 sm:py-12">
+        <div className="mx-auto max-w-[640px]">
           <PageHeaderSkeleton />
-          <FormSkeleton fields={4} />
+          <div className="mt-8">
+            <FormSkeleton fields={4} />
+          </div>
         </div>
       </div>
     </AppShell>

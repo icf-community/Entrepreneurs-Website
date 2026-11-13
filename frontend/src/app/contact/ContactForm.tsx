@@ -5,10 +5,15 @@ import { submitContactTicket } from "./actions";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
 import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
-import { FieldError } from "@/components/forms/Field";
+import { Field } from "@/components/forms/Field";
 import { CONTACT_TOPICS, contactSchema } from "@/lib/validation/contact";
 import { collectFieldErrors, showFieldErrors, FORM_ERROR, type FieldErrors } from "@/lib/validation/fields";
 import { Button } from "@/components/ui/Button";
+import { FormActions } from "@/components/ui/FormActions";
+import { FormSection } from "@/components/ui/FormSection";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
 
 export default function ContactForm({
   defaultName = "",
@@ -32,9 +37,6 @@ export default function ContactForm({
   const [turnstileToken, setTurnstileToken] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const formRef = useRef<HTMLFormElement>(null);
-
-  const inputCls =
-    "w-full px-4 py-3 bg-tint-1 border border-border rounded-lg text-body text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-tint-2";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +74,7 @@ export default function ContactForm({
   };
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
+    <FormSection as="form" ref={formRef} onSubmit={handleSubmit}>
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {sent && !error && (
         <SuccessBanner>Thanks — we&apos;ve received your message and will be in touch.</SuccessBanner>
@@ -80,89 +82,75 @@ export default function ContactForm({
 
       {!lockEmail && (
         <>
-          <div data-invalid={fieldErrors.name ? "" : undefined}>
-            <label htmlFor="name" className="block text-small text-text-muted mb-1.5">
-              Name <span className="text-text-muted ml-2">optional</span>
-            </label>
-            <input
+          <Field label="Name" hint="optional" error={fieldErrors.name}>
+            <Input
               id="name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className={inputCls}
               maxLength={120}
               autoComplete="name"
             />
-            <FieldError>{fieldErrors.name}</FieldError>
-          </div>
+          </Field>
 
-          <div data-invalid={fieldErrors.email ? "" : undefined}>
-            <label htmlFor="email" className="block text-small text-text-muted mb-1.5">Email</label>
-            <input
+          <Field label="Email" error={fieldErrors.email}>
+            <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={inputCls}
               maxLength={254}
               autoComplete="email"
               placeholder="you@example.com"
               required
             />
-            <FieldError>{fieldErrors.email}</FieldError>
-          </div>
+          </Field>
         </>
       )}
 
-      <div>
-        <label htmlFor="topic" className="block text-small text-text-muted mb-1.5">What&apos;s this about?</label>
-        <select id="topic" value={topic} onChange={(e) => setTopic(e.target.value)} className={inputCls}>
+      <Field label="What's this about?">
+        <Select id="topic" value={topic} onChange={(e) => setTopic(e.target.value)}>
           {CONTACT_TOPICS.map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </Field>
 
-      <div data-invalid={fieldErrors.subject ? "" : undefined}>
-        <label htmlFor="subject" className="block text-small text-text-muted mb-1.5">Subject</label>
-        <input
+      <Field label="Subject" error={fieldErrors.subject}>
+        <Input
           id="subject"
           type="text"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          className={inputCls}
           maxLength={150}
           required
         />
-        <FieldError>{fieldErrors.subject}</FieldError>
-      </div>
+      </Field>
 
-      <div data-invalid={fieldErrors.message ? "" : undefined}>
-        <label htmlFor="message" className="block text-small text-text-muted mb-1.5">
-          Message <span className="text-text-muted ml-2">{message.length}/4000</span>
-        </label>
-        <textarea
+      <Field label="Message" hint={`${message.length}/4000`} error={fieldErrors.message}>
+        <Textarea
           id="message"
           rows={8}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className={`${inputCls} resize-none`}
+          className="resize-none"
           maxLength={4000}
           required
         />
-        <FieldError>{fieldErrors.message}</FieldError>
-      </div>
+      </Field>
 
       {turnstileConfigured && <TurnstileWidget onToken={setTurnstileToken} />}
 
-      <Button
-        type="submit"
-        loading={pending}
-        variant="primary"
-        size="md"
-      >
-        Send message
-      </Button>
-    </form>
+      <FormActions>
+        <Button
+          type="submit"
+          loading={pending}
+          variant="primary"
+          size="md"
+        >
+          Send message
+        </Button>
+      </FormActions>
+    </FormSection>
   );
 }

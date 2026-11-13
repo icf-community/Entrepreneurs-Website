@@ -2,15 +2,19 @@
 
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
+import { Roundel } from "@/design-system/logo/Roundel";
 
 // global-error renders only when the root layout itself throws — so we
 // can't rely on layout.tsx, fonts, or globals.css. Plain inline styles
 // only. This is the last line of defence.
 //
 // The palette below is therefore the one copy of the design tokens that has
-// to be maintained by hand. The literals mirror --color-bg-primary,
-// --color-text-primary, --color-text-secondary, --color-text-muted and
-// --color-accent in globals.css; change them together.
+// to be maintained by hand (tokens.guard.test.ts allows raw values in this file,
+// and only this one among the pages, for that reason). The literals mirror the
+// Lumen lights: the night (--color-void, #04080d), star white (--color-star), and
+// the ink steps (--color-text-primary, -secondary, -muted) as they land on the night.
+// Change them together. The roundel is inline SVG in currentColor, so it needs no
+// stylesheet either.
 export default function GlobalError({
   error,
 }: {
@@ -29,9 +33,9 @@ export default function GlobalError({
         style={{
           margin: 0,
           minHeight: "100vh",
-          backgroundColor: "#08080a",
-          color: "#f4f4f5",
-          fontFamily: "system-ui, sans-serif",
+          backgroundColor: "#04080d",
+          color: "#eef1f5",
+          fontFamily: "'Helvetica Neue', Arial, system-ui, sans-serif",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -40,13 +44,16 @@ export default function GlobalError({
         }}
       >
         <div style={{ maxWidth: 480 }}>
-          <div style={{ color: "#9a9aa2", fontSize: "0.7rem", fontWeight: 500, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: "1rem" }}>
+          <div style={{ color: "#ffffff", marginBottom: "1.5rem", display: "flex", justifyContent: "center" }}>
+            <Roundel size={56} label="Imperial Entrepreneurs" />
+          </div>
+          <div style={{ color: "#a3aab4", fontSize: "0.8rem", fontWeight: 500, marginBottom: "1rem" }}>
             Application error
           </div>
-          <h1 style={{ fontSize: "1.75rem", margin: "0 0 1rem", lineHeight: 1.2 }}>
+          <h1 style={{ fontSize: "1.75rem", fontWeight: 400, margin: "0 0 1rem", lineHeight: 1.2 }}>
             Something went very wrong.
           </h1>
-          <p style={{ color: "#9a9aa2", fontSize: "0.95rem", lineHeight: 1.7, marginBottom: "1.5rem" }}>
+          <p style={{ color: "#b9bfc7", fontSize: "0.95rem", lineHeight: 1.7, marginBottom: "1.5rem" }}>
             The page couldn&apos;t be rendered. Please refresh, or come back in a moment.
           </p>
           {/* Plain anchor on purpose: global-error renders when the Next.js
@@ -60,10 +67,10 @@ export default function GlobalError({
             href="/"
             style={{
               display: "inline-block",
-              padding: "0.75rem 1.5rem",
+              padding: "0.8rem 1.6rem",
               backgroundColor: "#ffffff",
-              color: "#08080a",
-              borderRadius: 3,
+              color: "#04080d",
+              borderRadius: 999,
               textDecoration: "none",
               fontWeight: 600,
               fontSize: "0.875rem",
@@ -73,8 +80,8 @@ export default function GlobalError({
           </a>
           {/* eslint-enable @next/next/no-html-link-for-pages */}
           {error.digest && (
-            <p style={{ marginTop: "2rem", fontSize: "0.7rem", color: "#808088" }}>
-              Error ID: <span style={{ fontFamily: "ui-monospace, monospace" }}>{error.digest}</span>
+            <p style={{ marginTop: "2rem", fontSize: "0.75rem", color: "#9aa1ab" }}>
+              Error ID: <span style={{ fontVariantNumeric: "tabular-nums" }}>{error.digest}</span>
             </p>
           )}
         </div>

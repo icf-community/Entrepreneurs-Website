@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LegalDocument, LegalSection as Section } from "../privacy/LegalDocument";
 
 // ════════════════════════════════════════════════════════════════════
 // How Foundry AI search works (AI-plan §12, §13). Every AI screen links
@@ -19,18 +20,8 @@ const LAST_UPDATED = "12 November 2026";
 
 export default function AiNoticePage() {
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-6 sm:px-8 py-16">
-      <div className="max-w-[720px] mx-auto">
-        <Link href="/foundry-ai" className="text-body text-text-muted no-underline hover:text-text-secondary transition-colors">
-          ← Foundry AI
-        </Link>
-        <div className="mt-6 mb-10 rule-draw pt-6">
-          <p className="label-wide text-text-secondary mb-3">Foundry AI</p>
-          <h1 className="font-display text-display leading-[1.1] tracking-tight">How AI search works</h1>
-          <p className="text-body text-text-muted mt-3">Last updated: {LAST_UPDATED}.</p>
-        </div>
-
-        <article className="space-y-8 text-body text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
+    // The old page set the words "Foundry AI" twice above its title: as the way back and again as a label. They are one trail now (the way back).
+    <LegalDocument back={{ href: "/foundry-ai", label: "Foundry AI" }} title="How AI search works" updated={LAST_UPDATED}>
           <Section title="What it does">
             <p>Foundry AI runs three searches:</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -110,17 +101,6 @@ export default function AiNoticePage() {
               A person will look at it.
             </p>
           </Section>
-        </article>
-      </div>
-    </main>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="font-display text-title text-text-primary tracking-tight mb-2">{title}</h2>
-      {children}
-    </section>
+    </LegalDocument>
   );
 }

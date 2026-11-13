@@ -1,7 +1,9 @@
-import Image from "next/image";
-import Link from "next/link";
-import { BrandLogo } from "@/components/BrandLogo";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PageHead } from "@/components/ui/PageHead";
 import Starfield from "@/components/Starfield";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
+import { PublicHeader } from "@/app/login/PublicHeader";
 
 // CSP on this page (history: 2026-09-08 C2 Finding 6; fixed 2026-10-29).
 //
@@ -17,73 +19,48 @@ import Starfield from "@/components/Starfield";
 // inside every route's tree, so reading a request-scoped API here drags the
 // whole app (including "/") back to dynamic. knownRoutes.test.ts asserts
 // this file reads no request data.
+//
+// The look: the sky behind it (no background of its own, so the atmosphere shows through the starfield),
+// the brand in the header (the 2026 logo, drawn as vector: the lockup, or the roundel alone on a phone),
+// and the number in a lit ring, the one lit thing on the page, with the page's words beside it.
 export default function NotFound() {
   return (
-    <div className="relative min-h-screen bg-bg-primary flex flex-col overflow-hidden">
+    <div className="relative flex min-h-screen flex-col overflow-hidden">
       <Starfield className="pointer-events-none absolute inset-0 h-full w-full" />
 
       {/* Top bar */}
-      <header className="relative z-10 px-8 py-5">
-        <div className="max-w-[1200px] mx-auto">
-          <Link href="/" className="no-underline w-fit inline-block">
-            <BrandLogo size="sm" />
-          </Link>
-        </div>
-      </header>
+      <PublicHeader />
 
       {/* Main */}
-      <main id="main-content" tabIndex={-1} className="relative z-10 flex-1 flex items-center justify-center px-8 py-12">
-        <div className="w-full max-w-[560px] text-center flex flex-col items-center">
-          <Image
-            src="/logo-full.png"
-            alt="Imperial Entrepreneurs — go do shit."
-            width={1024}
-            height={379}
-            priority
-            sizes="(min-width: 768px) 340px, 74vw"
-            className="mb-10 h-auto w-full max-w-[340px]"
+      <main id="main-content" tabIndex={-1} className="relative z-10 flex flex-1 items-center justify-center px-[var(--gutter)] py-12">
+        <div className="grid w-full max-w-[520px] justify-items-start gap-2">
+          <Disc size="lg" lit className="[--_d:104px]">
+            <span className="data font-display text-title">404</span>
+          </Disc>
+
+          <PageHead
+            title="This page doesn't exist."
+            lede="The link may be broken, the page may have been moved, or you may have mistyped the address. Let's get you back on track."
+            actions={
+              <>
+                <ButtonLink href="/">
+                  Back to home
+                  <Icon name="arrow-right" size={16} />
+                </ButtonLink>
+                <ButtonLink href="/login" variant="ghost">
+                  Join Foundry
+                </ButtonLink>
+              </>
+            }
           />
-
-          <div className="data text-text-primary text-[clamp(3.5rem,11vw,7rem)] leading-none mb-5 tracking-[-0.04em]">
-            404
-          </div>
-
-          <h1 className="font-display text-text-primary leading-[1.15] tracking-tight mb-5 text-display">
-            This page doesn&apos;t exist.
-          </h1>
-
-          <p className="text-lead text-text-secondary leading-[1.7] mb-10">
-            The link may be broken, the page may have been moved, or you may have
-            mistyped the address. Let&apos;s get you back on track.
-          </p>
-
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 rounded-lg bg-accent px-7 py-3.5 text-sm font-semibold text-bg-primary no-underline transition-colors duration-150 hover:bg-accent-dim"
-            >
-              Back to home
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                <path d="M2.5 7H11.5M8 3.5L11.5 7L8 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </Link>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-tint-2 px-7 py-3.5 text-sm text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-tint-4"
-            >
-              Join Foundry
-            </Link>
-          </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 px-8 py-5">
-        <div className="max-w-[1200px] mx-auto flex justify-center">
-          <p className="text-small text-text-muted">
-            Foundry · Imperial Entrepreneurs
-          </p>
-        </div>
+      <footer className="relative z-10 px-[var(--gutter)] py-5">
+        <p className="text-center text-small text-text-muted">
+          Foundry · Imperial Entrepreneurs
+        </p>
       </footer>
     </div>
   );

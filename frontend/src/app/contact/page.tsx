@@ -3,7 +3,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/currentUser";
 import AppShell from "@/components/app/AppShell";
-import { BrandLogo } from "@/components/BrandLogo";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PageHead } from "@/components/ui/PageHead";
+import { Icon } from "@/design-system/icons/Icon";
+import { PublicHeader } from "@/app/login/PublicHeader";
 import ContactForm from "./ContactForm";
 
 export const metadata: Metadata = {
@@ -33,41 +36,47 @@ export default async function ContactPage() {
   }
 
   const body = (
-    <div className="px-4 py-10 sm:px-8 sm:py-12">
+    <div className="px-[var(--gutter)] py-10 sm:py-12">
       <div className="mx-auto max-w-[640px]">
-          {member && (
-            <Link
-              href="/settings"
-              className="inline-flex items-center text-body text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6"
-            >
-              ← Settings
-            </Link>
-          )}
-          <div className="mb-10 rule-draw pt-6">
-            <p className="label-wide text-text-secondary mb-3">Contact</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-display">
-              Get in touch
-            </h1>
-            <p className="text-body text-text-muted mt-3 leading-relaxed">
-              {user ? (
-                <>
-                  Report a bug, ask a question, or flag something off. We&apos;ll reply to{" "}
-                  <span className="text-text-secondary">{user.email}</span>.
-                </>
-              ) : (
-                <>
-                  Questions about Imperial Entrepreneurs, partnerships, or membership? Send us a
-                  message and we&apos;ll get back to you.
-                </>
-              )}
-            </p>
-          </div>
+        {/* The trail: a member came from Settings, so the way back is the first step of it; a visitor is just on Contact. */}
+        <PageHead
+          context={
+            member ? (
+              <>
+                <Link href="/settings" className="gap-2">
+                  <Icon name="arrow-left" size={16} />
+                  <span className="sr-only">← </span>Settings
+                </Link>
+                <Icon name="chevron-right" size={14} />
+                Contact
+              </>
+            ) : (
+              "Contact"
+            )
+          }
+          title="Get in touch"
+          lede={
+            user ? (
+              <>
+                Report a bug, ask a question, or flag something off. We&apos;ll reply to{" "}
+                <span className="text-text-primary">{user.email}</span>.
+              </>
+            ) : (
+              <>
+                Questions about Imperial Entrepreneurs, partnerships, or membership? Send us a
+                message and we&apos;ll get back to you.
+              </>
+            )
+          }
+        />
 
+        <div className="mt-8">
           <ContactForm
             defaultName={member?.name ?? undefined}
             defaultEmail={user?.email ?? undefined}
             lockEmail={!!user?.email}
           />
+        </div>
       </div>
     </div>
   );
@@ -83,21 +92,14 @@ export default async function ContactPage() {
     );
   }
 
+  // No background of its own: the atmosphere is the night behind every page.
   return (
-    <div className="flex min-h-screen flex-col bg-bg-primary">
-      <header className="border-b border-border-subtle px-4 py-4 sm:px-8 sm:py-5">
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3">
-          <Link href="/" className="shrink-0 no-underline">
-            <BrandLogo size="sm" />
-          </Link>
-          <Link
-            href="/"
-            className="text-body text-text-muted no-underline transition-colors hover:text-text-secondary"
-          >
-            ← Back to home
-          </Link>
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col">
+      <PublicHeader>
+        <ButtonLink href="/" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={16} />}>
+          <span className="sr-only">← </span>Back to home
+        </ButtonLink>
+      </PublicHeader>
       <main id="main-content" tabIndex={-1} className="flex-1">
         {body}
       </main>
