@@ -1,7 +1,7 @@
 # The landing page (Lumen)
 
 Route `/`. One page, one scene: the star-built roundel at the centre, six audience orbits, a member ring, three satellites, a calendar dial, a visitor who spirals in through three gates; the words scroll past
-at 1x in native columns; the only navigation is an altitude rail on the right edge with the real roundel as its cursor. The design note is `design/phase-2/directions/09-lumen/LUMEN.md`; this page
+at 1x in native columns; the only navigation is an altitude rail on the right edge with the real roundel as its cursor. The design note is `design/phase-2/directions/09-lumen/LUMEN.md` (in the owner's local design workspace, which is not in this repository); this page
 is how that mock runs as the live route. Code: `frontend/src/components/landing/` (markup, stylesheet, scene) and `frontend/src/lib/landing/content.ts` (the words).
 
 ## How it is built
@@ -68,7 +68,7 @@ On `window`: `__ready` (true when the first frame is drawn), `__stage`, `__mark(
 - **A colour, a size, a duration**: the tokens; the scene reads `--void --cool --warm --sun --star` at start.
 - **A station**: the markup (a `section[data-section]` with its entries), `ENTRY_SEL` and the poses in `director.ts`, and the station's CSS. The director keeps the bodies clear of the words by measuring them.
 - **After any change**: compare with `?still&p=` frames at 1440x900 and 390x844 (and 768x1024, 1024x768, 667x375, 320x568 for the hero and the closing action), check reduced motion, no WebGL and no JavaScript,
-  run axe, and `node design/site-port/tools/snapshot.mjs --roles anon --only '^/$'` then `compare.mjs`.
+  run axe, and `node design/site-port/tools/snapshot.mjs --roles anon --only '^/$'` then `compare.mjs` (the owner's local content-contract tools, which are not in this repository).
 
 ## Known limits
 

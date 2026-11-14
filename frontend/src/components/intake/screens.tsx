@@ -753,7 +753,7 @@ export function WhereScreen({ s, patch }: ScreenProps) {
         <Field label="Are you currently enrolled on a degree course?">
           <ChoiceCards
             name="Currently enrolled"
-            columns={2}
+            columns="pair"
             options={YES_NO}
             value={s.currentlyEnrolled || null}
             onChange={(v) => patch({ currentlyEnrolled: v })}
@@ -763,7 +763,7 @@ export function WhereScreen({ s, patch }: ScreenProps) {
         <Field label="Have you completed a degree?">
           <ChoiceCards
             name="Completed a degree"
-            columns={2}
+            columns="pair"
             options={YES_NO}
             value={s.completedDegree || null}
             onChange={(v) => patch({ completedDegree: v })}

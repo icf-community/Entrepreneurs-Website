@@ -1,4 +1,4 @@
-// The canonical names of the UI icon set. Components and pages import <Icon name="…" /> against this list; the drawings live in Icon.tsx.
+// The canonical names of the UI icon set. Components and pages import <Icon name="…" /> against this list; the drawings live in drawings.tsx.
 // Add a name here and draw it there. Do not rename: call sites depend on these.
 export const ICON_NAMES = [
   // where you can go (the app's destinations)

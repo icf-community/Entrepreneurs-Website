@@ -16,12 +16,14 @@ import { Roundel } from "@/design-system/logo/Roundel";
 // all of it is shell.css; the shell draws no background of its own, so the
 // atmosphere (surfaces.css) shows behind every member page.
 //
-// The drawer traps nothing and locks body scroll while open, matching
-// what AppNav already did; that behaviour is kept rather than reinvented.
-// What is added: focus moves to its close control when it opens and comes
-// back to the menu control when it closes, and it closes by itself if the
-// window grows to a desktop while it is open (the scroll lock would
-// otherwise outlive the drawer).
+// The drawer locks body scroll while open, as AppNav's did. What is added:
+// the page behind it (the rail, the app bar, the content) is `inert` while it
+// is open, so focus cannot wander out of it into content it covers and a screen
+// reader does not read what is hidden; focus moves to its close control when it
+// opens and comes back to the menu control when it closes; and it closes by
+// itself if the window grows to a desktop while it is open (the scroll lock
+// would otherwise outlive the drawer). It is not a Sheet (ui/Sheet.tsx): it is
+// the same labelled rail the desktop shows, and must stay in the page.
 // ════════════════════════════════════════════════════════════════════
 
 export default function AppShell({
@@ -68,7 +70,7 @@ export default function AppShell({
   return (
     <div className="lm-shell">
       {/* Desktop rail */}
-      <aside className="lm-shell__rail">
+      <aside className="lm-shell__rail" inert={open || undefined}>
         <Sidebar active={active} name={name} isApproved={isApproved} isAdmin={isAdmin} />
       </aside>
 
@@ -90,7 +92,7 @@ export default function AppShell({
         </>
       )}
 
-      <div className="lm-shell__main">
+      <div className="lm-shell__main" inert={open || undefined}>
         <header className="lm-appbar">
           <button
             ref={menuRef}

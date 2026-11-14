@@ -12,8 +12,9 @@ import { Roundel } from "@/design-system/logo/Roundel";
 // to be maintained by hand (tokens.guard.test.ts allows raw values in this file,
 // and only this one among the pages, for that reason). The literals mirror the
 // Lumen lights: the night (--color-void, #04080d), star white (--color-star), and
-// the ink steps (--color-text-primary, -secondary, -muted) as they land on the night.
-// Change them together. The roundel is inline SVG in currentColor, so it needs no
+// the ink steps (--color-text-primary, -secondary, -muted) as they land on the night
+// (#eff2f6, #b3b7bc, #999da2). Change them together: tokens.contrast.test.ts fails if a
+// literal here stops being one of those. The roundel is inline SVG in currentColor, so it needs no
 // stylesheet either.
 export default function GlobalError({
   error,
@@ -34,7 +35,7 @@ export default function GlobalError({
           margin: 0,
           minHeight: "100vh",
           backgroundColor: "#04080d",
-          color: "#eef1f5",
+          color: "#eff2f6",
           fontFamily: "'Helvetica Neue', Arial, system-ui, sans-serif",
           display: "flex",
           alignItems: "center",
@@ -47,13 +48,13 @@ export default function GlobalError({
           <div style={{ color: "#ffffff", marginBottom: "1.5rem", display: "flex", justifyContent: "center" }}>
             <Roundel size={56} label="Imperial Entrepreneurs" />
           </div>
-          <div style={{ color: "#a3aab4", fontSize: "0.8rem", fontWeight: 500, marginBottom: "1rem" }}>
+          <div style={{ color: "#999da2", fontSize: "0.8rem", fontWeight: 500, marginBottom: "1rem" }}>
             Application error
           </div>
           <h1 style={{ fontSize: "1.75rem", fontWeight: 400, margin: "0 0 1rem", lineHeight: 1.2 }}>
             Something went very wrong.
           </h1>
-          <p style={{ color: "#b9bfc7", fontSize: "0.95rem", lineHeight: 1.7, marginBottom: "1.5rem" }}>
+          <p style={{ color: "#b3b7bc", fontSize: "0.95rem", lineHeight: 1.7, marginBottom: "1.5rem" }}>
             The page couldn&apos;t be rendered. Please refresh, or come back in a moment.
           </p>
           {/* Plain anchor on purpose: global-error renders when the Next.js
@@ -80,7 +81,7 @@ export default function GlobalError({
           </a>
           {/* eslint-enable @next/next/no-html-link-for-pages */}
           {error.digest && (
-            <p style={{ marginTop: "2rem", fontSize: "0.75rem", color: "#9aa1ab" }}>
+            <p style={{ marginTop: "2rem", fontSize: "0.75rem", color: "#999da2" }}>
               Error ID: <span style={{ fontVariantNumeric: "tabular-nums" }}>{error.digest}</span>
             </p>
           )}

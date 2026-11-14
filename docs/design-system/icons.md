@@ -157,7 +157,7 @@ Appended to `names.ts` (nothing renamed or removed): **`video`** (an online even
 
 ## 6. What replaces what
 
-Line numbers are from the last commit **before** the port (`d1b0a81`); find a row by the file and the words in it, not by the line. A page agent's own file is the only one it edits.
+The inventory the icon pass worked from. File names and line numbers are from the last commit **before** the port (`d1b0a81`), so some of those files no longer exist (the old `Hero` and `Footer` were replaced by the landing page's own); find a row by the words in it, not by the line. "Today" is what the code drew then, "Replace with" is what it draws now.
 
 ### 6.1 The 48 inline SVGs
 
@@ -209,7 +209,7 @@ Line numbers are from the last commit **before** the port (`d1b0a81`); find a ro
 
 | File and line | Today | Means | Replace with |
 |---|---|---|---|
-| `components/committee/CommitteeGallery.tsx` L108, L123 (16 px) | chevron left, right | "Previous committee member", "Next committee member" | `chevron-left`, `chevron-right` 20 |
+| `app/committee/CommitteeGallery.tsx` L108, L123 (16 px) | chevron left, right | "Previous committee member", "Next committee member" | `chevron-left`, `chevron-right` 20 |
 | `components/filters/FilterBar.tsx` L300 (11 px) | chevron down, turns 180° when open | the filter menus | `chevron-down` 16, rotate when open |
 | `components/filters/FilterBar.tsx` L312 (14 px) | funnel | the "Filters" button | `filter` 18 |
 | `components/forms/SearchableMultiSelect.tsx` L104 (12 px) | chevron down, turns when open | the select's trigger | `chevron-down` 16 |

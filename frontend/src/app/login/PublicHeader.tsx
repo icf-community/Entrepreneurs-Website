@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
-import { Roundel } from "@/design-system/logo/Roundel";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · the signed-out header (Lumen)
@@ -13,9 +12,9 @@ import { Roundel } from "@/design-system/logo/Roundel";
 // everywhere else.
 //
 // The brand follows the signed-in app: from a tablet up it is the lockup with the product
-// name beside it (BrandLogo); on a phone it is the roundel alone, 48 px, because the
-// lockup and the name are wider than a phone is and the logo may not be shrunk to fit.
-// Exactly one of the two is displayed at any width, so one of them is always the link's name.
+// name beside it; on a phone it is the roundel alone, 48 px, because the lockup and the
+// name are wider than a phone is and the logo may not be shrunk to fit. That is BrandLogo's
+// own rule, so the intake and onboarding bars do the same.
 //
 // It lives under app/login because the partition has no shared folder for a new component;
 // the lead may move it to components/ (nothing else imports it from anywhere else).
@@ -26,10 +25,7 @@ export function PublicHeader({ children }: { children?: ReactNode }) {
     <header className="relative z-10 border-b border-border-subtle">
       <div className="mx-auto flex max-w-[var(--content-max)] items-center justify-between gap-4 px-[var(--gutter)] py-3 sm:py-4">
         <Link href="/" className="shrink-0 no-underline">
-          <Roundel size={48} label="Imperial Entrepreneurs" className="text-star sm:hidden" />
-          <span className="hidden sm:block">
-            <BrandLogo size="xs" />
-          </span>
+          <BrandLogo size="xs" />
         </Link>
         {children ? <div className="flex items-center gap-3">{children}</div> : null}
       </div>

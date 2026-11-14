@@ -299,6 +299,9 @@
     color: var(--color-text-secondary);
     font-size: var(--text-small);
     line-height: 1.4;
+    /* The page lets a word break anywhere (base.css). Here it must not: a table sizes its columns by their words, and with one long cell in
+       a row every other column would be squeezed to a letter. A table that is too wide scrolls inside its region; stacked (below) it breaks. */
+    overflow-wrap: normal;
   }
   .lm-table[data-narrow="scroll"] { min-width: var(--lm-table-min, 40rem); }
   .lm-table[data-density="compact"] { --_py: 9px; --_px: 14px; }
@@ -353,7 +356,7 @@
   @container lm-table (max-width: 639px) {
     .lm-tablescroll[data-narrow="stack"] { overflow: visible; max-height: none; background: none; border: 0; border-radius: 0; box-shadow: none; }
     .lm-table[data-narrow="stack"], .lm-table[data-narrow="stack"] :is(thead, tbody, tr, th, td) { display: block; }
-    .lm-table[data-narrow="stack"] { min-width: 0; }
+    .lm-table[data-narrow="stack"] { min-width: 0; overflow-wrap: anywhere; }
     /* the header row steps aside for the eye and stays for assistive technology; every cell names itself */
     .lm-table[data-narrow="stack"] thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .lm-table[data-narrow="stack"] tbody { display: grid; gap: 12px; }

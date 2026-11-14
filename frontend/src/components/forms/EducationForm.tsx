@@ -69,7 +69,8 @@ function Question({
   return (
     <fieldset className="min-w-0">
       <legend className="text-body text-text-primary">{legend}</legend>
-      <div className="mt-3 flex flex-wrap gap-3">
+      {/* Yes and No stay side by side on a phone (two equal columns); from sm they keep their own width. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
         {(["yes", "no"] as const).map((v) => (
           <Radio
             key={v}
@@ -79,7 +80,7 @@ function Question({
             checked={value === v}
             onChange={() => onChange(v)}
             label={v === "yes" ? "Yes" : "No"}
-            className="min-w-32"
+            className="sm:min-w-32"
           />
         ))}
       </div>

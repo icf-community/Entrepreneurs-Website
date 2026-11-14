@@ -37,11 +37,11 @@ Everything is a class plus data attributes, so a raw `<input className={inputCls
 | a setting that takes effect now | `Switch` | `components/forms/Switch.tsx` |
 | a pill you can switch on | `Chip` | `components/ui/Chip.tsx` |
 | a set of chips, short or long | `ChipSet`, via `ChipGroup` (ids) or the filters' `ChipGroup` (strings) | `components/ui/ChipSet.tsx` |
-| a search box | `SearchField`; in filters `SearchInput` | `components/ui/SearchField.tsx` |
+| a search box | `SearchField`; in filters `SearchInput` (its clear button is a tab stop; `clearFocusable={false}` takes it out where the box sits above a list the keyboard Tabs into, as in `SearchableMultiSelect`) | `components/ui/SearchField.tsx` |
 | a very long list with a search box | `SearchableMultiSelect` | `components/forms/SearchableMultiSelect.tsx` |
 | the filter chrome of a list page | `FilterPanel`, `ChipGroup`, `ChipChoice`, `RangeFilter` | `components/filters/FilterBar.tsx` |
 | the card a form sits in | `FormSection` | `components/ui/FormSection.tsx` |
-| a titled cluster of fields inside a form | `FieldGroup` | same file (also importable from `ui/FieldGroup`) |
+| a titled cluster of fields inside a form | `FieldGroup` | same file (`ui/FormSection.tsx`) |
 | the row that ends a form | `FormActions` | `components/ui/FormActions.tsx` |
 
 Around a form: `EditStatusNote`, `QueuedRevisionBanner`, `RevisionQueuedNotice`, `ContactEmailSection`, `EducationForm`,

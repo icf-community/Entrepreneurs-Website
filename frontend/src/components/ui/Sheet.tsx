@@ -6,8 +6,7 @@ import { DialogClose } from "./Dialog";
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Sheet (Lumen)
 //
-// A drawer from the left or right edge: the mobile navigation, a panel of
-// filters. It is a Dialog in a different shape and it works the same way: a
+// A drawer from the left or right edge: a panel of filters, a detail pane. It is a Dialog in a different shape and it works the same way: a
 // native <dialog> opened with showModal(), so it is modal with a real focus
 // trap, Escape closes it, focus returns to whatever opened it, and the page
 // behind is inert. There is no `role="dialog"` div anywhere (the e2e suite

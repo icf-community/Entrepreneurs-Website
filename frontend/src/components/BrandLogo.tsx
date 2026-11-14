@@ -1,4 +1,5 @@
 import { Lockup } from "@/design-system/logo/Lockup";
+import { Roundel } from "@/design-system/logo/Roundel";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · brand lockup (Lumen, 2026 logo)
@@ -13,6 +14,12 @@ import { Lockup } from "@/design-system/logo/Lockup";
 // lockup was shown at 20–32 px, under that floor.) Inside the signed-in app
 // the brand is the roundel alone (AppShell/Sidebar): the lockup does not
 // fit a 4.5 rem rail.
+//
+// On a phone the lockup is wider than the room beside whatever shares its bar
+// (a sign-out link, a skip button), and the logo may not be shrunk to fit. So
+// below sm the brand is the roundel alone, 48 px, as it is in the app's bar and
+// rail; from sm up it is the lockup with the name. Exactly one of the two is
+// displayed at any width, so one of them is always the link's name.
 // ════════════════════════════════════════════════════════════════════
 
 type Size = "xs" | "sm" | "md";
@@ -32,15 +39,16 @@ export function BrandLogo({
   priority?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-4">
-      <Lockup height={HEIGHT[size]} label="Imperial Entrepreneurs" className="shrink-0 text-star" />
-      {showWordmark && (
-        // The product name is a second voice beside the lockup, set in the
-        // display face and divided from it by a hairline.
-        <span className="font-display hidden border-l border-border pl-4 text-lead text-text-primary min-[430px]:inline-block">
-          Foundry
-        </span>
-      )}
-    </div>
+    <>
+      <Roundel size={48} label="Imperial Entrepreneurs" className="text-star sm:hidden" />
+      <div className="hidden items-center gap-4 sm:flex">
+        <Lockup height={HEIGHT[size]} label="Imperial Entrepreneurs" className="shrink-0 text-star" />
+        {showWordmark && (
+          // The product name is a second voice beside the lockup, set in the
+          // display face and divided from it by a hairline.
+          <span className="font-display border-l border-border pl-4 text-lead text-text-primary">Foundry</span>
+        )}
+      </div>
+    </>
   );
 }

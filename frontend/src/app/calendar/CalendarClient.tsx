@@ -265,7 +265,7 @@ function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalIte
       <Panel className="overflow-hidden">
         <div className="grid grid-cols-7 gap-px bg-border-subtle text-small">
           {WEEKDAYS.map((d) => (
-            <div key={d} className="bg-bg-secondary px-1.5 py-2.5 text-caption font-medium text-text-muted sm:px-2">{d}</div>
+            <div key={d} className="wrap-normal bg-bg-secondary px-1.5 py-2.5 text-caption font-medium text-text-muted sm:px-2">{d}</div>
           ))}
           {grid.map((cell) => (
             <div

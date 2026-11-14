@@ -152,8 +152,7 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
     <div className="flex min-h-screen flex-col">
       <header className="z-40 border-b border-border-subtle bg-bg-primary/85 px-[var(--gutter)] backdrop-blur-md sm:sticky sm:top-0">
         <div className="mx-auto flex max-w-[var(--content-max)] flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3.5">
-          {/* below 430px the lockup and the "Foundry" wordmark do not fit one line (the lockup may not shrink): the lockup keeps the room */}
-          <Link href="/" className="no-underline max-[430px]:[&_.font-display]:hidden">
+          <Link href="/" className="no-underline">
             <BrandLogo size="sm" />
           </Link>
           <span className="text-small text-text-muted">

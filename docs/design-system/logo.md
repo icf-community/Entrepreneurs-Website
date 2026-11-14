@@ -8,6 +8,7 @@ The 2026 mark: a ring with a gap at the top and the rocket breaking out through 
 - **Size**: the roundel's ring is at least **45 px**; the lockup (roundel plus IMPERIAL / ENTREPRENEURS) at least **51 px** tall.
 - **Clear space**: a quarter of the mark's own height all round. The rocket breaks out of the ring, so "the mark" is the smallest circle that holds ring and rocket (`MARK` in `logo-data.ts`).
 - **Never a word set beside the roundel alone.** The lockup is the pairing. (`BrandLogo` sets the product name "Foundry" in the display face beside the lockup, divided from it by a hairline; that is the one sanctioned use.)
+- **On a phone, the roundel alone.** The lockup is wider than the room beside a sign-out link or a Skip button and may not be shrunk to fit, so `BrandLogo` shows the roundel (48 px) below `sm` and the lockup with the name from `sm` up. The bars that carry the brand without the app rail (intake, onboarding, the signed-out header) all use `BrandLogo`, so they do the same; the sign-in page draws its own mark and shows the roundel alone below `lg`.
 - **Draw it as vector**: `<Roundel size={n} label="…" />` and `<Lockup height={n} label="…" />` from `design-system/logo/`, or `BrandLogo`. Never an `<img>` or `next/image` of a logo file.
 
 ## Files

@@ -41,11 +41,11 @@ A page never names a hue, a size or a radius. It names a **role** (`bg-bg-card`,
 
 | Test | What it pins |
 |---|---|
-| `design-system/tokens.contrast.test.ts` | Evaluates `tokens.css` as a browser would. Text 4.5:1 on every surface and on every tint over it, controls and focus 3:1, no purple (OKLCH hue 285–345° at chroma ≥ 0.03), every `color-mix` in oklab. |
+| `design-system/tokens.contrast.test.ts` | Evaluates `tokens.css` as a browser would. Text 4.5:1 on every surface and on every tint over it, controls and focus 3:1, no purple (OKLCH hue 285–345° at chroma ≥ 0.03), every `color-mix` in oklab. The hand-written colours in `app/global-error.tsx` (the one page that renders with no stylesheet) must still be the tokens. |
 | `design-system/tokens.guard.test.ts` | Nothing bypasses the system: no raw hex or `rgb()/oklch()` in code, no default Tailwind palette class (`bg-black/60`, `text-gray-400`), no hand-written tints, no arbitrary or default type sizes, no tracked-caps labels, no `color-mix(in oklch …)`, no raw hue in a stylesheet. |
 | `design-system/logo.guard.test.ts` | The 2026 logo is the only logo: the vector data's fingerprint, the 2025 files gone and unreferenced, no `<img>` of a logo, the roundel ≥ 45 px and the lockup ≥ 51 px, the raster exports at their sizes. |
 
-Two things the system depends on that tests cannot fully see: look at a change in `/admin/design-system` at 1440 and 390 px, and do not give a page wrapper an opaque background (the atmosphere is the night).
+Three things the system depends on that tests cannot fully see: look at a change in `/admin/design-system` at 1440 and 390 px; do not give a page wrapper an opaque background (the atmosphere is the night); and keep a page inside a 320 px screen whatever a member typed. Two rules in `base.css` do most of that: a plain `grid` has one shrinkable column (in the base layer, so every `grid-cols-*` still wins), and text may break anywhere (`overflow-wrap: anywhere` on `html`, because a title or a name with no spaces in it would otherwise run past its card and past the screen). A table sizes its columns by their words, so `.lm-table` opts out (it scrolls, or stacks and breaks), and so must any label that has to stay whole: put `wrap-normal` on it, as the calendar's weekday headers do. The adversarial specs post exactly such text, and the reflow specs measure 320 px on Linux, where text runs a little wider than on a Mac, so look at a card holding a 60-character word, and leave a few pixels of room, before calling a layout done.
 
 ## Adding a component
 

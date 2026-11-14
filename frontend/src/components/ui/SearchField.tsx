@@ -14,6 +14,9 @@ import { Icon } from "@/design-system/icons/Icon";
 //                 not a name.
 //   inputRef      the <input>, for the one caller that moves focus into it
 //   className     goes on the wrapper, which is where the layout margin belongs
+//   clearFocusable  false takes the clear button out of the tab order (it stays clickable). For a box
+//                 that sits right above a list the keyboard Tabs into (the searchable multi-select),
+//                 where a stop on the clear button would stand between the box and the first option.
 //
 // The clear button is named "Clear search" and returns focus to the input, so a keyboard
 // user can wipe the box and keep typing.
@@ -26,6 +29,7 @@ export function SearchField({
   placeholder,
   className = "",
   inputRef,
+  clearFocusable = true,
   ...rest
 }: {
   label: string;
@@ -34,6 +38,7 @@ export function SearchField({
   placeholder?: string;
   className?: string;
   inputRef?: Ref<HTMLInputElement>;
+  clearFocusable?: boolean;
 } & Omit<ComponentProps<"input">, "value" | "onChange" | "type" | "className" | "placeholder" | "ref">) {
   return (
     <div className={`lm-search ${className}`}>
@@ -54,6 +59,7 @@ export function SearchField({
         <button
           type="button"
           className="lm-search__clear"
+          tabIndex={clearFocusable ? undefined : -1}
           aria-label="Clear search"
           onClick={(e) => {
             onChange("");

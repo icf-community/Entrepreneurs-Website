@@ -112,6 +112,20 @@ describe("the palette is evaluated the way a browser evaluates it", () => {
     expect(hex(rgb("star"))).toBe("ffffff");
   });
 
+  it("the literals in app/global-error.tsx (it renders with no stylesheet) are the tokens, to one step in a channel", () => {
+    // The one page that cannot read the tokens at runtime keeps a hand-written copy. Change a token and this names the literal to change with it.
+    const src = readFileSync(join(__dirname, "../app/global-error.tsx"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const page = surfaceRgb("bg-primary");
+    const lights = [toSrgb(token("void")), toSrgb(token("star")), ...["text-primary", "text-secondary", "text-muted"].map((n) => textRgb(n, page))];
+    const literals = [...src.matchAll(/#([0-9a-f]{6})\b/gi)].map((m) => m[1].toLowerCase());
+    expect(literals.length).toBeGreaterThan(0);
+    for (const lit of literals) {
+      const ch = [0, 2, 4].map((i) => parseInt(lit.slice(i, i + 2), 16));
+      const near = lights.some((c) => [c.r, c.g, c.b].every((v, i) => Math.abs(Math.round(v * 255) - ch[i]) <= 1));
+      expect(near, `#${lit} is not one of void, star, text-primary, text-secondary or text-muted on the page`).toBe(true);
+    }
+  });
+
   it("every colour mix in the tokens is in oklab (a mix in oklch loses the hue of a low-chroma colour and paints it red)", () => {
     for (const [name, value] of VARS) {
       for (const m of value.matchAll(/color-mix\(\s*in\s+(\w+)/g)) expect(m[1], name).toBe("oklab");

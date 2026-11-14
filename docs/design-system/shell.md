@@ -15,7 +15,7 @@ While a navigation is in flight the row's ring turns (and a hairline sweeps the 
 - **Footer**: Admin (admins only, an outlined row), the profile row (initial in a ring, name, "View profile"), Sign out.
 - **Collapsed** (desktop, remembered in `localStorage` under `foundry.nav.collapsed`): a column of rings, 92 px wide. Labels stay in the page, only drawn away, so every destination keeps its accessible name; `title` is the pointer's tooltip.
 - **Phone**: the app bar is 76 px (a 45 px ring plus a quarter of the mark's height clear). The drawer is the same rail, opaque, never collapsed, with a "Close navigation" control that takes focus when it opens;
-  Escape and the scrim close it, focus returns to the menu control, and it closes by itself if the window grows to a desktop.
+  While it is open the page behind it (rail, app bar, content) is `inert`, so focus cannot leave it and a screen reader does not read what it covers. Escape and the scrim close it, focus returns to the menu control, and it closes by itself if the window grows to a desktop.
 
 ## Contract (tests and users rely on it)
 

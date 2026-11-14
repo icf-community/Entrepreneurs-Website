@@ -12,7 +12,7 @@ export default function Loading() {
     <div className="flex min-h-screen flex-col">
       <header className="z-40 border-b border-border-subtle bg-bg-primary/85 px-[var(--gutter)] backdrop-blur-md sm:sticky sm:top-0">
         <div className="mx-auto flex max-w-[var(--content-max)] flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3.5">
-          <div className="max-[430px]:[&_.font-display]:hidden">
+          <div>
             <BrandLogo size="sm" />
           </div>
           <Skeleton className="h-4 w-40" />

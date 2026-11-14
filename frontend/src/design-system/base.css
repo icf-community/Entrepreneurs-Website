@@ -14,6 +14,10 @@ html {
      rem values authored against that, so the lever stays. The design-system type scale (tokens.css) is written for it: a 16 px body is 0.8rem.
      To dial the whole app up or down, change this one number. */
   font-size: 125%;
+  /* Text a member typed (a title, a name, a link) has no spaces to break at. Without this it runs past its box and, in a card that does not
+     clip, past the screen. `anywhere` also lowers the box's minimum width to one letter, so a flex or grid item holding it can shrink
+     instead of pushing its neighbours (a menu button, a trailing control) out of view. It inherits, so it is set once, here. */
+  overflow-wrap: anywhere;
 }
 
 body {
@@ -26,6 +30,13 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* A plain `grid` has one implicit column, and an auto-sized column cannot be narrower than the widest thing in it (a button that does not
+   wrap, a long label), so a page's stack of panels grew wider than a 320 px screen instead of the content giving way. Give it a column that
+   can shrink to its container. In the base layer, under Tailwind's utilities, so every `grid-cols-*` still wins. */
+@layer base {
+  .grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Anchor targets sit under the fixed navbar without this. */

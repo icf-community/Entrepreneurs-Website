@@ -49,7 +49,8 @@ export function Field({
 }
 
 /** A radio group drawn as cards. Used for affiliation and single-choice lists. Native radios underneath, so the arrow keys move
- *  between the cards and the group is one stop in the tab order. */
+ *  between the cards and the group is one stop in the tab order. The columns are for a tablet and up; a phone gets one,
+ *  except `"pair"`, two short options (Yes and No) that stay side by side at every width. */
 export function ChoiceCards<T extends string>({
   name,
   options,
@@ -61,11 +62,11 @@ export function ChoiceCards<T extends string>({
   options: { value: T; label: string; blurb?: string }[];
   value: T | null;
   onChange: (v: T) => void;
-  columns?: 1 | 2 | 3;
+  columns?: 1 | 2 | 3 | "pair";
 }) {
-  const cols = columns === 1 ? "grid-cols-1" : columns === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2";
+  const cols = columns === "pair" ? "grid-cols-2" : columns === 1 ? "grid-cols-1" : columns === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2";
   return (
-    <div role="radiogroup" aria-label={name} className={`grid grid-cols-1 gap-2.5 ${cols}`}>
+    <div role="radiogroup" aria-label={name} className={`grid gap-2.5 ${cols}`}>
       {options.map((o) => (
         <Radio
           key={o.value}

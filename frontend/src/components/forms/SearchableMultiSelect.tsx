@@ -143,6 +143,8 @@ export default function SearchableMultiSelect({
                 value={query}
                 onChange={setQuery}
                 inputRef={inputRef}
+                // Tab from the box goes to the first option (focus.spec asserts it), so the clear button is not a stop
+                clearFocusable={false}
                 // inside a form, Enter in this box would submit the form being filled in
                 onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
               />

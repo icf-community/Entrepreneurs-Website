@@ -26,7 +26,7 @@ An overlay is **raised**; feedback is **a tone drawn in light**.
 | The task | Use | Why |
 |---|---|---|
 | must interrupt and hold focus: a confirmation, a short form that has to be finished or abandoned | `Dialog` | a native modal: it traps focus and makes the page inert |
-| a panel on one edge: the mobile navigation, a filter panel | `Sheet` | the same dialog, drawn as a drawer |
+| a panel on one edge: a filter panel, a detail pane | `Sheet` | the same dialog, drawn as a drawer |
 | a few links, a short form, some extra explanation behind a button | `Popover` | a disclosure: no interruption, no trap |
 | a list of commands | `Menu` | `role="menu"` with arrow keys |
 | one sentence that explains a control or a value | `Tooltip` / `InfoTip` | out of the row that would otherwise carry it |
@@ -123,7 +123,7 @@ pointerdown, then the click opens it again). Open, close, Escape, outside press 
 **flips to the other side near an edge and slides to stay on screen** (`ui/floating.ts`, unit-tested); CSS anchor positioning is not in Firefox or Safari yet, so it is not
 relied on. Where the Popover API is missing, the panel is a fixed element with a z-index.
 
-The panel is **always in the DOM** (hidden by `display`), so the words in it stay findable and `compare.mjs` counts them as kept.
+The panel is **always in the DOM** (hidden by `display`), so the words in it stay findable and the owner's local content-contract script (`compare.mjs`, not in this repository) counts them as kept.
 
 Rows in a Popover panel may use `.lm-pop__item` (a link or a button, 44 px, same hover and focus) without `role="menuitem"`.
 
@@ -231,7 +231,7 @@ class `animate-pulse` (`home.spec` asserts there are none left once a page has s
 - **Small explanatory text that crowds a row** moves into an `InfoTip` or a `Tooltip` (it stays in the DOM).
 - **Add to calendar** becomes a `Popover` (not a `Menu`: `focus.spec` asserts there is no `role="menu"` there and that Tab from the button reaches a link).
   An overflow "more" button becomes a `Menu iconOnly`.
-- **The mobile navigation and a filter panel** become a conditionally mounted `Sheet`. The navigation's own button names ("Open navigation", "Close navigation") are the shell's.
+- **A filter panel** that should not sit inline on a phone becomes a conditionally mounted `Sheet` (the listing pages keep theirs as an inline disclosure because their "Filters" button and its `aria-expanded` are pinned by the specs). **The phone's navigation drawer is not a Sheet**: it is the same labelled rail the desktop shows (`shell.css`, `AppShell`), and while it is open the page behind it is `inert`; its button names ("Open navigation", "Close navigation") are the shell's.
 - **`FilteredListLoadingSkeleton`** carries the container classes the list pages use today (`px-4 sm:px-8 py-10 sm:py-12`, `max-w-[1200px]`). If the pages change theirs, change them there too.
 
 ## Rules that are easy to break

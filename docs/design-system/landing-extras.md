@@ -1,7 +1,7 @@
 # What the live landing page said that the Lumen page does not
 
 When the landing page moved to Lumen (`frontend/src/components/landing/`, copy in `frontend/src/lib/landing/content.ts`), the words became the design mock's
-(`design/phase-2/kit/content.js`), which is shorter than the old page's. The owner decided to **leave these out for now and decide later**. Nothing here is lost:
+(`design/phase-2/kit/content.js`, in the owner's local design workspace), which is shorter than the old page's. The owner decided to **leave these out for now and decide later**. Nothing here is lost:
 the old components (`Navbar`, `Hero`, `HeroScene`, `WhoWeAre`, `Community`, `Opportunities`, `Events`, `Apply`, `Footer`, `SectionHead`) are in git history, and every string
 they held that the new page lacks is below, verbatim (apostrophes and dashes as the old source wrote them), with the component and the field it lived in.
 
