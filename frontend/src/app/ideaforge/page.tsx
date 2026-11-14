@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 
 // Public landing page for IdeaForge, the society's pre-seed incubator. Its
-// only job right now is to send people to the Tally application form.
-// Linked out rather than embedded so the CSP needs no frame-src change.
-// Set this to the Tally form URL when applications open; until then the page
-// shows the opening date instead of the button.
-const APPLY_URL: string | null = null;
+// only job right now is to get people to the Tally application form, which is
+// embedded at the bottom of the page. Tally handles the form's password
+// protection itself, inside the iframe. Embedding relies on tally.so being in
+// the CSP frame-src (src/lib/csp.ts).
+const TALLY_FORM_ID = "e5QW2l";
+const FORM_URL = `https://tally.so/r/${TALLY_FORM_ID}`;
+const EMBED_URL = `https://tally.so/embed/${TALLY_FORM_ID}?alignLeft=1&hideTitle=1`;
 
 export const metadata: Metadata = {
   title: "IdeaForge",
   description:
-    "IdeaForge is Imperial Entrepreneurs' student-led pre-seed incubator. Build a startup from scratch over one term, no experience required. Applications open 1 December.",
+    "IdeaForge is Imperial Entrepreneurs' student-led pre-seed incubator. Build a startup from scratch over one term, no experience required.",
 };
 
 const STATS = [
@@ -45,17 +47,13 @@ const TIMELINE = [
 const STREAMS = ["AI", "ClimateTech", "HealthTech", "FinTech", "Consumer", "Robotics"];
 
 function ApplyCta() {
-  return APPLY_URL ? (
+  return (
     <a
-      href={APPLY_URL}
-      target="_blank"
-      rel="noopener noreferrer"
+      href="#apply"
       className="inline-flex items-center px-5 py-2.5 rounded-lg bg-accent text-bg-primary text-[0.9rem] font-medium no-underline transition-colors hover:bg-accent-light"
     >
-      Apply now →
+      Apply now ↓
     </a>
-  ) : (
-    <p className="text-[0.9rem] text-text-primary font-medium">Applications open 1 December.</p>
   );
 }
 
@@ -123,26 +121,24 @@ export default function IdeaForgePage() {
           </p>
         </Section>
 
-        {/* Placeholder for the Tally application form. The orange is the
-            IdeaForge brand colour from the original IdeaForge site. Embedding
-            the form here later needs tally.so added to the CSP frame-src. */}
+        {/* The orange is the IdeaForge brand colour from the original site. */}
         <section id="apply" className="mt-14 scroll-mt-8">
           <h2 className="label-wide text-text-secondary mb-5">Apply</h2>
-          <div className="flex min-h-[360px] flex-col items-center justify-center gap-5 rounded-xl bg-[#ff4400] px-6 py-12 text-center">
-            <p className="font-display text-[clamp(1.5rem,3vw,2rem)] leading-tight text-white">Application form</p>
-            {APPLY_URL ? (
-              <a
-                href={APPLY_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-5 py-2.5 rounded-lg bg-white text-[#ff4400] text-[0.9rem] font-medium no-underline transition-opacity hover:opacity-90"
-              >
-                Apply now →
-              </a>
-            ) : (
-              <p className="text-[0.95rem] text-white/90">Opens 1 December.</p>
-            )}
+          <div className="rounded-xl bg-[#ff4400] p-2 sm:p-3">
+            <iframe
+              src={EMBED_URL}
+              title="IdeaForge application form"
+              loading="lazy"
+              className="block h-[720px] w-full rounded-lg bg-white"
+            />
           </div>
+          <p className="mt-3 text-[0.8rem] text-text-muted">
+            Form not loading?{" "}
+            <a href={FORM_URL} target="_blank" rel="noopener noreferrer" className="text-text-secondary underline underline-offset-2">
+              Open it in a new tab
+            </a>
+            .
+          </p>
         </section>
       </div>
     </main>
