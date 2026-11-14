@@ -2,6 +2,7 @@ import { maybeRow } from "@/lib/data/query";
 import BannerForm from "./BannerForm";
 import { requireAdminPage } from "@/lib/auth/guard";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/banner (launch programme F-x4)
@@ -20,30 +21,28 @@ export default async function AdminBannerPage() {
   );
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
-      <div className="max-w-[760px] mx-auto">
-        <AdminPageHeader
-          eyebrow="Admin"
-          title="Site banner"
-          description="One message shown across the site, including the sign-in page. Use it when something is broken or slow."
-        />
+    <Page width="page" as="main">
+      <AdminPageHeader
+        eyebrow="Admin"
+        title="Site banner"
+        description="One message shown across the site, including the sign-in page. Use it when something is broken or slow."
+      />
 
-        <BannerForm
-          current={
-            current
-              ? {
-                  message: current.message,
-                  severity: current.severity as "info" | "warning" | "critical",
-                  linkUrl: current.link_url ?? "",
-                  hideAfter: current.hide_after,
-                  enabled: current.enabled,
-                  updatedAt: current.updated_at,
-                  updatedByName: current.updated_by_name,
-                }
-              : null
-          }
-        />
-      </div>
-    </main>
+      <BannerForm
+        current={
+          current
+            ? {
+                message: current.message,
+                severity: current.severity as "info" | "warning" | "critical",
+                linkUrl: current.link_url ?? "",
+                hideAfter: current.hide_after,
+                enabled: current.enabled,
+                updatedAt: current.updated_at,
+                updatedByName: current.updated_by_name,
+              }
+            : null
+        }
+      />
+    </Page>
   );
 }

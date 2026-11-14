@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ChipGroup, type ChipItem } from "@/components/forms/ChipGroup";
 import { ErrorBanner, SuccessBanner } from "@/components/forms/Banners";
-import { inputCls } from "@/components/forms/styles";
+import { Field as FormField } from "@/components/forms/Field";
 import {
   Field, ChoiceCards, PillChoice, TagInput, FilePicker, RankPicker, SkillPicker, type SkillOption,
 } from "@/components/intake/controls";
@@ -13,7 +13,19 @@ import { AvatarCropper } from "@/components/media/AvatarCropper";
 import { cleanName, cleanText, isValidName, MAX_NAME_LENGTH } from "@/lib/text";
 import { gradYearOptions, validateGradYear } from "@/lib/gradYears";
 import { describeSupabaseError, isSessionExpiredError } from "@/lib/supabaseErrors";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { Panel } from "@/components/ui/Panel";
+import { Select } from "@/components/ui/Select";
+import { Spinner } from "@/components/ui/Spinner";
+import { Textarea } from "@/components/ui/Textarea";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
+import { SettingsSection } from "@/app/settings/SettingsSection";
 import { track } from "@/lib/analytics/track";
 import { invalidateDirectoryCache } from "@/app/profile/actions";
 import {
@@ -322,11 +334,10 @@ export default function ProfileForm(props: Props) {
   const showVentureDetail = VENTURE_STAGES_WITH_DETAIL.has(ventureStage);
 
   return (
-    <div className="space-y-8">
-      {error && <div ref={errorRef}><ErrorBanner>{error}</ErrorBanner></div>}
-      {saved && !error && <SuccessBanner>Saved.</SuccessBanner>}
+    <div>
+      <SaveResult error={error} saved={saved} errorRef={errorRef} />
 
-      <PhotoSection avatarUrl={props.avatarUrl} />
+      <PhotoSection avatarUrl={props.avatarUrl} name={`${firstName} ${surname}`.trim()} meta={[course.trim(), gradYear].filter(Boolean).join(" · ")} />
 
       <CvSection
         role={props.role}
@@ -344,7 +355,7 @@ export default function ProfileForm(props: Props) {
         ingestionEnabled={props.ingestionEnabled}
       />
 
-      <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-bg-card border border-border p-8">
+      <form onSubmit={handleSubmit}>
         <IdentityFields
           role={props.role}
           firstName={firstName} setFirstName={setFirstName}
@@ -387,10 +398,40 @@ export default function ProfileForm(props: Props) {
           availabilityHours={availabilityHours} setAvailabilityHours={setAvailabilityHours}
         />
 
-        <Button type="submit" loading={isLoading} variant="primary" size="lg" className="w-full mt-3">
+        <SaveRow loading={isLoading} />
+      </form>
+    </div>
+  );
+}
+
+// The result of the last save, above the first row and on the controls' line.
+function SaveResult({
+  error, saved, errorRef,
+}: {
+  error: string;
+  saved: boolean;
+  errorRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  if (!error && !saved) return null;
+  return (
+    <div className="grid pt-8 xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] xl:gap-x-12">
+      <div className="grid max-w-[34rem] gap-3 xl:col-start-2">
+        {error && <div ref={errorRef}><ErrorBanner>{error}</ErrorBanner></div>}
+        {saved && !error && <SuccessBanner>Saved.</SuccessBanner>}
+      </div>
+    </div>
+  );
+}
+
+// The one primary action of the page, on the controls' line.
+function SaveRow({ loading }: { loading: boolean }) {
+  return (
+    <div className="grid gap-x-12 border-t border-border-subtle py-9 xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+      <div className="xl:col-start-2">
+        <Button type="submit" loading={loading} variant="primary" size="lg">
           Save changes
         </Button>
-      </form>
+      </div>
     </div>
   );
 }
@@ -415,85 +456,59 @@ function IdentityFields({
   bioHobbies: string; setBioHobbies: (v: string) => void;
 }) {
   return (
-    <>
-      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">Identity</h2>
-
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <label htmlFor="first-name" className="block text-[0.75rem] text-text-muted mb-1.5">First name</label>
-          <input id="first-name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} required />
+    <SettingsSection title="Identity">
+      <div className="grid gap-5">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <FormField label="First name">
+            <Input id="first-name" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} maxLength={MAX_NAME_LENGTH} required />
+          </FormField>
+          <FormField label="Surname">
+            <Input id="surname" type="text" value={surname} onChange={(e) => setSurname(e.target.value)} maxLength={MAX_NAME_LENGTH} required />
+          </FormField>
         </div>
-        <div className="flex-1">
-          <label htmlFor="surname" className="block text-[0.75rem] text-text-muted mb-1.5">Surname</label>
-          <input id="surname" type="text" value={surname} onChange={(e) => setSurname(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} required />
+
+        <FormField label="What people call you" hint="— optional">
+          <Input id="preferred-name" type="text" value={preferredName} onChange={(e) => setPreferredName(e.target.value)} maxLength={MAX_NAME_LENGTH} />
+        </FormField>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <FormField label={role === "alum" ? "Course studied" : "Course you're studying"}>
+            <Input
+              id="course" type="text" value={course} onChange={(e) => setCourse(e.target.value)}
+              maxLength={200}
+              placeholder={role === "alum" ? "e.g. MEng Computing" : "e.g. BSc Mathematics"}
+              required
+            />
+          </FormField>
+          <FormField label={role === "alum" ? "Graduation year" : "Expected graduation year"}>
+            <Select id="grad-year" value={gradYear} onChange={(e) => setGradYear(e.target.value)} required>
+              <option value="">Select a year</option>
+              {gradYearOptions(role).map((y) => <option key={y} value={y}>{y}</option>)}
+            </Select>
+          </FormField>
         </div>
-      </div>
 
-      <div>
-        <label htmlFor="preferred-name" className="block text-[0.75rem] text-text-muted mb-1.5">
-          What people call you <span className="text-text-muted ml-1">— optional</span>
-        </label>
-        <input id="preferred-name" type="text" value={preferredName} onChange={(e) => setPreferredName(e.target.value)} className={inputCls} maxLength={MAX_NAME_LENGTH} />
-      </div>
+        <FormField label="LinkedIn URL" hint={role === "student" ? "— optional" : undefined}>
+          <Input id="linkedin" type="url" placeholder="https://linkedin.com/in/your-handle" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} maxLength={512} required={role !== "student"} />
+        </FormField>
 
-      <div>
-        <label htmlFor="course" className="block text-[0.75rem] text-text-muted mb-1.5">
-          {role === "alum" ? "Course studied" : "Course you're studying"}
-        </label>
-        <input
-          id="course" type="text" value={course} onChange={(e) => setCourse(e.target.value)}
-          className={inputCls} maxLength={200}
-          placeholder={role === "alum" ? "e.g. MEng Computing" : "e.g. BSc Mathematics"}
-          required
-        />
-      </div>
+        <FormField label="GitHub URL" hint="— optional">
+          <Input id="github" type="url" placeholder="https://github.com/your-handle" value={github} onChange={(e) => setGithub(e.target.value)} maxLength={512} />
+        </FormField>
 
-      <div>
-        <label htmlFor="grad-year" className="block text-[0.75rem] text-text-muted mb-1.5">
-          {role === "alum" ? "Graduation year" : "Expected graduation year"}
-        </label>
-        <select id="grad-year" value={gradYear} onChange={(e) => setGradYear(e.target.value)} className={inputCls} required>
-          <option value="">Select a year</option>
-          {gradYearOptions(role).map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
-      </div>
+        <FormField label="Portfolio URL" hint="— optional">
+          <Input id="portfolio" type="url" placeholder="https://yourportfolio.com" value={portfolio} onChange={(e) => setPortfolio(e.target.value)} maxLength={512} />
+        </FormField>
 
-      <div>
-        <label htmlFor="linkedin" className="block text-[0.75rem] text-text-muted mb-1.5">
-          LinkedIn URL{" "}
-          {role === "student" && <span className="text-text-muted ml-1">— optional</span>}
-        </label>
-        <input id="linkedin" type="url" placeholder="https://linkedin.com/in/your-handle" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} className={inputCls} maxLength={512} required={role !== "student"} />
-      </div>
+        <FormField label="What are you working on, or into?" hint={`${bioFocus.length}/500`}>
+          <Textarea id="bio-focus" rows={3} value={bioFocus} onChange={(e) => setBioFocus(e.target.value)} className="resize-none" maxLength={500} />
+        </FormField>
 
-      <div>
-        <label htmlFor="github" className="block text-[0.75rem] text-text-muted mb-1.5">
-          GitHub URL <span className="text-text-muted ml-1">— optional</span>
-        </label>
-        <input id="github" type="url" placeholder="https://github.com/your-handle" value={github} onChange={(e) => setGithub(e.target.value)} className={inputCls} maxLength={512} />
+        <FormField label="And outside of that?" hint={`${bioHobbies.length}/500`}>
+          <Textarea id="bio-hobbies" rows={2} value={bioHobbies} onChange={(e) => setBioHobbies(e.target.value)} className="resize-none" maxLength={500} />
+        </FormField>
       </div>
-
-      <div>
-        <label htmlFor="portfolio" className="block text-[0.75rem] text-text-muted mb-1.5">
-          Portfolio URL <span className="text-text-muted ml-1">— optional</span>
-        </label>
-        <input id="portfolio" type="url" placeholder="https://yourportfolio.com" value={portfolio} onChange={(e) => setPortfolio(e.target.value)} className={inputCls} maxLength={512} />
-      </div>
-
-      <div>
-        <label htmlFor="bio-focus" className="block text-[0.75rem] text-text-muted mb-1.5">
-          What are you working on, or into? <span className="text-text-muted ml-2">{bioFocus.length}/500</span>
-        </label>
-        <textarea id="bio-focus" rows={3} value={bioFocus} onChange={(e) => setBioFocus(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
-      </div>
-
-      <div>
-        <label htmlFor="bio-hobbies" className="block text-[0.75rem] text-text-muted mb-1.5">
-          And outside of that? <span className="text-text-muted ml-2">{bioHobbies.length}/500</span>
-        </label>
-        <textarea id="bio-hobbies" rows={2} value={bioHobbies} onChange={(e) => setBioHobbies(e.target.value)} className={`${inputCls} resize-none`} maxLength={500} />
-      </div>
-    </>
+    </SettingsSection>
   );
 }
 
@@ -513,43 +528,47 @@ function SkillsAndInterests({
 }) {
   return (
     <>
-      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Skills</h2>
-      <SkillPicker
-        taxonomy={skillTaxonomy}
-        selectedIds={skillIds}
-        coreIds={coreSkillIds}
-        suggested={suggestedSkills}
-        onAdd={(id) => setSkillIds((prev) => [...prev, id])}
-        onRemove={(id) => {
-          setSkillIds((prev) => prev.filter((x) => x !== id));
-          setCoreSkillIds((prev) => prev.filter((x) => x !== id));
-        }}
-        onToggleCore={toggleCoreSkill}
-        maxCore={MAX_CORE_SKILLS}
-      />
+      <SettingsSection title="Skills">
+        <SkillPicker
+          taxonomy={skillTaxonomy}
+          selectedIds={skillIds}
+          coreIds={coreSkillIds}
+          suggested={suggestedSkills}
+          onAdd={(id) => setSkillIds((prev) => [...prev, id])}
+          onRemove={(id) => {
+            setSkillIds((prev) => prev.filter((x) => x !== id));
+            setCoreSkillIds((prev) => prev.filter((x) => x !== id));
+          }}
+          onToggleCore={toggleCoreSkill}
+          maxCore={MAX_CORE_SKILLS}
+        />
+      </SettingsSection>
 
-      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Interests</h2>
-      <ChipGroup label="Sectors" items={sectors} selected={sectorIds} onToggle={toggleSector} />
-      <Field label="Things you find genuinely interesting" hint="Not necessarily your job.">
-        <TagInput
-          placeholder="Add an interest…"
-          suggestions={["Computer vision", "Medical devices", "Climate", "Robotics", "Fintech", "Policy", "Semiconductors", "Synthetic biology", "Space", "Developer tools"]}
-          values={academicInterests}
-          max={12}
-          onAdd={(v) => setAcademicInterests((prev) => [...prev, v])}
-          onRemove={(v) => setAcademicInterests((prev) => prev.filter((x) => x !== v))}
-        />
-      </Field>
-      <Field label="Hobbies">
-        <TagInput
-          placeholder="Add a hobby…"
-          suggestions={["Running", "Climbing", "Chess", "Cooking", "Football", "Photography", "Cycling", "Reading"]}
-          values={hobbies}
-          max={12}
-          onAdd={(v) => setHobbies((prev) => [...prev, v])}
-          onRemove={(v) => setHobbies((prev) => prev.filter((x) => x !== v))}
-        />
-      </Field>
+      <SettingsSection title="Interests">
+        <div className="grid gap-6">
+          <ChipGroup label="Sectors" items={sectors} selected={sectorIds} onToggle={toggleSector} />
+          <Field label="Things you find genuinely interesting" hint="Not necessarily your job.">
+            <TagInput
+              placeholder="Add an interest…"
+              suggestions={["Computer vision", "Medical devices", "Climate", "Robotics", "Fintech", "Policy", "Semiconductors", "Synthetic biology", "Space", "Developer tools"]}
+              values={academicInterests}
+              max={12}
+              onAdd={(v) => setAcademicInterests((prev) => [...prev, v])}
+              onRemove={(v) => setAcademicInterests((prev) => prev.filter((x) => x !== v))}
+            />
+          </Field>
+          <Field label="Hobbies">
+            <TagInput
+              placeholder="Add a hobby…"
+              suggestions={["Running", "Climbing", "Chess", "Cooking", "Football", "Photography", "Cycling", "Reading"]}
+              values={hobbies}
+              max={12}
+              onAdd={(v) => setHobbies((prev) => [...prev, v])}
+              onRemove={(v) => setHobbies((prev) => prev.filter((x) => x !== v))}
+            />
+          </Field>
+        </div>
+      </SettingsSection>
     </>
   );
 }
@@ -568,36 +587,34 @@ function WhereYoureAt({
   recruitingStatus: string; setRecruitingStatus: (v: string) => void;
 }) {
   return (
-    <>
-      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">Where you&apos;re at</h2>
-      <Field label="What's your situation right now?">
-        <ChoiceCards name="Current focus" columns={2} options={CURRENT_FOCUS} value={currentFocus || null} onChange={setCurrentFocus} />
-      </Field>
-      <Field label="Where's your venture at?">
-        <ChoiceCards name="Venture stage" columns={2} options={VENTURE_STAGES} value={ventureStage || null} onChange={setVentureStage} />
-      </Field>
-      {showVentureDetail && (
-        <>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div>
-              <label htmlFor="venture-name" className="block text-[0.75rem] text-text-muted mb-1.5">Venture name</label>
-              <input id="venture-name" type="text" maxLength={200} value={ventureName} onChange={(e) => setVentureName(e.target.value)} className={inputCls} />
+    <SettingsSection title="Where you're at">
+      <div className="grid gap-6">
+        <Field label="What's your situation right now?">
+          <ChoiceCards name="Current focus" columns={2} options={CURRENT_FOCUS} value={currentFocus || null} onChange={setCurrentFocus} />
+        </Field>
+        <Field label="Where's your venture at?">
+          <ChoiceCards name="Venture stage" columns={2} options={VENTURE_STAGES} value={ventureStage || null} onChange={setVentureStage} />
+        </Field>
+        {showVentureDetail && (
+          <>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <FormField label="Venture name">
+                <Input id="venture-name" type="text" maxLength={200} value={ventureName} onChange={(e) => setVentureName(e.target.value)} />
+              </FormField>
+              <FormField label="Website">
+                <Input id="venture-url" type="url" maxLength={512} value={ventureUrl} onChange={(e) => setVentureUrl(e.target.value)} placeholder="https://…" />
+              </FormField>
             </div>
-            <div>
-              <label htmlFor="venture-url" className="block text-[0.75rem] text-text-muted mb-1.5">Website</label>
-              <input id="venture-url" type="url" maxLength={512} value={ventureUrl} onChange={(e) => setVentureUrl(e.target.value)} className={inputCls} placeholder="https://…" />
-            </div>
-          </div>
-          <div>
-            <label htmlFor="venture-one-liner" className="block text-[0.75rem] text-text-muted mb-1.5">One line on what it does</label>
-            <input id="venture-one-liner" type="text" maxLength={140} value={ventureOneLiner} onChange={(e) => setVentureOneLiner(e.target.value)} className={inputCls} />
-          </div>
-          <Field label="Recruiting?">
-            <PillChoice name="Recruiting" options={RECRUITING_STATUSES} value={recruitingStatus} onChange={setRecruitingStatus} />
-          </Field>
-        </>
-      )}
-    </>
+            <FormField label="One line on what it does">
+              <Input id="venture-one-liner" type="text" maxLength={140} value={ventureOneLiner} onChange={(e) => setVentureOneLiner(e.target.value)} />
+            </FormField>
+            <Field label="Recruiting?">
+              <PillChoice name="Recruiting" options={RECRUITING_STATUSES} value={recruitingStatus} onChange={setRecruitingStatus} />
+            </Field>
+          </>
+        )}
+      </div>
+    </SettingsSection>
   );
 }
 
@@ -609,24 +626,27 @@ function WhatYouWant({
   availabilityHours: string; setAvailabilityHours: (v: string) => void;
 }) {
   return (
-    <>
-      <h2 className="pt-4 text-[1rem] font-medium text-text-primary">What you want</h2>
-      <Field label={`Pick up to ${MAX_INTENTS}, in order`}>
-        <RankPicker options={INTENTS} values={intents} onToggle={toggleIntent} max={MAX_INTENTS} />
-      </Field>
-      <Field label="How urgent?">
-        <PillChoice name="Urgency" options={INTENT_URGENCIES} value={intentUrgency} onChange={setIntentUrgency} />
-      </Field>
-      <Field label="Hours a week for something new">
-        <PillChoice name="Hours a week" options={AVAILABILITY_HOURS} value={availabilityHours} onChange={setAvailabilityHours} />
-      </Field>
-    </>
+    <SettingsSection title="What you want">
+      <div className="grid gap-6">
+        <Field label={`Pick up to ${MAX_INTENTS}, in order`}>
+          <RankPicker options={INTENTS} values={intents} onToggle={toggleIntent} max={MAX_INTENTS} />
+        </Field>
+        <Field label="How urgent?">
+          <PillChoice name="Urgency" options={INTENT_URGENCIES} value={intentUrgency} onChange={setIntentUrgency} />
+        </Field>
+        <Field label="Hours a week for something new">
+          <PillChoice name="Hours a week" options={AVAILABILITY_HOURS} value={availabilityHours} onChange={setAvailabilityHours} />
+        </Field>
+      </div>
+    </SettingsSection>
   );
 }
 
 // ─── Photo ─────────────────────────────────────────────────────────
 
-function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
+// The photo, and the card you are putting together: the avatar (or the initials you appear with until there is a photo) beside the name and
+// course as they are typed in the form below. Only values the form already holds, drawn live.
+function PhotoSection({ avatarUrl, name, meta }: { avatarUrl: string | null; name: string; meta: string }) {
   const router = useRouter();
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   // react-doctor-disable-next-line react-doctor/no-derived-useState -- seeded once from props and only ever mutated by this component's own upload/remove action handlers; no other writer touches it while mounted
@@ -699,42 +719,40 @@ function PhotoSection({ avatarUrl }: { avatarUrl: string | null }) {
   };
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">Photo</h2>
-      <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
-        What people see first in the directory.
-      </p>
-      {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
+    <SettingsSection title="Photo" description="What people see first in the directory.">
+      <div className="grid gap-4">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
 
-      {pendingFile ? (
-        <AvatarCropper file={pendingFile} onCropped={upload} onCancel={() => setPendingFile(null)} />
-      ) : preview ? (
-        <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
-          {/* eslint-disable-next-line @next/next/no-img-element -- signed blob URL or local object URL, not a static asset */}
-          <img src={preview} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover" />
-          <span className="flex-1 text-[0.85rem] text-text-primary">{uploading ? "Uploading…" : "Current photo"}</span>
-          <button
-            type="button"
-            onClick={() => replaceRef.current?.click()}
-            className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
-          >
-            Replace
-          </button>
-          <button
-            type="button"
-            onClick={remove}
-            disabled={removing}
-            aria-busy={removing}
-            className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-wait disabled:opacity-60"
-          >
-            {removing ? "Removing…" : "Remove"}
-          </button>
-          <input ref={replaceRef} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Replace photo" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingFile(f); e.target.value = ""; }} />
-        </div>
-      ) : (
-        <FilePicker accept="image/jpeg,image/png,image/webp" label="Add a photo" hint="JPG, PNG or WebP" file={null} onPick={setPendingFile} onClear={() => {}} />
-      )}
-    </section>
+        {pendingFile ? (
+          <AvatarCropper file={pendingFile} onCropped={upload} onCancel={() => setPendingFile(null)} />
+        ) : (
+          <>
+            <Panel className="flex flex-wrap items-center gap-x-5 gap-y-4 p-5">
+              <Avatar src={preview} name={name} size="lg" />
+              <div className="min-w-[8rem] flex-1">
+                {name && <p className="truncate font-display text-lead text-text-primary">{name}</p>}
+                {meta && <p className="truncate text-small text-text-secondary">{meta}</p>}
+                {preview && <p className="text-small text-text-muted">{uploading ? "Uploading…" : "Current photo"}</p>}
+              </div>
+              {preview && (
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => replaceRef.current?.click()}>
+                    Replace
+                  </Button>
+                  <Button type="button" variant="dangerGhost" size="sm" onClick={remove} loading={removing}>
+                    {removing ? "Removing…" : "Remove"}
+                  </Button>
+                  <input ref={replaceRef} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Replace photo" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingFile(f); e.target.value = ""; }} />
+                </div>
+              )}
+            </Panel>
+            {!preview && (
+              <FilePicker accept="image/jpeg,image/png,image/webp" label="Add a photo" hint="JPG, PNG or WebP" file={null} onPick={setPendingFile} onClear={() => {}} />
+            )}
+          </>
+        )}
+      </div>
+    </SettingsSection>
   );
 }
 
@@ -936,48 +954,59 @@ function CvSection({
   };
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">CV</h2>
-      <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
-        Kept for you and, if you allow it once on upload, read to generate
-        a searchable summary of your background and skills. Only you and
-        admins handling account reviews can open the file itself.
-      </p>
-      {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
+    <SettingsSection
+      title="CV"
+      description="Kept for you and, if you allow it once on upload, read to generate a searchable summary of your background and skills. Only you and admins handling account reviews can open the file itself."
+    >
+      <div className="grid gap-4">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
 
-      {present && !file && !changing ? (
-        <CvPresentCard
-          filename={filename}
-          uploadedAt={uploadedAt}
-          ingestStatus={ingestStatus}
-          ingestCheckFailed={ingestCheckFailed}
-          cvBusy={cvBusy}
-          canRemove={canRemove}
-          onDownload={download}
-          onChange={() => setChanging(true)}
-          onRemove={remove}
-          onViewDetails={() => setShowProcessingDialog(true)}
-        />
-      ) : (
-        <CvUploadForm
-          file={file}
-          setFile={setFile}
-          changing={changing}
-          onCancelChanging={() => { setChanging(false); setFile(null); setError(""); }}
-          ingestionEnabled={ingestionEnabled}
-          consent={consent}
-          setConsent={setConsent}
-          uploading={uploading}
-          onUpload={upload}
-        />
-      )}
+        {present && !file && !changing ? (
+          <CvPresentCard
+            filename={filename}
+            uploadedAt={uploadedAt}
+            ingestStatus={ingestStatus}
+            ingestCheckFailed={ingestCheckFailed}
+            cvBusy={cvBusy}
+            canRemove={canRemove}
+            onDownload={download}
+            onChange={() => setChanging(true)}
+            onRemove={remove}
+            onViewDetails={() => setShowProcessingDialog(true)}
+          />
+        ) : (
+          <CvUploadForm
+            file={file}
+            setFile={setFile}
+            changing={changing}
+            onCancelChanging={() => { setChanging(false); setFile(null); setError(""); }}
+            ingestionEnabled={ingestionEnabled}
+            consent={consent}
+            setConsent={setConsent}
+            uploading={uploading}
+            onUpload={upload}
+          />
+        )}
+      </div>
 
       {showProcessingDialog && (
         <CvProcessingDialog onClose={() => setShowProcessingDialog(false)} />
       )}
-    </section>
+    </SettingsSection>
   );
 }
+
+// What each stage of a CV's background ingest says, and in which tone. An unknown stage reads as a failure, as it always did.
+const PROCESSING_VIEW: { label: string; tone: BadgeTone } = { label: "Processing your CV…", tone: "info" };
+const FAILED_VIEW: { label: string; tone: BadgeTone } = { label: "Couldn't be processed", tone: "danger" };
+const CHECK_FAILED_VIEW: { label: string; tone: BadgeTone } = { label: "Couldn't check progress", tone: "danger" };
+const INGEST_VIEW: Partial<Record<CvIngestStatus, { label: string; tone: BadgeTone }>> = {
+  pending: PROCESSING_VIEW,
+  extracting: PROCESSING_VIEW,
+  embedding: PROCESSING_VIEW,
+  ready: { label: "Processed", tone: "success" },
+  flagged: { label: "Needs a quick check", tone: "lit" },
+};
 
 // Status text + spinner for a CV's background ingest — pulled out of
 // CvPresentCard purely to keep that component's own branching readable.
@@ -989,32 +1018,17 @@ function CvIngestBadge({
   onViewDetails: () => void;
 }) {
   const processing = CV_INGEST_PROCESSING.includes(ingestStatus);
-  const label = ingestCheckFailed
-    ? "Couldn't check progress"
-    : processing
-    ? "Processing your CV…"
-    : ingestStatus === "ready"
-      ? "Processed"
-      : ingestStatus === "flagged"
-        ? "Needs a quick check"
-        : "Couldn't be processed";
+  const view = ingestCheckFailed ? CHECK_FAILED_VIEW : (INGEST_VIEW[ingestStatus] ?? FAILED_VIEW);
   return (
-    <span className="mt-1 flex items-center gap-1.5 text-[0.75rem] text-text-muted">
-      {!ingestCheckFailed && processing && (
-        <span
-          aria-hidden
-          className="h-3 w-3 shrink-0 rounded-full border-2 border-current/30 border-t-current animate-spin"
-        />
-      )}
-      {label}
-      <button
-        type="button"
-        onClick={onViewDetails}
-        className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-text-secondary"
-      >
+    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <Badge tone={view.tone}>
+        {!ingestCheckFailed && processing && <Spinner size="sm" />}
+        {view.label}
+      </Badge>
+      <Button type="button" variant="quiet" size="sm" onClick={onViewDetails}>
         View details
-      </button>
-    </span>
+      </Button>
+    </div>
   );
 }
 
@@ -1037,59 +1051,51 @@ function CvPresentCard({
   onViewDetails: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
-        CV
-      </span>
-      {/* min-w-[9rem]: three buttons (alumni) previously squeezed this
-          column hard enough to truncate the filename to "My_…" and wrap
-          "Uploaded …" onto a colliding second line — found by actually
-          looking at a rendered screenshot, not from reading the JSX. */}
-      <span className="min-w-[9rem] flex-1">
-        <span className="block truncate text-[0.85rem] text-text-primary">{filename ?? "Your CV"}</span>
-        {uploadedAt && (
-          // suppressHydrationWarning: toLocaleDateString resolves the
-          // viewer's timezone, which can legitimately differ from the
-          // server's and shift which calendar day this renders as —
-          // a cosmetic mismatch, not a real one, so it isn't worth
-          // deferring the date to a post-mount effect to avoid.
-          <span
-            className="block truncate text-[0.75rem] text-text-muted"
-            suppressHydrationWarning
-          >
-            Uploaded {new Date(uploadedAt).toLocaleDateString("en-GB", {
-              day: "numeric", month: "short", year: "numeric",
-            })}
-          </span>
-        )}
-        {/* Only ever set by a fresh upload this visit (see
-            pollIngestStatus above) — an existing CV from before this
-            page load shows no badge, matching what the dialog it
-            replaced also never did on a plain page load. */}
-        {ingestStatus && (
-          <CvIngestBadge ingestStatus={ingestStatus} ingestCheckFailed={ingestCheckFailed} onViewDetails={onViewDetails} />
-        )}
-      </span>
-      {/* Grouped so the three buttons wrap onto their own line as a unit
-          on a narrow container, rather than each one individually
-          fighting the filename column for space. */}
+    <Panel className="grid gap-5 p-5">
+      <div className="flex items-start gap-4">
+        <Disc size="lg"><Icon name="file" size={24} /></Disc>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-body text-text-primary">{filename ?? "Your CV"}</p>
+          {uploadedAt && (
+            // suppressHydrationWarning: toLocaleDateString resolves the
+            // viewer's timezone, which can legitimately differ from the
+            // server's and shift which calendar day this renders as —
+            // a cosmetic mismatch, not a real one, so it isn't worth
+            // deferring the date to a post-mount effect to avoid.
+            <p className="truncate text-small text-text-muted" suppressHydrationWarning>
+              Uploaded {new Date(uploadedAt).toLocaleDateString("en-GB", {
+                day: "numeric", month: "short", year: "numeric",
+              })}
+            </p>
+          )}
+          {/* Only ever set by a fresh upload this visit (see
+              pollIngestStatus above) — an existing CV from before this
+              page load shows no badge, matching what the dialog it
+              replaced also never did on a plain page load. */}
+          {ingestStatus && (
+            <CvIngestBadge ingestStatus={ingestStatus} ingestCheckFailed={ingestCheckFailed} onViewDetails={onViewDetails} />
+          )}
+        </div>
+      </div>
+      {/* Grouped so the buttons wrap onto their own line as a unit on a
+          narrow container, rather than each one fighting the filename for space. */}
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={onDownload} disabled={cvBusy !== null} aria-busy={cvBusy === "download"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary disabled:cursor-wait disabled:opacity-60">
+        <Button type="button" variant="ghost" size="sm" onClick={onDownload} disabled={cvBusy !== null} loading={cvBusy === "download"} leading={<Icon name="download" size={18} />}>
           {cvBusy === "download" ? "Opening…" : "Download"}
-        </button>
-        <button type="button" onClick={onChange} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary">
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onChange} leading={<Icon name="refresh" size={18} />}>
           Change CV
-        </button>
+        </Button>
         {/* Students' CVs are required (screens.tsx's cvRequired) — removing
             down to nothing isn't offered to them at all, and the RPC itself
             also refuses it, so this is UX clarity, not the enforcement. */}
         {canRemove && (
-          <button type="button" onClick={onRemove} disabled={cvBusy !== null} aria-busy={cvBusy === "remove"} className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-wait disabled:opacity-60">
+          <Button type="button" variant="dangerGhost" size="sm" onClick={onRemove} disabled={cvBusy !== null} loading={cvBusy === "remove"} leading={<Icon name="trash" size={18} />}>
             {cvBusy === "remove" ? "Removing…" : "Remove CV"}
-          </button>
+          </Button>
         )}
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -1109,7 +1115,7 @@ function CvUploadForm({
   onUpload: () => void;
 }) {
   return (
-    <>
+    <div className="grid gap-4">
       <FilePicker
         accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         label="Drop a PDF or DOCX"
@@ -1119,44 +1125,32 @@ function CvUploadForm({
         onClear={() => setFile(null)}
       />
       {changing && (
-        <button
-          type="button"
-          onClick={onCancelChanging}
-          className="mt-2 cursor-pointer text-[0.775rem] text-text-muted underline decoration-dotted underline-offset-2 hover:text-text-secondary"
-        >
-          Cancel — keep my current CV
-        </button>
+        <div>
+          <Button type="button" variant="quiet" size="sm" onClick={onCancelChanging}>
+            Cancel — keep my current CV
+          </Button>
+        </div>
       )}
       {file && (
         <>
           {ingestionEnabled ? (
-            <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong bg-white/[0.03] p-4">
-              <input
-                type="checkbox"
-                checked={consent}
-                onChange={(e) => setConsent(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
-              />
-              <span className="text-[0.8rem] leading-[1.6] text-text-secondary">
-                Read my CV to suggest skills to add above and generate a
-                searchable summary of my background. The extracted text
-                and summary are stored and used to help match me to
-                relevant opportunities. Before the text is analysed by our
-                AI provider (OpenAI), we remove my name, contact details
-                and links.
-              </span>
-            </label>
+            <Checkbox
+              card
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              label="Read my CV to suggest skills to add above and generate a searchable summary of my background. The extracted text and summary are stored and used to help match me to relevant opportunities. Before the text is analysed by our AI provider (OpenAI), we remove my name, contact details and links."
+            />
           ) : (
-            <p className="mt-3 rounded-lg border border-border-strong bg-white/[0.03] p-4 text-[0.8rem] leading-[1.6] text-text-muted">
-              CV-based skill matching is temporarily paused — your file will still be saved.
-            </p>
+            <Notice tone="info">CV-based skill matching is temporarily paused — your file will still be saved.</Notice>
           )}
-          <Button type="button" onClick={onUpload} loading={uploading} variant="primary" size="md" className="mt-3">
-            Upload CV
-          </Button>
+          <div>
+            <Button type="button" onClick={onUpload} loading={uploading} variant="primary" size="md">
+              Upload CV
+            </Button>
+          </div>
         </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -1279,47 +1273,45 @@ function GithubSection({
         : "Scanning your repositories…";
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-      <h2 className="mb-1 text-[1rem] font-medium text-text-primary">GitHub</h2>
-      <p className="mb-5 text-[0.825rem] leading-[1.6] text-text-muted">
-        Optional. Connect your GitHub account to have your public
-        repositories count as an extra skill signal alongside your CV —
-        real GitHub sign-in and authorisation, nothing to generate or
-        paste in yourself.
-      </p>
-      {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
+    <SettingsSection
+      title="GitHub"
+      description="Optional. Connect your GitHub account to have your public repositories count as an extra skill signal alongside your CV — real GitHub sign-in and authorisation, nothing to generate or paste in yourself."
+    >
+      <div className="grid gap-4">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
 
-      {connected ? (
-        <GithubConnectedPanel
-          ingestionEnabled={ingestionEnabled}
-          username={username}
-          statusLabel={statusLabel}
-          disconnecting={disconnecting}
-          confirmingDisconnect={confirmingDisconnect}
-          onConfirmDisconnect={() => setConfirmingDisconnect(true)}
-          onCancelDisconnect={() => setConfirmingDisconnect(false)}
-          onDisconnect={disconnect}
-          needsReview={needsReview}
-          dismissing={dismissing}
-          onReview={() => setDialog("pick")}
-          onDismiss={dismissPrompt}
-          status={status}
-          picks={picks}
-          themes={themes}
-          nudgesEnabled={nudgesEnabled}
-          savingNudges={savingNudges}
-          onChangeProjects={() => setDialog("pick")}
-          onToggleNudges={toggleNudges}
-        />
-      ) : ingestionEnabled ? (
-        <Button type="button" onClick={connect} loading={connecting} variant="primary" size="md">
-          Connect GitHub
-        </Button>
-      ) : (
-        <p className="text-[0.8rem] text-text-muted">
-          GitHub connections are temporarily paused — check back soon.
-        </p>
-      )}
+        {connected ? (
+          <GithubConnectedPanel
+            ingestionEnabled={ingestionEnabled}
+            username={username}
+            statusLabel={statusLabel}
+            disconnecting={disconnecting}
+            confirmingDisconnect={confirmingDisconnect}
+            onConfirmDisconnect={() => setConfirmingDisconnect(true)}
+            onCancelDisconnect={() => setConfirmingDisconnect(false)}
+            onDisconnect={disconnect}
+            needsReview={needsReview}
+            dismissing={dismissing}
+            onReview={() => setDialog("pick")}
+            onDismiss={dismissPrompt}
+            status={status}
+            picks={picks}
+            themes={themes}
+            nudgesEnabled={nudgesEnabled}
+            savingNudges={savingNudges}
+            onChangeProjects={() => setDialog("pick")}
+            onToggleNudges={toggleNudges}
+          />
+        ) : ingestionEnabled ? (
+          <div>
+            <Button type="button" onClick={connect} loading={connecting} variant="ghost" size="md" leading={<Icon name="github" size={18} />}>
+              Connect GitHub
+            </Button>
+          </div>
+        ) : (
+          <Notice tone="info">GitHub connections are temporarily paused — check back soon.</Notice>
+        )}
+      </div>
 
       {dialog && (
         <GithubDialog
@@ -1328,7 +1320,7 @@ function GithubSection({
           onSaved={() => { setNeedsReview(false); void refreshShowcase(); }}
         />
       )}
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -1361,69 +1353,68 @@ function GithubConnectedPanel({
   onToggleNudges: (enabled: boolean) => void;
 }) {
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4">
       {!ingestionEnabled && (
-        <p className="text-[0.8rem] text-text-muted">
+        <Notice tone="info">
           GitHub rescans are paused right now — your existing projects and picks are unaffected,
           and you can still choose from what&apos;s already been found, but nothing new will show
           up until this is back on.
-        </p>
+        </Notice>
       )}
-      <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
-          GH
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.85rem] text-text-primary">@{username}</span>
-          <span className="block text-[0.75rem] text-text-muted">{statusLabel}</span>
-        </span>
-        <button
-          type="button"
-          onClick={onConfirmDisconnect}
-          disabled={disconnecting}
-          className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-[#ff4d4d]/60 hover:text-[#ff8080] disabled:cursor-not-allowed disabled:opacity-60"
-        >
+      <Panel className="flex flex-wrap items-center gap-4 p-5">
+        <Disc size="lg"><Icon name="github" size={24} /></Disc>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-body text-text-primary">@{username}</p>
+          <p className="text-small text-text-muted">{statusLabel}</p>
+        </div>
+        <Button type="button" variant="dangerGhost" size="sm" onClick={onConfirmDisconnect} disabled={disconnecting}>
           Disconnect
-        </button>
-      </div>
+        </Button>
+      </Panel>
 
       {/* Disconnecting deletes the picks and the hand-written blurbs
           along with the connection (disconnect_github drops the row).
           That is the right privacy default, but it is not something a
           member should discover afterwards. */}
       {confirmingDisconnect && (
-        <div className="rounded-lg border border-[#ff4d4d]/40 bg-[#ff4d4d]/[0.06] p-4">
-          <p className="mb-3 text-[0.8rem] text-text-secondary">
-            Disconnecting removes your GitHub-derived skills, your spotlit projects and the
-            descriptions you wrote for them. You can reconnect later, but you&apos;ll need to
-            choose your projects again.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="dangerGhost" size="sm" loading={disconnecting} onClick={onDisconnect}>
-              Disconnect GitHub
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={onCancelDisconnect}>
-              Keep it connected
-            </Button>
-          </div>
-        </div>
+        <Notice
+          tone="danger"
+          icon="warning"
+          action={
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="dangerGhost" size="sm" loading={disconnecting} onClick={onDisconnect}>
+                Disconnect GitHub
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={onCancelDisconnect}>
+                Keep it connected
+              </Button>
+            </div>
+          }
+        >
+          Disconnecting removes your GitHub-derived skills, your spotlit projects and the
+          descriptions you wrote for them. You can reconnect later, but you&apos;ll need to
+          choose your projects again.
+        </Notice>
       )}
 
       {needsReview && (
-        <div className="rounded-lg border border-accent/50 bg-accent/[0.06] p-4">
-          <p className="mb-3 text-[0.8rem] text-text-secondary">
-            There&apos;s something new on your GitHub that you haven&apos;t looked at yet. Want to
-            update which projects recruiters see?
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" onClick={onReview}>
-              Review projects
-            </Button>
-            <Button type="button" variant="ghost" size="sm" loading={dismissing} onClick={onDismiss}>
-              Not now
-            </Button>
-          </div>
-        </div>
+        <Notice
+          tone="lit"
+          icon="spark"
+          action={
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" onClick={onReview}>
+                Review projects
+              </Button>
+              <Button type="button" variant="ghost" size="sm" loading={dismissing} onClick={onDismiss}>
+                Not now
+              </Button>
+            </div>
+          }
+        >
+          There&apos;s something new on your GitHub that you haven&apos;t looked at yet. Want to
+          update which projects recruiters see?
+        </Notice>
       )}
 
       {status === "ready" && (
@@ -1453,27 +1444,27 @@ function GithubSpotlitProjects({
   onToggleNudges: (enabled: boolean) => void;
 }) {
   return (
-    <div className="rounded-lg border border-border-strong bg-white/[0.02] p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-[0.85rem] text-text-primary">Spotlit projects</h3>
+    <Panel className="grid gap-5 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-display text-lead text-text-primary">Spotlit projects</h3>
         <Button type="button" variant="ghost" size="sm" onClick={onChangeProjects}>
           {picks && picks.length > 0 ? "Change projects" : "Choose projects"}
         </Button>
       </div>
       {picks && picks.length > 0 ? (
-        <ul className="space-y-2">
+        <ul className="grid divide-y divide-border-subtle">
           {picks.map((repo) => (
-            <li key={repo.name} className="rounded-lg border border-border bg-white/[0.02] p-3">
+            <li key={repo.name} className="py-3 first:pt-0 last:pb-0">
               <a
                 href={externalHref(repo.url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[0.825rem] text-text-primary underline-offset-2 hover:underline"
+                className="text-body text-text-primary underline underline-offset-2"
               >
                 {repo.name}
               </a>
               {(repo.blurb ?? repo.description) && (
-                <p className="mt-1 text-[0.775rem] text-text-secondary">
+                <p className="mt-1 text-small text-text-secondary">
                   {repo.blurb ?? repo.description}
                 </p>
               )}
@@ -1481,7 +1472,7 @@ function GithubSpotlitProjects({
           ))}
         </ul>
       ) : (
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           You haven&apos;t chosen any yet. Until you do, we&apos;ll show the projects our scan
           rated highest.
         </p>
@@ -1492,32 +1483,23 @@ function GithubSpotlitProjects({
           these tags are where the rest of what the scan found still
           shows up, rather than getting cut from the prose entirely. */}
       {themes.length > 0 && (
-        <div className="mt-4">
-          <p className="mb-1.5 text-[0.7rem] text-text-muted">What your code says about you</p>
-          <div className="flex flex-wrap gap-1.5">
+        <div>
+          <p className="mb-2 text-small text-text-muted">What your code says about you</p>
+          <div className="flex flex-wrap gap-2">
             {themes.map((theme) => (
-              <span
-                key={theme}
-                className="rounded-full border border-border-strong bg-white/[0.03] px-2.5 py-1 text-[0.7rem] text-text-secondary"
-              >
-                {theme}
-              </span>
+              <Badge key={theme}>{theme}</Badge>
             ))}
           </div>
         </div>
       )}
 
-      <label className="mt-4 flex cursor-pointer items-start gap-2 text-[0.75rem] text-text-muted">
-        <input
-          type="checkbox"
-          checked={nudgesEnabled}
-          disabled={savingNudges}
-          aria-busy={savingNudges}
-          onChange={(event) => void onToggleNudges(event.target.checked)}
-          className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--color-accent)]"
-        />
-        Email me when I&apos;ve pushed something worth spotlighting (at most once a month)
-      </label>
-    </div>
+      <Checkbox
+        checked={nudgesEnabled}
+        disabled={savingNudges}
+        aria-busy={savingNudges}
+        onChange={(event) => void onToggleNudges(event.target.checked)}
+        label="Email me when I've pushed something worth spotlighting (at most once a month)"
+      />
+    </Panel>
   );
 }

@@ -1,0 +1,88 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · base. Resets, the browser surfaces nobody draws (selection, caret, scrollbar, focus), and the page itself.
+   Everything reads tokens.css; nothing here names a colour.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  /* The app is dark-only. Telling the UA so fixes the chrome it renders for us: scrollbars, <select> option lists, date pickers and
+     autofill backgrounds, which otherwise paint light-on-light. */
+  color-scheme: dark;
+  background-color: var(--color-bg-primary);
+  /* The global size lever. 125 % makes the browser's 16 px root 20 px, so every rem in the app grows by a quarter; the app sets its type with
+     rem values authored against that, so the lever stays. The design-system type scale (tokens.css) is written for it: a 16 px body is 0.8rem.
+     To dial the whole app up or down, change this one number. */
+  font-size: 125%;
+  /* Text a member typed (a title, a name, a link) has no spaces to break at. Without this it runs past its box and, in a card that does not
+     clip, past the screen. `anywhere` also lowers the box's minimum width to one letter, so a flex or grid item holding it can shrink
+     instead of pushing its neighbours (a menu button, a trailing control) out of view. It inherits, so it is set once, here. */
+  overflow-wrap: anywhere;
+}
+
+body {
+  min-height: 100svh;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* A plain `grid` has one implicit column, and an auto-sized column cannot be narrower than the widest thing in it (a button that does not
+   wrap, a long label), so a page's stack of panels grew wider than a 320 px screen instead of the content giving way. Give it a column that
+   can shrink to its container. In the base layer, under Tailwind's utilities, so every `grid-cols-*` still wins. */
+@layer base {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Anchor targets sit under the fixed navbar without this. */
+h1, h2, h3, h4, h5, h6, [id] { scroll-margin-top: 5rem; }
+
+/* ── Interaction ────────────────────────────────────────────────────────────────────────────────────────────── */
+/* No 300 ms double-tap-zoom delay on touch, and a tap flash that belongs to the palette. */
+button, a, [role="button"], summary {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: color-mix(in oklab, var(--color-warm) 18%, transparent);
+}
+
+/* The single focus indicator for the whole app: sun, 2 px, offset 3 px. :focus-visible, so it shows for keyboard and programmatic focus and
+   not for a mouse click. The offset is load-bearing: it puts the ring on the page, so it stays visible on a cream (sun) button, where a cream
+   ring drawn on the fill would vanish. (The outline follows the element's own radius, so pills stay pills.) */
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* The skip link focuses <main> so the next Tab continues from there; that focus must not ring the whole page. */
+main:focus-visible { outline: none; }
+
+/* ── Browser surfaces: the parts of the page nobody drew still belong to the design ─────────────────────────── */
+::selection { background: var(--color-warm); color: var(--color-void); }
+input, textarea, select { caret-color: var(--color-sun); accent-color: var(--color-warm); }
+
+::-webkit-scrollbar       { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--color-bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border: 3px solid var(--color-bg-primary); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-border-strong); }
+* { scrollbar-color: var(--color-border) var(--color-bg-primary); }
+
+/* Native form controls that take the UA's colour (date pickers, number steppers) read as part of the night. */
+input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.85); }
+
+/* Autofill keeps its surface instead of flashing the UA's pale yellow-blue. */
+input:-webkit-autofill, textarea:-webkit-autofill, select:-webkit-autofill {
+  -webkit-text-fill-color: var(--color-text-primary);
+  box-shadow: 0 0 0 1000px var(--color-bg-card) inset;
+  caret-color: var(--color-sun);
+}
+
+/* Headings are short enough for the browser to even out their lines; body copy avoids orphans. In the base layer on purpose: an unlayered
+   `p { text-wrap: pretty }` beats Tailwind's utilities, so `truncate` or `whitespace-nowrap` on a <p> silently stopped working. */
+@layer base {
+  h1, h2, h3 { text-wrap: balance; }
+  p { text-wrap: pretty; }
+}

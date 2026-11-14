@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Skeleton, SkeletonRegion } from "@/components/ui/Skeleton";
+import { Textarea } from "@/components/ui/Textarea";
+import { Field } from "@/components/forms/Field";
+import { ErrorBanner } from "@/components/forms/Banners";
+import { Icon } from "@/design-system/icons/Icon";
 import { settle } from "@/lib/settle";
-import { Dialog } from "@/components/ui/Dialog";
+import { Dialog, DialogClose } from "@/components/ui/Dialog";
 import { closeDialog, dialogCloser } from "@/components/ui/dialogCloser";
 import { ConfirmDialog } from "@/components/connections/ConfirmDialog";
 import { browserClient } from "@/lib/supabase/browser";
@@ -299,7 +303,7 @@ export function ConnectControl({
 }
 
 function Footer({ children }: { children: React.ReactNode }) {
-  return <section className="pt-4 border-t border-border-subtle">{children}</section>;
+  return <section className="border-t border-border-subtle pt-4">{children}</section>;
 }
 
 function LoadingFooter() {
@@ -307,7 +311,7 @@ function LoadingFooter() {
     <Footer>
       <SkeletonRegion label="Checking your connection status…" className="flex items-center justify-between gap-3">
         <Skeleton className="h-3 w-2/5" />
-        <Skeleton className="h-8 w-24 rounded-lg" />
+        <Skeleton className="h-11 w-24 rounded-full" />
       </SkeletonRegion>
     </Footer>
   );
@@ -317,7 +321,7 @@ function ErrorFooter({ onRetry }: { onRetry: () => void }) {
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p role="alert" className="text-[0.8rem] text-text-muted">
+        <p role="alert" className="text-body text-text-muted">
           Couldn&apos;t check your connection status.
         </p>
         <Button variant="ghost" size="sm" className="shrink-0" onClick={onRetry}>
@@ -332,15 +336,12 @@ function ConnectedFooter() {
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           You&apos;re connected. You can see each other&apos;s email address.
         </p>
-        <Link
-          href="/connections"
-          className="shrink-0 rounded-lg border border-border-strong bg-white/[0.05] px-3 py-1.5 text-[0.75rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.10]"
-        >
+        <ButtonLink href="/connections" variant="ghost" size="sm" className="shrink-0">
           View
-        </Link>
+        </ButtonLink>
       </div>
     </Footer>
   );
@@ -362,19 +363,16 @@ function PendingOutgoingFooter({
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-secondary">Request sent — waiting for a reply.</p>
+        <p className="text-body text-text-secondary">Request sent — waiting for a reply.</p>
         <Button
           variant="ghost"
           size="sm"
           className="shrink-0"
           aria-label={`Pending — withdraw your request to ${firstName}`}
+          leading={<Icon name="clock" size={16} />}
           onClick={() => setWithdrawing(true)}
           disabled={!connectionId}
         >
-          <svg aria-hidden="true" viewBox="0 0 16 16" className="mr-1.5 inline h-3.5 w-3.5 -mt-0.5" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <circle cx="8" cy="8" r="6.25" />
-            <path d="M8 4.5V8l2.25 1.5" strokeLinecap="round" />
-          </svg>
           Pending
         </Button>
       </div>
@@ -404,7 +402,7 @@ function PendingOutgoingFooter({
 function WithdrawnByMeFooter({ firstName, availableAt }: { firstName: string; availableAt: string | null }) {
   return (
     <Footer>
-      <p className="text-[0.8rem] text-text-muted">
+      <p className="text-body text-text-muted">
         You withdrew your request.
         {availableAt && <> You can send {firstName} a new one from {formatWhen(availableAt)}.</>}
       </p>
@@ -416,15 +414,12 @@ function PendingIncomingFooter({ firstName }: { firstName: string }) {
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           {firstName} sent you a connection request.
         </p>
-        <Link
-          href="/connections?tab=pending"
-          className="shrink-0 rounded-lg border border-border-strong bg-white/[0.05] px-3 py-1.5 text-[0.75rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.10]"
-        >
+        <ButtonLink href="/connections?tab=pending" variant="ghost" size="sm" className="shrink-0">
           Review
-        </Link>
+        </ButtonLink>
       </div>
     </Footer>
   );
@@ -442,7 +437,7 @@ function BlockedByMeFooter({
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           You&apos;ve blocked this member. They were never told.
         </p>
         <Button
@@ -455,7 +450,7 @@ function BlockedByMeFooter({
           Unblock
         </Button>
       </div>
-      {error && <p role="alert" className="mt-2 text-[0.8rem] text-[#ff8080]">{error}</p>}
+      {error && <div className="mt-3"><ErrorBanner>{error}</ErrorBanner></div>}
     </Footer>
   );
 }
@@ -463,7 +458,7 @@ function BlockedByMeFooter({
 function UnavailableFooter() {
   return (
     <Footer>
-      <p className="text-[0.8rem] text-text-muted">
+      <p className="text-body text-text-muted">
         You can&apos;t send a request to this member right now.
       </p>
     </Footer>
@@ -507,7 +502,7 @@ function NoneFooter({
   return (
     <Footer>
       <div className="flex items-center justify-between gap-3">
-        <p id={ids.status} className="text-[0.8rem] text-text-muted">
+        <p id={ids.status} className="text-body text-text-muted">
           {limited ?? "Connect to exchange email addresses."}
         </p>
         <Button
@@ -578,38 +573,22 @@ function ConnectDialog({
     <Dialog
       onClose={onClose}
       label={`Connect with ${firstName} ${surname}?`}
-      className="w-full max-w-[480px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto"
+      className="w-full max-w-[480px] p-6 sm:p-7 my-auto"
     >
-      <div className="px-6 py-5">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="font-display text-[1.15rem] text-text-primary tracking-tight">
-            Connect with {firstName} {surname}?
-          </h2>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={closeDialog}
-            disabled={sending}
-            className="-mr-1 -mt-1 inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-white/[0.05] text-text-primary transition-colors hover:border-accent hover:bg-white/[0.10] disabled:opacity-60"
-          >
-            <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
-        </div>
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="font-display text-title text-text-primary">
+          Connect with {firstName} {surname}?
+        </h2>
+        <DialogClose disabled={sending} className="-mr-2 -mt-2" />
+      </div>
 
-        <div className="mt-3 space-y-3">
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed">
-            If {firstName} accepts, you&apos;ll each be able to see the other&apos;s email address.
-          </p>
-          <div>
-            <label
-              htmlFor={ids.note}
-              className="block text-[0.7rem] uppercase tracking-wider text-text-muted mb-1.5"
-            >
-              Add a note (optional)
-            </label>
-            <textarea
+      <div className="mt-3 space-y-4">
+        <p className="text-body leading-relaxed text-text-secondary">
+          If {firstName} accepts, you&apos;ll each be able to see the other&apos;s email address.
+        </p>
+        <div>
+          <Field label="Add a note (optional)">
+            <Textarea
               id={ids.note}
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -621,42 +600,39 @@ function ConnectDialog({
               maxLength={CONNECTION_NOTE_MAX * 2}
               placeholder="Why you'd like to connect."
               aria-describedby={ids.count}
-              className="w-full rounded-lg border border-border-strong bg-bg-secondary px-3 py-2 text-[0.85rem] text-text-primary placeholder:text-text-muted"
             />
-            {/* Described by the textarea AND a live region, because going
-                over the limit disables Send. Colour alone was the only
-                signal, which is WCAG 1.4.1 and, more practically, leaves
-                somebody pasting a long note with a dead button and no
-                stated reason. Polite, so it waits for a pause in typing
-                rather than interrupting every keystroke. */}
-            <div
-              id={ids.count}
-              aria-live="polite"
-              className={`mt-1 text-[0.7rem] ${tooLong ? "text-[#ff8080]" : "text-text-muted"}`}
-            >
-              {used}/{CONNECTION_NOTE_MAX}
-              {tooLong && ` — too long to send, shorten it by ${used - CONNECTION_NOTE_MAX}`}
-            </div>
-          </div>
-          {error && (
-            <p role="alert" className="text-[0.8rem] text-[#ff8080]">{error}</p>
-          )}
-        </div>
-
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={closeDialog} disabled={sending}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            loading={sending}
-            disabled={tooLong || !consentVersion}
-            onClick={onSend}
+          </Field>
+          {/* Described by the textarea AND a live region, because going
+              over the limit disables Send. Colour alone was the only
+              signal, which is WCAG 1.4.1 and, more practically, leaves
+              somebody pasting a long note with a dead button and no
+              stated reason. Polite, so it waits for a pause in typing
+              rather than interrupting every keystroke. */}
+          <div
+            id={ids.count}
+            aria-live="polite"
+            className={`data mt-2 text-small ${tooLong ? "text-danger" : "text-text-muted"}`}
           >
-            Send request
-          </Button>
+            {used}/{CONNECTION_NOTE_MAX}
+            {tooLong && ` — too long to send, shorten it by ${used - CONNECTION_NOTE_MAX}`}
+          </div>
         </div>
+        {error && <ErrorBanner>{error}</ErrorBanner>}
+      </div>
+
+      <div className="mt-7 flex flex-wrap items-center justify-end gap-2">
+        <Button variant="quiet" size="md" onClick={closeDialog} disabled={sending}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="md"
+          loading={sending}
+          disabled={tooLong || !consentVersion}
+          onClick={onSend}
+        >
+          Send request
+        </Button>
       </div>
     </Dialog>
   );

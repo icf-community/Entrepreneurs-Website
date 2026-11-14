@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Icon } from "@/design-system/icons/Icon";
 import { Button } from "@/components/ui/Button";
+import { Radio } from "@/components/ui/Radio";
+import { FieldError } from "@/components/forms/Field";
 import { setMyEducation } from "@/app/settings/actions";
 
 // Two yes/no questions that decide which jobs a member sees (AI-plan §7.2):
@@ -41,14 +44,21 @@ export function EducationForm({
   };
 
   return (
-    <form onSubmit={save} className="space-y-4">
+    <form onSubmit={save} className="grid gap-5">
       <Question legend="Are you currently enrolled on a degree course?" name="edu-enrolled" value={enrolled} onChange={setEnrolled} />
       <Question legend="Have you completed a degree?" name="edu-graduated" value={graduated} onChange={setGraduated} />
-      {error && <p role="alert" className="text-[0.8rem] text-[#ff8080]">{error}</p>}
-      {saved && !error && <p role="status" className="text-[0.8rem] text-text-muted">Saved.</p>}
-      <Button type="submit" size="sm" loading={saving}>
-        {compact ? "Confirm and show jobs" : "Save"}
-      </Button>
+      {error && <FieldError>{error}</FieldError>}
+      {saved && !error && (
+        <p role="status" className="flex items-center gap-2 text-small text-text-muted">
+          <Icon name="success" size={18} className="text-success" />
+          Saved.
+        </p>
+      )}
+      <div>
+        <Button type="submit" size="sm" loading={saving}>
+          {compact ? "Confirm and show jobs" : "Save"}
+        </Button>
+      </div>
     </form>
   );
 }
@@ -57,17 +67,21 @@ function Question({
   legend, name, value, onChange,
 }: { legend: string; name: string; value: Answer; onChange: (v: Answer) => void }) {
   return (
-    <fieldset>
-      <legend className="text-[0.85rem] text-text-primary">{legend}</legend>
-      <div className="mt-2 flex gap-3">
+    <fieldset className="min-w-0">
+      <legend className="text-body text-text-primary">{legend}</legend>
+      {/* Yes and No stay side by side on a phone (two equal columns); from sm they keep their own width. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
         {(["yes", "no"] as const).map((v) => (
-          <label
+          <Radio
             key={v}
-            className={`cursor-pointer rounded-lg border px-4 py-2 text-[0.8rem] ${value === v ? "border-accent bg-white/[0.08] text-text-primary" : "border-border-strong text-text-secondary hover:border-accent"}`}
-          >
-            <input type="radio" name={name} value={v} checked={value === v} onChange={() => onChange(v)} className="mr-2" />
-            {v === "yes" ? "Yes" : "No"}
-          </label>
+            card
+            name={name}
+            value={v}
+            checked={value === v}
+            onChange={() => onChange(v)}
+            label={v === "yes" ? "Yes" : "No"}
+            className="sm:min-w-32"
+          />
         ))}
       </div>
     </fieldset>

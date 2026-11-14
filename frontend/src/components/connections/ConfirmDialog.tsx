@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { closeDialog, dialogCloser } from "@/components/ui/dialogCloser";
 import { Button } from "@/components/ui/Button";
+import { ErrorBanner } from "@/components/forms/Banners";
 import { settle } from "@/lib/settle";
 
 // ════════════════════════════════════════════════════════════════════
@@ -61,7 +62,7 @@ export function ConfirmDialog({
   const [error, setError] = useState<string | null>(null);
 
   async function confirm(e: { currentTarget: HTMLElement }) {
-    // Resolved BEFORE the await — see dialogCloser. e.currentTarget is
+    // Resolved BEFORE the await (see dialogCloser): e.currentTarget is
     // null by the time the action resolves.
     const close = dialogCloser(e);
     setBusy(true);
@@ -91,31 +92,30 @@ export function ConfirmDialog({
     <Dialog
       onClose={onClose}
       label={title}
-      className="w-full max-w-[460px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto"
+      tone={variant === "danger" ? "danger" : "default"}
+      className="w-full max-w-[460px] p-6 sm:p-7 my-auto"
     >
-      <div className="px-6 py-5">
-        <h2 className="font-display text-[1.15rem] text-text-primary tracking-tight">{title}</h2>
-        <div className="mt-3 space-y-2 text-[0.85rem] text-text-secondary leading-relaxed">
-          {body}
-        </div>
+      <h2 className="font-display text-title text-text-primary">{title}</h2>
+      <div className="mt-3 space-y-2.5 text-body leading-relaxed text-text-secondary">
+        {body}
+      </div>
 
-        {error && (
-          <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>
-        )}
+      {error && (
+        <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>
+      )}
 
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={closeDialog} disabled={busy}>
-            Cancel
-          </Button>
-          <Button
-            variant={variant === "danger" ? "danger" : "primary"}
-            size="sm"
-            loading={busy}
-            onClick={confirm}
-          >
-            {confirmLabel}
-          </Button>
-        </div>
+      <div className="mt-7 flex flex-wrap items-center justify-end gap-2">
+        <Button variant="quiet" size="md" onClick={closeDialog} disabled={busy}>
+          Cancel
+        </Button>
+        <Button
+          variant={variant === "danger" ? "danger" : "primary"}
+          size="md"
+          loading={busy}
+          onClick={confirm}
+        >
+          {confirmLabel}
+        </Button>
       </div>
     </Dialog>
   );

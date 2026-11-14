@@ -1,9 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
 import Starfield from "@/components/Starfield";
+import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PageHead } from "@/components/ui/PageHead";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
 
 export default function Error({
   error,
@@ -21,44 +25,37 @@ export default function Error({
     Sentry.captureException(error);
   }, [error]);
 
+  // The sky behind it, and no background of its own: the atmosphere shows through. The one thing to do is try again, so that is the
+  // primary action; the way home is the quiet one beside it. The error id is a measured value.
   return (
-    <div className="relative min-h-screen bg-bg-primary flex flex-col overflow-hidden">
+    <div className="relative flex min-h-screen flex-col overflow-hidden">
       <Starfield className="pointer-events-none absolute inset-0 h-full w-full" />
 
-      <main id="main-content" tabIndex={-1} className="relative z-10 flex-1 flex items-center justify-center px-8 py-12">
-        <div className="w-full max-w-[560px] text-center">
-          <div className="font-display text-text-muted text-[clamp(2rem,5vw,3rem)] leading-none mb-4">
-            Oops
-          </div>
+      <main id="main-content" tabIndex={-1} className="relative z-10 flex flex-1 items-center justify-center px-[var(--gutter)] py-12">
+        <div className="grid w-full max-w-[520px] justify-items-start gap-2">
+          <Disc size="lg" className="[--_d:88px]">
+            <Icon name="warning" size={32} />
+          </Disc>
 
-          <h1 className="font-display text-text-primary leading-[1.15] tracking-tight mb-5 text-[clamp(1.75rem,3.5vw,2.5rem)]">
-            Something went wrong.
-          </h1>
-
-          <p className="text-[0.95rem] text-text-secondary leading-[1.7] mb-10">
-            We couldn&apos;t load this page. This is usually a brief hiccup on our side
-            and nothing is wrong with your account — try again in a moment.
-          </p>
-
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={retry}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-accent px-7 py-3.5 text-sm font-semibold text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
-            >
-              Try again
-            </button>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.05] px-7 py-3.5 text-sm text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
-            >
-              Back to home
-            </Link>
-          </div>
+          <PageHead
+            context="Oops"
+            title="Something went wrong."
+            lede="We couldn't load this page. This is usually a brief hiccup on our side and nothing is wrong with your account — try again in a moment."
+            actions={
+              <>
+                <Button type="button" onClick={retry}>
+                  Try again
+                </Button>
+                <ButtonLink href="/" variant="ghost">
+                  Back to home
+                </ButtonLink>
+              </>
+            }
+          />
 
           {error.digest && (
-            <p className="mt-8 text-[0.7rem] text-text-muted">
-              Error ID: <span className="font-mono">{error.digest}</span>
+            <p className="mt-6 text-small text-text-muted">
+              Error ID: <span className="data">{error.digest}</span>
             </p>
           )}
         </div>

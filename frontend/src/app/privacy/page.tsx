@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LegalDocument, LegalSection as Section } from "./LegalDocument";
 
 // Privacy Policy — UK GDPR / Data Protection Act 2018.
 // Controller: IC Founders Ltd (Companies House 17171277). Grounded in the
@@ -11,24 +12,10 @@ export const metadata = {
 
 const LAST_UPDATED = "12 November 2026";
 
-export default function PrivacyPage() {
-  return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-16">
-      <div className="max-w-[720px] mx-auto">
-        <Link href="/login" className="text-[0.8rem] text-text-muted no-underline hover:text-text-secondary transition-colors">
-          ← Back
-        </Link>
-        <div className="mt-6 mb-10 rule-draw pt-6">
-          <p className="label-wide text-text-secondary mb-3">Legal</p>
-          <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">
-            Privacy Policy
-          </h1>
-          <p className="text-[0.825rem] text-text-muted mt-3">
-            Last updated: {LAST_UPDATED}.
-          </p>
-        </div>
-
-        <article className="space-y-6 text-[0.875rem] text-text-secondary leading-relaxed [overflow-wrap:anywhere]">
+// The policy is written in three parts (below, then assembled at the foot), so no one component has to hold all of its sections.
+// The words are unchanged; only where the sections are written has moved.
+const WHO_AND_WHY = (
+  <>
           <Section title="1. Who we are">
             <p>
               Foundry is a private community platform for Imperial College London students and alumni
@@ -144,6 +131,11 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
+  </>
+);
+
+const PROCESSING = (
+  <>
           <Section title="4. Sign-in with Google">
             <p>
               If you choose to sign in with Google, Google shares your name, email address, and basic profile
@@ -246,6 +238,11 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
+  </>
+);
+
+const KEEPING_AND_RIGHTS = (
+  <>
           <Section title="8. How long we keep it">
             <p>
               We keep your data while your account is active. When you delete your account (Settings → Delete
@@ -348,17 +345,15 @@ export default function PrivacyPage() {
               or by calling 0303 123 1113.
             </p>
           </Section>
-        </article>
-      </div>
-    </main>
-  );
-}
+  </>
+);
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+export default function PrivacyPage() {
   return (
-    <section>
-      <h2 className="text-[1.05rem] text-text-primary font-medium tracking-tight mb-2">{title}</h2>
-      <div>{children}</div>
-    </section>
+    <LegalDocument back={{ href: "/login", label: "Back" }} kicker="Legal" title="Privacy Policy" updated={LAST_UPDATED}>
+      {WHO_AND_WHY}
+      {PROCESSING}
+      {KEEPING_AND_RIGHTS}
+    </LegalDocument>
   );
 }

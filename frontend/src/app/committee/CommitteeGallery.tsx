@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { MemberCard } from "@/components/members/MemberCard";
 import { MemberPhoto } from "@/components/members/MemberPhoto";
 import { MemberDialog } from "@/components/members/MemberDialog";
+import { Icon } from "@/design-system/icons/Icon";
 import type { CommitteeMember } from "@/lib/data/committee";
 
 // ════════════════════════════════════════════════════════════════════
@@ -72,11 +73,11 @@ export default function CommitteeGallery({ members }: { members: CommitteeMember
   const visible = carousel ? Array.from({ length: PAGE_SIZE }, (_, i) => at(i)) : members;
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <div className="mx-auto max-w-[var(--content-max)]">
       <div className="flex items-center justify-center gap-3">
         {carousel && (
-          <div className="hidden w-12 shrink-0 overflow-hidden rounded-xl opacity-40 sm:block" aria-hidden>
-            <MemberPhoto member={{ ...at(-1), committeeRole: null }} />
+          <div className="hidden w-10 shrink-0 justify-end overflow-hidden opacity-40 sm:flex" aria-hidden>
+            <MemberPhoto member={at(-1)} size="xl" />
           </div>
         )}
 
@@ -84,45 +85,31 @@ export default function CommitteeGallery({ members }: { members: CommitteeMember
           className={`flex min-w-0 flex-1 flex-wrap justify-center gap-3 transition-opacity duration-150 ${fading ? "opacity-40" : "opacity-100"}`}
         >
           {visible.map((m) => (
-            <div key={m.id} className="w-[140px] shrink-0 sm:w-[158px]">
+            <div key={m.id} className="w-[calc(50%-0.375rem)] shrink-0 sm:w-[8.5rem]">
               <MemberCard member={m} dense onClick={() => setOpen(m)} />
             </div>
           ))}
         </div>
 
         {carousel && (
-          <div className="hidden w-12 shrink-0 overflow-hidden rounded-xl opacity-40 sm:block" aria-hidden>
-            <MemberPhoto member={{ ...at(PAGE_SIZE), committeeRole: null }} />
+          <div className="hidden w-10 shrink-0 justify-start overflow-hidden opacity-40 sm:flex" aria-hidden>
+            <MemberPhoto member={at(PAGE_SIZE)} size="xl" />
           </div>
         )}
       </div>
 
       {carousel && (
-        <div className="mt-5 flex items-center justify-center gap-4">
-          <button
-            type="button"
-            onClick={prev}
-            aria-label="Previous committee member"
-            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M12 4l-6 6 6 6" />
-            </svg>
+        <div className="mt-6 flex items-center justify-center gap-4">
+          <button type="button" onClick={prev} aria-label="Previous committee member" className="lm-iconbtn">
+            <Icon name="chevron-left" size={20} />
           </button>
 
-          <p className="w-24 text-center text-[0.7rem] font-mono text-text-muted">
+          <p className="data w-24 text-center text-small text-text-muted">
             {index + 1} of {total}
           </p>
 
-          <button
-            type="button"
-            onClick={next}
-            aria-label="Next committee member"
-            className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M8 4l6 6-6 6" />
-            </svg>
+          <button type="button" onClick={next} aria-label="Next committee member" className="lm-iconbtn">
+            <Icon name="chevron-right" size={20} />
           </button>
         </div>
       )}

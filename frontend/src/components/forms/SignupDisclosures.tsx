@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { Icon } from "@/design-system/icons/Icon";
 
 // 18+ confirmation and T&C agreement checkbox, plus an expandable email-usage
 // notice. The useStudentAuth / useAlumAuth hooks record the acceptance
@@ -9,6 +10,12 @@ import { useState } from "react";
 // Used by both the alumni signup form and the student verification-link
 // signup flow. Parent owns the `agreed` state so it can gate the submit
 // button.
+//
+// Exactly one checkbox lives here and the login screen counts on that. Its
+// words carry two links, which stay underlined: inside a sentence a link must
+// be told apart from the text without relying on colour.
+const LINK = "text-accent-light underline decoration-lit-line underline-offset-4 transition-colors hover:decoration-accent-light";
+
 export function SignupDisclosures({
   agreed, onChange,
 }: {
@@ -16,24 +23,25 @@ export function SignupDisclosures({
   onChange: (v: boolean) => void;
 }) {
   const [emailNoticeOpen, setEmailNoticeOpen] = useState(false);
+  const noticeId = useId();
 
   return (
-    <div className="pt-1 space-y-3 border-t border-border-subtle mt-1">
-      <label className="flex items-start gap-3 cursor-pointer select-none mt-3">
+    <div className="mt-1 space-y-3 border-t border-border-subtle pt-1">
+      <label className="lm-choice mt-3 select-none">
         <input
           type="checkbox"
           checked={agreed}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-[3px] w-4 h-4 shrink-0 accent-white cursor-pointer"
+          className="lm-check"
           aria-describedby="tc-disclosure"
         />
-        <span id="tc-disclosure" className="text-[0.78rem] text-text-secondary leading-relaxed">
+        <span id="tc-disclosure" className="lm-choice__text text-small leading-relaxed">
           I&apos;m 18 or over, and I agree to the{" "}
-          <Link href="/terms" target="_blank" className="text-accent hover:text-accent-light no-underline">
+          <Link href="/terms" target="_blank" className={LINK}>
             Terms &amp; Conditions
           </Link>
           . I&apos;ve read the{" "}
-          <Link href="/privacy" target="_blank" className="text-accent hover:text-accent-light no-underline">
+          <Link href="/privacy" target="_blank" className={LINK}>
             Privacy Policy
           </Link>
           .
@@ -43,16 +51,18 @@ export function SignupDisclosures({
       <button
         type="button"
         onClick={() => setEmailNoticeOpen((o) => !o)}
-        className="text-[0.72rem] text-text-muted hover:text-text-secondary bg-transparent border-0 cursor-pointer transition-colors flex items-center gap-1 pl-7"
+        aria-expanded={emailNoticeOpen}
+        aria-controls={noticeId}
+        className="flex min-h-[var(--touch)] cursor-pointer items-center gap-2 border-0 bg-transparent pl-1 text-small text-text-muted transition-colors hover:text-text-secondary"
       >
-        <span>{emailNoticeOpen ? "▾" : "▸"}</span>
+        <Icon name="chevron-down" size={16} className="lm-chev lm-chev--right" />
         How we&apos;ll use your email
       </button>
 
       {emailNoticeOpen && (
-        <div className="pl-7 text-[0.72rem] text-text-muted leading-relaxed space-y-1.5">
+        <div id={noticeId} className="anim-panel space-y-2 pl-1 text-small leading-relaxed text-text-muted">
           <p>We only send emails about your account and what you do on Foundry:</p>
-          <ul className="list-disc pl-4 space-y-0.5">
+          <ul className="list-disc space-y-1 pl-5">
             <li>Sign-in codes and password resets.</li>
             <li>Decisions on your application and on anything you post or report.</li>
             <li>Connection requests and acceptances (you can turn the summary off).</li>
@@ -61,7 +71,7 @@ export function SignupDisclosures({
           <p className="pt-1">
             We don&apos;t send marketing emails. Other members only see your address if you connect with them.
             When you delete your account we delete it, except for a few records we keep for a set time, listed in
-            the <Link href="/privacy" target="_blank" className="text-accent hover:text-accent-light no-underline">Privacy Policy</Link>.
+            the <Link href="/privacy" target="_blank" className={LINK}>Privacy Policy</Link>.
           </p>
         </div>
       )}

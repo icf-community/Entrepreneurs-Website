@@ -7,7 +7,7 @@ import { useUrlFilters, useSearchDraft } from "@/lib/filters/useUrlFilters";
 import { SearchInput } from "@/components/filters/FilterBar";
 import { useListingFreshness } from "@/lib/useListingFreshness";
 import { ListingGoneNotice } from "@/components/ListingGoneNotice";
-import { FullPageLink } from "@/components/FullPageLink";
+import { ExternalButtonLink, FullPageLink, OutArrow } from "@/components/FullPageLink";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
@@ -18,7 +18,14 @@ import type { Opportunity } from "@/lib/data/opportunities";
 import { externalHref, mailtoHref } from "@/lib/safeUrl";
 import { settle } from "@/lib/settle";
 import { useToast } from "@/components/ui/Toast";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Definition, DefinitionList } from "@/components/ui/DefinitionList";
+import { Disclosure } from "@/components/ui/Disclosure";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
 import { useRouter } from "next/navigation";
 import { createAiDraftHandoff } from "@/lib/ai/entryPoint";
 
@@ -135,28 +142,35 @@ export default function OpportunitiesClient({
 
   return (
     <>
-      <div className="mb-8 flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-0 sm:min-w-[16rem]">
+      <div className="mb-8 flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1 sm:min-w-[16rem]">
           <SearchInput
             label="Search opportunities"
             placeholder="Search by role, company, skill, sector, or poster"
             value={query}
             onChange={setQuery}
+            className=""
           />
         </div>
         {aiEnabled && (
-          <Button variant="ghost" size="sm" loading={searchingWithAi} onClick={searchWithAi}>
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={searchingWithAi}
+            onClick={searchWithAi}
+            leading={<Icon name="foundry-ai" size={18} />}
+          >
             Find with AI
           </Button>
         )}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+        <EmptyState icon={items.length === 0 ? "opportunities" : "search"}>
           {items.length === 0 ? "No opportunities posted yet." : "No opportunities match your search."}
-        </div>
+        </EmptyState>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4">
           {filtered.slice(0, shown).map((o) => (
             <OpportunityCard
               key={o.id}
@@ -206,119 +220,101 @@ function OpportunityCard({
   const deadline = formatDate(o.applicationDeadline);
   const location = locationLabel(o);
 
-  const toggleOpen = () => setOpen((v) => !v);
+  const poster = `${o.postedBy.firstName} ${o.postedBy.surname}`;
 
   return (
-    <article id={`o-${o.id}`} className="rounded-2xl bg-bg-card border border-border overflow-hidden relative">
-      {/* Bookmark button — sits outside the toggle area so clicks don't expand. */}
-      <div className="absolute top-3 right-3 z-10">
-        <BookmarkButton bookmarked={bookmarked} onClick={onToggleBookmark} />
-      </div>
-
-      {/* S8 gap 21: a real <button>, not a div with role="button" — no
-          interactive content nests inside it (the bookmark button sits
-          outside as a sibling above; the expanded detail's links and
-          buttons render after this element closes, not within it), so
-          there's no invalid-nesting reason to avoid one here. */}
-      <button
-        type="button"
-        onClick={toggleOpen}
-        aria-expanded={open}
-        className="w-full px-6 py-5 text-left bg-transparent cursor-pointer transition-colors duration-150 hover:bg-white/[0.02]"
-      >
-        <div className="flex items-start justify-between gap-4 flex-wrap pr-10">
-          <div>
-            <div className="text-[1.05rem] font-medium text-text-primary">
-              {o.positionName}
-            </div>
-            <div className="text-[0.8rem] text-text-muted mt-1">
+    <Disclosure
+      id={`o-${o.id}`}
+      lazy
+      open={open}
+      onOpenChange={setOpen}
+      closedLabel="Show details"
+      openLabel="Hide details"
+      trailing={<span className="data">· Apply by {deadline}</span>}
+      // The bookmark sits on the card's corner, outside the toggle, so a click on it never expands the card.
+      accessory={<BookmarkButton bookmarked={bookmarked} onClick={onToggleBookmark} />}
+      summary={
+        <span className="flex items-start gap-4">
+          <Disc size="sm">
+            <Icon name="opportunities" size={18} />
+          </Disc>
+          <span className="grid min-w-0 flex-1 gap-1.5">
+            <span className="block font-display text-lead text-text-primary">{o.positionName}</span>
+            <span className="block text-small text-text-secondary">
               {o.company} · {location} · Starts {start}
               {audienceLabel(o.audience) && <> · {audienceLabel(o.audience)}</>}
-            </div>
-          </div>
-          <div className="text-[0.75rem] text-accent-light shrink-0">
-            {o.pay}
-          </div>
-        </div>
-
-        {(o.sectors.length > 0 || o.skills.length > 0) && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {o.sectors.map((s) => (
-              <span key={`sec-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-accent-muted text-accent-light border border-accent/20">{s}</span>
-            ))}
-            {o.skills.map((s) => (
-              <span key={`skl-${s}`} className="px-2 py-0.5 rounded-lg text-[0.7rem] bg-white/[0.03] text-text-secondary border border-border">{s}</span>
-            ))}
-          </div>
-        )}
-
-        <div className="text-[0.7rem] text-text-muted mt-3">
-          {open ? "▾ Hide details" : "▸ Show details"} · Apply by {deadline}
-        </div>
-      </button>
-
-      {open && stale && (
+            </span>
+            <span className="data block text-small text-accent-light">{o.pay}</span>
+            {(o.sectors.length > 0 || o.skills.length > 0) && (
+              <span className="mt-1 flex flex-wrap gap-1.5">
+                {o.sectors.map((s) => (
+                  <Badge key={`sec-${s}`} tone="lit">{s}</Badge>
+                ))}
+                {o.skills.map((s) => (
+                  <Badge key={`skl-${s}`}>{s}</Badge>
+                ))}
+              </span>
+            )}
+          </span>
+        </span>
+      }
+    >
+      {stale ? (
         <ListingGoneNotice kind="opportunity" onDismiss={onDismiss} />
-      )}
-
-      {open && !stale && (
-        <div className="px-6 pb-6 pt-1 border-t border-border-subtle">
-          {checking && (
-            <div className="text-[0.7rem] text-text-muted mt-3">Loading latest details…</div>
-          )}
-          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1 mt-4">Description</div>
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{o.description}</p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 text-[0.8rem]">
-            <div>
-              <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Posted by</div>
-              <div className="text-text-secondary">
-                {o.postedBy.firstName} {o.postedBy.surname}
-              </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-3">
-                <ViewProfileButton memberId={o.postedBy.id} />
-                {o.postedBy.linkedinUrl && (
-                  <a
-                    href={externalHref(o.postedBy.linkedinUrl)}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
-                  >
-                    LinkedIn ↗
-                  </a>
-                )}
-              </div>
-            </div>
-            <div>
-              <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Apply by</div>
-              <div className="text-text-secondary">{deadline}</div>
-            </div>
+      ) : (
+        <div className="grid gap-5 pt-4">
+          {checking && <p className="text-small text-text-muted">Loading latest details…</p>}
+          <div className="grid gap-1.5">
+            <p className="label-wide text-text-muted">Description</p>
+            <p className="whitespace-pre-wrap text-body text-text-secondary">{o.description}</p>
           </div>
 
-          <div className="mt-5">
-            <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">How to apply</div>
-            <div className="flex items-start gap-2 flex-wrap">
+          <DefinitionList min="sm">
+            <Definition term="Posted by">
+              <span className="grid justify-items-start gap-2">
+                <span>{poster}</span>
+                <span className="flex flex-wrap items-center gap-3">
+                  <ViewProfileButton memberId={o.postedBy.id} />
+                  {o.postedBy.linkedinUrl && (
+                    <a
+                      href={externalHref(o.postedBy.linkedinUrl)}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="inline-flex items-center gap-1 text-small text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
+                    >
+                      LinkedIn
+                      <OutArrow />
+                    </a>
+                  )}
+                </span>
+              </span>
+            </Definition>
+            <Definition term="Apply by"><span className="data">{deadline}</span></Definition>
+          </DefinitionList>
+
+          <div className="grid gap-2">
+            <p className="label-wide text-text-muted">How to apply</p>
+            <div className="flex flex-wrap items-start gap-3">
               {o.applyMethod === "link" && o.applyUrl ? (
-                <a
-                  href={externalHref(o.applyUrl)}
-                  target="_blank"
-                  rel="noreferrer noopener"
+                <ExternalButtonLink
+                  href={o.applyUrl}
                   onClick={() => recordListingEvent("opportunity", o.id, "apply_click")}
-                  className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.825rem] font-medium no-underline transition-colors hover:bg-accent-light"
                 >
-                  Open application portal ↗
-                </a>
+                  Open application portal
+                </ExternalButtonLink>
               ) : o.contactEmail ? (
-                <a
+                <ButtonLink
                   href={mailtoHref(o.contactEmail, o.positionName)}
                   onClick={() => recordListingEvent("opportunity", o.id, "contact_click")}
-                  className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.825rem] font-medium no-underline transition-colors hover:bg-accent-light"
+                  variant="primary"
+                  size="sm"
                 >
-                  Email to apply ↗
-                </a>
+                  Email to apply
+                  <OutArrow />
+                </ButtonLink>
               ) : (
-                <p className="text-[0.8rem] text-text-secondary">
-                  Contact <span className="text-text-primary">{o.postedBy.firstName} {o.postedBy.surname}</span> via LinkedIn to apply.
+                <p className="self-center text-body text-text-secondary">
+                  Contact <span className="text-text-primary">{poster}</span> via LinkedIn to apply.
                 </p>
               )}
               <MarkActionPill kind="opportunity" id={o.id} initial={applied} />
@@ -327,6 +323,6 @@ function OpportunityCard({
           </div>
         </div>
       )}
-    </article>
+    </Disclosure>
   );
 }

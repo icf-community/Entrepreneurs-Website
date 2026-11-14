@@ -1,6 +1,13 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
+import { Icon } from "@/design-system/icons/Icon";
+import { Button } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
+import { ChipSet } from "@/components/ui/ChipSet";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
+import { SearchField } from "@/components/ui/SearchField";
 
 // ════════════════════════════════════════════════════════════════════
 // The filter chrome shared by /community, /opportunities, /events,
@@ -12,19 +19,15 @@ import { useId, useState, type ReactNode } from "react";
 //
 // Nothing here holds filter state. It renders values and reports
 // changes; useUrlFilters owns the state, and the URL owns that.
+//
+// The look is the field family's (forms.css): the search box is a pill,
+// the toggles are chips, the number and date boxes are fields. A long set
+// of options (the ~170 skills) is kept short by ChipSet: only what is
+// chosen shows, and a ring opens the rest under a search box.
 // ════════════════════════════════════════════════════════════════════
 
-const INPUT =
-  "px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.875rem] " +
-  "text-text-primary placeholder:text-text-muted transition-colors duration-150 " +
-  "focus:border-accent focus:bg-white/[0.05]";
-
-const SMALL_INPUT =
-  "px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.8rem] " +
-  "text-text-primary placeholder:text-text-muted focus:border-accent";
-
 // Field names above a control, matching the form kit.
-const FILTER_LABEL = "text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-muted mb-2";
+const FILTER_LABEL = "lm-label mb-2.5";
 
 export function SearchInput({
   label, placeholder, value, onChange, className = "mb-4",
@@ -38,16 +41,7 @@ export function SearchInput({
 }) {
   return (
     <div className={className}>
-      <input
-        type="search"
-        aria-label={label}
-        spellCheck={false}
-        autoComplete="off"
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full ${INPUT}`}
-      />
+      <SearchField label={label} placeholder={placeholder} value={value} onChange={onChange} />
     </div>
   );
 }
@@ -69,52 +63,46 @@ export function FilterPanel({
 
   return (
     <div className="mb-6">
-      <div className="flex items-center gap-3 mb-3">
-        <button
+      <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-3">
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-controls={panelId}
-          className="flex items-center gap-1.5 px-3 py-2 text-[0.8rem] rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
+          leading={<Icon name="filter" size={18} />}
         >
-          <FilterIcon />
           Filters
-          {activeCount > 0 && (
-            <span className="data ml-1 rounded-sm bg-accent px-1.5 py-0.5 text-[0.65rem] font-medium text-bg-primary">
-              {activeCount}
-            </span>
-          )}
-          <Chevron open={open} />
-        </button>
+          {activeCount > 0 && <span className="lm-count data">{activeCount}</span>}
+          <Icon name="chevron-down" size={16} className="lm-chev" />
+        </Button>
 
         {activeCount > 0 && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="px-3 py-2 text-[0.75rem] rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
-          >
+          <Button type="button" variant="quiet" size="sm" onClick={onClear}>
             Clear all
-          </button>
+          </Button>
         )}
 
         {/* Announced as filters change, so a screen-reader user hears the
-            result count without having to go hunting for it. tabular-nums
-            stops the row shifting as the digits change width. */}
-        <span role="status" className="ml-auto text-[0.8rem] text-text-secondary tabular-nums">
+            result count without having to go hunting for it. A measured value,
+            so .data: tabular figures stop the row shifting as the digits change
+            width. The one role="status" in the bar (admin.spec reads the first). */}
+        <span role="status" className="data ml-auto text-small text-text-secondary">
           {resultCount}
         </span>
       </div>
 
-      <div
+      <Panel
         id={panelId}
         hidden={!open}
         // The class is applied only while open, so React remounting the
         // attribute is what fires the animation. Left on permanently it
         // would run once, invisibly, behind `hidden`.
-        className={`rounded-lg border border-border bg-bg-card p-5 space-y-5 ${open ? "anim-panel" : ""}`}
+        className={`grid gap-6 p-5 sm:p-6 ${open ? "anim-panel" : ""}`}
       >
         {children}
-      </div>
+      </Panel>
     </div>
   );
 }
@@ -130,16 +118,15 @@ export function ChipGroup({
   return (
     <div>
       <div className={FILTER_LABEL}>{label}</div>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((o) => (
-          <FilterChip
-            key={o.value}
-            label={o.label}
-            active={selected.has(o.value)}
-            onClick={() => onToggle(o.value)}
-          />
-        ))}
-      </div>
+      <ChipSet
+        name={label.toLowerCase()}
+        items={options.map((o) => ({
+          id: o.value,
+          label: o.label,
+          pressed: selected.has(o.value),
+          onToggle: () => onToggle(o.value),
+        }))}
+      />
     </div>
   );
 }
@@ -159,7 +146,7 @@ export function ChipChoice<T extends string>({
   return (
     <div>
       <div className={FILTER_LABEL}>{label}</div>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
+      <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
         {options.map((o) => (
           <FilterChip
             key={o.value}
@@ -181,18 +168,9 @@ export function FilterChip({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`cursor-pointer rounded-lg border px-3 py-1.5 text-[0.775rem] transition-colors duration-150 ${
-        active
-          ? "border-accent bg-accent font-medium text-bg-primary"
-          : "border-border-strong bg-white/[0.02] text-text-secondary hover:border-accent hover:text-text-primary"
-      }`}
-    >
+    <Chip pressed={active} onClick={onClick}>
       {label}
-    </button>
+    </Chip>
   );
 }
 
@@ -223,9 +201,11 @@ export function RangeFilter({
     <div>
       <div className={FILTER_LABEL}>
         {label}
-        {hint && <span className="ml-1 normal-case tracking-normal font-normal">{hint}</span>}
+        {hint && <span className="lm-label__hint">{hint}</span>}
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
+      {/* a pair of years shrinks to stay on one line; a pair of dates needs the room, so on a phone they stack ("to" between them) rather than
+          wrap and leave the "to" at the end of a line */}
+      <div className={type === "date" ? "grid gap-2 sm:flex sm:items-center sm:gap-3" : "flex items-center gap-3"}>
         <RangeInput
           type={type}
           ariaLabel={fromLabel}
@@ -236,7 +216,7 @@ export function RangeFilter({
           max={type === "date" ? (to || undefined) : bounds?.max}
           onCommit={onFromChange}
         />
-        <span className="text-text-muted text-[0.8rem]">to</span>
+        <span className="text-body text-text-muted">to</span>
         <RangeInput
           type={type}
           ariaLabel={toLabel}
@@ -275,9 +255,11 @@ function RangeInput({
   }
 
   return (
-    <input
+    <Input
       type={type}
+      compact
       aria-label={ariaLabel}
+      data-spin="off"
       placeholder={placeholder}
       value={draft}
       min={min}
@@ -287,30 +269,7 @@ function RangeInput({
         if (commitOn === "change") onCommit(e.target.value);
       }}
       onBlur={(e) => { if (commitOn === "blur") onCommit(e.target.value); }}
-      className={`${type === "number" ? "w-[140px] " : ""}${SMALL_INPUT}`}
+      className={type === "number" ? "min-w-0 max-w-40 flex-1" : "min-w-0 max-w-64 flex-1 basis-44 max-sm:max-w-none"}
     />
-  );
-}
-
-// A drawn chevron rather than the ▲ / ▼ characters this used to print. Those
-// render at whatever size and baseline the user's emoji or symbol font
-// decides, which is neither this type scale nor this stroke weight.
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden
-      className={`ml-0.5 text-text-muted transition-transform duration-150 ${open ? "rotate-180" : ""}`}
-    >
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
-
-function FilterIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-    </svg>
   );
 }

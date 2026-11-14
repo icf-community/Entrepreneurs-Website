@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import AppShell from "@/components/app/AppShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { FilterBarSkeleton, CardGridSkeleton } from "@/components/ui/Skeleton";
+import { PageHead } from "@/components/ui/PageHead";
 import {
   directoryPage,
   DIRECTORY_PAGE_SIZE,
@@ -11,6 +13,9 @@ import {
 import { aiModeEnabled } from "@/lib/ai/data";
 import MembersClient from "./MembersClient";
 import { flattenSearchParams, pageParam, yearParam } from "@/lib/filters/serverParams";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Members" };
 
 type SearchParams = {
   q?: string; role?: string; course?: string; sector?: string;
@@ -52,26 +57,20 @@ export default async function CommunityPage({
 
   return (
     <AppShell active="members" name={displayName} isAdmin={isAdmin}>
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[1200px] mx-auto">
-          <div className="mb-8 rule-draw pt-4">
-            <p className="label-wide text-text-muted mb-6">Members</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
-              The Foundry directory
-            </h1>
-          </div>
-          <Suspense
-            fallback={
-              <>
-                <FilterBarSkeleton />
-                <CardGridSkeleton className="mt-8" count={9} />
-              </>
-            }
-          >
-            <Directory data={data} filters={filters} aiEnabled={aiEnabled} />
-          </Suspense>
-        </div>
-      </div>
+      <Page>
+        {/* The eyebrow label became the masthead's context line; the title and its rule are PageHead's. */}
+        <PageHead context="Members" title="The Foundry directory" className="mb-8" />
+        <Suspense
+          fallback={
+            <>
+              <FilterBarSkeleton />
+              <CardGridSkeleton className="mt-8" count={9} />
+            </>
+          }
+        >
+          <Directory data={data} filters={filters} aiEnabled={aiEnabled} />
+        </Suspense>
+      </Page>
     </AppShell>
   );
 }

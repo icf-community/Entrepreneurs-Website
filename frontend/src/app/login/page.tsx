@@ -42,12 +42,14 @@ export default function LoginPage() {
 
 function LoginSkeleton() {
   return (
-    <main id="main-content" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-bg-primary px-4">
-      <SkeletonRegion label="Loading sign in…" className="w-full max-w-[420px] space-y-4">
-        <Skeleton className="mx-auto h-8 w-40" />
+    // No background of its own: the atmosphere shows through, as it does behind the real page.
+    <main id="main-content" tabIndex={-1} className="flex min-h-screen items-center justify-center px-[var(--gutter)]">
+      <SkeletonRegion label="Loading sign in…" className="w-full max-w-[460px] space-y-4">
+        <Skeleton className="h-12 w-12" shape="ring" />
+        <Skeleton className="h-8 w-56" />
         <Skeleton className="h-4 w-3/4" />
-        <Skeleton className="h-11 w-full rounded-lg" />
-        <Skeleton className="h-11 w-full rounded-lg" />
+        <Skeleton className="h-14 w-full rounded-lg" />
+        <Skeleton className="h-14 w-full rounded-lg" />
       </SkeletonRegion>
     </main>
   );

@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import AppShell from "@/components/app/AppShell";
+import { PageHead } from "@/components/ui/PageHead";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { listTaxonomy } from "@/lib/data/taxonomy";
 import OpportunityForm from "./OpportunityForm";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Post an opportunity" };
 
 export default async function NewOpportunityPage() {
   const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
@@ -10,26 +15,21 @@ export default async function NewOpportunityPage() {
 
   return (
     <AppShell active="opportunities" name={displayName} isAdmin={isAdmin}>
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[720px] mx-auto">
-          <div className="mb-8 rule-draw pt-6">
-            <p className="label-wide text-text-secondary mb-3">Post an opportunity</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
-              Share a role with the network
-            </h1>
-            <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed">
-              Submissions go to the admin queue for review before they appear on the Opportunities tab.
-            </p>
-          </div>
+      <Page width="page">
+        <PageHead
+          className="mb-8"
+          context="Post an opportunity"
+          title="Share a role with the network"
+          lede="Submissions go to the admin queue for review before they appear on the Opportunities tab."
+        />
 
-          <OpportunityForm
-            signupEmail={user.email ?? ""}
-            skills={skills}
-            sectors={sectors}
-            mode="user"
-          />
-        </div>
-      </div>
+        <OpportunityForm
+          signupEmail={user.email ?? ""}
+          skills={skills}
+          sectors={sectors}
+          mode="user"
+        />
+      </Page>
     </AppShell>
   );
 }

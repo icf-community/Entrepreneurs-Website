@@ -1,17 +1,12 @@
-// Shared form styling constants. Imported by Field, FormInput, etc., and
-// by any form that still renders its own inputs inline.
+// Shared form class names. One class each: the whole look of a field and of the caption above it lives in src/design-system/forms.css
+// (.lm-field, .lm-label), so changing how every input in the product looks is a change there, not here.
 //
-// The focus state moves the border to the full accent rather than a 50%
-// tint. The global :focus-visible ring only fires for keyboard focus, so on
-// a mouse click the border was the entire focus feedback — and a half-opacity
-// border against a card is not a state change you can see.
-export const inputCls =
-  "w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] " +
-  "text-text-primary placeholder:text-text-muted transition-colors duration-150 " +
-  "focus:border-accent focus:bg-white/[0.05]";
-
-// Field names, column heads, the caption above a value. The wordmark's second
-// register — light, tracked out, uppercase — doing the job a datasheet gives
-// it. Short labels only; this is unreadable on a sentence.
-export const labelCls =
-  "block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary";
+// They stay strings because about fifteen files compose them (`${inputCls} resize-none`, `${labelCls} mb-2`) or pass them down as a prop.
+// Utilities written after them still win: the family is in the components layer. New code should prefer <Input>, <Textarea>, <Select>
+// (components/ui), which apply the same class and the invalid / compact states for you.
+//
+// inputCls  an <input>, <textarea>, <select> or a <button> that opens a list. 48 px, a firm edge that warms when pointed at and lights
+//           when focused. The focus ring is the field's own edge; the global ring is retired for fields, so never add a second one.
+// labelCls  the caption above a control: sentence case, small, medium weight, secondary ink. (It used to be tracked capitals.)
+export const inputCls = "lm-field";
+export const labelCls = "lm-label";

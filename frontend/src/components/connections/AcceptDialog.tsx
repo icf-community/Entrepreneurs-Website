@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { closeDialog, dialogCloser } from "@/components/ui/dialogCloser";
 import { Button } from "@/components/ui/Button";
+import { ErrorBanner } from "@/components/forms/Banners";
 import { respondToConnectionRequest } from "@/app/connections/actions";
 import { settle } from "@/lib/settle";
 import { track } from "@/lib/analytics/track";
@@ -60,8 +61,8 @@ export function AcceptDialog({
   const [error, setError] = useState<string | null>(null);
 
   async function accept(e: { currentTarget: HTMLElement }) {
-    // Resolved BEFORE the await: React clears e.currentTarget once the
-    // event finishes dispatching, so closeDialog(e) after the round trip
+    // Resolved BEFORE the await (see dialogCloser): React clears
+    // e.currentTarget once the event finishes dispatching, so closeDialog(e) after the round trip
     // closes nothing and leaves this sitting open over a completed accept.
     const close = dialogCloser(e);
     setBusy(true);
@@ -90,35 +91,33 @@ export function AcceptDialog({
     <Dialog
       onClose={onClose}
       label={`Accept ${theirName}'s connection request`}
-      className="w-full max-w-[480px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto"
+      className="w-full max-w-[480px] p-6 sm:p-7 my-auto"
     >
-      <div className="px-6 py-5">
-        <h2 className="font-display text-[1.15rem] text-text-primary tracking-tight">
-          Connect with {theirName}?
-        </h2>
+      <h2 className="font-display text-title text-text-primary">
+        Connect with {theirName}?
+      </h2>
 
-        <div className="mt-3 space-y-3 text-[0.85rem] text-text-secondary leading-relaxed">
-          <p>
-            {theirName} will be able to see{" "}
-            <strong className="text-text-primary break-all">{myEmail}</strong>, and you&apos;ll
-            be able to see their address.
-          </p>
-          <p>
-            Either of you can remove the connection later, which stops it being shown in
-            Foundry — but it can&apos;t un-send an address someone already has.
-          </p>
-        </div>
+      <div className="mt-3 space-y-3 text-body leading-relaxed text-text-secondary">
+        <p>
+          {theirName} will be able to see{" "}
+          <strong className="break-all font-semibold text-text-primary">{myEmail}</strong>, and you&apos;ll
+          be able to see their address.
+        </p>
+        <p>
+          Either of you can remove the connection later, which stops it being shown in
+          Foundry — but it can&apos;t un-send an address someone already has.
+        </p>
+      </div>
 
-        {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+      {error && <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={closeDialog} disabled={busy}>
-            Cancel
-          </Button>
-          <Button variant="primary" size="sm" loading={busy} onClick={accept}>
-            Accept and share
-          </Button>
-        </div>
+      <div className="mt-7 flex flex-wrap items-center justify-end gap-2">
+        <Button variant="quiet" size="md" onClick={closeDialog} disabled={busy}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="md" loading={busy} onClick={accept}>
+          Accept and share
+        </Button>
       </div>
     </Dialog>
   );

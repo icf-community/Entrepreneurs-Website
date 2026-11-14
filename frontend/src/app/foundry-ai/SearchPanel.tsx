@@ -1,7 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Spinner } from "@/components/ui/Spinner";
 import { stageLabel } from "@/lib/ai/outcomes";
 import type {
   AiMode, AiTurnSummary, Conversation, RecruiterJob, ResultCard, TurnStatusResponse,
@@ -54,9 +56,11 @@ function ConfirmOrRunButton({
   if (running || !conversation) return null;
   if (conversation.pending) {
     return (
-      <Button size="sm" onClick={() => onSend("confirm", null)} loading={sending}>
-        Search with these criteria
-      </Button>
+      <div>
+        <Button size="sm" onClick={() => onSend("confirm", null)} loading={sending}>
+          Search with these criteria
+        </Button>
+      </div>
     );
   }
   return null;
@@ -73,12 +77,17 @@ function RunDirtyButton({
 }) {
   if (!dirty || !conversation || running) return null;
   return (
-    <Button size="sm" onClick={() => onSend("run", null)} loading={sending}>
-      Run search with these criteria
-    </Button>
+    <div>
+      <Button size="sm" onClick={() => onSend("run", null)} loading={sending}>
+        Run search with these criteria
+      </Button>
+    </div>
   );
 }
 
+// The thinking state. While a turn runs: the orbit turning, the stage in words (the live region, polite, so
+// the stage is announced as it moves) and Stop. Idle, the region stays mounted but takes no room (sr-only),
+// because a live region has to exist before its text changes to be announced reliably.
 function RunningStatus({
   running, status, activeTurnId,
 }: {
@@ -87,16 +96,21 @@ function RunningStatus({
   activeTurnId: string | null;
 }) {
   return (
-    <>
-      <div aria-live="polite" className="text-[0.8rem] text-text-muted">
-        {running && (status ? stageLabel(status.stage) : stageLabel("queued"))}
+    <div className={running ? "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-tint-1 py-2 pl-4 pr-2" : "sr-only"}>
+      <div aria-live="polite" className="flex min-w-0 flex-1 basis-40 items-center gap-3 py-1 text-body text-text-secondary">
+        {running && (
+          <>
+            <Spinner size="md" className="text-lit" />
+            <span>{status ? stageLabel(status.stage) : stageLabel("queued")}</span>
+          </>
+        )}
       </div>
       {running && activeTurnId && (
         <Button variant="ghost" size="sm" onClick={async () => { await cancelTurn(activeTurnId); }}>
           Stop
         </Button>
       )}
-    </>
+    </div>
   );
 }
 
@@ -155,7 +169,7 @@ export function SearchPanel({
       <RunDirtyButton dirty={dirty} conversation={conversation} running={running} sending={sending} onSend={onSend} />
       <RunningStatus running={running} status={status} activeTurnId={activeTurnId} />
 
-      {error && <p role="alert" className="text-[0.85rem] text-[#ff8080]">{error}</p>}
+      {error && <Notice tone="danger" role="alert">{error}</Notice>}
 
       <Composer
         draft={draft}

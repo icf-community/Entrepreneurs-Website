@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import AppShell from "@/components/app/AppShell";
+import { PageHead } from "@/components/ui/PageHead";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { myPostsPage } from "@/lib/data/posts";
 import { toMyPostView } from "../feedView";
 import MyPostsClient from "./MyPostsClient";
+import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /community/mine
@@ -15,7 +17,8 @@ import MyPostsClient from "./MyPostsClient";
 //
 // It is a real route, not client state, so it can be linked and
 // bookmarked — which is what a member wants when they come back to delete
-// something before it expires.
+// something before it expires. The two views are drawn as link tabs under the
+// head (MyPostsClient), the same column as the feed.
 // ════════════════════════════════════════════════════════════════════
 
 export const metadata: Metadata = {
@@ -29,25 +32,23 @@ export default async function MyPostsPage() {
 
   return (
     <AppShell active="community" name={displayName} isAdmin={isAdmin}>
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[720px] mx-auto">
-          <div className="mb-8 rule-draw pt-4">
-            <p className="label-wide text-text-muted mb-6">Community</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
-              My posts
-            </h1>
-            <p className="mt-3 text-[0.875rem] text-text-secondary leading-relaxed">
+      <Page width="page">
+        <PageHead
+          context="Community"
+          title="My posts"
+          lede={
+            <>
               Everything you&rsquo;ve posted that hasn&rsquo;t expired yet. Posts are deleted
               automatically seven days after publishing, and you can remove one sooner at any time.
-            </p>
-          </div>
+            </>
+          }
+        />
 
-          <MyPostsClient
-            initialPosts={await toMyPostView(posts)}
-            initialCursor={nextCursor}
-          />
-        </div>
-      </div>
+        <MyPostsClient
+          initialPosts={await toMyPostView(posts)}
+          initialCursor={nextCursor}
+        />
+      </Page>
     </AppShell>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Notice, type NoticeTone } from "@/components/ui/Notice";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Incident banner (launch programme F-x4)
@@ -14,6 +15,9 @@ import { useEffect, useState } from "react";
 // banner version, so a new message shows again. Critical can't be
 // dismissed. Storage can be unavailable (private mode, blocked site data):
 // every access is wrapped, and the banner then simply stays visible.
+//
+// Drawn as a full-bleed Notice strip. The severities are lights, not
+// colours: info is the cold light, warning is amber, critical is danger.
 // ════════════════════════════════════════════════════════════════════
 
 type Banner = {
@@ -34,10 +38,10 @@ function readDismissed(): number | null {
   }
 }
 
-const TONE: Record<Banner["severity"], string> = {
-  info: "border-border-strong bg-bg-card text-text-primary",
-  warning: "border-[#e0a100]/60 bg-[#e0a100]/10 text-[#ffd97a]",
-  critical: "border-[#ff4d4d]/60 bg-[#ff4d4d]/10 text-[#ffb3b3]",
+const TONE: Record<Banner["severity"], NoticeTone> = {
+  info: "info",
+  warning: "lit",
+  critical: "danger",
 };
 
 export function SiteBanner() {
@@ -73,36 +77,22 @@ export function SiteBanner() {
   };
 
   return (
-    <div
+    <Notice
+      shape="bar"
+      tone={TONE[banner.severity]}
       role={banner.severity === "critical" ? "alert" : "status"}
-      className={`flex items-start gap-3 border-b px-4 py-2.5 text-[0.825rem] sm:px-8 ${TONE[banner.severity]}`}
+      onDismiss={canDismiss ? dismiss : undefined}
+      dismissLabel="Dismiss this notice"
     >
-      <p className="min-w-0 flex-1 leading-relaxed">
-        {banner.message}
-        {banner.linkUrl && (
-          <>
-            {" "}
-            <a
-              href={banner.linkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2"
-            >
-              More
-            </a>
-          </>
-        )}
-      </p>
-      {canDismiss && (
-        <button
-          type="button"
-          onClick={dismiss}
-          aria-label="Dismiss this notice"
-          className="shrink-0 cursor-pointer rounded-md border border-border-strong px-1.5 text-text-muted transition-colors hover:border-accent hover:text-text-primary"
-        >
-          ✕
-        </button>
+      {banner.message}
+      {banner.linkUrl && (
+        <>
+          {" "}
+          <a href={banner.linkUrl} target="_blank" rel="noopener noreferrer">
+            More
+          </a>
+        </>
       )}
-    </div>
+    </Notice>
   );
 }

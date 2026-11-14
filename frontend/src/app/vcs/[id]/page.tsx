@@ -1,7 +1,8 @@
+import type { Metadata } from "next";
 import { isUuid } from "@/lib/uuid";
 import { notFound } from "next/navigation";
 import ListingDetailShell, {
-  ListingGone, Fact, Description,
+  ActionSection, Description, Fact, Facts, ListingGone,
 } from "@/components/ListingDetailShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { markedIds } from "@/lib/data/activity";
@@ -10,6 +11,8 @@ import { formatDate } from "@/lib/dates";
 import VcActions from "./VcActions";
 import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
+
+export const metadata: Metadata = { title: "Grant or VC" };
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One VC or grant
@@ -73,19 +76,20 @@ export default async function VcPage({ params }: { params: Promise<Params> }) {
     >
       {revisionPending && <PendingRevisionNotice noun="listing" />}
 
-      <Description text={v.description} />
+      <div className="grid gap-10">
+        <Description text={v.description} />
 
-      <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Fact label="Kind">{kindLabel}</Fact>
-        <Fact label="Deadline">{deadlineLabel}</Fact>
-        <Fact label="Amount">{v.amount}</Fact>
-        <Fact label="Stage">{v.stage}</Fact>
-        <Fact label="Posted by">{posterName}</Fact>
-      </div>
+        <Facts>
+          <Fact label="Kind">{kindLabel}</Fact>
+          <Fact label="Deadline">{deadlineLabel}</Fact>
+          <Fact label="Amount">{v.amount}</Fact>
+          <Fact label="Stage">{v.stage}</Fact>
+          <Fact label="Posted by">{posterName}</Fact>
+        </Facts>
 
-      <div className="mt-9 border-t border-border-subtle pt-7">
-        <h2 className="mb-3 text-[0.7rem] uppercase tracking-wider text-text-muted">Apply</h2>
-        <VcActions vc={v} applied={appliedIds.includes(v.id)} />
+        <ActionSection title="Apply">
+          <VcActions vc={v} applied={appliedIds.includes(v.id)} />
+        </ActionSection>
       </div>
     </ListingDetailShell>
   );

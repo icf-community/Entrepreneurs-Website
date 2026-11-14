@@ -2,16 +2,28 @@
 
 import Link from "next/link";
 import { useId, useRef, useState, type ReactNode } from "react";
-import { inputCls, labelCls } from "@/components/forms/styles";
+import { labelCls } from "@/components/forms/styles";
+import { Button } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
+import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { Radio } from "@/components/ui/Radio";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Intake controls
 //
-// The shared inputs the nine screens are built from. The rule running
-// through all of them: anything you can press is drawn as a control — a
-// surface and a border-strong outline — never as tinted text. That
-// includes chip removals, file pickers and rank badges, which are the
-// three places this app has historically shipped bare glyphs.
+// The shared inputs the intake screens are built from (the profile page
+// uses them too, so every export and prop below is a contract). They are
+// the design system's own pieces, composed: Chip for anything you pick or
+// remove, Radio card for an exclusive choice, Input for a line of text,
+// Notice for an offer (what the CV found), Button for an action. Nothing
+// here names a colour or draws its own pill.
+//
+// The rule that ran through the old file still holds: anything you can
+// press is drawn as a control, never as tinted text. That includes chip
+// removals, file pickers and rank badges.
 // ════════════════════════════════════════════════════════════════════
 
 export function Field({
@@ -27,16 +39,18 @@ export function Field({
 }) {
   return (
     <div>
-      <label className={`${labelCls} mb-1.5`} htmlFor={htmlFor}>
+      <label className={`${labelCls} mb-2`} htmlFor={htmlFor}>
         {label}
       </label>
-      {hint && <p className="mb-2.5 text-[0.8rem] leading-[1.6] text-text-muted">{hint}</p>}
+      {hint && <p className="-mt-1 mb-3 text-small leading-[1.55] text-text-muted">{hint}</p>}
       {children}
     </div>
   );
 }
 
-/** A radio group drawn as cards. Used for affiliation and single-choice lists. */
+/** A radio group drawn as cards. Used for affiliation and single-choice lists. Native radios underneath, so the arrow keys move
+ *  between the cards and the group is one stop in the tab order. The columns are for a tablet and up; a phone gets one,
+ *  except `"pair"`, two short options (Yes and No) that stay side by side at every width. */
 export function ChoiceCards<T extends string>({
   name,
   options,
@@ -48,37 +62,23 @@ export function ChoiceCards<T extends string>({
   options: { value: T; label: string; blurb?: string }[];
   value: T | null;
   onChange: (v: T) => void;
-  columns?: 1 | 2 | 3;
+  columns?: 1 | 2 | 3 | "pair";
 }) {
-  const cols = columns === 1 ? "grid-cols-1" : columns === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2";
+  const cols = columns === "pair" ? "grid-cols-2" : columns === 1 ? "grid-cols-1" : columns === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2";
   return (
-    <div role="radiogroup" aria-label={name} className={`grid grid-cols-1 gap-2 ${cols}`}>
-      {options.map((o) => {
-        const on = value === o.value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            onClick={() => onChange(o.value)}
-            className={`cursor-pointer rounded-lg border px-4 py-3 text-left transition-colors duration-150 ${
-              on
-                ? "border-accent bg-white/[0.10]"
-                : "border-border-strong bg-white/[0.03] hover:border-accent hover:bg-white/[0.06]"
-            }`}
-          >
-            <span
-              className={`block text-[0.85rem] font-medium ${on ? "text-text-primary" : "text-text-secondary"}`}
-            >
-              {o.label}
-            </span>
-            {o.blurb && (
-              <span className="mt-0.5 block text-[0.75rem] leading-[1.5] text-text-muted">{o.blurb}</span>
-            )}
-          </button>
-        );
-      })}
+    <div role="radiogroup" aria-label={name} className={`grid gap-2.5 ${cols}`}>
+      {options.map((o) => (
+        <Radio
+          key={o.value}
+          card
+          name={name}
+          value={o.value}
+          checked={value === o.value}
+          onChange={() => onChange(o.value)}
+          label={o.label}
+          hint={o.blurb}
+        />
+      ))}
     </div>
   );
 }
@@ -102,23 +102,37 @@ export function PillChoice({
       {options.map((o) => {
         const on = value === o.value;
         return (
-          <button
-            key={o.value}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            onClick={() => onChange(o.value)}
-            className={`cursor-pointer rounded-lg border px-4 py-2 text-[0.8rem] transition-colors duration-150 ${
-              on
-                ? "border-accent bg-accent font-medium text-bg-primary"
-                : "border-border-strong bg-white/[0.03] text-text-secondary hover:border-accent hover:text-text-primary"
-            }`}
-          >
-            {o.label}
-          </button>
+          <Chip key={o.value} role="radio" aria-checked={on} lit={on} onClick={() => onChange(o.value)}>
+            <span className="inline-flex items-center gap-2">
+              {on ? <Icon name="check" size={14} /> : null}
+              {o.label}
+            </span>
+          </Chip>
         );
       })}
     </div>
+  );
+}
+
+/** The chosen values of an open list: each one a chip whose press removes it (named "Remove …"; the words on it are the value). */
+function RemovableChips({
+  items,
+  onRemove,
+}: {
+  items: { key: string; label: string }[];
+  onRemove: (key: string) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <ul className="mb-3 flex flex-wrap gap-2">
+      {items.map((it) => (
+        <li key={it.key} className="max-w-full">
+          <Chip lit removable aria-label={`Remove ${it.label}`} onClick={() => onRemove(it.key)}>
+            {it.label}
+          </Chip>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -177,38 +191,9 @@ export function TagInput({
 
   return (
     <div>
-      {values.length > 0 && (
-        <ul className="mb-2 flex flex-wrap gap-2">
-          {values.map((v) => (
-            <li key={v}>
-              <span className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-white/[0.06] py-1 pl-3 pr-1 text-[0.775rem] text-text-primary">
-                {v}
-                <button
-                  type="button"
-                  onClick={() => onRemove(v)}
-                  aria-label={`Remove ${v}`}
-                  // The visible box stays chip-sized so the pill doesn't bulk up, but
-                  // the actual tap target extends 4px past it on every side via the
-                  // pseudo-element below — safe because chips sit in an 8px gap-2
-                  // grid, so two adjacent extended targets meet without overlapping.
-                  className="relative ml-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 before:absolute before:-inset-1 before:content-[''] hover:border-accent hover:text-text-primary"
-                >
-                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden>
-                    <path
-                      d="M1 1L8 8M8 1L1 8"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <RemovableChips items={values.map((v) => ({ key: v, label: v }))} onRemove={onRemove} />
 
-      <input
+      <Input
         id={id}
         type="text"
         aria-label={placeholder}
@@ -225,7 +210,6 @@ export function TagInput({
           if (e.key === "Backspace" && !draft && values.length) onRemove(values[values.length - 1]);
         }}
         onBlur={() => commit(draft)}
-        className={`${inputCls} disabled:cursor-not-allowed disabled:opacity-60`}
       />
       <datalist id={listId}>
         {matches.map((m) => (
@@ -234,26 +218,28 @@ export function TagInput({
       </datalist>
 
       {canAddTyped && (
-        <button
-          type="button"
-          onClick={() => commit(draft)}
-          className="mt-2 cursor-pointer rounded-lg border border-border-strong bg-white/[0.06] px-3 py-1.5 text-[0.775rem] font-medium text-text-primary transition-colors duration-150 hover:border-accent"
-        >
-          + Add &quot;{trimmed}&quot;
-        </button>
+        <div className="mt-3">
+          <Chip className="py-2" onClick={() => commit(draft)}>
+            <span className="inline-flex items-center gap-2 whitespace-normal text-left">
+              <Icon name="plus" size={14} />
+              <span className="sr-only">+ </span>
+              Add &quot;{trimmed}&quot;
+            </span>
+          </Chip>
+        </div>
       )}
 
       {matches.length > 0 && (
-        <ul className="mt-2 flex flex-wrap gap-2">
+        <ul className="mt-3 flex flex-wrap gap-2">
           {matches.map((m) => (
-            <li key={m}>
-              <button
-                type="button"
-                onClick={() => commit(m)}
-                className="cursor-pointer rounded-lg border border-border bg-white/[0.02] px-3 py-1.5 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
-              >
-                + {m}
-              </button>
+            <li key={m} className="max-w-full">
+              <Chip onClick={() => commit(m)}>
+                <span className="inline-flex items-center gap-2">
+                  <Icon name="plus" size={14} />
+                  <span className="sr-only">+ </span>
+                  {m}
+                </span>
+              </Chip>
             </li>
           ))}
         </ul>
@@ -273,10 +259,11 @@ export type SkillOption = { id: number; name: string; category: string | null };
  * is the dead end a closed list would otherwise create.
  *
  * `suggested` renders as its own region, visually distinct from the
- * selected chips below (a dashed border and a "+" glyph rather than a
- * solid one) — see AvatarCropper's sibling comment in screens.tsx: a
- * suggestion is an offer, a chip is a claim, and conflating them would
- * make it look like the CV parse already changed the member's profile.
+ * selected chips below (a lit notice with a spark, its chips plain "add"
+ * chips rather than chosen ones) — see AvatarCropper's sibling comment in
+ * screens.tsx: a suggestion is an offer, a chip is a claim, and conflating
+ * them would make it look like the CV parse already changed the member's
+ * profile.
  */
 export function SkillPicker({
   taxonomy,
@@ -315,91 +302,70 @@ export function SkillPicker({
     ? taxonomy.filter((t) => !selectedSet.has(t.id) && t.name.toLowerCase().includes(query)).slice(0, 8)
     : [];
 
+  const chosen = selectedIds.flatMap((id) => {
+    const skill = byId.get(id);
+    return skill ? [{ key: String(id), label: skill.name }] : [];
+  });
+
   return (
     <div>
       {suggested.length > 0 && (
-        <div className="mb-4 rounded-lg border border-dashed border-signal/50 bg-signal-muted/40 p-3">
-          <p className="mb-2 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-signal">
-            Found in your CV
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {suggested.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => acceptSuggestion(s.id)}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-signal/40 bg-white/[0.03] px-3 py-1.5 text-[0.775rem] text-text-primary transition-colors duration-150 hover:border-signal hover:bg-signal-muted"
-              >
-                <span aria-hidden className="text-signal">+</span>
-                {s.name}
-              </button>
-            ))}
-          </div>
+        <div className="mb-4">
+          <Notice tone="lit" icon="spark" title="Found in your CV">
+            <div className="mt-3 flex flex-wrap gap-2">
+              {suggested.map((s) => (
+                <Chip key={s.id} onClick={() => acceptSuggestion(s.id)}>
+                  <span className="inline-flex items-center gap-2">
+                    <Icon name="plus" size={14} />
+                    <span className="sr-only">+ </span>
+                    {s.name}
+                  </span>
+                </Chip>
+              ))}
+            </div>
+          </Notice>
         </div>
       )}
 
-      {selectedIds.length > 0 && (
-        <ul className="mb-2 flex flex-wrap gap-2">
-          {selectedIds.map((id) => {
-            const skill = byId.get(id);
-            if (!skill) return null;
-            return (
-              <li key={id}>
-                <span className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-white/[0.06] py-1 pl-3 pr-1 text-[0.775rem] text-text-primary">
-                  {skill.name}
-                  <button
-                    type="button"
-                    onClick={() => onRemove(id)}
-                    aria-label={`Remove ${skill.name}`}
-                    // See TagInput's matching remove button above for why this
-                    // extends its hit area via a pseudo-element instead of just
-                    // growing the visible box.
-                    className="relative ml-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 before:absolute before:-inset-1 before:content-[''] hover:border-accent hover:text-text-primary"
-                  >
-                    <svg width="9" height="9" viewBox="0 0 9 9" fill="none" aria-hidden>
-                      <path d="M1 1L8 8M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <RemovableChips items={chosen} onRemove={(key) => onRemove(Number(key))} />
 
-      <input
+      <Input
         type="text"
         aria-label="Search skills"
         value={draft}
         placeholder="Search ~180 skills…"
         onChange={(e) => setDraft(e.target.value)}
-        className={inputCls}
       />
 
       {query && matches.length > 0 && (
-        <ul className="mt-2 flex flex-wrap gap-2">
+        <ul className="mt-3 flex flex-wrap gap-2">
           {matches.map((m) => (
-            <li key={m.id}>
-              <button
-                type="button"
+            <li key={m.id} className="max-w-full">
+              <Chip
+                className="py-2"
                 onClick={() => {
                   onAdd(m.id);
                   setDraft("");
                 }}
-                className="cursor-pointer rounded-lg border border-border bg-white/[0.02] px-3 py-1.5 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
               >
-                + {m.name}
-                {m.category && <span className="ml-1.5 text-text-muted">· {m.category}</span>}
-              </button>
+                <span className="inline-flex items-center gap-2 whitespace-normal text-left">
+                  <Icon name="plus" size={14} />
+                  <span className="sr-only">+ </span>
+                  <span>
+                    {m.name}
+                    {m.category && <span className="ml-1.5 text-text-muted">· {m.category}</span>}
+                  </span>
+                </span>
+              </Chip>
             </li>
           ))}
         </ul>
       )}
 
       {query && matches.length === 0 && (
-        <p className="mt-2 text-[0.8rem] leading-[1.6] text-text-muted">
+        <p className="mt-3 text-small leading-[1.6] text-text-muted">
           Nothing matches that — the list is curated,{" "}
-          <Link href="/contact" className="text-text-secondary underline underline-offset-2">
+          <Link href="/contact" className="text-accent-light underline underline-offset-4">
             tell us what&apos;s missing
           </Link>
           .
@@ -407,9 +373,9 @@ export function SkillPicker({
       )}
 
       {selectedIds.length > 0 && (
-        <div className="mt-4">
-          <p className={`${labelCls} mb-2`}>
-            Core skills — {coreIds.length} of {maxCore}
+        <div className="mt-6 border-t border-border-subtle pt-5">
+          <p className={`${labelCls} mb-3`}>
+            Core skills — <span className="data">{coreIds.length}</span> of <span className="data">{maxCore}</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {selectedIds.map((id) => {
@@ -418,27 +384,30 @@ export function SkillPicker({
               const isCore = coreSet.has(id);
               const locked = !isCore && coreIds.length >= maxCore;
               return (
-                <button
-                  key={id}
-                  type="button"
-                  disabled={locked}
-                  aria-pressed={isCore}
-                  onClick={() => onToggleCore(id)}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-[0.775rem] transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
-                    isCore
-                      ? "border-signal/50 bg-signal-muted text-text-primary"
-                      : "border-border-strong bg-white/[0.03] text-text-secondary hover:border-accent hover:text-text-primary"
-                  }`}
-                >
-                  <span aria-hidden className={isCore ? "text-signal" : "text-text-muted"}>★</span>
-                  {skill.name}
-                </button>
+                <Chip key={id} disabled={locked} pressed={isCore} onClick={() => onToggleCore(id)}>
+                  <span className="inline-flex items-center gap-2">
+                    {isCore ? null : <Icon name="star" size={14} />}
+                    {skill.name}
+                  </span>
+                </Chip>
               );
             })}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** What a file is, in a few letters on a quiet tile (PDF, DOCX): the extension of the name, as the intake always showed it. */
+export function FileTile({ filename }: { filename: string }) {
+  return (
+    <span
+      aria-hidden
+      className="data grid size-14 shrink-0 place-items-center rounded-lg bg-tint-3 text-caption font-medium text-text-secondary"
+    >
+      {(filename.split(".").pop() ?? "file").slice(0, 4).toUpperCase()}
+    </span>
   );
 }
 
@@ -470,32 +439,20 @@ export function FilePicker({
 
   if (file) {
     return (
-      <div className="flex items-center gap-4 rounded-lg border border-border-strong bg-white/[0.04] p-4">
+      <div className="flex flex-wrap items-center gap-4 rounded-xl bg-tint-2 p-4">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element -- object URL, not a remote asset
-          <img
-            src={preview}
-            alt=""
-            className="h-16 w-16 shrink-0 rounded-lg object-cover"
-          />
+          <img src={preview} alt="" className="size-16 shrink-0 rounded-lg object-cover" />
         ) : (
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03] font-mono text-[0.65rem] text-text-secondary">
-            {(file.name.split(".").pop() ?? "file").slice(0, 4).toUpperCase()}
-          </span>
+          <FileTile filename={file.name} />
         )}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.85rem] text-text-primary">{file.name}</span>
-          <span className="block text-[0.75rem] text-text-muted">
-            {(file.size / 1024).toFixed(0)} KB
-          </span>
+          <span className="block truncate text-body text-text-primary">{file.name}</span>
+          <span className="data block text-small text-text-muted">{(file.size / 1024).toFixed(0)} KB</span>
         </span>
-        <button
-          type="button"
-          onClick={onClear}
-          className="shrink-0 cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-3 py-2 text-[0.775rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
-        >
+        <Button type="button" variant="ghost" size="sm" onClick={onClear}>
           Replace
-        </button>
+        </Button>
       </div>
     );
   }
@@ -516,21 +473,26 @@ export function FilePicker({
           const f = e.dataTransfer.files?.[0];
           if (f) onPick(f);
         }}
-        className={`w-full cursor-pointer rounded-lg border border-dashed px-6 py-8 text-center transition-colors duration-150 ${
-          over ? "border-accent bg-white/[0.08]" : "border-border-strong bg-white/[0.03] hover:bg-white/[0.06]"
+        className={`grid w-full cursor-pointer justify-items-center gap-1 rounded-xl border border-dashed px-6 py-9 text-center transition-colors duration-150 ${
+          over
+            ? "border-lit-line bg-lit-muted"
+            : "border-border-strong bg-tint-1 hover:border-lit-line hover:bg-tint-2"
         }`}
       >
-        <span className="block text-[0.9rem] font-medium text-text-primary">{label}</span>
-        <span className="mt-1 block text-[0.775rem] text-text-muted">{hint}</span>
-        <span className="mt-4 inline-block rounded-lg border border-border-strong bg-white/[0.06] px-4 py-2 text-[0.8rem] text-text-primary">
-          Choose a file
-        </span>
+        <Disc>
+          <Icon name="upload" size={20} />
+        </Disc>
+        <span className="mt-2 block font-display text-lead text-text-primary">{label}</span>
+        <span className="block text-small text-text-muted">{hint}</span>
+        <span className="mt-3 block text-small font-semibold text-accent-light">Choose a file</span>
       </button>
       <input
         ref={ref}
         type="file"
         accept={accept}
         aria-label={label}
+        // the dropzone button above is the keyboard's way in; this input is only what the button opens, so it is not a tab stop of its own
+        tabIndex={-1}
         className="sr-only"
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -563,25 +525,13 @@ export function RankPicker({
         const on = rank >= 0;
         const full = !on && values.length >= max;
         return (
-          <button
-            key={o.value}
-            type="button"
-            disabled={full}
-            aria-pressed={on}
-            onClick={() => onToggle(o.value)}
-            className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-[0.8rem] transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
-              on
-                ? "border-accent bg-white/[0.10] text-text-primary"
-                : "border-border-strong bg-white/[0.03] text-text-secondary hover:border-accent hover:text-text-primary"
-            }`}
-          >
-            {on && (
-              <span className="flex h-5 w-5 items-center justify-center rounded border border-signal/50 bg-signal-muted font-mono text-[0.65rem] text-signal">
-                {rank + 1}
-              </span>
-            )}
-            {o.label}
-          </button>
+          // the rank is the chosen mark here, so the chip's own tick steps aside
+          <Chip key={o.value} disabled={full} pressed={on} className="before:hidden" onClick={() => onToggle(o.value)}>
+            <span className="inline-flex items-center gap-2">
+              {on && <span className="lm-count">{rank + 1}</span>}
+              {o.label}
+            </span>
+          </Chip>
         );
       })}
     </div>

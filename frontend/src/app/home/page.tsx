@@ -1,9 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import AppShell from "@/components/app/AppShell";
 import { IntakePromptCard } from "@/components/app/IntakePromptCard";
 import NewestMembers from "@/components/members/NewestMembers";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Badge } from "@/components/ui/Badge";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Entry } from "@/components/ui/Entry";
+import { PageHead } from "@/components/ui/PageHead";
+import { Panel } from "@/components/ui/Panel";
+import { Section } from "@/components/ui/Section";
+import { Skeleton, SkeletonRegion } from "@/components/ui/Skeleton";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { GraduationPrompt } from "./GraduationPrompt";
 import { myPendingConnectionCount } from "@/lib/data/connections";
@@ -12,6 +22,9 @@ import { newestEvents } from "@/lib/data/events";
 import { newestOpportunities } from "@/lib/data/opportunities";
 import { newestVcs } from "@/lib/data/vcs";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Home" };
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Home
@@ -40,6 +53,11 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 // teaches people that this screen is decoration. The table it reads is
 // `connections` (20260917000001), not the `intro_requests` this comment
 // used to name.
+//
+// The drawing is one hierarchy, not three equal rows: people first (a ring each),
+// then the events, the newest of them given the room, then the opportunities
+// and the funding side by side as two quiet lists. The one lit thing is the
+// connection request, when there is one.
 // ════════════════════════════════════════════════════════════════════
 
 export default async function HomePage() {
@@ -75,56 +93,69 @@ export default async function HomePage() {
   // that costs a sub-millisecond query to place correctly.
   const pendingConnections = await myPendingConnectionCount(supabase);
 
+  const hasPrompts = showGraduationPrompt || showIntakePrompt || pendingConnections > 0;
+
   return (
     <AppShell active="home" name={fullName || name}>
-      <div className="mx-auto w-full max-w-[1100px] px-6 py-10 sm:px-10">
-        <header className="mb-12">
-          <p className="mb-1 text-[0.8rem] text-text-muted">Hello,</p>
-          <h1 className="font-display text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] tracking-tight text-text-primary">
-            {name}
-          </h1>
-        </header>
+      <Page>
+        <PageHead context="Hello," title={name} className="mb-8" />
 
-        {showGraduationPrompt && <GraduationPrompt currentYear={new Date().getFullYear()} />}
+        <div className="lm-sections">
+          {hasPrompts && (
+            // What is waiting on the member personally, kept together. Every card in it
+            // draws its own bottom margin (the intake prompt is the shell's), so the grid
+            // gap is the only spacing between them.
+            <div className="grid gap-4 [&>*]:mb-0">
+              {showGraduationPrompt && <GraduationPrompt currentYear={new Date().getFullYear()} />}
+              {showIntakePrompt && <IntakePromptCard />}
+              {pendingConnections > 0 && <ConnectionRequestsCard count={pendingConnections} />}
+            </div>
+          )}
 
-        {showIntakePrompt && <IntakePromptCard />}
-
-        {pendingConnections > 0 && <ConnectionRequestsCard count={pendingConnections} />}
-
-        <Suspense fallback={<StripSkeleton />}>
-          <Newest data={members} />
-        </Suspense>
-
-        <Section title="Events" blurb="Foundry gatherings and member meetups">
-          <Suspense fallback={<CardsSkeleton />}>
-            <Events data={events} />
+          <Suspense fallback={<StripSkeleton />}>
+            <Newest data={members} />
           </Suspense>
-          <ViewAll href="/events" label="Events" />
-        </Section>
 
-        <Section
-          title="Opportunities"
-          blurb="Roles, projects and introductions shared by members"
-        >
-          <Suspense fallback={<CardsSkeleton />}>
-            <Opportunities data={opps} />
-          </Suspense>
-          <ViewAll href="/opportunities" label="Opportunities" />
-        </Section>
+          <Section
+            title="Events"
+            description="Foundry gatherings and member meetups"
+            actions={<ViewAll href="/events" label="Events" />}
+          >
+            <Suspense fallback={<EventsSkeleton />}>
+              <Events data={events} />
+            </Suspense>
+          </Section>
 
-        <Section title="VCs and Grants" blurb="Funding routes open to Foundry founders">
-          <Suspense fallback={<CardsSkeleton />}>
-            <Vcs data={vcs} />
-          </Suspense>
-          <ViewAll href="/vcs" label="VCs and Grants" />
-        </Section>
-      </div>
+          <div className="grid gap-[var(--section-gap)] lg:grid-cols-2 lg:gap-x-10">
+            <Section
+              title="Opportunities"
+              description="Roles, projects and introductions shared by members"
+              actions={<ViewAll href="/opportunities" label="Opportunities" />}
+            >
+              <Suspense fallback={<RowsSkeleton />}>
+                <Opportunities data={opps} />
+              </Suspense>
+            </Section>
+
+            <Section
+              title="VCs and Grants"
+              description="Funding routes open to Foundry founders"
+              actions={<ViewAll href="/vcs" label="VCs and Grants" />}
+            >
+              <Suspense fallback={<RowsSkeleton />}>
+                <Vcs data={vcs} />
+              </Suspense>
+            </Section>
+          </div>
+        </div>
+      </Page>
     </AppShell>
   );
 }
 
 /**
- * The one thing on this page that is waiting on the member personally.
+ * The one thing on this page that is waiting on the member personally, so the one
+ * thing that is lit.
  *
  * It says nothing about who is waiting. The names are one click away on
  * /connections, and putting them here would spread a private, one-to-one
@@ -133,193 +164,218 @@ export default async function HomePage() {
  */
 function ConnectionRequestsCard({ count }: { count: number }) {
   return (
-    <section className="mb-10 rounded-lg border border-border-strong bg-white/[0.04] px-5 py-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[0.95rem] text-text-primary">
+    <Panel as="section" tone="lit" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 p-5 sm:px-6">
+      <div className="flex min-w-0 items-center gap-4">
+        <Disc lit>
+          <Icon name="connections" size={20} />
+        </Disc>
+        <div className="min-w-0">
+          <p className="font-display text-lead text-text-primary">
             {count === 1
               ? "Someone wants to connect with you"
               : `${count} people want to connect with you`}
           </p>
-          <p className="mt-0.5 text-[0.8rem] text-text-muted">
+          <p className="mt-0.5 text-small text-text-secondary">
             Accepting means you each see the other&apos;s email address.
           </p>
         </div>
-        <Link
-          href="/connections?tab=pending"
-          className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.05] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
-        >
-          Review {count === 1 ? "it" : "them"}
-          <span aria-hidden>→</span>
-        </Link>
       </div>
-    </section>
+      <ButtonLink href="/connections?tab=pending" size="md">
+        Review {count === 1 ? "it" : "them"}
+        <Icon name="arrow-right" size={16} />
+      </ButtonLink>
+    </Panel>
   );
 }
 
-function Section({
-  title,
-  blurb,
-  children,
-}: {
-  title: string;
-  blurb: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mb-14">
-      <div className="mb-5 border-b border-border-subtle pb-3">
-        <h2 className="font-display text-[1.4rem] leading-tight tracking-tight text-text-primary">
-          {title}
-        </h2>
-        <p className="mt-0.5 text-[0.825rem] text-text-muted">{blurb}</p>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-/** The way through to the full listing. A bordered control, not bare text —
- *  it is the one thing on this page you are meant to click after reading. */
+/** The way through to the full listing: a quiet control at the head of its section. */
 function ViewAll({ href, label }: { href: string; label: string }) {
   return (
-    <div className="mt-5">
-      <Link
-        href={href}
-        className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-white/[0.04] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.08]"
-      >
-        View all {label}
-        <span aria-hidden>→</span>
-      </Link>
-    </div>
-  );
-}
-
-function CardsSkeleton() {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {[0, 1, 2].map((i) => (
-        <Skeleton key={i} className="h-36 w-full" />
-      ))}
-    </div>
+    <ButtonLink href={href} variant="ghost" size="sm">
+      View all {label}
+      <Icon name="arrow-right" size={16} />
+    </ButtonLink>
   );
 }
 
 function StripSkeleton() {
   return (
-    <div className="mb-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <Skeleton key={i} className="h-24 w-full" />
-      ))}
-    </div>
+    <SkeletonRegion label="Loading newest members…" className="grid gap-5">
+      <Skeleton className="h-7 w-72 max-w-full" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <Panel key={i} className="grid justify-items-center gap-3 px-3 pb-5 pt-6">
+            <Skeleton shape="ring" className="size-24" />
+            <Skeleton className="h-4 w-3/5" />
+            <Skeleton className="h-3 w-2/5" />
+          </Panel>
+        ))}
+      </div>
+    </SkeletonRegion>
   );
 }
 
-function Empty({ children }: { children: React.ReactNode }) {
+function EventsSkeleton() {
   return (
-    <p className="rounded-lg border border-border bg-white/[0.02] px-5 py-6 text-[0.85rem] text-text-secondary">
-      {children}
-    </p>
+    <SkeletonRegion label="Loading events…" className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <Skeleton className="h-48 w-full rounded-xl lg:row-span-2 lg:h-full" />
+      <Skeleton className="h-24 w-full rounded-xl" />
+      <Skeleton className="h-24 w-full rounded-xl" />
+    </SkeletonRegion>
   );
 }
 
-/** The card shell all three listing kinds share on this page. */
-function Card({ href, children }: { href: string; children: React.ReactNode }) {
+function RowsSkeleton() {
   return (
-    <li>
-      <Link
-        href={href}
-        className="block h-full rounded-lg border border-border bg-bg-card p-5 no-underline transition-colors duration-150 hover:border-border-strong hover:bg-bg-card-hover"
-      >
-        {children}
-      </Link>
-    </li>
+    <SkeletonRegion label="Loading…">
+      <Panel className="grid gap-1 p-2">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+            <Skeleton shape="ring" className="size-11 shrink-0" />
+            <div className="grid flex-1 gap-2.5">
+              <Skeleton className="h-4 w-3/5" />
+              <Skeleton className="h-3 w-2/5" />
+            </div>
+          </div>
+        ))}
+      </Panel>
+    </SkeletonRegion>
   );
-}
-
-function Grid({ children }: { children: React.ReactNode }) {
-  return <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>;
 }
 
 async function Newest({ data }: { data: ReturnType<typeof newestMembers> }) {
   const newest = await data;
   // C4: an empty strip used to render nothing at all, which on a quiet
   // week read as a gap in the page.
-  if (newest.length === 0) return <Empty>New members will appear here as they join.</Empty>;
+  if (newest.length === 0) {
+    return (
+      <EmptyState icon="members" size="compact">
+        New members will appear here as they join.
+      </EmptyState>
+    );
+  }
   return <NewestMembers newest={newest} />;
 }
 
 async function Events({ data }: { data: ReturnType<typeof newestEvents> }) {
   const latest = await data;
   if (latest.length === 0) {
-    return <Empty>Nothing scheduled yet. Post the first one from the Events page.</Empty>;
+    return (
+      <EmptyState icon="events" size="compact">
+        Nothing scheduled yet. Post the first one from the Events page.
+      </EmptyState>
+    );
   }
   return (
-    <Grid>
-      {latest.map((e) => (
-        <Card key={e.id} href={`/events/${e.id}`}>
-          {e.isSocietyEvent && (
-            <span className="mb-3 inline-block rounded border border-signal/40 bg-signal-muted px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-[0.1em] text-signal">
-              Society event
-            </span>
-          )}
-          <p className="mb-1.5 font-mono text-[0.7rem] uppercase tracking-[0.08em] text-text-muted">
-            {formatDateTime(e.eventAt)}
-          </p>
-          <p className="mb-2 text-[0.95rem] font-medium leading-snug text-text-primary">
-            {e.title}
-          </p>
-          <p className="text-[0.775rem] text-text-secondary">{e.location}</p>
-        </Card>
-      ))}
-    </Grid>
+    // One list, so every card stays a link inside a list item. The newest event is given the room.
+    <ul className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      {latest.map((e, i) =>
+        i === 0 ? (
+          <li key={e.id} className="lg:row-span-2">
+            <Panel interactive className="relative flex h-full min-h-44 flex-col justify-between gap-8 p-6 sm:p-7">
+              <div className="grid gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Disc size="sm">
+                    <Icon name="events" size={18} />
+                  </Disc>
+                  {e.isSocietyEvent && <Badge tone="lit">Society event</Badge>}
+                </div>
+                <p className="data text-small text-text-muted">{formatDateTime(e.eventAt)}</p>
+                <Link
+                  href={`/events/${e.id}`}
+                  className="font-display text-title text-text-primary no-underline after:absolute after:inset-0 after:content-['']"
+                >
+                  {e.title}
+                </Link>
+              </div>
+              {e.location ? (
+                <p className="flex items-center gap-2 text-body text-text-secondary">
+                  <Icon name="pin" size={16} className="shrink-0 text-text-muted" />
+                  {e.location}
+                </p>
+              ) : null}
+            </Panel>
+          </li>
+        ) : (
+          <li key={e.id}>
+            <Panel className="h-full p-1.5">
+              <Entry
+                glyph={<Icon name="events" size={20} />}
+                title={e.title}
+                href={`/events/${e.id}`}
+                meta={<span className="data">{formatDateTime(e.eventAt)}</span>}
+                trailing={e.isSocietyEvent ? <Badge tone="lit">Society event</Badge> : undefined}
+              >
+                {e.location ? <p className="mt-0.5 text-small text-text-muted">{e.location}</p> : null}
+              </Entry>
+            </Panel>
+          </li>
+        ),
+      )}
+    </ul>
   );
 }
 
 async function Opportunities({ data }: { data: ReturnType<typeof newestOpportunities> }) {
   const latest = await data;
   if (latest.length === 0) {
-    return <Empty>No open opportunities right now. Post one from the Opportunities page.</Empty>;
+    return (
+      <EmptyState icon="opportunities" size="compact">
+        No open opportunities right now. Post one from the Opportunities page.
+      </EmptyState>
+    );
   }
   return (
-    <Grid>
-      {latest.map((o) => (
-        <Card key={o.id} href={`/opportunities/${o.id}`}>
-          <p className="mb-1.5 font-mono text-[0.7rem] uppercase tracking-[0.08em] text-text-muted">
-            {o.locationType}
-            {o.locationText ? ` · ${o.locationText}` : ""}
-          </p>
-          <p className="mb-2 text-[0.95rem] font-medium leading-snug text-text-primary">
-            {o.positionName}
-          </p>
-          <p className="text-[0.775rem] text-text-secondary">{o.company}</p>
-        </Card>
-      ))}
-    </Grid>
+    <Panel className="p-1.5">
+      <ul className="grid gap-0.5">
+        {latest.map((o) => (
+          <Entry
+            key={o.id}
+            as="li"
+            glyph={<Icon name="opportunities" size={20} />}
+            title={o.positionName}
+            href={`/opportunities/${o.id}`}
+            meta={o.company}
+          >
+            <p className="mt-0.5 text-small text-text-muted">
+              <span className="capitalize">{o.locationType}</span>
+              {o.locationText ? ` · ${o.locationText}` : ""}
+            </p>
+          </Entry>
+        ))}
+      </ul>
+    </Panel>
   );
 }
 
 async function Vcs({ data }: { data: ReturnType<typeof newestVcs> }) {
   const latest = await data;
   if (latest.length === 0) {
-    return <Empty>No VCs or grants listed yet. Suggest one from the Grants &amp; VCs page.</Empty>;
+    return (
+      <EmptyState icon="vcs" size="compact">
+        No VCs or grants listed yet. Suggest one from the Grants &amp; VCs page.
+      </EmptyState>
+    );
   }
   return (
-    <Grid>
-      {latest.map((v) => (
-        <Card key={v.id} href={`/vcs/${v.id}`}>
-          <p className="mb-1.5 font-mono text-[0.7rem] uppercase tracking-[0.08em] text-text-muted">
-            {v.kind === "vc" ? "VC" : "Grant"}
-            {v.stage ? ` · ${v.stage}` : ""}
-          </p>
-          <p className="mb-2 text-[0.95rem] font-medium leading-snug text-text-primary">
-            {v.name}
-          </p>
-          <p className="text-[0.775rem] text-text-secondary">
-            {v.amount ?? (v.deadline ? `Closes ${formatDate(v.deadline)}` : "Rolling applications")}
-          </p>
-        </Card>
-      ))}
-    </Grid>
+    <Panel className="p-1.5">
+      <ul className="grid gap-0.5">
+        {latest.map((v) => (
+          <Entry
+            key={v.id}
+            as="li"
+            glyph={<Icon name="vcs" size={20} />}
+            title={v.name}
+            href={`/vcs/${v.id}`}
+            meta={v.amount ?? (v.deadline ? `Closes ${formatDate(v.deadline)}` : "Rolling applications")}
+          >
+            <p className="mt-0.5 text-small text-text-muted">
+              {v.kind === "vc" ? "VC" : "Grant"}
+              {v.stage ? ` · ${v.stage}` : ""}
+            </p>
+          </Entry>
+        ))}
+      </ul>
+    </Panel>
   );
 }

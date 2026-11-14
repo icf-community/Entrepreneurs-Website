@@ -2,12 +2,26 @@
 
 import { useCallback, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { ErrorBanner } from "@/components/forms/Banners";
+import { Icon } from "@/design-system/icons/Icon";
+import { OrbitGlyph } from "@/design-system/OrbitGlyph";
 import type { BulkResult } from "./bulkTypes";
 
 // Generic bulk-review shell, reused by every admin queue (profiles,
 // opportunities, events, VCs). Owns selection state, a sticky action bar,
 // and the approve/reject transitions. Each queue supplies its own card
 // renderer + bulk action functions.
+//
+// Anatomy, the same on every queue: a "select all" line, then one row per item
+// (a tick box, then the queue's own card), and, once anything is ticked, a
+// raised bar that floats at the foot of the viewport with the count and the
+// three things you can do (approve, reject with a reason, clear). The bar is the
+// only lit thing on the page while it is there.
 
 type Props<T> = {
   items: T[];
@@ -27,13 +41,15 @@ type Props<T> = {
   emptyMessage: string;
 };
 
+type Note = { text: string; tone: "success" | "lit" };
+
 export function BulkReview<T>({ items, getId, renderCard, bulkApprove, bulkReject, noun, emptyMessage }: Props<T>) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState<Note | null>(null);
   const [pending, startTransition] = useTransition();
 
   const allIds = items.map(getId);
@@ -53,7 +69,7 @@ export function BulkReview<T>({ items, getId, renderCard, bulkApprove, bulkRejec
 
   const run = (fn: () => Promise<BulkResult>) => {
     setError("");
-    setNote("");
+    setNote(null);
     startTransition(async () => {
       const res = await fn();
       if (!res.ok) {
@@ -65,8 +81,8 @@ export function BulkReview<T>({ items, getId, renderCard, bulkApprove, bulkRejec
       setReason("");
       setNote(
         res.failed > 0
-          ? `${res.succeeded} done, ${res.failed} failed${res.firstError ? ` — ${res.firstError}` : ""}.`
-          : `${res.succeeded} ${noun}${res.succeeded === 1 ? "" : "s"} updated.`,
+          ? { text: `${res.succeeded} done, ${res.failed} failed${res.firstError ? ` — ${res.firstError}` : ""}.`, tone: "lit" }
+          : { text: `${res.succeeded} ${noun}${res.succeeded === 1 ? "" : "s"} updated.`, tone: "success" },
       );
       router.refresh();
     });
@@ -77,97 +93,122 @@ export function BulkReview<T>({ items, getId, renderCard, bulkApprove, bulkRejec
   return (
     <div className="space-y-4">
       {items.length > 0 && (
-        <label className="flex items-center gap-2 text-[0.8rem] text-text-muted cursor-pointer select-none">
-          <input type="checkbox" checked={allSelected} onChange={toggleAll} />
-          Select all ({items.length})
-        </label>
+        <Checkbox
+          label={`Select all (${items.length})`}
+          checked={allSelected}
+          indeterminate={selected.size > 0 && !allSelected}
+          onChange={toggleAll}
+          className="text-text-muted"
+        />
       )}
 
-      {note && <div className="text-[0.8rem] text-accent-light">{note}</div>}
-
-      {items.length === 0 && (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
-          {emptyMessage}
-        </div>
+      {note && (
+        <Notice tone={note.tone} role="status">
+          {note.text}
+        </Notice>
       )}
+
+      {items.length === 0 && <EmptyState icon="check">{emptyMessage}</EmptyState>}
 
       {items.map((item) => {
         const id = getId(item);
         return (
           <div key={id} className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              className="mt-5"
-              checked={selected.has(id)}
-              onChange={() => toggle(id)}
-              aria-label={`Select ${noun}`}
-            />
-            <div className="flex-1 min-w-0">{renderCard(item)}</div>
+            <SelectBox noun={noun} checked={selected.has(id)} onToggle={() => toggle(id)} />
+            <div className="min-w-0 flex-1">{renderCard(item)}</div>
           </div>
         );
       })}
 
       {selected.size > 0 && (
-        <div className="sticky bottom-4 z-30 mx-auto max-w-[640px] rounded-2xl bg-bg-card border border-accent/30 shadow-lg p-4">
-          {error && <div role="alert" className="text-[0.8rem] text-[#ff6b6b] mb-2">{error}</div>}
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[0.85rem] text-text-primary font-medium">{selected.size} selected</span>
-            {!rejecting ? (
-              <>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => run(() => bulkApprove(ids()))}
-                  className="px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.8rem] font-medium border-0 cursor-pointer hover:bg-accent-light disabled:opacity-60"
-                >
-                  {pending ? "Working…" : `Approve ${selected.size}`}
-                </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => setRejecting(true)}
-                  className="px-4 py-2 rounded-lg bg-white/[0.05] border border-border-strong text-text-secondary text-[0.8rem] cursor-pointer transition-colors hover:bg-[#ff4d4d]/10 hover:border-[#ff4d4d]/50 hover:text-[#ff6b6b] disabled:opacity-60"
-                >
-                  Reject…
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelected(new Set())}
-                  className="px-3 py-2 text-[0.8rem] rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
-                >
-                  Clear
-                </button>
-              </>
-            ) : (
-              <div className="flex items-center gap-2 flex-wrap w-full">
-                <input
-                  type="text"
-                  aria-label="Rejection reason"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder={`Reason — sent to all ${selected.size}`}
-                  className="flex-1 min-w-[200px] px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.8rem] text-text-primary focus:border-accent/50"
-                />
-                <button
-                  type="button"
-                  disabled={pending || !reason.trim()}
-                  onClick={() => run(() => bulkReject(ids(), reason.trim()))}
-                  className="px-4 py-2 rounded-lg bg-[#ff6b6b] text-bg-primary text-[0.8rem] font-medium border-0 cursor-pointer disabled:opacity-60"
-                >
-                  {pending ? "Working…" : `Reject ${selected.size}`}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRejecting(false)}
-                  className="px-3 py-2 text-[0.8rem] rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <BulkBar
+          count={selected.size}
+          pending={pending}
+          error={error}
+          rejecting={rejecting}
+          reason={reason}
+          onReason={setReason}
+          onApprove={() => run(() => bulkApprove(ids()))}
+          onStartReject={() => setRejecting(true)}
+          onCancelReject={() => setRejecting(false)}
+          onConfirmReject={() => run(() => bulkReject(ids(), reason.trim()))}
+          onClear={() => setSelected(new Set())}
+        />
       )}
+    </div>
+  );
+}
+
+/** One row's tick box. The box is 22 px; the label around it makes the target 44 px without moving anything. */
+function SelectBox({ noun, checked, onToggle }: { noun: string; checked: boolean; onToggle: () => void }) {
+  return (
+    <label className="-m-2.5 mt-3.5 grid shrink-0 cursor-pointer place-items-center p-2.5">
+      <Checkbox checked={checked} onChange={onToggle} aria-label={`Select ${noun}`} />
+    </label>
+  );
+}
+
+/**
+ * The raised bar at the foot of the viewport while anything is ticked: how many, then approve / reject / clear. Rejecting swaps the three for
+ * a reason field and its confirm and cancel, in the same place, so the bar never changes size under the pointer.
+ */
+function BulkBar({
+  count, pending, error, rejecting, reason, onReason, onApprove, onStartReject, onCancelReject, onConfirmReject, onClear,
+}: {
+  count: number;
+  pending: boolean;
+  error: string;
+  rejecting: boolean;
+  reason: string;
+  onReason: (next: string) => void;
+  onApprove: () => void;
+  onStartReject: () => void;
+  onCancelReject: () => void;
+  onConfirmReject: () => void;
+  onClear: () => void;
+}) {
+  const busy = pending ? <OrbitGlyph spin="fast" /> : undefined;
+  return (
+    <div className="anim-panel sticky bottom-4 z-30 mx-auto grid max-w-[640px] gap-3 rounded-2xl border border-lit-line bg-bg-raised p-4 shadow-pop">
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="data inline-flex items-center gap-2 text-body font-medium text-text-primary">
+          <Icon name="check" size={18} className="text-accent-light" />
+          {count} selected
+        </span>
+        {rejecting ? (
+          <div className="flex w-full flex-wrap items-center gap-2">
+            <Input
+              type="text"
+              compact
+              autoFocus
+              aria-label="Rejection reason"
+              value={reason}
+              onChange={(e) => onReason(e.target.value)}
+              placeholder={`Reason — sent to all ${count}`}
+              className="min-w-[12.5rem] flex-1"
+            />
+            <Button type="button" size="sm" variant="danger" disabled={pending || !reason.trim()} onClick={onConfirmReject} leading={busy}>
+              {pending ? "Working…" : `Reject ${count}`}
+            </Button>
+            <Button type="button" size="sm" variant="quiet" onClick={onCancelReject}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <Button type="button" size="sm" disabled={pending} onClick={onApprove} leading={busy}>
+              {pending ? "Working…" : `Approve ${count}`}
+            </Button>
+            <Button type="button" size="sm" variant="dangerGhost" disabled={pending} onClick={onStartReject}>
+              Reject…
+            </Button>
+            <Button type="button" size="sm" variant="quiet" onClick={onClear}>
+              Clear
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

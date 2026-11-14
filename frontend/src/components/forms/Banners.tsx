@@ -1,28 +1,28 @@
 import type { ReactNode } from "react";
+import { Notice } from "@/components/ui/Notice";
 
 // Both banners appear as the result of a submit, so they're announced.
 // Errors use role="alert" (assertive — it interrupts, which is what you
 // want when the thing you just tried failed); success uses role="status"
 // (polite — it waits for a pause).
+//
+// Both are a Notice (components/ui/Notice) in the danger or success tone: the
+// hairline, the wash and the drawn icon carry the tone, the words stay in ink.
+// The role sits on the Notice itself and nothing else is added inside it, so a
+// screen reader announces exactly `children`.
 
 export function ErrorBanner({ children }: { children: ReactNode }) {
   return (
-    <div
-      role="alert"
-      className="px-4 py-3 rounded-lg border-l-2 border-[#ff4d4d] bg-[#ff4d4d]/8 text-[0.8rem] text-[#ff8080] leading-relaxed"
-    >
+    <Notice role="alert" tone="danger">
       {children}
-    </div>
+    </Notice>
   );
 }
 
 export function SuccessBanner({ children }: { children: ReactNode }) {
   return (
-    <div
-      role="status"
-      className="px-4 py-3 rounded-lg border-l-2 border-accent bg-accent-muted text-[0.8rem] text-text-primary leading-relaxed"
-    >
+    <Notice role="status" tone="success">
       {children}
-    </div>
+    </Notice>
   );
 }

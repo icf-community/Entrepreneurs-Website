@@ -1,5 +1,4 @@
 import { pageParam } from "@/lib/filters/serverParams";
-import Link from "next/link";
 import {
   adminConnectionReportsPage,
   adminFlaggedSenders,
@@ -9,6 +8,8 @@ import {
 import { getConnectionsStatus } from "../actions";
 import ConnectionsAdminClient from "./ConnectionsAdminClient";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/connections
@@ -57,45 +58,27 @@ export default async function AdminConnectionsPage({
   ]);
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="min-h-screen bg-bg-primary text-text-primary px-8 py-12"
-    >
-      <div className="max-w-[1200px] mx-auto">
-        <div className="mb-8 rule-draw pt-6">
-          <Link
-            href="/admin"
-            className="text-[0.8rem] text-text-secondary hover:text-text-primary"
-          >
-            ← Admin home
-          </Link>
-          <p className="label-wide text-text-muted mt-6 mb-4">Admin · connections</p>
-          <h1 className="font-display leading-[1.1] tracking-tight text-[clamp(1.75rem,3vw,2.5rem)]">
-            Connections
-          </h1>
-          <p className="mt-3 max-w-[60ch] text-[0.875rem] text-text-secondary leading-relaxed">
-            Members connect to exchange email addresses. Reports here are about a specific
-            connection and the note that came with it — resolving one emails the reporter with
-            the outcome, whichever way it goes.
-          </p>
-        </div>
+    <Page as="main">
+      <AdminPageHeader
+        eyebrow="Admin · connections"
+        title="Connections"
+        description="Members connect to exchange email addresses. Reports here are about a specific connection and the note that came with it — resolving one emails the reporter with the outcome, whichever way it goes."
+      />
 
-        <ConnectionsAdminClient
-          reports={reports}
-          status={status}
-          page={page}
-          matching={matching}
-          pageSize={CONNECTION_REPORTS_PAGE_SIZE}
-          senders={senders}
-          stats={stats}
-          connectionsStatus={
-            connectionsStatus.ok
-              ? connectionsStatus.data
-              : { enabled: true, lastChangedAt: null, lastChangedBy: null }
-          }
-        />
-      </div>
-    </main>
+      <ConnectionsAdminClient
+        reports={reports}
+        status={status}
+        page={page}
+        matching={matching}
+        pageSize={CONNECTION_REPORTS_PAGE_SIZE}
+        senders={senders}
+        stats={stats}
+        connectionsStatus={
+          connectionsStatus.ok
+            ? connectionsStatus.data
+            : { enabled: true, lastChangedAt: null, lastChangedBy: null }
+        }
+      />
+    </Page>
   );
 }

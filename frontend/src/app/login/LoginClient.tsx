@@ -8,12 +8,23 @@ import { MAX_NAME_LENGTH } from "@/lib/text";
 import { SignupDisclosures } from "@/components/forms/SignupDisclosures";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
-import { BrandLogo } from "@/components/BrandLogo";
 import Starfield from "@/components/Starfield";
 import { destinationForStatus } from "@/lib/auth/status";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
 import { Button } from "@/components/ui/Button";
+import { ButtonTabs } from "@/components/ui/Tabs";
+import { Divider } from "@/components/ui/Divider";
+import { FormSection } from "@/components/ui/FormSection";
+import { Input } from "@/components/ui/Input";
+import { PageHead } from "@/components/ui/PageHead";
+import { Select } from "@/components/ui/Select";
+import { StepDots, type StepItem } from "@/components/ui/StepDots";
 import { ErrorBanner } from "@/components/forms/Banners";
+import { Field, FieldError } from "@/components/forms/Field";
+import { Disc } from "@/design-system/icons/Disc";
+import { Glyph } from "@/design-system/icons/Glyph";
+import { Icon } from "@/design-system/icons/Icon";
+import { Roundel } from "@/design-system/logo/Roundel";
 import { AFFILIATIONS, NON_STUDENT_AFFILIATIONS, type Affiliation } from "@/lib/intake/steps";
 import { friendlyAuthError } from "@/lib/auth/hooks/authErrorText";
 import { useStudentAuth } from "@/lib/auth/hooks/useStudentAuth";
@@ -22,27 +33,20 @@ import { useGoogleAuth } from "@/lib/auth/hooks/useGoogleAuth";
 import { usePasswordRecovery } from "@/lib/auth/hooks/usePasswordRecovery";
 import type { Mode, Role, Track } from "@/lib/auth/hooks/loginTypes";
 import { track as trackEvent } from "@/lib/analytics/track";
+import { Trail } from "@/components/ui/Trail";
 
-/* ── Decorative background ────────────────────────────────────────── */
-// The auth pages used to sit on two gold radial-gradient glows and a 64px
-// two-axis grid overlay. Neither came from anywhere: the glow was ambient
-// decoration and the grid was a graph-paper texture over a page that is not
-// graph paper. The starfield is the one background this brand actually owns,
-// and it makes /login continuous with the hero rather than a different site.
+/* ── The sky ──────────────────────────────────────────────────────── */
+// The starfield is the one background this brand owns: the mark sits in the sky
+// rather than on a picture of one, and it makes /login continuous with the hero.
+// The page draws no background of its own, so the atmosphere (the warm core and
+// the dust behind every page) shows through it.
 function BackgroundEffects() {
   return <Starfield className="pointer-events-none absolute inset-0 h-full w-full" />;
 }
 
-/* ── Logo ─────────────────────────────────────────────────────────── */
-function Logo() {
-  return (
-    <Link href="/" className="no-underline inline-block">
-      <BrandLogo size="sm" />
-    </Link>
-  );
-}
-
 /* ── Google icon ──────────────────────────────────────────────────── */
+// A third-party mark with its own four brand colours: the one literal-colour
+// drawing left in the product. It does not go through <Icon>.
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
@@ -247,89 +251,97 @@ export default function LoginClient() {
   });
 
   return (
-    <div className="relative min-h-screen bg-bg-primary flex flex-col overflow-hidden">
+    // No background of its own: the atmosphere is the night behind every page. (overflow-x-clip, not -hidden: a hidden overflow is a scroll
+    // container, and the mark's `sticky` would then stick to this box instead of the screen.)
+    <div className="relative flex min-h-screen flex-col overflow-x-clip">
       <BackgroundEffects />
-      <AuthHeader />
+
+      {/* Below a desktop the mark is the roundel alone at the top (48 px); from lg up it is the big one beside the form. */}
+      <header className="relative z-10 px-[var(--gutter)] py-5 lg:hidden">
+        <Link href="/" className="inline-block no-underline">
+          <Roundel size={48} label="Imperial Entrepreneurs" className="text-star" />
+        </Link>
+      </header>
 
       {/* Main */}
-      <main id="main-content" tabIndex={-1} className="relative z-10 flex-1 flex items-center justify-center px-5 py-8 sm:px-8 sm:py-12">
-        <div className="w-full max-w-[440px]">
+      <main id="main-content" tabIndex={-1} className="relative z-10 flex flex-1 items-center justify-center px-[var(--gutter)] pb-10 pt-2 lg:py-12">
+        <div className="flex w-full items-center justify-center gap-[clamp(3rem,8vw,8rem)]">
+          <AuthMark />
 
-          <AuthHeading mode={mode} track={track} />
+          <div className="w-full max-w-[460px]">
+            <AuthHeading mode={mode} track={track} />
 
-          {/* Sign up / Log in toggle, above the card. Returning users kept
-              missing the small "Already have an account? Sign in" link at
-              the foot of the card, so the mode switch is now also offered
-              here as two buttons; the footer link stays for anyone who
-              scrolls down expecting it there. */}
-          <ModeToggle mode={mode} onSwitch={switchMode} />
+            {/* Card. The Sign up / Log in switch sits at its head: returning users kept
+                missing the small "Already have an account? Sign in" link at the foot, so
+                the mode switch is offered here as two buttons too; the foot link stays
+                for anyone who scrolls down expecting it there. */}
+            <FormSection className="mt-6">
+              <ModeToggle mode={mode} onSwitch={switchMode} />
 
-          {/* Card */}
-          <div className="rounded-lg border border-border bg-bg-secondary p-6 sm:p-8">
+              {/* Error */}
+              {error && <ErrorBanner>{error}</ErrorBanner>}
 
-            {/* Error */}
-            {error && <div className="mb-5"><ErrorBanner>{error}</ErrorBanner></div>}
+              <AuthCardBody
+                mode={mode} track={track}
+                role={role} setRole={setRole}
+                firstName={firstName} setFirstName={setFirstName}
+                surname={surname} setSurname={setSurname}
+                email={email} setEmail={setEmail}
+                password={password} setPassword={setPassword}
+                repeatPassword={repeatPassword} setRepeatPassword={setRepeatPassword}
+                emailSent={emailSent}
+                resendCooldown={resendCooldown}
+                isLoading={isLoading}
+                tcAgreed={tcAgreed} setTcAgreed={setTcAgreed}
+                forgotSent={forgotSent}
+                code={code} setCode={setCode}
+                verifying={verifying} verifyError={verifyError}
+                onPickTrack={(t) => {
+                  setTrack(t);
+                  // The student path writes role: "student" itself; keeping
+                  // the state in step means nothing downstream has to know
+                  // which of the two set it.
+                  setRole(t === "student" ? "student" : null);
+                  setError("");
+                }}
+                onStudentVerify={handleStudentVerify}
+                onStudentSubmit={handleStudentSubmit}
+                onStudentResend={handleStudentResend}
+                onAlumVerify={handleAlumVerify}
+                onAlumSubmit={handleAlumSubmit}
+                onAlumResend={handleAlumResend}
+                onGoogle={handleGoogle}
+                onForgot={handleForgotPassword}
+                onForgotReset={exitForgot}
+                onBack={backToChooser}
+              />
 
-            <AuthCardBody
-              mode={mode} track={track}
-              role={role} setRole={setRole}
-              firstName={firstName} setFirstName={setFirstName}
-              surname={surname} setSurname={setSurname}
-              email={email} setEmail={setEmail}
-              password={password} setPassword={setPassword}
-              repeatPassword={repeatPassword} setRepeatPassword={setRepeatPassword}
-              emailSent={emailSent}
-              resendCooldown={resendCooldown}
-              isLoading={isLoading}
-              tcAgreed={tcAgreed} setTcAgreed={setTcAgreed}
-              forgotSent={forgotSent}
-              code={code} setCode={setCode}
-              verifying={verifying} verifyError={verifyError}
-              onPickTrack={(t) => {
-                setTrack(t);
-                // The student path writes role: "student" itself; keeping
-                // the state in step means nothing downstream has to know
-                // which of the two set it.
-                setRole(t === "student" ? "student" : null);
-                setError("");
-              }}
-              onStudentVerify={handleStudentVerify}
-              onStudentSubmit={handleStudentSubmit}
-              onStudentResend={handleStudentResend}
-              onAlumVerify={handleAlumVerify}
-              onAlumSubmit={handleAlumSubmit}
-              onAlumResend={handleAlumResend}
-              onGoogle={handleGoogle}
-              onForgot={handleForgotPassword}
-              onForgotReset={exitForgot}
-              onBack={backToChooser}
-            />
+              {/* Bot challenge for the auth send-endpoints. One widget for every
+                  sub-view (request / resend / forgot); remounts via key to mint a
+                  fresh single-use token after each send. Renders nothing unless
+                  the public site key is set. */}
+              {turnstileConfigured && track !== null && (
+                <div className="flex justify-center">
+                  <TurnstileWidget key={turnstileNonce} onToken={setTurnstileToken} />
+                </div>
+              )}
 
-            {/* Bot challenge for the auth send-endpoints. One widget for every
-                sub-view (request / resend / forgot); remounts via key to mint a
-                fresh single-use token after each send. Renders nothing unless
-                the public site key is set. */}
-            {turnstileConfigured && track !== null && (
-              <div className="mt-5 flex justify-center">
-                <TurnstileWidget key={turnstileNonce} onToken={setTurnstileToken} />
+              {/* Toggle */}
+              <div className="border-t border-border-subtle pt-5 text-center">
+                <p className="text-body text-text-muted">
+                  {mode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
+                  <Button
+                    type="button"
+                    variant="quiet"
+                    size="sm"
+                    onClick={() => switchMode(mode === "signup" ? "signin" : "signup")}
+                  >
+                    {mode === "signup" ? "Sign in" : "Sign up"}
+                  </Button>
+                </p>
               </div>
-            )}
-
-            {/* Toggle */}
-            <div className="mt-6 pt-5 border-t border-border-subtle text-center">
-              <p className="text-[0.8rem] text-text-muted">
-                {mode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
-                <button
-                  type="button"
-                  onClick={() => switchMode(mode === "signup" ? "signin" : "signup")}
-                  className="cursor-pointer border-0 bg-transparent text-[0.8rem] font-medium text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent"
-                >
-                  {mode === "signup" ? "Sign in" : "Sign up"}
-                </button>
-              </p>
-            </div>
+            </FormSection>
           </div>
-
         </div>
       </main>
 
@@ -338,31 +350,33 @@ export default function LoginClient() {
   );
 }
 
-/* ── Static top bar / footer ──────────────────────────────────────── */
-function AuthHeader() {
+/* ── The mark, and the foot ───────────────────────────────────────── */
+// From a desktop up the roundel stands beside the form, large, in the warm light the atmosphere
+// already puts behind the mark: the page's presence, with no words added. It breathes (slowly, and
+// not at all under reduced motion). It sits at the head of the row and, on a long form, stays in view
+// as the page scrolls. Below lg the header carries the small one instead.
+function AuthMark() {
   return (
-    <header className="relative z-10 px-8 py-5">
-      <div className="max-w-[1200px] mx-auto flex items-center justify-between">
-        <Logo />
-        <Link href="/" className="text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
-          ← Back to home
-        </Link>
-      </div>
-    </header>
+    <Link href="/" className="sticky top-[max(1.5rem,calc(50svh-9rem))] hidden shrink-0 self-start place-items-center no-underline lg:grid">
+      <span aria-hidden="true" className="anim-breathe absolute -inset-1/3 rounded-full bg-lit-glow blur-3xl" />
+      <Roundel size={208} label="Imperial Entrepreneurs" className="relative text-star" />
+    </Link>
   );
 }
 
+const FOOT_LINK = "inline-flex min-h-[var(--touch)] items-center px-3 text-small text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary";
+
 function AuthFooter() {
   return (
-    <footer className="relative z-10 px-8 py-5">
-      <div className="max-w-[1200px] mx-auto flex justify-center gap-8">
-        <Link href="/privacy" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+    <footer className="relative z-10 px-[var(--gutter)] pb-6">
+      <div className="mx-auto flex max-w-[1200px] flex-wrap justify-center gap-x-4">
+        <Link href="/privacy" className={FOOT_LINK}>
           Privacy
         </Link>
-        <Link href="/terms" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+        <Link href="/terms" className={FOOT_LINK}>
           Terms
         </Link>
-        <Link href="/contact" className="text-[0.75rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary">
+        <Link href="/contact" className={FOOT_LINK}>
           Contact
         </Link>
       </div>
@@ -371,14 +385,14 @@ function AuthFooter() {
 }
 
 /* ── Heading + subtitle ───────────────────────────────────────────── */
-// Same device as the hero h1 and the section heads: the emphasis is a
-// weight step inside one grotesque, not a colour change into a serif italic.
+// The page's opening is PageHead: the way back is its trail, the h1 is the title, the line under it is
+// the lede. The emphasis is a weight step inside one face, not a colour change into a serif italic.
 function AuthHeading({ mode, track }: { mode: Mode; track: Track | null }) {
   const heading =
     mode === "signup" ? (
-      <><span className="font-light text-text-secondary">Join the </span>Foundry.</>
+      <><span className="text-text-secondary">Join the </span><span className="font-normal">Foundry.</span></>
     ) : (
-      <><span className="font-light text-text-secondary">Welcome </span>back.</>
+      <><span className="text-text-secondary">Welcome </span><span className="font-normal">back.</span></>
     );
 
   const subtitle =
@@ -395,49 +409,22 @@ function AuthHeading({ mode, track }: { mode: Mode; track: Track | null }) {
           : "Sign in with your email and password.";
 
   return (
-    <div className="mb-6 text-center">
-      <h1 className="mb-3 text-[clamp(1.9rem,4vw,2.6rem)] font-semibold leading-[1.06] tracking-[-0.035em] text-text-primary">
-        {heading}
-      </h1>
-      <p className="text-[0.9rem] leading-[1.65] text-text-secondary">
-        {subtitle}
-      </p>
-    </div>
+    <PageHead
+      context={<Trail href="/" label="Back to home" />}
+      title={heading}
+      lede={subtitle}
+    />
   );
 }
 
 /* ── Sign up / Log in toggle ──────────────────────────────────────── */
+const MODES: readonly { value: Mode; label: string }[] = [
+  { value: "signup", label: "Sign up" },
+  { value: "signin", label: "Log in" },
+];
+
 function ModeToggle({ mode, onSwitch }: { mode: Mode; onSwitch: (next: Mode) => void }) {
-  return (
-    <div className="mb-6 flex justify-center">
-      <div className="inline-flex rounded-lg border border-border-strong bg-white/[0.03] p-1">
-        <button
-          type="button"
-          onClick={() => onSwitch("signup")}
-          aria-pressed={mode === "signup"}
-          className={`cursor-pointer rounded-md border-0 px-6 py-2 text-[0.82rem] font-medium transition-colors duration-150 ${
-            mode === "signup"
-              ? "bg-white/[0.09] text-text-primary"
-              : "bg-transparent text-text-secondary hover:text-text-primary"
-          }`}
-        >
-          Sign up
-        </button>
-        <button
-          type="button"
-          onClick={() => onSwitch("signin")}
-          aria-pressed={mode === "signin"}
-          className={`cursor-pointer rounded-md border-0 px-6 py-2 text-[0.82rem] font-medium transition-colors duration-150 ${
-            mode === "signin"
-              ? "bg-white/[0.09] text-text-primary"
-              : "bg-transparent text-text-secondary hover:text-text-primary"
-          }`}
-        >
-          Log in
-        </button>
-      </div>
-    </div>
-  );
+  return <ButtonTabs variant="segmented" fill items={MODES} value={mode} onSelect={onSwitch} />;
 }
 
 /* ── Card body (chooser / student / alum) ─────────────────────────── */
@@ -554,8 +541,9 @@ function AuthCardBody({
 // the reviewing admin rather than a branch.
 function Chooser({ mode, onPick }: { mode: Mode; onPick: (t: Track) => void }) {
   return (
-    <div className="space-y-3">
-      <RoleButton
+    <div className="grid gap-3">
+      <Door
+        glyph="book"
         title="Current student"
         blurb={
           mode === "signup"
@@ -564,7 +552,8 @@ function Chooser({ mode, onPick }: { mode: Mode; onPick: (t: Track) => void }) {
         }
         onClick={() => onPick("student")}
       />
-      <RoleButton
+      <Door
+        glyph="lighthouse"
         title="Alum, mentor, investor or staff"
         blurb={
           mode === "signup"
@@ -577,22 +566,24 @@ function Chooser({ mode, onPick }: { mode: Mode; onPick: (t: Track) => void }) {
   );
 }
 
-function RoleButton({ title, blurb, onClick }: { title: string; blurb?: string; onClick: () => void }) {
+// A door is one button that holds all of its words (so its name is the title and the blurb, as before), drawn as an Entry row:
+// the identity glyph in its ring (which lights as the row is pointed at), the title, the line under it, an arrow that moves on.
+function Door({ glyph, title, blurb, onClick }: { glyph: "book" | "lighthouse"; title: string; blurb?: string; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group w-full cursor-pointer rounded-lg border border-border-strong bg-white/[0.03] px-5 py-4 text-left transition-colors duration-150 hover:border-accent hover:bg-white/[0.06]"
+      data-glyph=""
+      className="lm-entry group w-full cursor-pointer border border-border-strong bg-tint-1 text-left transition-colors duration-150 hover:border-lit-line hover:bg-tint-2"
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[0.9rem] font-medium text-text-primary">{title}</div>
-          {blurb && <div className="mt-0.5 text-[0.775rem] leading-[1.5] text-text-muted">{blurb}</div>}
-        </div>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0 text-text-muted transition-[color,transform] duration-150 group-hover:translate-x-0.5 group-hover:text-text-primary">
-            <line x1="4" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" />
-          </svg>
-      </div>
+      <span className="lm-disc">
+        <Glyph name={glyph} ring={false} size={28} />
+      </span>
+      <span className="min-w-0">
+        <span className="lm-entry__title block">{title}</span>
+        {blurb && <span className="lm-entry__meta block">{blurb}</span>}
+      </span>
+      <Icon name="arrow-right" size={16} className="text-text-muted transition-[color,transform] duration-150 group-hover:translate-x-0.5 group-hover:text-text-primary" />
     </button>
   );
 }
@@ -601,54 +592,76 @@ function RoleButton({ title, blurb, onClick }: { title: string; blurb?: string; 
 // Identical in both signup forms (student + alum) — pulled out once so the
 // two are kept in step rather than hand-edited in parallel.
 function NameFields({
-  firstName, setFirstName, surname, setSurname, inputCls,
+  firstName, setFirstName, surname, setSurname,
 }: {
   firstName: string; setFirstName: (v: string) => void;
   surname: string; setSurname: (v: string) => void;
-  inputCls: string;
 }) {
   return (
-    <div className="flex gap-3">
-      <div className="flex-1">
-        <label htmlFor="first-name" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">First name</label>
-        <input
+    <div className="grid gap-5 min-[360px]:grid-cols-2">
+      <Field label="First name">
+        <Input
           id="first-name"
           type="text"
           autoComplete="given-name"
           placeholder="First name"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
-          className={inputCls}
           maxLength={MAX_NAME_LENGTH}
         />
-      </div>
-      <div className="flex-1">
-        <label htmlFor="surname" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Surname</label>
-        <input
+      </Field>
+      <Field label="Surname">
+        <Input
           id="surname"
           type="text"
           autoComplete="family-name"
           placeholder="Surname"
           value={surname}
           onChange={(e) => setSurname(e.target.value)}
-          className={inputCls}
           maxLength={MAX_NAME_LENGTH}
         />
-      </div>
+      </Field>
     </div>
   );
 }
 
-/* ── Back link ────────────────────────────────────────────────────── */
+/* ── Back link, and where you are in a flow that sends a code or a link ───── */
+// The way back is a ghost button with a drawn arrow; the arrow character stays in its name as hidden text, as it was.
+// A flow that ends in an inbox shows where you are as dots at the other end of the row (the words are read, not drawn).
 function BackLink({ onClick }: { onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1 px-3 py-1.5 text-[0.75rem] rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary cursor-pointer transition-colors duration-150 hover:border-accent hover:text-text-primary"
-    >
-      ← Back
-    </button>
+    <Button type="button" variant="ghost" size="sm" onClick={onClick} leading={<Icon name="arrow-left" size={16} />}>
+      <span className="sr-only">← </span>Back
+    </Button>
+  );
+}
+
+const CODE_STEPS: readonly StepItem[] = [
+  { id: "details", label: "Your details" },
+  { id: "code", label: "Your code" },
+];
+
+// The same three marks run across /login and /reset-password, so asking for a link, opening it and choosing a password read as one flow.
+// (/reset-password is the third; it carries its own copy of this list.)
+const RECOVERY_STEPS: readonly StepItem[] = [
+  { id: "request", label: "Request a link" },
+  { id: "inbox", label: "Open the link" },
+  { id: "password", label: "Choose a password" },
+];
+
+function FlowHead({
+  onBack, steps, current, label,
+}: {
+  onBack: () => void;
+  steps?: readonly StepItem[];
+  current?: string;
+  label?: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <BackLink onClick={onBack} />
+      {steps && current && label ? <StepDots steps={steps} current={current} label={label} /> : null}
+    </div>
   );
 }
 
@@ -674,37 +687,39 @@ function CodeEntryPanel({
 }) {
   const canResend = resendCooldown <= 0 && !isLoading && !verifying;
   return (
-    <div className="space-y-5">
-      <BackLink onClick={onBack} />
-      <form onSubmit={onVerify} className="py-2 text-center space-y-4">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border-strong">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="text-text-primary" aria-hidden>
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-            <polyline points="22,6 12,13 2,6" />
-          </svg>
-        </div>
-        <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Enter your code</h2>
-        <p className="text-[0.8rem] text-text-secondary leading-relaxed">
+    <div className="grid gap-5">
+      <FlowHead onBack={onBack} steps={CODE_STEPS} current="code" label={mode === "signup" ? "Sign-up progress" : "Sign-in progress"} />
+      <form onSubmit={onVerify} className="grid justify-items-center gap-4 py-2 text-center">
+        <Disc size="lg">
+          <Icon name="mail" size={24} />
+        </Disc>
+        <h2 className="font-display text-title text-text-primary">Enter your code</h2>
+        <p className="text-body text-text-secondary">
           We emailed a 6-digit code to <span className="text-text-primary">{email}</span>. Enter it below to {mode === "signup" ? "finish signing up" : "sign in"}.
         </p>
 
-        <label htmlFor="otp-code" className="sr-only">Verification code</label>
-        {/* react-doctor-disable-next-line react-doctor/no-autofocus -- OTP input shown only after user-initiated email submit, not on page load; interaction-triggered autofocus */}
-        <input
-          id="otp-code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="\d*"
-          maxLength={6}
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          placeholder="000000"
-          autoFocus
-          className="data w-full rounded-lg border border-border-strong bg-white/[0.03] px-4 py-3 text-center text-[1.4rem] font-medium tracking-[0.4em] text-text-primary transition-colors duration-150 placeholder:tracking-[0.4em] placeholder:text-text-muted focus:border-accent focus:bg-white/[0.05]"
-        />
+        <div className="w-full">
+          <label htmlFor="otp-code" className="sr-only">Verification code</label>
+          {/* react-doctor-disable-next-line react-doctor/no-autofocus -- OTP input shown only after user-initiated email submit, not on page load; interaction-triggered autofocus */}
+          <Input
+            id="otp-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="\d*"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="000000"
+            autoFocus
+            invalid={Boolean(verifyError)}
+            className="data text-center text-heading font-medium tracking-[0.4em] placeholder:tracking-[0.4em]"
+          />
+        </div>
 
         {verifyError && (
-          <p role="alert" className="text-[0.78rem] text-[#ff8080] leading-relaxed">{verifyError}</p>
+          <div className="w-full [&>p]:justify-center">
+            <FieldError>{verifyError}</FieldError>
+          </div>
         )}
 
         <Button
@@ -718,28 +733,21 @@ function CodeEntryPanel({
           Verify
         </Button>
 
-        <p className="text-[0.7rem] text-text-muted leading-relaxed">
+        <p className="text-small text-text-muted">
           The code expires in 30 minutes. Check your spam folder if it doesn&apos;t arrive within a minute.
         </p>
         {showGoogleHint && (
-          <p className="text-[0.72rem] text-text-muted leading-relaxed">
+          <p className="text-small text-text-muted">
             No code arriving? Signed up with Google before? Use <span className="text-text-secondary">Continue with Google</span> instead.
           </p>
         )}
-        <div className="pt-1">
-          <button
-            type="button"
-            onClick={onResend}
-            disabled={!canResend}
-            className="cursor-pointer border-0 bg-transparent text-[0.8rem] text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
-          >
-            {isLoading
-              ? "Resending…"
-              : resendCooldown > 0
-                ? `Resend in ${resendCooldown}s`
-                : "Didn’t receive it? Resend"}
-          </button>
-        </div>
+        <Button type="button" variant="quiet" size="sm" onClick={onResend} disabled={!canResend}>
+          {isLoading
+            ? "Resending…"
+            : resendCooldown > 0
+              ? `Resend in ${resendCooldown}s`
+              : "Didn’t receive it? Resend"}
+        </Button>
       </form>
     </div>
   );
@@ -771,9 +779,6 @@ function StudentMagicLinkFlow({
   onResend: () => void;
   onBack: () => void;
 }) {
-  const inputCls =
-    "w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-white/[0.05]";
-
   if (emailSent) {
     return (
       <CodeEntryPanel
@@ -788,29 +793,28 @@ function StudentMagicLinkFlow({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <BackLink onClick={onBack} />
+    <form onSubmit={onSubmit} className="grid gap-5">
+      <FlowHead onBack={onBack} steps={CODE_STEPS} current="details" label={mode === "signup" ? "Sign-up progress" : "Sign-in progress"} />
 
       {mode === "signup" && (
         <NameFields
           firstName={firstName} setFirstName={setFirstName}
           surname={surname} setSurname={setSurname}
-          inputCls={inputCls}
         />
       )}
 
       <div>
-        <label htmlFor="email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Imperial email</label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          placeholder="you@imperial.ac.uk"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className={inputCls}
-        />
-        <p className="mt-2 text-[0.7rem] text-text-muted leading-relaxed">
+        <Field label="Imperial email">
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@imperial.ac.uk"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+        <p className="mt-2 text-small text-text-muted">
           Must end in @imperial.ac.uk or @ic.ac.uk.
         </p>
       </div>
@@ -825,7 +829,7 @@ function StudentMagicLinkFlow({
         disabled={isLoading || (mode === "signup" && !tcAgreed)}
         variant="primary"
         size="lg"
-        className="w-full mt-2"
+        className="w-full"
       >
         {mode === "signup" ? "Send verification code" : "Send sign-in code"}
       </Button>
@@ -875,9 +879,6 @@ function AlumForm({
 }) {
   const [forgotView, setForgotView] = useState(false);
 
-  const inputCls =
-    "w-full px-4 py-3 bg-white/[0.03] border border-border rounded-lg text-[0.85rem] text-text-primary placeholder:text-text-muted transition-colors duration-150 focus:border-accent/50 focus:bg-white/[0.05]";
-
   // After signup, "Confirm email" requires the alum to verify before they have
   // a session. Show the shared code-entry panel; the resend re-sends the signup
   // confirmation (type "signup").
@@ -906,7 +907,6 @@ function AlumForm({
         forgotSent={forgotSent}
         onForgot={onForgot}
         onBack={backToSignIn}
-        inputCls={inputCls}
       />
     );
   }
@@ -914,8 +914,14 @@ function AlumForm({
   const selected = NON_STUDENT_AFFILIATIONS.find((a) => a.value === role);
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <BackLink onClick={onBack} />
+    <form onSubmit={onSubmit} className="grid gap-5">
+      {/* Signing up ends in an inbox (a code), so it shows where you are; signing in with a password does not. */}
+      <FlowHead
+        onBack={onBack}
+        steps={mode === "signup" ? CODE_STEPS : undefined}
+        current="details"
+        label="Sign-up progress"
+      />
 
       {/* First field, above the sign-up controls, because it is the thing
           the chooser stopped asking. The blurb below it carries the wording
@@ -923,7 +929,7 @@ function AlumForm({
           themselves was lost in the collapse — it is just no longer six
           simultaneous walls of text. */}
       {mode === "signup" && (
-        <AffiliationSelect role={role} setRole={setRole} selected={selected} inputCls={inputCls} />
+        <AffiliationSelect role={role} setRole={setRole} selected={selected} />
       )}
 
       <GoogleSignupSection
@@ -935,28 +941,24 @@ function AlumForm({
         <NameFields
           firstName={firstName} setFirstName={setFirstName}
           surname={surname} setSurname={setSurname}
-          inputCls={inputCls}
         />
       )}
 
-      <div>
-        <label htmlFor="email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Email</label>
-        <input
+      <Field label="Email">
+        <Input
           id="email"
           type="email"
           autoComplete="email"
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className={inputCls}
         />
-      </div>
+      </Field>
 
       <PasswordFields
         mode={mode}
         password={password} setPassword={setPassword}
         repeatPassword={repeatPassword} setRepeatPassword={setRepeatPassword}
-        inputCls={inputCls}
         onForgotClick={() => { onForgotReset(); setForgotView(true); }}
       />
 
@@ -970,7 +972,7 @@ function AlumForm({
         disabled={isLoading || (mode === "signup" && !tcAgreed)}
         variant="primary"
         size="lg"
-        className="w-full mt-2"
+        className="w-full"
       >
         {mode === "signup" ? "Create account" : "Sign in"}
       </Button>
@@ -980,81 +982,68 @@ function AlumForm({
 
 /* ── Password-recovery sub-view ───────────────────────────────────── */
 function ForgotPasswordFlow({
-  email, setEmail, resendCooldown, isLoading, forgotSent, onForgot, onBack, inputCls,
+  email, setEmail, resendCooldown, isLoading, forgotSent, onForgot, onBack,
 }: {
   email: string; setEmail: (v: string) => void;
   resendCooldown: number; isLoading: boolean;
   forgotSent: boolean;
   onForgot: () => void;
   onBack: () => void;
-  inputCls: string;
 }) {
   if (forgotSent) {
     const canSend = resendCooldown <= 0 && !isLoading;
     return (
-      <div className="space-y-5">
-        <BackLink onClick={onBack} />
-        <div className="py-6 text-center space-y-4">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border-strong">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="text-text-primary" aria-hidden>
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-              <polyline points="22,6 12,13 2,6" />
-            </svg>
-          </div>
-          <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Check your inbox</h2>
-          <p className="text-[0.8rem] text-text-secondary leading-relaxed">
+      <div className="grid gap-5">
+        <FlowHead onBack={onBack} steps={RECOVERY_STEPS} current="inbox" label="Password reset progress" />
+        <div className="grid justify-items-center gap-4 py-4 text-center">
+          <Disc size="lg">
+            <Icon name="mail" size={24} />
+          </Disc>
+          <h2 className="font-display text-title text-text-primary">Check your inbox</h2>
+          <p className="text-body text-text-secondary">
             If an account exists for <span className="text-text-primary">{email}</span>, we&apos;ve sent a password-reset link.
           </p>
-          <p className="text-[0.7rem] text-text-muted leading-relaxed">
+          <p className="text-small text-text-muted">
             The link expires in 30 minutes. Open it in the same browser you&apos;re using now.
           </p>
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={onForgot}
-              disabled={!canSend}
-              className="cursor-pointer border-0 bg-transparent text-[0.8rem] text-text-primary underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:decoration-accent disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
-            >
-              {isLoading
-                ? "Resending…"
-                : resendCooldown > 0
-                  ? `Resend in ${resendCooldown}s`
-                  : "Didn’t receive it? Resend"}
-            </button>
-          </div>
+          <Button type="button" variant="quiet" size="sm" onClick={onForgot} disabled={!canSend}>
+            {isLoading
+              ? "Resending…"
+              : resendCooldown > 0
+                ? `Resend in ${resendCooldown}s`
+                : "Didn’t receive it? Resend"}
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onForgot(); }} className="space-y-4">
-      <BackLink onClick={onBack} />
-      <div className="space-y-1.5">
-        <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-text-primary">Reset your password</h2>
-        <p className="text-[0.8rem] text-text-secondary leading-relaxed">
+    <form onSubmit={(e) => { e.preventDefault(); onForgot(); }} className="grid gap-5">
+      <FlowHead onBack={onBack} steps={RECOVERY_STEPS} current="request" label="Password reset progress" />
+      <div className="grid gap-2">
+        <h2 className="font-display text-title text-text-primary">Reset your password</h2>
+        <p className="text-body text-text-secondary">
           Enter your email and we&apos;ll send you a link to set a new password.
         </p>
       </div>
-      <div>
-        <label htmlFor="reset-email" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Email</label>
-        <input
+      <Field label="Email">
+        <Input
           id="reset-email"
           type="email"
           autoComplete="email"
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className={inputCls}
         />
-      </div>
+      </Field>
       <Button
         type="submit"
         loading={isLoading}
         disabled={resendCooldown > 0 || isLoading}
         variant="primary"
         size="lg"
-        className="w-full mt-1"
+        className="w-full"
       >
         {resendCooldown > 0 ? (
           `Resend in ${resendCooldown}s`
@@ -1062,7 +1051,7 @@ function ForgotPasswordFlow({
           "Send reset link"
         )}
       </Button>
-      <p className="text-[0.72rem] text-text-muted leading-relaxed text-center px-2">
+      <p className="px-2 text-center text-small text-text-muted">
         Signed up with Google? Use <span className="text-text-secondary">Continue with Google</span> instead.
       </p>
     </form>
@@ -1071,30 +1060,27 @@ function ForgotPasswordFlow({
 
 /* ── Affiliation dropdown (alum signup only) ──────────────────────── */
 function AffiliationSelect({
-  role, setRole, selected, inputCls,
+  role, setRole, selected,
 }: {
   role: Role; setRole: (v: Role) => void;
   selected: { value: string; label: string; blurb: string } | undefined;
-  inputCls: string;
 }) {
   return (
     <div>
-      <label htmlFor="affiliation" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">
-        How you&apos;re connected
-      </label>
-      <select
-        id="affiliation"
-        value={role ?? ""}
-        onChange={(e) => setRole((e.target.value || null) as Role)}
-        className={inputCls}
-      >
-        <option value="">Select one…</option>
-        {NON_STUDENT_AFFILIATIONS.map((a) => (
-          <option key={a.value} value={a.value}>{a.label}</option>
-        ))}
-      </select>
+      <Field label="How you're connected">
+        <Select
+          id="affiliation"
+          value={role ?? ""}
+          onChange={(e) => setRole((e.target.value || null) as Role)}
+        >
+          <option value="">Select one…</option>
+          {NON_STUDENT_AFFILIATIONS.map((a) => (
+            <option key={a.value} value={a.value}>{a.label}</option>
+          ))}
+        </Select>
+      </Field>
       {selected && (
-        <p className="mt-2 text-[0.72rem] leading-relaxed text-text-muted">
+        <p className="mt-2 text-small text-text-muted">
           {selected.blurb}
         </p>
       )}
@@ -1103,6 +1089,9 @@ function AffiliationSelect({
 }
 
 /* ── Google continue button + consent copy ────────────────────────── */
+// Inside a sentence a link is told apart from the words by an underline, not by colour alone.
+const TEXT_LINK = "text-accent-light underline decoration-lit-line underline-offset-4 transition-colors hover:decoration-accent-light";
+
 function GoogleSignupSection({
   mode, role, selected, isLoading, onGoogle,
 }: {
@@ -1114,15 +1103,18 @@ function GoogleSignupSection({
 }) {
   return (
     <>
-      <button
+      {/* The neutral control with the full-colour G on it: the dark-surface treatment Google's own guidance allows. */}
+      <Button
         type="button"
+        variant="ghost"
+        size="lg"
+        className="w-full"
         onClick={onGoogle}
         disabled={isLoading}
-        className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border-0 bg-white px-6 py-3 text-[0.85rem] font-semibold text-[#1a1a1a] transition-colors duration-150 hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-60"
+        leading={<GoogleIcon />}
       >
-        <GoogleIcon />
         Continue with Google
-      </button>
+      </Button>
 
       {/* OAuth can't distinguish signup from sign-in client-side, and the
           checkbox only renders in signup mode, so consent for the Google path
@@ -1133,28 +1125,28 @@ function GoogleSignupSection({
           dropdown above genuinely does not reach this button. Saying so is
           the alternative to a picker that silently doesn't apply. */}
       {mode === "signup" && role && role !== "alum" && (
-        <p className="text-[0.72rem] leading-relaxed text-text-muted text-center px-2">
+        <p className="px-2 text-center text-small text-text-muted">
           Google sign-up is recorded as an alumni founder. The admin reviewing
           you will set it to {selected?.label.toLowerCase()}.
         </p>
       )}
 
-      <p className="text-[0.72rem] text-text-muted leading-relaxed text-center px-2">
+      <p className="px-2 text-center text-small text-text-muted">
         By continuing with Google, you confirm you&apos;re 18 or over and agree to our{" "}
-        <Link href="/terms" target="_blank" className="text-accent hover:text-accent-light no-underline">
+        <Link href="/terms" target="_blank" className={TEXT_LINK}>
           Terms &amp; Conditions
         </Link>
         , and that you&apos;ve read our{" "}
-        <Link href="/privacy" target="_blank" className="text-accent hover:text-accent-light no-underline">
+        <Link href="/privacy" target="_blank" className={TEXT_LINK}>
           Privacy Policy
         </Link>
         .
       </p>
 
-      <div className="flex items-center gap-3 py-1">
-        <div className="flex-1 h-px bg-border-subtle" />
-        <span className="text-[0.7rem] text-text-muted uppercase tracking-widest">or</span>
-        <div className="flex-1 h-px bg-border-subtle" />
+      <div className="flex items-center gap-3">
+        <Divider end="none" className="flex-1" />
+        <span className="text-small text-text-muted">or</span>
+        <Divider end="none" className="flex-1" />
       </div>
     </>
   );
@@ -1162,54 +1154,45 @@ function GoogleSignupSection({
 
 /* ── Password + repeat-password fields ────────────────────────────── */
 function PasswordFields({
-  mode, password, setPassword, repeatPassword, setRepeatPassword, inputCls, onForgotClick,
+  mode, password, setPassword, repeatPassword, setRepeatPassword, onForgotClick,
 }: {
   mode: Mode;
   password: string; setPassword: (v: string) => void;
   repeatPassword: string; setRepeatPassword: (v: string) => void;
-  inputCls: string;
   onForgotClick: () => void;
 }) {
   return (
     <>
-      <div>
-        <label htmlFor="password" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Password</label>
-        <input
+      <Field label="Password">
+        <Input
           id="password"
           type="password"
           autoComplete={mode === "signup" ? "new-password" : "current-password"}
           placeholder={mode === "signup" ? "At least 8 characters" : "Your password"}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className={inputCls}
         />
-      </div>
+      </Field>
 
       {mode === "signin" && (
-        <div className="-mt-1 text-right">
-          <button
-            type="button"
-            onClick={onForgotClick}
-            className="cursor-pointer border-0 bg-transparent text-[0.75rem] text-accent underline underline-offset-4 decoration-border-strong transition-colors duration-150 hover:text-accent-light hover:decoration-accent"
-          >
+        <div className="-mt-3 flex justify-end">
+          <Button type="button" variant="quiet" size="sm" onClick={onForgotClick}>
             Forgot your password?
-          </button>
+          </Button>
         </div>
       )}
 
       {mode === "signup" && (
-        <div>
-          <label htmlFor="repeat-password" className="block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary mb-2">Repeat password</label>
-          <input
+        <Field label="Repeat password">
+          <Input
             id="repeat-password"
             type="password"
             autoComplete="new-password"
             placeholder="Repeat password"
             value={repeatPassword}
             onChange={(e) => setRepeatPassword(e.target.value)}
-            className={inputCls}
           />
-        </div>
+        </Field>
       )}
     </>
   );

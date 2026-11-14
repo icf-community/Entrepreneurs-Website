@@ -5,14 +5,21 @@ import { useUrlFilters, useSearchDraft } from "@/lib/filters/useUrlFilters";
 import { SearchInput, FilterPanel, ChipChoice, RangeFilter } from "@/components/filters/FilterBar";
 import { useListingFreshness } from "@/lib/useListingFreshness";
 import { ListingGoneNotice } from "@/components/ListingGoneNotice";
-import { FullPageLink } from "@/components/FullPageLink";
+import { ExternalButtonLink, FullPageLink, OutArrow } from "@/components/FullPageLink";
 import { MarkActionPill } from "@/components/MarkActionPill";
 import { AddToCalendarMenu } from "@/components/AddToCalendarMenu";
 import { recordListingEvent } from "@/lib/analytics";
 import { formatDateWeekday, formatTime } from "@/lib/dates";
 import type { FoundryEvent } from "@/lib/data/events";
 import { externalHref, mailtoHref } from "@/lib/safeUrl";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Definition, DefinitionList } from "@/components/ui/DefinitionList";
+import { Disclosure } from "@/components/ui/Disclosure";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
 
 // D1: same cap as OpportunitiesClient — only the first PAGE matches render
 // and hydrate; search and filters still cover every event.
@@ -124,11 +131,11 @@ export default function EventsClient({
       </FilterPanel>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+        <EmptyState icon={items.length === 0 ? "events" : "search"}>
           {items.length === 0 ? "No upcoming events." : "No events match your search or filters."}
-        </div>
+        </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
           {filtered.slice(0, shown).map((e) => <EventCard key={e.id} ev={e} going={goingSet.has(e.id)} onDismiss={() => dismiss(e.id)} />)}
         </div>
       )}
@@ -167,95 +174,89 @@ function EventCard({ ev, going, onDismiss }: {
   const isOnline = ONLINE_RE.test(ev.location);
 
   return (
-    <article
+    <Disclosure
       id={`e-${ev.id}`}
-      className={`rounded-2xl bg-bg-card border overflow-hidden ${
-        ev.isSocietyEvent ? "border-accent/45" : "border-border-subtle"
-      }`}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full px-5 py-4 text-left bg-transparent border-0 cursor-pointer transition-colors duration-150 hover:bg-white/[0.02]"
-      >
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <div className="text-[0.75rem] text-accent-light tracking-wide">
-            {timeLabel} <span className="text-text-muted">· {dateLabel}</span>
-          </div>
-          {ev.isSocietyEvent && (
-            <span className="shrink-0 px-2.5 py-0.5 rounded-lg text-[0.7rem] font-semibold bg-accent text-bg-primary">
-              Society event
+      tone={ev.isSocietyEvent ? "lit" : "default"}
+      size="sm"
+      lazy
+      open={open}
+      onOpenChange={setOpen}
+      closedLabel="Show details"
+      openLabel="Hide details"
+      summary={
+        <span className="flex items-start gap-4">
+          <Disc size="sm">
+            <Icon name="events" size={18} />
+          </Disc>
+          <span className="grid min-w-0 flex-1 gap-1.5">
+            <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+              <span className="data text-small text-accent-light">
+                {timeLabel} <span className="text-text-muted">· {dateLabel}</span>
+              </span>
+              {ev.isSocietyEvent && <Badge tone="lit">Society event</Badge>}
             </span>
-          )}
-        </div>
-        <div className="flex items-start gap-2 mb-3">
-          <CalendarIcon />
-          <h3 className="text-[1.05rem] font-medium text-text-primary leading-snug">
-            {ev.title}
-          </h3>
-        </div>
-        <div className="space-y-1.5">
-          <Meta icon={<OrganiserAvatar name={ev.organiserName} />} text={`By ${ev.organiserName}`} />
-          <Meta icon={isOnline ? <VideoIcon /> : <PinIcon />} text={ev.location} />
-        </div>
-        <div className="mt-3 text-[0.7rem] text-text-muted">
-          {open ? "▾ Hide details" : "▸ Show details"}
-        </div>
-      </button>
-
-      {open && stale && (
+            <span className="block font-display text-lead text-text-primary">{ev.title}</span>
+            <span className="mt-1 grid gap-2 text-small text-text-secondary">
+              <span className="flex items-center gap-2">
+                <Avatar name={ev.organiserName} size="xs" tone="lit" />
+                <span className="min-w-0">By {ev.organiserName}</span>
+              </span>
+              <span className="flex items-start gap-2">
+                <Icon name={isOnline ? "video" : "pin"} size={16} className="mt-0.5 shrink-0 text-text-muted" />
+                <span className="min-w-0">{ev.location}</span>
+              </span>
+            </span>
+          </span>
+        </span>
+      }
+    >
+      {stale ? (
         <ListingGoneNotice kind="event" onDismiss={onDismiss} />
-      )}
+      ) : (
+        <div className="grid gap-5 pt-4">
+          {checking && <p className="text-small text-text-muted">Loading latest details…</p>}
+          <div className="grid gap-1.5">
+            <p className="label-wide text-text-muted">Description</p>
+            <p className="whitespace-pre-wrap text-body text-text-secondary">{ev.description}</p>
+          </div>
 
-      {open && !stale && (
-        <div className="px-5 pb-5 pt-1 border-t border-border-subtle">
-          {checking && (
-            <div className="text-[0.7rem] text-text-muted mt-3">Loading latest details…</div>
-          )}
-          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1 mt-4">Description</div>
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{ev.description}</p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 text-[0.8rem]">
-            <div>
-              <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Posted by</div>
-              <div className="text-text-secondary">
-                {ev.postedBy.firstName} {ev.postedBy.surname}
-              </div>
-              {ev.postedBy.linkedinUrl && (
-                <a
-                  href={externalHref(ev.postedBy.linkedinUrl)}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
-                >
-                  LinkedIn ↗
-                </a>
-              )}
-            </div>
+          <DefinitionList>
+            <Definition term="Posted by">
+              <span className="grid gap-1">
+                <span>{ev.postedBy.firstName} {ev.postedBy.surname}</span>
+                {ev.postedBy.linkedinUrl && (
+                  <a
+                    href={externalHref(ev.postedBy.linkedinUrl)}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-1 text-small text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent"
+                  >
+                    LinkedIn
+                    <OutArrow />
+                  </a>
+                )}
+              </span>
+            </Definition>
             {ev.contactEmail && (
-              <div>
-                <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">Contact organiser</div>
+              <Definition term="Contact organiser">
                 <a
                   href={mailtoHref(ev.contactEmail, ev.title)}
                   onClick={() => recordListingEvent("event", ev.id, "contact_click")}
-                  className="text-[0.8rem] text-text-secondary no-underline hover:text-text-primary break-all"
+                  className="text-text-secondary underline underline-offset-[3px] decoration-border-strong transition-colors hover:text-text-primary hover:decoration-accent"
                 >
                   {ev.contactEmail}
                 </a>
-              </div>
+              </Definition>
             )}
-          </div>
+          </DefinitionList>
 
-          <div className="mt-5 flex items-start gap-2 flex-wrap">
-            <a
-              href={externalHref(ev.lumaLink)}
-              target="_blank"
-              rel="noreferrer noopener"
+          <div className="flex flex-wrap items-start gap-3">
+            <ExternalButtonLink
+              href={ev.lumaLink}
               onClick={() => recordListingEvent("event", ev.id, "external_click")}
-              className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.825rem] font-medium no-underline transition-colors hover:bg-accent-light"
             >
-              RSVP on Luma ↗
-            </a>
+              RSVP on Luma
+            </ExternalButtonLink>
             <AddToCalendarMenu
               title={ev.title}
               description={ev.description}
@@ -268,53 +269,6 @@ function EventCard({ ev, going, onDismiss }: {
           </div>
         </div>
       )}
-    </article>
-  );
-}
-
-function Meta({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return (
-    <div className="flex items-center gap-2 text-[0.8rem] text-text-secondary">
-      <span className="shrink-0 text-text-muted">{icon}</span>
-      <span className="truncate">{text}</span>
-    </div>
-  );
-}
-
-function OrganiserAvatar({ name }: { name: string }) {
-  const initial = name.trim().charAt(0).toUpperCase() || "?";
-  return (
-    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent-muted text-accent-light text-[0.65rem] font-medium border border-accent/25">
-      {initial}
-    </span>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="text-accent-light mt-0.5 shrink-0">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  );
-}
-
-function PinIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
-
-function VideoIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <polygon points="23 7 16 12 23 17 23 7" />
-      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-    </svg>
+    </Disclosure>
   );
 }

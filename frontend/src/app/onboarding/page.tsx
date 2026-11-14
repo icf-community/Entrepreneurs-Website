@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/currentUser";
 import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
 import OnboardingForm from "./OnboardingForm";
+
+export const metadata: Metadata = { title: "Join Foundry" };
 
 export default async function OnboardingPage() {
   const supabase = await createClient();

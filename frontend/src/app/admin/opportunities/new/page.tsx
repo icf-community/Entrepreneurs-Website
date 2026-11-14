@@ -1,7 +1,10 @@
-import Link from "next/link";
 import { listTaxonomy } from "@/lib/data/taxonomy";
 import OpportunityForm from "@/app/opportunities/new/OpportunityForm";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PageHead } from "@/components/ui/PageHead";
+import { Icon } from "@/design-system/icons/Icon";
+import { Page } from "@/components/ui/Page";
 
 export default async function AdminNewOpportunityPage() {
   const { supabase, user } = await requireAdminPage();
@@ -9,30 +12,25 @@ export default async function AdminNewOpportunityPage() {
   const { skills, sectors } = await listTaxonomy(supabase);
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
-      <div className="max-w-[720px] mx-auto">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
-          <div className="min-w-0">
-            <p className="label-wide text-text-secondary mb-3">Admin · direct publish</p>
-            <h1 className="font-display text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.1] tracking-tight">
-              New opportunity
-            </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2">
-              Skips the approval queue — published immediately.
-            </p>
-          </div>
-          <Link href="/admin/opportunities" className="text-[0.8rem] text-text-secondary no-underline hover:text-text-primary">
-            ← Back to queue
-          </Link>
-        </div>
+    <Page width="page" as="main">
+      <PageHead
+        className="mb-8"
+        context="Admin · direct publish"
+        title="New opportunity"
+        lede="Skips the approval queue — published immediately."
+        actions={
+          <ButtonLink href="/admin/opportunities" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
+            Back to queue
+          </ButtonLink>
+        }
+      />
 
-        <OpportunityForm
-          signupEmail={user.email ?? ""}
-          skills={skills}
-          sectors={sectors}
-          mode="admin"
-        />
-      </div>
-    </main>
+      <OpportunityForm
+        signupEmail={user.email ?? ""}
+        skills={skills}
+        sectors={sectors}
+        mode="admin"
+      />
+    </Page>
   );
 }

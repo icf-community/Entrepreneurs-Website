@@ -1,16 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import SignOutButton from "@/app/admin/SignOutButton";
-import { BrandLogo } from "@/components/BrandLogo";
 import { PendingBadge } from "@/components/connections/PendingBadge";
+import { hueOf } from "@/components/ui/avatarHue";
 import { UnreadBadge } from "@/components/notifications/UnreadBadge";
+import { Icon } from "@/design-system/icons/Icon";
+import type { IconName } from "@/design-system/icons/names";
+import { Roundel } from "@/design-system/logo/Roundel";
 import { MESSAGING_ENABLED } from "@/lib/features";
 import { LinkPending } from "./LinkPending";
 
 // ════════════════════════════════════════════════════════════════════
-// Foundry · App sidebar
+// Foundry · App sidebar (Lumen)
 //
 // Replaces the horizontal AppNav for member-facing pages. The nav had
 // seven top-level items competing for one row, which is why four of them
@@ -22,6 +25,11 @@ import { LinkPending } from "./LinkPending";
 // work — Grants & VCs, Calendar, My activity, My submissions, Settings —
 // so those are kept, in a secondary group. Dropping working features to
 // match a mock is not a redesign, it is a regression.
+//
+// How it looks is shell.css: a ring is the cursor (it lights round the icon
+// of the page you are on), the brand is the roundel alone, and the labels
+// are only drawn away when the rail is collapsed. This file owns what the
+// rail contains and how it behaves.
 //
 // Collapsed state lives in localStorage: it is a per-viewer convenience,
 // not shared state, and a wrong guess costs one click.
@@ -79,99 +87,7 @@ export type NavKey =
   | "settings"
   | "notifications";
 
-type Item = { key: NavKey; href: string; label: string; icon: React.ReactNode };
-
-const I = {
-  home: (
-    <path d="M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-4v-4H8v4H4a1 1 0 0 1-1-1V9.5Z" />
-  ),
-  community: (
-    <>
-      <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h8" />
-    </>
-  ),
-  members: (
-    <>
-      <circle cx="7.5" cy="7" r="2.5" />
-      <circle cx="13.5" cy="8.5" r="2" />
-      <path d="M3 16c0-2.2 2-3.5 4.5-3.5S12 13.8 12 16M12.5 16c0-1.6.9-2.7 2.5-2.7s2.5 1.1 2.5 2.7" />
-    </>
-  ),
-  messaging: (
-    <path d="M4 4.5h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H8.5L5 17v-3.5H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z" />
-  ),
-  notifications: (
-    <path d="M10 3.5a4.5 4.5 0 0 0-4.5 4.5v3L4 13.5h12L14.5 11V8A4.5 4.5 0 0 0 10 3.5ZM8.2 16a1.9 1.9 0 0 0 3.6 0" />
-  ),
-  foundryAi: (
-    <>
-      <path d="M10 3c.6 3 1.4 4.4 4.4 5-3 .6-3.8 2-4.4 5-.6-3-1.4-4.4-4.4-5 3-.6 3.8-2 4.4-5Z" />
-      <path d="M16 13c.25 1 .6 1.35 1.6 1.6-1 .25-1.35.6-1.6 1.6-.25-1-.6-1.35-1.6-1.6 1-.25 1.35-.6 1.6-1.6Z" />
-    </>
-  ),
-  connections: (
-    <>
-      <circle cx="5" cy="6" r="1.8" />
-      <circle cx="15" cy="6" r="1.8" />
-      <circle cx="10" cy="15" r="1.8" />
-      <path d="M6.5 7.3 8.7 13M13.5 7.3 11.3 13M6.8 6h6.4" />
-    </>
-  ),
-  committee: (
-    <path d="M10 3.5l1.6 3.3 3.6.5-2.6 2.5.6 3.6L10 11.7l-3.2 1.7.6-3.6-2.6-2.5 3.6-.5L10 3.5Z" />
-  ),
-  opportunities: (
-    <>
-      <rect x="3" y="6.5" width="14" height="9.5" rx="1.5" />
-      <path d="M7.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 12.5 5v1.5" />
-    </>
-  ),
-  events: (
-    <>
-      <rect x="3" y="4.5" width="14" height="12" rx="1.5" />
-      <path d="M3 8h14M7 3v3M13 3v3" />
-    </>
-  ),
-  vcs: <path d="M4 15V9M8 15V5M12 15v-4M16 15V7" />,
-  calendar: (
-    <>
-      <circle cx="10" cy="10" r="7" />
-      <path d="M10 6v4l2.5 1.5" />
-    </>
-  ),
-  activity: <path d="M3 11h3l2.5-5 3 9L14 11h3" />,
-  submissions: (
-    <>
-      <path d="M5 3.5h6L15 7v9.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z" />
-      <path d="M10.5 3.5V7H15" />
-    </>
-  ),
-  settings: (
-    <>
-      <circle cx="10" cy="10" r="2.5" />
-      <path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.2 5.2l1.4 1.4M13.4 13.4l1.4 1.4M14.8 5.2l-1.4 1.4M6.6 13.4l-1.4 1.4" />
-    </>
-  ),
-};
-
-function Icon({ d }: { d: React.ReactNode }) {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-      className="shrink-0"
-    >
-      {d}
-    </svg>
-  );
-}
+type Item = { key: NavKey; href: string; label: string; icon: IconName };
 
 // /members is the directory; /community is the post feed the name was
 // being held for. They are different things and both are top-level.
@@ -183,18 +99,18 @@ function Icon({ d }: { d: React.ReactNode }) {
 // who have posted is worse information architecture than putting the
 // control where the posts already are.
 const PRIMARY: Item[] = [
-  { key: "home", href: "/home", label: "Home", icon: <Icon d={I.home} /> },
-  { key: "community", href: "/community", label: "Community", icon: <Icon d={I.community} /> },
-  { key: "committee", href: "/committee", label: "Meet the Committee", icon: <Icon d={I.committee} /> },
-  { key: "members", href: "/members", label: "Members", icon: <Icon d={I.members} /> },
-  { key: "foundryAi", href: "/foundry-ai", label: "Foundry AI", icon: <Icon d={I.foundryAi} /> },
-  { key: "connections", href: "/connections", label: "Connections", icon: <Icon d={I.connections} /> },
+  { key: "home", href: "/home", label: "Home", icon: "home" },
+  { key: "community", href: "/community", label: "Community", icon: "community" },
+  { key: "committee", href: "/committee", label: "Meet the Committee", icon: "committee" },
+  { key: "members", href: "/members", label: "Members", icon: "members" },
+  { key: "foundryAi", href: "/foundry-ai", label: "Foundry AI", icon: "foundry-ai" },
+  { key: "connections", href: "/connections", label: "Connections", icon: "connections" },
   ...(MESSAGING_ENABLED
-    ? [{ key: "messaging", href: "/messaging", label: "Messaging", icon: <Icon d={I.messaging} /> } satisfies Item]
+    ? [{ key: "messaging", href: "/messaging", label: "Messaging", icon: "messaging" } satisfies Item]
     : []),
-  { key: "opportunities", href: "/opportunities", label: "Opportunities", icon: <Icon d={I.opportunities} /> },
-  { key: "events", href: "/events", label: "Events", icon: <Icon d={I.events} /> },
-  { key: "vcs", href: "/vcs", label: "Grants & VCs", icon: <Icon d={I.vcs} /> },
+  { key: "opportunities", href: "/opportunities", label: "Opportunities", icon: "opportunities" },
+  { key: "events", href: "/events", label: "Events", icon: "events" },
+  { key: "vcs", href: "/vcs", label: "Grants & VCs", icon: "vcs" },
 ];
 
 // Members still in review get no PRIMARY rows, because every one of them is
@@ -203,15 +119,15 @@ const PRIMARY: Item[] = [
 // out except the logo. This restores it. /pending self-guards with
 // redirectAwayFrom, so a rejected member following it lands on /rejected.
 const IN_REVIEW: Item[] = [
-  { key: "home", href: "/pending", label: "Return to home", icon: <Icon d={I.home} /> },
+  { key: "home", href: "/pending", label: "Return to home", icon: "home" },
 ];
 
 const SECONDARY: Item[] = [
-  { key: "notifications", href: "/notifications", label: "Notifications", icon: <Icon d={I.notifications} /> },
-  { key: "calendar", href: "/calendar", label: "Calendar", icon: <Icon d={I.calendar} /> },
-  { key: "activity", href: "/my-activity", label: "My activity", icon: <Icon d={I.activity} /> },
-  { key: "submissions", href: "/my-submissions", label: "My submissions", icon: <Icon d={I.submissions} /> },
-  { key: "settings", href: "/settings", label: "Settings", icon: <Icon d={I.settings} /> },
+  { key: "notifications", href: "/notifications", label: "Notifications", icon: "notifications" },
+  { key: "calendar", href: "/calendar", label: "Calendar", icon: "calendar" },
+  { key: "activity", href: "/my-activity", label: "My activity", icon: "activity" },
+  { key: "submissions", href: "/my-submissions", label: "My submissions", icon: "submissions" },
+  { key: "settings", href: "/settings", label: "Settings", icon: "settings" },
 ];
 
 export default function Sidebar({
@@ -220,6 +136,7 @@ export default function Sidebar({
   isApproved = true,
   isAdmin = false,
   onNavigate,
+  onClose,
 }: {
   active: NavKey;
   /** A member still in review can reach /settings, /contact and /profile but
@@ -233,9 +150,15 @@ export default function Sidebar({
   name?: string;
   /** Called after any nav click — used to close the mobile drawer. */
   onNavigate?: () => void;
+  /** Passing this makes the rail the phone's drawer: always expanded, with a
+   *  close control where the collapse control would be. */
+  onClose?: () => void;
 }) {
-  const collapsed = useSyncExternalStore(subscribeNav, navSnapshot, () => false);
-  const toggle = () => setNavCollapsed(!collapsed);
+  const drawer = onClose !== undefined;
+  const stored = useSyncExternalStore(subscribeNav, navSnapshot, () => false);
+  // Collapsing is a desktop state; the drawer is always the labelled rail.
+  const collapsed = stored && !drawer;
+  const toggle = () => setNavCollapsed(!stored);
 
   // Admins keep the full rail regardless of their own status, so they can
   // walk the member-facing UI for diagnostics. Same rule AppNav applied.
@@ -248,22 +171,18 @@ export default function Sidebar({
   );
 
   return (
-    <div
-      className={`flex h-full flex-col border-r border-border-subtle bg-bg-secondary transition-[width] duration-200 ${
-        collapsed ? "w-[4.5rem]" : "w-[15rem]"
-      }`}
-    >
-      <SidebarHeader collapsed={collapsed} onToggle={toggle} onNavigate={onNavigate} />
+    <div className="lm-rail" data-collapsed={collapsed || undefined} data-drawer={drawer || undefined}>
+      <SidebarHeader collapsed={collapsed} onToggle={toggle} onClose={onClose} onNavigate={onNavigate} />
 
-      <nav aria-label="Main" className="flex-1 overflow-y-auto px-3">
+      <nav aria-label="Main" className="lm-rail__nav">
         {primary.length > 0 && (
           <>
-            <ul className="space-y-1">{primary.map(row)}</ul>
-            <hr className="my-4 border-border-subtle" />
+            <ul className="lm-rail__list">{primary.map(row)}</ul>
+            <hr className="lm-rail__rule" />
           </>
         )}
 
-        <ul className="space-y-1">{secondary.map(row)}</ul>
+        <ul className="lm-rail__list">{secondary.map(row)}</ul>
       </nav>
 
       <SidebarFooter collapsed={collapsed} isAdmin={isAdmin} name={name} onNavigate={onNavigate} />
@@ -272,6 +191,9 @@ export default function Sidebar({
 }
 
 // ─── One nav row ────────────────────────────────────────────────────
+// The label stays in the page when the rail is collapsed (shell.css only
+// draws it away), so every destination keeps its accessible name; `title` is
+// the pointer's tooltip.
 function NavRow({
   item, active, collapsed, full, onNavigate,
 }: {
@@ -289,62 +211,64 @@ function NavRow({
         onClick={onNavigate}
         aria-current={on ? "page" : undefined}
         title={collapsed ? item.label : undefined}
-        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-[0.825rem] no-underline transition-colors duration-150 ${
-          on
-            ? "border-border-strong bg-white/[0.08] font-medium text-text-primary"
-            : "border-transparent text-text-secondary hover:border-border hover:bg-white/[0.04] hover:text-text-primary"
-        }`}
+        className="lm-navitem"
       >
-        {item.icon}
-        {!collapsed && <span className="truncate">{item.label}</span>}
+        <span className="lm-navitem__mark">
+          <Icon name={item.icon} size={20} />
+        </span>
+        <span className="lm-navitem__label">{item.label}</span>
         <LinkPending />
-        {/* Only the Connections row carries a count, and only when
-            there is one. It fails to nothing — see PendingBadge. The
-            collapsed rail drops it: a bare number beside an unlabelled
-            icon says nothing, and the row is 4.5rem wide. */}
-        {item.key === "connections" && !collapsed && full && <PendingBadge />}
-        {item.key === "notifications" && !collapsed && full && <UnreadBadge />}
+        {/* Only the Connections and Notifications rows carry a count, and
+            only when there is one. They fail to nothing — see PendingBadge.
+            The collapsed rail draws them away: a bare number beside a ring
+            says nothing, and the row is a ring wide. */}
+        {item.key === "connections" && full && <PendingBadge />}
+        {item.key === "notifications" && full && <UnreadBadge />}
       </Link>
     </li>
   );
 }
 
 // ─── Brand + collapse toggle ────────────────────────────────────────
+// The brand is the roundel alone: the lockup is ~5:1, which does not fit a
+// rail with a control beside it, and a word set beside the roundel is not a
+// lockup. Collapsed, the toggle sits under it. On the phone's drawer the
+// collapse control becomes a close control, and takes focus when the drawer
+// opens.
 function SidebarHeader({
-  collapsed, onToggle, onNavigate,
+  collapsed, onToggle, onClose, onNavigate,
 }: {
   collapsed: boolean;
   onToggle: () => void;
+  onClose?: () => void;
   onNavigate?: () => void;
 }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const drawer = onClose !== undefined;
+  useEffect(() => {
+    if (drawer) closeRef.current?.focus();
+  }, [drawer]);
+
   return (
-    // showWordmark={false}: the lockup asset is ~5:1, so at h-6 it is
-    // already ~119px. With the "FOUNDRY" wordmark and the collapse button
-    // beside it the header came to ~272px inside a 240px rail, and the
-    // button rendered on top of the mark. The lockup carries the brand on
-    // its own here; the page heading carries the rest.
-    // overflow-hidden so a future change clips instead of overlapping.
-    <div
-      className={`flex items-center gap-2 overflow-hidden px-4 py-5 ${
-        collapsed ? "justify-center" : "justify-between"
-      }`}
-    >
-      {!collapsed && (
-        <Link href="/home" className="min-w-0 no-underline" onClick={onNavigate}>
-          <BrandLogo size="sm" showWordmark={false} priority />
-        </Link>
+    <div className="lm-rail__head">
+      <Link href="/home" className="lm-rail__brand" onClick={onNavigate}>
+        <Roundel size={48} label="Imperial Entrepreneurs" />
+      </Link>
+      {drawer ? (
+        <button ref={closeRef} type="button" onClick={onClose} aria-label="Close navigation" className="lm-iconbtn">
+          <Icon name="close" size={18} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!collapsed}
+          className="lm-iconbtn lm-rail__toggle"
+        >
+          <Icon name={collapsed ? "chevron-right" : "chevron-left"} size={18} />
+        </button>
       )}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-        aria-expanded={!collapsed}
-        className="hidden h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-white/[0.04] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary lg:flex"
-      >
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          {collapsed ? <path d="M7 4l6 6-6 6" /> : <path d="M13 4l-6 6 6 6" />}
-        </svg>
-      </button>
     </div>
   );
 }
@@ -358,52 +282,45 @@ function SidebarFooter({
   name?: string;
   onNavigate?: () => void;
 }) {
+  const initial = name?.trim().charAt(0).toUpperCase();
   return (
-    <div className="space-y-2 border-t border-border-subtle p-3">
+    <div className="lm-rail__foot">
       {isAdmin && (
         <Link
           href="/admin"
           onClick={onNavigate}
           title={collapsed ? "Admin" : undefined}
-          className="flex items-center gap-3 rounded-lg border border-border-strong bg-white/[0.05] px-3 py-2 text-[0.8rem] text-text-primary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.10]"
+          className="lm-navitem"
+          data-tone="outline"
         >
-          <span aria-hidden className="w-[18px] shrink-0 text-center">←</span>
-          {!collapsed && <span className="truncate">Admin</span>}
+          <span className="lm-navitem__mark">
+            <Icon name="arrow-left" size={18} />
+          </span>
+          <span className="lm-navitem__label">Admin</span>
         </Link>
       )}
       <Link
         href="/profile"
         onClick={onNavigate}
         title={collapsed ? (name ?? "View profile") : undefined}
-        className="flex items-center gap-3 rounded-lg border border-transparent px-2 py-2 no-underline transition-colors duration-150 hover:border-border hover:bg-white/[0.04]"
+        className="lm-navitem"
+        data-tone="profile"
       >
-        <span
-          aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-strong bg-white/[0.06] text-[0.75rem] font-medium text-text-primary"
-        >
-          {name?.trim().charAt(0).toUpperCase() || (
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-              <circle cx="10" cy="7" r="3" />
-              <path d="M4 17c0-3 2.7-4.5 6-4.5s6 1.5 6 4.5" />
-            </svg>
+        <span className="lm-navitem__mark" data-person data-hue={hueOf(name)} aria-hidden>
+          {initial || <Icon name="profile" size={18} />}
+        </span>
+        <span className="lm-navitem__lines">
+          {name ? (
+            <>
+              <span className="text-text-primary">{name}</span>
+              <span className="lm-navitem__sub">View profile</span>
+            </>
+          ) : (
+            <span className="text-text-primary">View profile</span>
           )}
         </span>
-        {!collapsed && (
-          <span className="min-w-0">
-            {name ? (
-              <>
-                <span className="block truncate text-[0.8rem] text-text-primary">{name}</span>
-                <span className="block text-[0.7rem] text-text-muted">View profile</span>
-              </>
-            ) : (
-              <span className="block text-[0.8rem] text-text-primary">View profile</span>
-            )}
-          </span>
-        )}
       </Link>
-      <div className={collapsed ? "flex justify-center" : ""}>
-        <SignOutButton />
-      </div>
+      <SignOutButton variant="rail" />
     </div>
   );
 }

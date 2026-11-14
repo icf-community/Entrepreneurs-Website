@@ -1,0 +1,509 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · the landing page (route `/`). Ported from design/phase-2/directions/09-lumen/lumen.css, scoped under `.lumen` so none of it can leak
+   into the rest of the app, and built on the design-system tokens (tokens.css): `--void` is `--color-void`, and so on.
+
+   Colour is light direction, not decoration: night, ink, ring white, sun (cream), warm (amber), and one cold for dust and hairlines.
+   Amber is light itself: the glow at the mark's core, a lit body's halo, the lit part of the gauge, a chosen tag. Cream is what is lit in words:
+   the one action, a lit name, the focus ring.
+
+   Two modes share one DOM, told apart by `data-mode` on `.lumen` (set by scene/boot.ts):
+     live    a fixed WebGL scene, and stations of words that scroll past at 1x
+     static  reduced motion or no WebGL: a painted poster per station, nothing tied to the scroll
+   Before the script runs (the server's HTML, and no JavaScript at all) there is no `data-mode`: that page is the live layout, compacted when
+   motion is reduced or scripting is off, with every word readable.
+
+   `rem` in the mock is 16 px (it grows to 20 px at 2560 wide); the app's root is 125 %, so every length that was in `rem` is written
+   `calc(N * var(--r))` here, with `--r` the mock's own root size. Keyframes that the design system already owns (breathe, swell, orbit-spin,
+   orbit-lap) are used by name; the landing's own are namespaced `lumen-`.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes lumen-cue { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+@keyframes lumen-ripple { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(2); } }   /* pressing Join sends one ring out of the cursor */
+@keyframes lumen-ripple-btn { 0% { opacity: .85; transform: scale(1); } 100% { opacity: 0; transform: scale(1.16, 1.7); } }
+@keyframes lumen-deny { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(-3px); } 70% { transform: translateX(3px); } }
+@keyframes lumen-tagin { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
+/* the nav's safety net: if the scene never starts (a failed chunk), Sign in and the ticks still arrive, a few seconds late */
+@keyframes lumen-arrive { from { opacity: 0; } to { opacity: 1; } }
+
+.lumen {
+  --void: var(--color-void);
+  --ink: var(--color-ink);
+  --star: var(--color-star);
+  --sun: var(--color-sun);
+  --warm: var(--color-warm);
+  --cool: var(--color-cool);
+  --dim: var(--color-text-secondary);
+  --faint: var(--color-text-muted);
+  --rule: var(--color-border);
+  --font-body: var(--font-sans);
+  --focus: var(--sun);
+  --r: 16px;                                         /* the mock's root size: 16 px up to 1440 wide, 20 px at 2560 */
+  --u: 8px;
+  --nav-h: 80px;                                     /* the zone Sign in lives in */
+  --rail: 152px;                                     /* the altitude rail on the right edge */
+  --gutter: clamp(20px, 3.6vw, 56px);
+  --pr: calc(var(--rail) + clamp(24px, 6vw, 96px));  /* what the words keep clear on the right: the rail and the name that opens beside the current tick */
+  --text-x: var(--gutter);
+  --col: min(calc(32 * var(--r)), 38vw);
+  --vh: 100svh;                                      /* scene/engine.ts keeps it at innerHeight */
+  --vv: calc(var(--vh) * var(--k, 1));               /* the live layout's gaps; --k < 1 compacts them while there is no scene */
+  --rail-top: 128px;                                 /* the rail's highest tick */
+  --rail-pad: min(calc(var(--vh) - 110px), max(calc(var(--rail-top) + 270px), calc(var(--vh) * .56)));   /* its lowest: the same arithmetic as scene/nav.ts */
+  /* type scale, ratio 1.25 */
+  --t-s: calc(.8125 * var(--r)); --t-b: var(--r); --t-m: calc(1.25 * var(--r)); --t-l: calc(1.5625 * var(--r)); --t-xl: calc(1.953 * var(--r)); --t-2xl: calc(2.441 * var(--r)); --t-3xl: calc(3.052 * var(--r));
+
+  position: relative;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--t-b);
+  line-height: 1.5;
+  overflow-x: clip;
+
+  /* big screens: the whole type scale grows a little: 16 px up to 1440 wide, 20 px at 2560 */
+  @media (min-width: 1441px) { --r: clamp(16px, calc(16px + (100vw - 1440px) * .0036), 20px); }
+
+  /* no scene yet (the server's page, or no JavaScript) and nothing to scroll through: the live layout's gaps shrink so the words read as a page */
+  @media (scripting: none), (prefers-reduced-motion: reduce) { &:not([data-mode]) { --k: .12; } }
+
+  /* the scene has its own anchors; native jumps land flush, as scene/stage.ts does */
+  [id], h1, h2, h3 { scroll-margin-top: 0; }
+  [data-section]:focus { outline: none; }
+
+  .stage { position: fixed; inset: 0; z-index: 0; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; opacity: 0; transition: opacity 700ms var(--ease-out); }
+  .stage canvas[data-ready] { opacity: 1; }
+  &[data-frozen] .stage canvas { transition: none; }
+  main, footer { position: relative; z-index: 2; }
+  /* the static page's posters are painted into canvases the server already placed, so the layout never moves when they are drawn */
+  .poster { display: none; }
+  svg { max-width: 100%; }
+
+  /* text rides above the scene; empty space hands the pointer to the scene underneath */
+  .st { pointer-events: none; position: relative; }
+  .st > * { pointer-events: auto; }
+  .st .hero-copy, .st .picker { pointer-events: none; }
+  .st .hero-copy > *, .st .picker > * { pointer-events: auto; }
+
+  /* ── type ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+  h1, h2, h3 { text-wrap: balance; }
+  h1 { font-size: var(--text-hero); line-height: 1.16; }       /* the design system's hero and display steps are the mock's own clamps, written for the app's 125 % root */
+  h2 { font-size: var(--text-display); line-height: 1.16; }
+  h3 { font-size: clamp(calc(1.4 * var(--r)), calc(.55vw + 1.15 * var(--r)), calc(1.953 * var(--r))); line-height: 1.18; letter-spacing: -.015em; }
+  .ln { display: block; }
+  .lede, .story, .line, .bio, .co, .fine { color: var(--dim); font-size: var(--t-b); line-height: 1.5; max-width: 34ch; text-wrap: pretty; }
+  .story { color: var(--ink); font-size: var(--t-m); line-height: 1.42; max-width: 30ch; }
+  .head > * + * { margin-top: 20px; }
+  .ex { color: var(--dim); font-size: var(--t-s); line-height: 1; display: flex; align-items: center; gap: 8px; }
+  .ex::before { content: ""; width: 10px; height: 10px; border: 1.5px dashed var(--dim); border-radius: 50%; }
+
+  /* ── buttons and glyph chrome (the base is the design system's .lm-btn; this is what the landing's two pills do differently) ──────────────── */
+  .btn { gap: 12px; padding: 0 34px 0 28px; border: 0; white-space: normal; user-select: auto; line-height: inherit; }
+  .btn:focus-visible { outline: none; }
+  .btn:focus-visible::after { opacity: 1; transform: scale(1); }
+  /* the visitor's glyph leads the button: a ring with one body in orbit, turning slowly, quicker when the button is looked at (the design system's OrbitGlyph) */
+  .btn-g { width: 24px; height: 24px; flex: none; }
+  .btn-g .o { transform-origin: 12px 12px; }
+
+  /* ── the one action (Apply): the burn that puts the waiting visitor into orbit ───────────────────────────────────────────────────────────
+     An orbit ring that follows the pill (its path is built by scene/cta.ts), a comet that circles it, a warm light behind, the glyph's body turning.
+     It arrives in four beats when it reaches the reading line (the light, the ring drawing itself round the pill, the pill, the small print), looks at you
+     when you look at it (the comet quickens, the ring brightens), and when pressed the ring locks and one ring leaves it. */
+  .pad { position: relative; display: inline-block; isolation: isolate; }
+  .pad::before { content: ""; position: absolute; left: 50%; top: 50%; width: min(620px, 100vw); height: 300px; margin: -150px 0 0 max(-310px, -50vw); background: radial-gradient(closest-side, color-mix(in oklab, var(--warm) 19%, transparent), color-mix(in oklab, var(--warm) 7%, transparent) 56%, transparent); z-index: -1; pointer-events: none; opacity: var(--m, 1); transition: opacity 700ms var(--ease-out); animation: swell 11s ease-in-out infinite; }
+  .btn-main { --off: 9px; min-height: 64px; padding: 0 50px 0 38px; font-size: calc(1.0625 * var(--r)); box-shadow: var(--shadow-button), 0 0 0 1px color-mix(in oklab, var(--warm) 38%, transparent), 0 14px 46px -12px color-mix(in oklab, var(--warm) 60%, transparent); }
+  .btn-main::after { display: none; }
+  .btn-main:hover { box-shadow: var(--shadow-button), 0 0 0 1px color-mix(in oklab, var(--warm) 60%, transparent), 0 16px 56px -10px color-mix(in oklab, var(--warm) 80%, transparent); }
+  .btn-main:active { box-shadow: inset 0 2px 6px color-mix(in oklab, var(--void) 16%, transparent), 0 0 0 1px color-mix(in oklab, var(--warm) 38%, transparent), 0 8px 30px -10px color-mix(in oklab, var(--warm) 55%, transparent); }
+  /* a sheen crosses the pill once as it arrives (it rides the same --m: slides from the left to the right while the pill comes up, so it plays once per arrival) */
+  .btn-sheen { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+  .btn-sheen i { position: absolute; top: 0; bottom: 0; left: 0; width: 46%; background: linear-gradient(105deg, transparent 0, color-mix(in oklab, var(--star) 62%, transparent) 50%, transparent 100%); transform: translateX(-130%) skewX(-12deg); }
+  .btn-ring { position: absolute; left: calc(var(--off) * -1); top: calc(var(--off) * -1); pointer-events: none; }
+  .btn-ring svg { display: block; overflow: visible; max-width: none; }
+  .btn-ring path { fill: none; stroke-linecap: round; }
+  .r-base { stroke: color-mix(in oklab, var(--warm) 34%, transparent); stroke-width: 1; stroke-dasharray: 100 100; stroke-dashoffset: calc((1 - var(--m, 1)) * 100); transition: stroke-dashoffset 760ms var(--ease-out) 100ms, stroke 200ms var(--ease-out); }
+  .r-glow, .r-comet { stroke-dasharray: 13 87; opacity: var(--m, 1); animation: orbit-lap 9s linear infinite; transition: opacity 400ms var(--ease-out) 560ms; }
+  .r-glow { stroke: color-mix(in oklab, var(--warm) 26%, transparent); stroke-width: 6; }
+  .r-comet { stroke: var(--warm); stroke-width: 2; }
+  .btn-main:hover .r-base, .btn-main:focus-visible .r-base { stroke: color-mix(in oklab, var(--warm) 72%, transparent); }
+  .btn-main:hover .r-glow, .btn-main:hover .r-comet, .btn-main:focus-visible .r-glow, .btn-main:focus-visible .r-comet { animation-duration: 3s; }
+  .btn-main:focus-visible .r-base { stroke: var(--sun); stroke-width: 2; }
+  .btn-main::before { content: ""; position: absolute; inset: calc(var(--off) * -1); border-radius: 999px; border: 2px solid var(--warm); opacity: 0; pointer-events: none; }
+  .btn-main.joined::before { animation: lumen-ripple-btn 1.5s var(--ease-out) 1; }
+  .btn-main.joined .r-base { stroke: var(--sun); stroke-width: 2; }
+  .btn-main.joined .r-glow, .btn-main.joined .r-comet { opacity: 0; transition-delay: 0s; }
+  .btn-main.joined .btn-g .o { animation-play-state: paused; }
+  .cta .fine { display: flex; align-items: flex-start; justify-content: center; gap: 8px; width: fit-content; max-width: min(100%, 36ch); color: var(--dim); font-size: calc(.875 * var(--r)); line-height: 1.4; letter-spacing: .01em; }
+  .cta .fine span { text-align: left; text-wrap: balance; }
+  .fine-g { width: 18px; height: 18px; flex: none; margin-top: 1px; color: var(--warm); }
+  /* the signal: a hairline from the pill to the waiting visitor (scene/engine.ts places it) and, when the button is pressed, one small light that runs along it */
+  .cta .leader.sig { background: linear-gradient(90deg, transparent, var(--warm)); }
+  .spark { position: absolute; left: 0; top: 0; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--sun); box-shadow: 0 0 14px 4px color-mix(in oklab, var(--warm) 70%, transparent); opacity: 0; pointer-events: none; will-change: transform, opacity; }
+  .glyph { display: block; }
+
+  /* ── the nav: Ascent's altitude rail on the right edge is the whole navigation. Five glyph ticks, a gauge (dim above the cursor, amber below it)
+     and the real roundel as the cursor, lit from behind by the same warm core as the mark in the scene. No top bar: one quiet Sign in, top right. ──── */
+  .nav { position: fixed; z-index: 30; inset: 0 0 auto 0; height: var(--nav-h); pointer-events: none; }
+  .nav-end { position: absolute; top: 18px; right: var(--gutter); display: flex; align-items: center; gap: 8px; pointer-events: auto; }
+  .signin { display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border: 1px solid var(--rule); border-radius: 999px; color: var(--ink); text-decoration: none; font-weight: 500; font-size: calc(.95 * var(--r)); background: color-mix(in oklab, var(--void) 90%, transparent); transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out); }
+  .signin:hover { border-color: var(--ink); background: color-mix(in oklab, var(--void) 90%, var(--ink)); }
+  .menu-btn { display: none; min-height: 44px; padding: 0 18px; border: 1px solid var(--rule); border-radius: 999px; font-weight: 500; font-size: calc(.95 * var(--r)); color: var(--ink); background: color-mix(in oklab, var(--void) 90%, transparent); cursor: pointer; }
+  .menu-btn[aria-expanded="true"] { background: color-mix(in oklab, var(--ink) 10%, var(--void)); }
+
+  /* the rail. The ticks are placed here (the same arithmetic as scene/nav.ts, so the cursor is level with them); the gauge and the cursor are moved by the scene. */
+  .nav > .rail { position: fixed; top: 0; right: 0; width: var(--rail); height: 100svh; pointer-events: none; z-index: 25; --cd: 56px; }
+  .rail-links { position: absolute; inset: 0; }
+  .rail-links li { position: absolute; right: 86px; top: calc(var(--rail-pad) - (var(--rail-pad) - var(--rail-top)) * (var(--i) + 1) / 5); width: 44px; height: 44px; margin-top: -22px; }
+  .rail-links a { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; pointer-events: auto; text-decoration: none; color: color-mix(in oklab, var(--sun) calc(var(--pc, 0) * 100%), var(--faint)); transition: color 160ms var(--ease-out); }
+  .rail-links a:hover, .rail-links a:focus-visible, .rail-links a[aria-current] { color: var(--sun); }
+  .rail-links a:focus-visible { outline-offset: 0; }
+  .tick { width: 32px; height: 32px; transform: translateY(calc(var(--press, 0) * 3.5px)) scale(calc(1 - var(--press, 0) * .06)); }
+  /* the Opportunities tick is where the three satellites take off: it presses down first, and a ring leaves with them */
+  .rail-links a::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid var(--warm); opacity: calc(var(--press, 0) * .8); transform: scale(calc(.9 + var(--press, 0) * .35)); pointer-events: none; }
+  .lbl { position: absolute; right: 100%; top: 50%; transform: translate(6px, -50%); margin-right: 6px; white-space: nowrap; font: 600 calc(.95 * var(--r))/1 var(--font-body); color: var(--ink); opacity: 0; transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out); pointer-events: none; }
+  .rail-links a[aria-current] .lbl, .rail-links a:hover .lbl, .rail-links a:focus-visible .lbl { opacity: 1; transform: translate(0, -50%); }
+  .gauge .seg { position: absolute; right: 39px; width: 2px; border-radius: 1px; top: 0; height: 100px; transform-origin: 0 0; background: var(--rule); opacity: 0; }
+  .gauge .seg-up { background: color-mix(in oklab, var(--ink) 22%, var(--void)); }
+  .gauge .seg-down { background: var(--warm); }
+  /* the cursor: the real roundel, one flat white, never cropped or crossed. Behind it the mark's own warm core (the roundel's openings show it), around it a hairline orbit
+     with one small body on it, turning once in 16 s: the system in miniature. scene/nav.ts moves it with the scroll (transform only) and brings it in as the big mark recedes. */
+  .cursor { position: fixed; left: 0; top: 0; width: var(--cd); height: var(--cd); pointer-events: none; color: var(--star); will-change: transform, opacity; opacity: 0; }
+  .cursor::before { content: ""; position: absolute; inset: -24%; border-radius: 50%; background: radial-gradient(circle closest-side, color-mix(in oklab, var(--warm) 34%, transparent) 0, color-mix(in oklab, var(--warm) 12%, transparent) 48%, transparent 100%); animation: breathe 11s ease-in-out infinite; }
+  /* the cursor box is the ring: the roundel is as wide as it (--cd) and taller, because the rocket breaks out of the ring. Its `top` is set inline so the ring's centre, not the box's, sits on the rail. */
+  .cursor-mark { position: absolute; left: 0; width: 100%; height: auto; display: block; }
+  .cursor .orbit { position: absolute; inset: -18%; border-radius: 50%; border: 1px solid color-mix(in oklab, var(--cool) 30%, transparent); animation: orbit-spin 16s linear infinite; }
+  .cursor .orbit::after { content: ""; position: absolute; left: 50%; top: -3px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--warm); box-shadow: 0 0 8px color-mix(in oklab, var(--warm) 80%, transparent); }
+  /* pressing Join Foundry sends one ring out of the cursor */
+  .cursor::after { content: ""; position: absolute; inset: -18%; border-radius: 50%; border: 2px solid var(--warm); opacity: 0; pointer-events: none; }
+  .cursor.flash::after { animation: lumen-ripple 1.8s var(--ease-out) 1; }
+
+  /* ── hero ──────────────────────────────────────────────────────────────────────────────────────────────────── */
+  .st-hero { min-height: calc(var(--vh) * 1.12); }
+  .hero-copy { position: absolute; left: var(--text-x); top: 0; width: min(calc(41 * var(--r)), 58vw); height: var(--vh); display: flex; flex-direction: column; justify-content: center; }
+  .hero-copy h1 { margin-bottom: 34px; }
+  .actions { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+  .who-wrap { margin-top: 38px; --who-size: 46px; --who-gap: 8px; --who-ink: var(--ink); --who-cap: var(--dim); }
+  .who-cap { font-size: var(--t-s); }
+  .cue { position: absolute; left: var(--text-x); top: calc(var(--vh) - 82px); display: grid; place-items: center; width: 48px; height: 48px; color: var(--dim); border-radius: 50%; animation: lumen-cue 9s ease-in-out infinite; }
+  .cue-g { width: 40px; height: 40px; }
+  .cue:hover, .cue:focus-visible { color: var(--ink); }
+
+  /* the audience row (the hero's six glyphs and one caption): size and ink are set above */
+  .who { display: grid; gap: 10px; justify-items: start; }
+  .who-row { display: flex; gap: var(--who-gap, 10px); margin: 0; padding: 0; list-style: none; }
+  .who-btn { all: unset; box-sizing: border-box; width: var(--who-size, 44px); height: var(--who-size, 44px); display: grid; place-items: center; border-radius: 50%; color: var(--who-ink, currentColor); cursor: default; opacity: var(--who-op, .8); transition: opacity 160ms ease-out, transform 160ms ease-out; }
+  .who-btn:hover, .who-btn:focus-visible, .who-btn.on { opacity: 1; }
+  .who-btn:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+  .who-glyph { display: block; width: 100%; height: 100%; }
+  .who-cap { margin: 0; min-height: 1.4em; color: var(--who-cap, inherit); }
+
+  /* ── stations: shared parts ──────────────────────────────────────────────────────────────────────────────── */
+  .head { max-width: var(--col); }
+  .leader { position: absolute; left: 0; top: 0; width: 1px; height: 1px; background: linear-gradient(90deg, color-mix(in oklab, var(--cool) 12%, transparent), var(--warm)); transform-origin: 0 0; opacity: 0; pointer-events: none; will-change: transform; }
+  .role, .member, .listing, .step, .event { position: relative; }
+  .dom-g { width: 44px; height: 44px; flex: none; color: var(--ink); }
+  .role, .member, .listing, .step { display: grid; grid-template-columns: 44px 1fr; column-gap: 18px; align-items: center; opacity: calc(var(--a, 1) * var(--m, 1)); transition: opacity 180ms var(--ease-out); }
+  .name { margin: 0; }
+  .tx > * + * { margin-top: 6px; }
+  .role.on .dom-g, .member.on .dom-g, .listing.on .dom-g, .step.on .dom-g, .event.on .dom-g { color: var(--sun); }
+
+  /* who */
+  .st-who .role .name { transition: color 160ms var(--ease-out); }
+  .st-who .role.on .name { color: var(--sun); }
+  .access { color: var(--dim); font-size: var(--t-b); max-width: 28ch; }
+
+  /* community */
+  .member .look { font-size: var(--t-s); color: var(--dim); display: flex; gap: 8px; align-items: baseline; }
+  .member .look-v { color: var(--ink); font-size: var(--t-b); }
+  .member .bio { max-width: 26ch; }
+  .picker { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-width: min(calc(34 * var(--r)), 100%); }
+  .picker-all { display: contents; }
+  .tg, .tg ul, .tg li { display: contents; }
+  .tg-l { display: none; flex-basis: 100%; color: var(--dim); font-size: var(--t-s); margin: 12px 0 0; }
+  .tag { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--dim); font-size: var(--t-b); }
+  .tag-b { display: inline-flex; align-items: center; min-height: 34px; padding: 0 16px; border: 1.5px solid color-mix(in oklab, var(--cool) 70%, transparent); border-radius: 999px; transition: color 140ms var(--ease-out), border-color 140ms var(--ease-out), background-color 140ms var(--ease-out), box-shadow 160ms var(--ease-out); white-space: nowrap; }
+  .tag:hover .tag-b, .tag:focus-visible .tag-b { color: var(--ink); border-color: var(--ink); }
+  .tag[aria-pressed="true"] .tag-b { color: var(--sun); border-color: var(--warm); background: color-mix(in oklab, var(--warm) 14%, transparent); box-shadow: 0 0 18px color-mix(in oklab, var(--warm) 30%, transparent); }
+  .tag:focus-visible { outline: var(--focus-ring); outline-offset: -2px; border-radius: 999px; }
+  .picker:not(.open) .tag[aria-pressed="false"]:not(.keep) { display: none; }
+  .picker.open .tg { display: block; flex-basis: 100%; }
+  .picker.open .tg ul { display: flex; flex-wrap: wrap; gap: 0 6px; }
+  .picker.open .tg li { display: block; }
+  .picker.open .tg-l { display: block; }
+  .picker.open .picker-all { display: block; flex-basis: 100%; }
+  .tag.deny .tag-b { animation: lumen-deny 180ms var(--ease-out); }
+  .more { all: unset; box-sizing: border-box; display: grid; place-items: center; width: 44px; height: 44px; color: var(--dim); cursor: pointer; border-radius: 50%; transition: color 140ms var(--ease-out), transform 200ms var(--ease-out); }
+  .more svg { width: 32px; height: 32px; }
+  .more:hover, .more:focus-visible { color: var(--ink); }
+  .more:focus-visible { outline: var(--focus-ring); outline-offset: 0; }
+  .more[aria-expanded="true"] { transform: rotate(45deg); color: var(--warm); }
+  /* picker: opening it lays the other tags in, one by one (opacity and transform only) */
+  .picker.open .tag[aria-pressed="false"] .tag-b { animation: lumen-tagin 360ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 28ms); }
+  .member.match .dom-g, .member.match .name { color: var(--sun); }
+
+  /* opportunities */
+  .listing .kind { color: var(--dim); font-size: var(--t-s); }
+  .listing .meta { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; font-variant-numeric: tabular-nums; }
+  .listing .pay { font-family: var(--font-display); font-size: var(--t-l); font-weight: 400; color: var(--ink); letter-spacing: -.01em; }
+  .listing .eq, .listing .where { color: var(--dim); font-size: var(--t-b); display: inline-flex; align-items: center; gap: 6px; }
+  .pie { width: 15px; height: 15px; flex: none; }
+
+  /* events */
+  .event { display: block; }
+  .ev { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 44px 1fr; column-gap: 18px; align-items: center; width: 100%; min-height: 64px; cursor: pointer; opacity: calc(var(--a, 1) * var(--m, 1)); transition: opacity 180ms var(--ease-out); border-radius: 12px; }
+  .ev:focus-visible { outline: var(--focus-ring); outline-offset: 6px; }
+  .ev-tx { display: grid; gap: 2px; }
+  .ev-d { font-family: var(--font-display); font-size: var(--t-l); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .ev-t { font-size: var(--t-m); line-height: 1.25; }
+  .ev-p, .ev-k { color: var(--dim); font-size: var(--t-b); }
+  .ev-k { opacity: 0; transition: opacity 160ms var(--ease-out); }
+  .ev:hover .ev-k, .ev:focus-visible .ev-k, .event.on .ev-k { opacity: 1; }
+  .event.on .ev-d { color: var(--sun); }
+
+  /* apply */
+  .step .n { font-family: var(--font-display); font-size: var(--t-m); color: var(--dim); font-variant-numeric: tabular-nums; }
+  .step.on .n { color: var(--sun); }
+  .cta { position: relative; display: grid; justify-items: start; gap: 22px; }
+
+  /* footer: the strip */
+  .st-footer { min-height: var(--vh); display: flex; align-items: flex-end; }
+  .strip { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 12px 40px; align-items: center; padding: 28px var(--gutter) 28px var(--text-x); }
+  .lockup { display: block; color: var(--star); line-height: 0; grid-row: 1 / span 2; }
+  .social { display: flex; gap: 4px; grid-column: 3; grid-row: 1; justify-self: end; }
+  .social a { display: grid; place-items: center; width: 44px; height: 44px; color: var(--dim); border-radius: 50%; }
+  .social a:hover, .social a:focus-visible { color: var(--ink); }
+  .social svg { width: 22px; height: 22px; }
+  .flinks { display: flex; flex-wrap: wrap; gap: 0 4px; grid-column: 2; grid-row: 1; }
+  .flinks a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; color: var(--dim); font-size: var(--t-s); text-decoration: none; }
+  .flinks a:hover, .flinks a:focus-visible { color: var(--ink); text-decoration: underline; text-underline-offset: 5px; }
+  .legal { grid-column: 2 / span 2; grid-row: 2; color: var(--dim); font-size: var(--t-s); }
+  .legal .disclosure { margin-top: 8px; max-width: 760px; line-height: 1.55; }
+  .lockup:focus-visible, .social a:focus-visible, .flinks a:focus-visible { outline-offset: 2px; }
+}
+
+/* ── live: the page is long, the stations are columns of entries spaced in viewport heights; also what the server sends ────────────────── */
+.lumen:not([data-mode="static"]) {
+  /* Sign in and the ticks wait for the entrance (scene/nav.ts brings them in on the page clock, so ?t= and ?still show it as it is at that time) */
+  .nav-end { opacity: 0; animation: lumen-arrive 400ms var(--ease-out) 5s both; }
+  @media (min-width: 900px) { .rail-links li { opacity: 0; animation: lumen-arrive 400ms var(--ease-out) 5s both; } }
+  &[data-engine] .nav-end, &[data-engine] .rail-links li { animation: none; }
+  @media (scripting: none) { .nav-end, .rail-links li { opacity: 1; animation: none; } }
+
+  .btn-sheen i { transform: translateX(calc(-130% + var(--m, 1) * 400%)) skewX(-12deg); transition: transform 1100ms cubic-bezier(.4, 0, .2, 1) 420ms; }
+
+  .st-hero { min-height: calc(var(--vh) * 1.12); }
+  .st-who { padding-bottom: calc(var(--vv) * .22); }
+  .st-opps, .st-events { padding-bottom: calc(var(--vv) * .35); }
+  .st-community { padding-bottom: 0; }
+  .st-apply { padding-bottom: 0; }
+  .rcol { margin-left: auto; margin-right: var(--pr); width: min(calc(28 * var(--r)), 36vw); }
+  .lcol { margin-left: var(--text-x); width: min(calc(30 * var(--r)), 42vw); }
+  .picker.lcol { width: min(calc(34 * var(--r)), 46vw); }
+  .band { margin-left: auto; margin-right: auto; width: min(calc(34 * var(--r)), calc(100vw - var(--gutter) - var(--pr))); }
+
+  /* who: right column, the orrery on the left */
+  .st-who .head { padding-top: calc(var(--vv) * .15); }
+  .st-who .roles { margin-top: calc(var(--vv) * .62); }
+  .st-who .role { min-height: calc(var(--vv) * .5); }
+  .st-who .access { margin-top: calc(var(--vv) * .08); }
+
+  /* community: heading and picker above, the member ring in the middle, one profile in the bottom band */
+  .st-community .head { padding-top: calc(var(--vv) * .15); }
+  .st-community .picker { margin-top: calc(var(--vv) * .06); }
+  .st-community .ex { margin-top: calc(var(--vv) * .34); }
+  .st-community .members { margin-top: calc(var(--vv) * .02); }
+  .st-community .member { min-height: calc(var(--vv) * .6); }
+
+  /* opportunities: left column, the satellites on the right */
+  .st-opps .head { padding-top: calc(var(--vv) * .15); }
+  .st-opps .ex { margin-top: calc(var(--vv) * .55); }
+  .st-opps .listings { margin-top: calc(var(--vv) * .3); }
+  .st-opps .listing { min-height: calc(var(--vv) * .5); }
+
+  /* events: right column, the dial on the left */
+  .st-events .head { padding-top: calc(var(--vv) * .15); }
+  .st-events .ex { margin-top: calc(var(--vv) * .3); }
+  .st-events .events { margin-top: calc(var(--vv) * .25); }
+  .st-events .event { min-height: calc(var(--vv) * .5); display: flex; align-items: center; }
+
+  /* apply: heading above, the three steps in the bottom band, then the one action */
+  .st-apply .head { padding-top: calc(var(--vv) * .15); }
+  .st-apply .steps { margin-top: calc(var(--vv) * .5); }
+  .st-apply .step { min-height: calc(var(--vv) * .5); }
+  .st-apply .cta { margin-top: calc(var(--vv) * .2); margin-left: auto; margin-right: auto; padding-right: var(--rail); justify-items: center; padding-bottom: calc(var(--vv) * .1); text-align: center; }   /* centred on the scene's axis, which is the width the rail leaves */
+
+  /* blocks of words are on while they are in the lower band, off above it (scene/engine.ts flips --m; 180 ms of easing) */
+  .head, .access, .ex, .picker, .hero-copy, .cue { opacity: var(--m, 1); transition: opacity 180ms var(--ease-out); }
+  /* the closing action arrives piece by piece instead (the same --m, a longer easing, a stagger) */
+  /* words never wait: the pill and the small print are fully there within 160 ms of the switch (the checks, and a reader who stops here, see them at rest); only the movement and the light are staged */
+  .btn-main { opacity: var(--m, 1); transform: translateY(calc((1 - var(--m, 1)) * 12px)) scale(calc(.97 + .03 * var(--m, 1))); transition: opacity 160ms var(--ease-out), transform 620ms var(--ease-out) 60ms, background-color 160ms var(--ease-out), box-shadow 200ms var(--ease-out); }
+  .cta .fine { opacity: var(--m, 1); transform: translateY(calc((1 - var(--m, 1)) * 8px)); transition: opacity 160ms var(--ease-out), transform 460ms var(--ease-out) 140ms; }
+}
+
+/* no scripting: nothing can open the picker, so it lays out open, and the event types are read without pointing at them */
+@media (scripting: none) {
+  .lumen {
+    .picker-all { display: block; flex-basis: 100%; }
+    .tg { display: block; flex-basis: 100%; }
+    .tg ul { display: flex; flex-wrap: wrap; gap: 0 6px; }
+    .tg li { display: block; }
+    .tg-l { display: block; }
+    .picker:not(.open) .tag[aria-pressed="false"]:not(.keep) { display: inline-flex; }
+    .more { display: none; }
+    .ev-k { opacity: 1; }
+  }
+}
+
+/* ── mobile (< 900 px): composed for 390 x 844. Ascent's phone nav: the roundel, Sign in, Menu; the rail shrinks to a gauge with its cursor
+   and the five links open as a panel under the header. The scene holds the upper half; every station keeps its words in the lower band ──── */
+@media (max-width: 899px) {
+  .lumen {
+    --nav-h: 72px; --rail: 52px; --gutter: 20px; --pr: 60px; --text-x: var(--gutter); --col: min(calc(32 * var(--r)), 100%); --rail-top: 112px;
+
+    .nav-end { top: 14px; }
+    .signin { padding: 0 16px; }
+    .menu-btn { display: inline-flex; align-items: center; }
+    .nav > .rail { --cd: 46px; }
+    .cursor .orbit { display: none; }   /* a phone's strip is 52 px: the roundel keeps its halo, the orbit is left to the wider screens */
+    .gauge .seg { right: 25px; }
+    .rail-links { display: none; position: fixed; inset: auto; top: calc(var(--nav-h) - 6px); right: var(--gutter); width: min(280px, calc(100vw - 2 * var(--gutter))); padding: 8px; background: color-mix(in oklab, var(--void) 94%, transparent); border: 1px solid var(--rule); border-radius: 20px; pointer-events: auto; }
+    .nav[data-menu="open"] .rail-links { display: grid; }
+    .rail-links li { position: static; width: auto; height: auto; margin: 0; }
+    .rail-links a { width: auto; height: auto; min-height: 56px; display: grid; grid-template-columns: 32px 1fr; column-gap: 16px; place-items: center start; padding: 0 12px; border-radius: 14px; font: 600 var(--t-m)/1 var(--font-body); color: var(--ink); }
+    .rail-links a[aria-current] { background: color-mix(in oklab, var(--ink) 8%, transparent); }
+    .rail-links a::after { display: none; }
+    .tick { color: var(--dim); transform: none; }
+    .rail-links a[aria-current] .tick { color: var(--sun); }
+    .lbl, .rail-links a[aria-current] .lbl, .rail-links a:hover .lbl, .rail-links a:focus-visible .lbl { position: static; opacity: 1; transform: none; margin: 0; font: inherit; }
+
+    h1 { font-size: clamp(calc(1.55 * var(--r)), 6.7vw, calc(2.1 * var(--r))); line-height: 1.18; }
+    h2 { font-size: clamp(calc(1.7 * var(--r)), 7.4vw, calc(2.2 * var(--r))); }
+    h3 { font-size: clamp(calc(1.3 * var(--r)), 5.6vw, calc(1.6 * var(--r))); }
+    .story { font-size: calc(1.0625 * var(--r)); line-height: 1.45; max-width: 32ch; }
+    .lede, .line, .bio, .co { max-width: 32ch; }
+
+    .st-hero { min-height: calc(var(--vh) * 1.12); }
+    .hero-copy { left: var(--gutter); right: 36px; width: auto; justify-content: flex-end; padding-bottom: 92px; }   /* the strip is only a hairline gauge up here: the words may run to within 36 px of the edge */
+    .hero-copy h1 { margin-bottom: 22px; }
+    .who-wrap { margin-top: 22px; --who-size: 44px; --who-gap: clamp(2px, calc((100vw - 304px) / 5), 8px); }
+    .cue { left: calc((100vw - var(--rail)) / 2); margin-left: -24px; top: calc(var(--vh) - 74px); }
+
+    .btn-main { --off: 7px; min-height: 58px; padding: 0 32px 0 28px; }
+    .pad { display: block; width: min(100%, calc(21 * var(--r))); }
+    .btn-main { display: flex; width: 100%; }
+    .picker { max-width: 100%; }
+    .listing .pay { font-size: var(--t-m); }
+
+    .st-footer { min-height: var(--vh); }
+    .strip { grid-template-columns: 1fr auto; gap: 6px 12px; padding: 24px var(--gutter) 22px; }
+    .lockup { grid-column: 1 / -1; grid-row: 1; justify-self: start; margin-bottom: 8px; }
+    .lockup svg { max-width: none; flex: none; }
+    .flinks { grid-column: 1; grid-row: 2; align-self: center; }
+    .flinks a { padding: 0 12px 0 0; }
+    .social { grid-column: 2; grid-row: 2; }
+    .legal { grid-column: 1 / -1; grid-row: 3; }
+  }
+
+  .lumen:not([data-mode="static"]) {
+    .rcol, .lcol, .picker.lcol, .band { margin-left: var(--gutter); margin-right: var(--pr); width: auto; max-width: calc(30 * var(--r)); }
+    .st-who, .st-community, .st-opps, .st-events, .st-apply { padding-top: calc(var(--vv) * .55); }
+    .st > .head { padding-top: 0; }
+    .st-who { padding-bottom: calc(var(--vv) * .1); }
+    .st-who .roles { margin-top: calc(var(--vv) * .06); }
+    .st-who .role { min-height: calc(var(--vv) * .46); }
+    .st-who .access { margin-top: calc(var(--vv) * .02); }
+    .st-community .picker { margin-top: calc(var(--vv) * .34); }
+    .st-community .ex { margin-top: calc(var(--vv) * .3); }
+    .st-community .members { margin-top: calc(var(--vv) * .02); }
+    .st-community .member { min-height: calc(var(--vv) * .46); }
+    .st-opps, .st-events { padding-bottom: calc(var(--vv) * .1); }
+    .st-opps .ex { margin-top: calc(var(--vv) * .3); }
+    .st-opps .listings { margin-top: calc(var(--vv) * .02); }
+    .st-opps .listing { min-height: calc(var(--vv) * .46); }
+    .st-events .ex { margin-top: calc(var(--vv) * .3); }
+    .st-events .events { margin-top: calc(var(--vv) * .02); }
+    .st-events .event { min-height: calc(var(--vv) * .46); }
+    .st-apply .steps { margin-top: calc(var(--vv) * .06); }
+    .st-apply .step { min-height: calc(var(--vv) * .46); }
+    .st-apply .cta { margin-top: calc(var(--vv) * .12); padding-bottom: calc(var(--vv) * .1); margin-left: var(--gutter); margin-right: var(--pr); padding-right: 0; }
+  }
+}
+
+/* landscape phones (short and wide, still under 900 px): the hero keeps the desktop's arrangement, words left and the mark right (the director places the mark: POSES.hero) */
+@media (max-width: 899px) and (orientation: landscape) and (max-height: 560px) {
+  .lumen {
+    .hero-copy { right: auto; width: min(calc(26 * var(--r)), 54vw); justify-content: center; padding-bottom: 0; }
+    .hero-copy h1 { font-size: clamp(calc(1.25 * var(--r)), 3.3vw, calc(1.75 * var(--r))); margin-bottom: 14px; }
+    .who-wrap { margin-top: 14px; }
+    .cue { left: var(--gutter); margin-left: 0; top: calc(var(--vh) - 64px); }
+  }
+}
+
+/* short phones (under 720 px tall): a smaller headline and tighter spacing so the scene's mark keeps its room above the words */
+@media (max-width: 899px) and (max-height: 720px) {
+  .lumen {
+    h1 { font-size: clamp(calc(1.3 * var(--r)), 6vw, calc(1.7 * var(--r))); }
+    .hero-copy { padding-bottom: 80px; }
+    .hero-copy h1 { margin-bottom: 16px; }
+    .who-wrap { margin-top: 16px; }
+  }
+}
+
+/* ── static mode (reduced motion, or no WebGL): the same words and the same world, as posters in flow. scene/poster.ts paints one still
+   composition per station, once; nothing moves and nothing is tied to the scroll ──────────────────────────────────────────────────── */
+.lumen[data-mode="static"] {
+  .stage { display: none; }
+  .poster { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; max-height: 80svh; margin: 0 auto; pointer-events: none; }
+  .btn-sheen { display: none; }
+  .st-hero, .st-footer { overflow: clip; isolation: isolate; }
+  .st-hero { min-height: var(--vh); }
+  .st-hero > .poster, .st-footer > .poster { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; max-height: none; aspect-ratio: auto; }
+  .cue { animation: none; }
+  /* the static page's gauge changes length and colour with the station, and the cursor sits at the current station's tick (set once per station change, never tied to the scroll) */
+  .cursor, .cursor .orbit { transition: none; }
+  .signin, .menu-btn { background: var(--void); }
+  .st-who, .st-community, .st-opps, .st-events, .st-apply { display: grid; column-gap: clamp(32px, 6vw, 104px); align-content: center; align-items: center; min-height: var(--vh); padding: clamp(72px, 12svh, 150px) var(--pr) clamp(72px, 12svh, 150px) var(--text-x); }
+  /* the poster sits on alternate sides: left for who, opportunities and apply; right for community and events */
+  .st-who, .st-opps, .st-apply { grid-template-columns: minmax(0, 1fr) minmax(0, calc(29 * var(--r))); }
+  .st-community, .st-events { grid-template-columns: minmax(0, calc(29 * var(--r))) minmax(0, 1fr); }
+  .st-who > .poster, .st-opps > .poster, .st-apply > .poster { grid-column: 1; grid-row: 1 / span 14; }
+  .st-community > .poster, .st-events > .poster { grid-column: 2; grid-row: 1 / span 14; }
+  .st-who > :not(.poster), .st-opps > :not(.poster), .st-apply > :not(.poster) { grid-column: 2; width: auto; margin-left: 0; margin-right: 0; }
+  .st-community > :not(.poster), .st-events > :not(.poster) { grid-column: 1; width: auto; margin-left: 0; margin-right: 0; }
+  .st > .head { padding-top: 0; margin-bottom: clamp(20px, 4svh, 40px); }
+  .roles, .members, .listings, .events, .steps { display: grid; gap: clamp(14px, 2.6svh, 28px); }
+  .role, .member, .listing, .step, .event { min-height: 0; margin: 0; opacity: 1; }
+  .st .ex { margin-bottom: 14px; }
+  .access { margin-top: clamp(20px, 4svh, 36px); }
+  .picker { margin-bottom: clamp(16px, 3svh, 28px); }
+  .members { margin-top: 6px; }
+  .listings, .events, .steps { margin-top: 0; }
+  .ev .ev-k { opacity: 1; }
+  .cta { margin: clamp(24px, 5svh, 48px) 0 0; justify-items: start; text-align: left; padding: 0; }
+  .cta .fine { justify-content: flex-start; }
+  /* reduced motion or no WebGL: the ring is a plain drawn ring, nothing circles or draws itself, and there is no signal line */
+  .r-glow, .r-comet, .spark, .pad::before { display: none; }
+  .r-base { stroke-dashoffset: 0; transition: none; }
+  .st-footer { min-height: var(--vh); }
+  .leader { display: none; }
+  .role.on .dom-g, .event.on .dom-g, .member.on .dom-g, .listing.on .dom-g { color: var(--sun); }
+  .role.on .name, .event.on .ev-d { color: var(--sun); }
+  /* no motion in the static page: the name beside the current tick is told by colour alone (nothing fades or slides) */
+  @media (min-width: 900px) {
+    .lbl { opacity: 1; transform: translate(0, -50%); color: transparent; transition: none; }
+    .rail-links a[aria-current] .lbl, .rail-links a:hover .lbl, .rail-links a:focus-visible .lbl { color: var(--ink); }
+  }
+  @media (max-width: 899px) {
+    .st-who, .st-community, .st-opps, .st-events, .st-apply { grid-template-columns: minmax(0, 1fr); padding: calc(var(--nav-h) + 18px) var(--pr) 56px var(--gutter); min-height: 0; }
+    .st-who > .poster, .st-community > .poster, .st-opps > .poster, .st-events > .poster, .st-apply > .poster { grid-column: 1; grid-row: auto; max-height: 52svh; margin-bottom: 20px; }
+    .st-who > :not(.poster), .st-community > :not(.poster), .st-opps > :not(.poster), .st-events > :not(.poster), .st-apply > :not(.poster) { grid-column: 1; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen .cue { animation: none; }
+  .lumen .nav-end, .lumen .rail-links li { animation: none; }
+}
+@media (prefers-reduced-motion: reduce) and (min-width: 900px) {
+  .lumen .lbl { opacity: 1; transform: translate(0, -50%); color: transparent; transition: none; }
+  .lumen .rail-links a[aria-current] .lbl, .lumen .rail-links a:hover .lbl, .lumen .rail-links a:focus-visible .lbl { color: var(--ink); }
+}

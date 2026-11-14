@@ -1,0 +1,261 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · shell. The frame of the signed-in app: a labelled rail on a desktop; an app bar and a drawer below lg.
+
+   The one idea: the ring is the cursor. Every row of the rail owns a ring's worth of room at its left, empty until the row is the page you
+   are on (or is pointed at), when the ring draws itself round the icon and lights. It is the landing page's roundel cursor, kept for an app
+   that needs words beside its marks. Everything else is quiet, so the one lit ring is what you see.
+
+   The components set state through attributes: aria-current="page" on a row, data-collapsed on the rail, data-drawer on the rail when it
+   is the phone's drawer. Dimensions are tokens (--rail-width, --rail-width-collapsed, --appbar-height in tokens.css).
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── The frame ──────────────────────────────────────────────────────────────────────────────────────────── */
+  .lm-shell { display: flex; min-height: 100svh; }
+  .lm-shell__rail { display: none; position: sticky; top: 0; height: 100svh; flex: none; }
+  .lm-shell__main { display: flex; flex: 1 1 0%; flex-direction: column; min-width: 0; }
+  @media (min-width: 64rem) {
+    .lm-shell__rail { display: block; }
+  }
+
+  /* ── The rail ───────────────────────────────────────────────────────────────────────────────────────────── */
+  /* It is a little transparent on purpose: the warm light behind the mark (the atmosphere) reaches the top of it, so the roundel sits in it. */
+  .lm-rail {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: var(--rail-width);
+    background: color-mix(in oklab, var(--color-bg-secondary) 74%, transparent);
+    border-right: 1px solid var(--color-border-subtle);
+    transition: width var(--duration-base) var(--ease-out);
+  }
+  .lm-rail[data-collapsed] { width: var(--rail-width-collapsed); }
+  /* the phone's drawer sits over a scrim, so it is opaque and never collapsed */
+  .lm-rail[data-drawer] {
+    width: min(var(--rail-width), 88vw);
+    background: var(--color-bg-secondary);
+    border-right-color: var(--color-border);
+    box-shadow: var(--shadow-pop);
+  }
+
+  .lm-rail__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 20px 18px 12px 22px;
+  }
+  .lm-rail[data-collapsed] .lm-rail__head { flex-direction: column; justify-content: center; gap: 14px; padding: 20px 0 12px; }
+
+  /* the roundel, alone (never a word beside it); 6 px round it plus the head's padding keeps a quarter of its height clear */
+  .lm-rail__brand {
+    position: relative;
+    display: grid;
+    place-items: center;
+    padding: 6px;
+    border-radius: 18px;
+    color: var(--color-star);
+    text-decoration: none;
+  }
+  .lm-rail__brand::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in oklab, var(--color-warm) 22%, transparent), transparent);
+    opacity: 0;
+    transition: opacity var(--duration-base) var(--ease-out);
+    pointer-events: none;
+  }
+  @media (hover: hover) {
+    .lm-rail__brand:hover::before { opacity: 1; }
+  }
+  .lm-rail__brand svg { position: relative; display: block; }
+
+  /* the collapse control exists where there is a rail to collapse */
+  .lm-rail__toggle { display: none; }
+  @media (min-width: 64rem) {
+    .lm-rail:not([data-drawer]) .lm-rail__toggle { display: inline-grid; }
+  }
+
+  .lm-rail__nav {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px 14px 12px;
+  }
+  .lm-rail[data-collapsed] .lm-rail__nav { padding-inline: 0; }
+  .lm-rail__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .lm-rail__rule { height: 1px; margin: 12px 18px; border: 0; background: var(--color-border-subtle); }
+  .lm-rail[data-collapsed] .lm-rail__rule { margin-inline: 26px; }
+
+  .lm-rail__foot {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px 16px;
+    border-top: 1px solid var(--color-border-subtle);
+  }
+  .lm-rail[data-collapsed] .lm-rail__foot { padding-inline: 0; }
+
+  /* ── A row ──────────────────────────────────────────────────────────────────────────────────────────────── */
+  .lm-navitem {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: var(--touch);
+    padding: 4px 16px 4px 4px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.2;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  }
+  /* the ring's room: 36 px, so a 20 px icon has 8 px of air all round it */
+  .lm-navitem__mark {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border: 1.5px solid transparent;
+    border-radius: 50%;
+    transition: color var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out),
+      box-shadow var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out);
+  }
+  .lm-navitem__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lm-navitem .lm-badge { margin-left: auto; flex: none; }
+
+  @media (hover: hover) {
+    .lm-navitem:hover { background: var(--color-tint-1); color: var(--color-text-primary); }
+    .lm-navitem:hover .lm-navitem__mark { border-color: var(--color-border-strong); }
+  }
+  .lm-navitem:active { background: var(--color-tint-2); }
+
+  /* you are here: the ring lights */
+  .lm-navitem[aria-current="page"] { background: var(--color-tint-2); color: var(--color-text-primary); font-weight: 500; }
+  .lm-navitem[aria-current="page"] .lm-navitem__mark {
+    color: var(--color-accent-light);
+    border-color: var(--color-lit-line);
+    background: var(--color-lit-muted);
+    box-shadow: 0 0 22px -4px var(--color-lit-glow);
+  }
+
+  /* an outlined row: the way back out to /admin */
+  .lm-navitem[data-tone="outline"] { padding: 3px 15px 3px 3px; border: 1px solid var(--color-border-strong); background: var(--color-tint-1); color: var(--color-text-primary); }
+  @media (hover: hover) {
+    .lm-navitem[data-tone="outline"]:hover { background: var(--color-tint-3); border-color: var(--color-lit-line); }
+  }
+  .lm-navitem[data-tone="outline"] .lm-navitem__mark { border-color: var(--color-border); }
+
+  /* the profile row has two lines of words, so it is a little taller */
+  .lm-navitem[data-tone="profile"] { min-height: 52px; }
+  .lm-navitem__mark[data-person] {
+    border-color: var(--color-border-strong);
+    background: var(--color-tint-1);
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: var(--text-lead);
+    font-weight: 400;
+    line-height: 1;
+  }
+  /* the member's own light (avatarHue.ts), the same colour their face has everywhere; the current page's lit ring still wins */
+  .lm-navitem:not([aria-current="page"]) .lm-navitem__mark[data-person][data-hue] {
+    --_h: var(--color-person-warm);
+    color: var(--_h);
+    border-color: color-mix(in oklab, var(--_h) 46%, var(--color-border-strong));
+    background: color-mix(in oklab, var(--_h) 12%, transparent);
+  }
+  .lm-navitem:not([aria-current="page"]) .lm-navitem__mark[data-person][data-hue="sun"]  { --_h: var(--color-person-sun); }
+  .lm-navitem:not([aria-current="page"]) .lm-navitem__mark[data-person][data-hue="cool"] { --_h: var(--color-person-cool); }
+  .lm-navitem__lines { display: grid; min-width: 0; gap: 1px; }
+  .lm-navitem__lines > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lm-navitem__sub { color: var(--color-text-muted); font-size: var(--text-caption); }
+
+  /* a navigation in flight: the row's ring turns once the wait is long enough to notice (the fade is nav-pending, in motion.css) */
+  .lm-navitem__pending { position: absolute; left: 4px; top: 50%; width: 36px; height: 36px; margin-top: -18px; pointer-events: none; }
+  .lm-navitem__ring {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 1.5px solid transparent;
+    border-top-color: var(--color-warm);
+    border-right-color: color-mix(in oklab, var(--color-warm) 35%, transparent);
+    border-radius: 50%;
+  }
+
+  /* ── Collapsed: a column of rings. The labels stay in the page for screen readers and are only drawn away. ── */
+  .lm-rail[data-collapsed] .lm-navitem { width: var(--touch); margin-inline: auto; padding: 4px; gap: 0; justify-content: center; }
+  .lm-rail[data-collapsed] .lm-navitem[data-tone="outline"] { padding: 3px; }
+  .lm-rail[data-collapsed] .lm-navitem__label,
+  .lm-rail[data-collapsed] .lm-navitem__lines {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .lm-rail[data-collapsed] .lm-navitem .lm-badge { display: none; }
+  .lm-rail[data-collapsed] .lm-navitem__pending { left: 4px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lm-rail { transition: none; }
+  }
+
+  /* Windows high-contrast: the UA paints transparent borders in a system colour, so every row's ring would show and the current page would
+     be lost among them. Draw the rings ourselves: none at rest, the highlight colour on the current page. */
+  @media (forced-colors: active) {
+    .lm-navitem__mark { forced-color-adjust: none; border-color: transparent; }
+    .lm-navitem[aria-current="page"] .lm-navitem__mark { border-color: Highlight; }
+    .lm-navitem[aria-current="page"] { outline: 1px solid Highlight; }
+  }
+
+  /* ── The phone: an app bar and a drawer ─────────────────────────────────────────────────────────────────── */
+  /* A 45 px ring is the smallest the roundel may be, and a quarter of its height must stay clear: the bar is as tall as that needs. */
+  .lm-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    min-height: var(--appbar-height);
+    padding: max(13px, env(safe-area-inset-top)) var(--gutter) 13px;
+    background: color-mix(in oklab, var(--color-bg-primary) 88%, transparent);
+    border-bottom: 1px solid var(--color-border-subtle);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+  .lm-appbar > :first-child { justify-self: start; }
+  .lm-appbar__brand { display: grid; place-items: center; padding: 4px; border-radius: 16px; color: var(--color-star); text-decoration: none; }
+  .lm-appbar__brand svg { display: block; }
+  @media (min-width: 64rem) {
+    .lm-appbar { display: none; }
+  }
+
+  .lm-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: color-mix(in oklab, var(--color-void) 72%, transparent);
+    animation: backdrop-in var(--duration-base) var(--ease-out) both;
+  }
+  .lm-drawer { position: fixed; inset: 0 auto 0 0; z-index: 50; animation: drawer-in var(--duration-base) var(--ease-out) both; }
+  @media (min-width: 64rem) {
+    .lm-scrim, .lm-drawer { display: none; }
+  }
+}
+
+/* the drawer arrives from the edge it will leave by; reduced motion lands it on its end state (motion.css zeroes the duration) */
+@keyframes drawer-in { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }

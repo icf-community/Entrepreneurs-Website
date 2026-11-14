@@ -1,13 +1,16 @@
+import type { Metadata } from "next";
 import { flattenSearchParams, pageParam, isoDayParam } from "@/lib/filters/serverParams";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import ListingPageShell from "@/components/ListingPageShell";
-import { Skeleton, FilterBarSkeleton, RowListSkeleton } from "@/components/ui/Skeleton";
+import { Skeleton, FilterBarSkeleton, CardGridSkeleton } from "@/components/ui/Skeleton";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { markedIds } from "@/lib/data/activity";
 import { listApprovedVcs, VC_PAGE_SIZE, type Vc, type VcFilters } from "@/lib/data/vcs";
 import type { Db } from "@/lib/data/query";
 import VcsClient from "./VcsClient";
+
+export const metadata: Metadata = { title: "Grants & VCs" };
 
 type SearchParams = {
   submitted?: string; v?: string;
@@ -62,7 +65,7 @@ export default async function VcsPage({
       eyebrow="Grants & VCs"
       title="Funding for Foundry founders"
       summary={
-        <Suspense fallback={<Skeleton className="h-3 w-36" />}>
+        <Suspense fallback={<Skeleton className="h-5 w-36" />}>
           <VcCount data={data} />
         </Suspense>
       }
@@ -72,7 +75,7 @@ export default async function VcsPage({
         fallback={
           <>
             <FilterBarSkeleton />
-            <RowListSkeleton className="mt-8" />
+            <CardGridSkeleton className="mt-8" />
           </>
         }
       >

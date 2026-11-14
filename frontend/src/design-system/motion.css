@@ -1,0 +1,163 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   LUMEN · motion. One curve (an exponential ease-out, --ease-out), four durations, and a short list of gestures that all come from the logo:
+   a rule that draws, a ring that turns, a light that breathes. Idle loops are slow (8 s and up). Nothing here animates layout properties.
+
+   Reduced motion lands every entrance on its end state (it never leaves anything at opacity 0), stops decorative loops, and keeps one
+   deliberate exception: a progress spinner keeps turning (slowly), because a frozen spinner reads as a hung request.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes rule-draw   { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes rise        { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes rule-light  { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: none; } }
+@keyframes fade-up     { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes fade-in     { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hero-settle { from { opacity: 0; filter: blur(14px); transform: scale(1.03); } to { opacity: 1; filter: blur(0); transform: none; } }
+@keyframes drift-up    { from { transform: translateY(0); } to { transform: translateY(-9%); } }
+@keyframes panel-in    { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+@keyframes dialog-in   { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes step-in-fwd  { from { opacity: 0; transform: translateX(16px); }  to { opacity: 1; transform: none; } }
+@keyframes step-in-back { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+/* a ring turning once every few seconds: the orbit glyph, the comet round a lit button */
+@keyframes orbit-spin  { to { transform: rotate(360deg); } }
+@keyframes orbit-lap   { to { stroke-dashoffset: -100; } }
+/* light that breathes: the warm core behind a mark, the glow behind a lit button */
+@keyframes breathe     { 0%, 100% { opacity: 0.82; } 50% { opacity: 1; } }
+/* the point of light in a page's context line: its glow swells and settles (the dot itself never moves) */
+@keyframes dot-glow    { 0%, 100% { box-shadow: 0 0 8px 0 var(--color-lit-glow); } 50% { box-shadow: 0 0 16px 3px var(--color-lit-glow); } }
+/* the one body on an empty state's orbit, going once round (from where it rests: a little above and to the right) */
+@keyframes orbit-around { from { transform: rotate(50deg); } to { transform: rotate(410deg); } }
+@keyframes swell       { 0%, 100% { transform: scale(0.94); } 50% { transform: scale(1.05); } }
+/* a ring leaving the thing that was pressed */
+@keyframes ripple      { 0% { opacity: 0.85; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes shimmer     { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+@keyframes nav-pending-in { to { opacity: 1; } }
+@keyframes nav-pending-sweep { 0% { transform: scaleX(0.05); } 60% { transform: scaleX(0.7); } 100% { transform: scaleX(0.95); } }
+
+/* ── The rule draws ────────────────────────────────────────────────────────────────────────────────────────────
+   Every masthead on the site opens on a hairline rule across the measure that draws itself as the section arrives, with a point of warm
+   light at its end, and the heading rises behind it. It is scroll-driven (animation-timeline: view()), so it needs no JavaScript, no
+   observer and no client boundary, and there is no flash of hidden content. Browsers without view timelines get the static page. */
+.rule-draw { position: relative; }
+.rule-draw::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: var(--color-border);
+  transform-origin: left center;
+}
+.rule-draw::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-warm);
+  box-shadow: 0 0 10px 1px color-mix(in oklab, var(--color-warm) 70%, transparent);
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .rule-draw::before {
+      animation: rule-draw var(--ease-out) both;
+      animation-timeline: view();
+      animation-range: entry 8% entry 46%;
+    }
+    .rule-draw::after {
+      animation: rule-light var(--ease-out) both;
+      animation-timeline: view();
+      animation-range: entry 36% entry 56%;
+    }
+    /* the heading follows the rule rather than racing it: the later range is the stagger (delays mean nothing on a scroll timeline) */
+    .rule-draw > * {
+      animation: rise var(--ease-out) both;
+      animation-timeline: view();
+      animation-range: entry 14% entry 62%;
+    }
+    /* a field of stars that drifts against the page as it scrolls away: single-digit percent, felt rather than seen */
+    .starfield-parallax {
+      animation: drift-up linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+  }
+}
+
+/* ── Entrances that answer an arrival (one per surface, never one on every block) ────────────────────────────── */
+.anim-fade-up  { opacity: 0; animation: fade-up 0.7s var(--ease-out) forwards; }
+.anim-fade-in  { opacity: 0; animation: fade-in 0.9s var(--ease-out) forwards; }
+.anim-settle   { opacity: 0; animation: hero-settle 1.1s var(--ease-out) forwards; }
+.anim-panel    { animation: panel-in var(--duration-base) var(--ease-out) both; }
+.anim-dialog   { animation: dialog-in 0.28s var(--ease-out) both; }
+dialog[open]::backdrop { animation: backdrop-in var(--duration-base) ease both; }
+/* The intake screen enters from the side you are travelling toward, so Back visibly reverses Continue. Short and translate-only: it fires on every Continue. */
+.anim-step-fwd  { animation: step-in-fwd 0.22s var(--ease-out) both; }
+.anim-step-back { animation: step-in-back 0.22s var(--ease-out) both; }
+
+/* The active-tab indicator uses the same gesture as the mastheads: a rule drawn from its left end. */
+.underline-draw { transform-origin: left center; animation: rule-draw 0.4s var(--ease-out) both; }
+
+/* Delay utilities, used on hero elements. */
+.delay-100 { animation-delay: 0.06s; }
+.delay-200 { animation-delay: 0.12s; }
+.delay-300 { animation-delay: 0.18s; }
+.delay-400 { animation-delay: 0.24s; }
+.delay-500 { animation-delay: 0.30s; }
+.delay-600 { animation-delay: 0.36s; }
+
+/* ── Loops ───────────────────────────────────────────────────────────────────────────────────────────────────── */
+.anim-orbit   { transform-origin: center; animation: orbit-spin 8s linear infinite; }
+/* a progress ring: quicker than the idle orbit, and kept turning (slowly) under reduced motion, see the exception below */
+.anim-spinner { animation: orbit-spin 1.1s linear infinite; }
+.anim-breathe { animation: breathe 11s ease-in-out infinite; }
+.anim-swell   { animation: swell 11s ease-in-out infinite; }
+
+/* ── Navigation pending (shown by <LinkPending /> while a sidebar navigation is in flight) ──────────────────── */
+.nav-pending { opacity: 0; animation: nav-pending-in 150ms ease-out 120ms forwards; }
+.nav-pending-bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 110;
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-warm), var(--color-sun));
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nav-pending-bar {
+    transform-origin: left;
+    animation: nav-pending-in 150ms ease-out 120ms forwards, nav-pending-sweep 1.4s ease-in-out 120ms infinite;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* The entrance animations start at opacity 0 and animate to 1; zeroing their duration would leave them invisible, so land them on their
+     final state instead of removing them. */
+  .anim-fade-up, .anim-fade-in, .anim-settle, .anim-panel, .anim-dialog, .anim-step-fwd, .anim-step-back {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    animation: none !important;
+  }
+
+  /* Decorative loops stop where they are. */
+  .anim-orbit, .anim-breathe, .anim-swell, .lm-orbit:not([data-spin]) .o { animation: none !important; }
+
+  /* Deliberate exception: a progress spinner that stops spinning reads as a hung request. Rotation in a 22 px box is not a vestibular
+     trigger, so slow it rather than freeze it. (An orbit glyph used as a spinner, data-spin, keeps turning; a decorative one stops.) */
+  .animate-spin, .anim-spinner, .lm-orbit[data-spin] .o {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

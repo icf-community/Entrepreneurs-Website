@@ -3,7 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Entry } from "@/components/ui/Entry";
+import { Panel } from "@/components/ui/Panel";
 import { useToast } from "@/components/ui/Toast";
+import { Icon } from "@/design-system/icons/Icon";
 import { browserClient } from "@/lib/supabase/browser";
 import { invalidateUnreadBadge } from "@/components/notifications/unreadBadgeStore";
 import type { Notification } from "@/lib/data/notifications";
@@ -48,59 +52,66 @@ export default function NotificationsList({ initial }: { initial: Notification[]
 
   if (items.length === 0) {
     return (
-      <p className="rounded-2xl border border-border bg-bg-card p-6 text-[0.85rem] text-text-muted">
+      <EmptyState icon="notifications">
         Nothing yet. Connection requests, listing decisions and replies to your reports show up here.
-      </p>
+      </EmptyState>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.8rem] text-text-muted">{unread === 0 ? "All caught up." : `${unread} unread`}</p>
+    <div className="grid gap-4">
+      <div className="flex min-h-11 items-center justify-between gap-3">
+        <p className="data text-body text-text-muted">{unread === 0 ? "All caught up." : `${unread} unread`}</p>
         {unread > 0 && (
-          <Button variant="ghost" size="sm" loading={marking} onClick={markAll}>
+          <Button variant="ghost" size="sm" loading={marking} onClick={markAll} leading={<Icon name="check" size={18} />}>
             Mark all as read
           </Button>
         )}
       </div>
-      <ul className="space-y-2">
-        {items.map((n) => {
-          const content = (
-            <>
-              <span className="flex items-start justify-between gap-3">
-                <span className={`text-[0.875rem] ${n.readAt ? "text-text-secondary" : "font-medium text-text-primary"}`}>
-                  {!n.readAt && <span className="sr-only">Unread: </span>}
-                  {n.title}
-                </span>
-                {/* suppressHydrationWarning: formats in the viewer's local
-                    zone, which legitimately differs from the server's. */}
-                <span className="shrink-0 text-[0.72rem] text-text-muted" suppressHydrationWarning>{when(n.createdAt)}</span>
+      <Panel className="p-1.5">
+        <ul className="grid gap-0.5">
+          {items.map((n) => {
+            // The words of the row. An unread one says so (for a screen reader) and is drawn in full
+            // ink with a lit bell and a point of light; a read one steps back to secondary ink.
+            const heading = (
+              <span className={n.readAt ? "text-text-secondary" : "text-text-primary"}>
+                {!n.readAt && <span className="sr-only">Unread: </span>}
+                {n.title}
               </span>
-              {n.body && <span className="mt-1 block text-[0.8rem] text-text-muted">{n.body}</span>}
-            </>
-          );
-          const cls = `block rounded-xl border px-4 py-3 no-underline transition-colors ${
-            n.readAt ? "border-border bg-white/[0.02]" : "border-border-strong bg-white/[0.05]"
-          }`;
-          return (
-            <li key={n.id}>
-              {n.link ? (
-                <Link
-                  href={n.link}
-                  className={`${cls} hover:border-accent`}
-                  // Best effort: navigating matters more than the read mark.
-                  onClick={() => { if (!n.readAt) void markRead([n.id]).catch(() => {}); }}
-                >
-                  {content}
-                </Link>
-              ) : (
-                <div className={cls}>{content}</div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+            );
+            return (
+              <Entry
+                key={n.id}
+                as="li"
+                glyph={<Icon name="notifications" size={20} className={n.readAt ? undefined : "text-accent-light"} />}
+                title={
+                  n.link ? (
+                    <Link
+                      href={n.link}
+                      className="text-inherit no-underline after:absolute after:inset-0 after:content-['']"
+                      // Best effort: navigating matters more than the read mark.
+                      onClick={() => { if (!n.readAt) void markRead([n.id]).catch(() => {}); }}
+                    >
+                      {heading}
+                    </Link>
+                  ) : (
+                    heading
+                  )
+                }
+                meta={n.body ?? undefined}
+                trailing={
+                  <>
+                    {!n.readAt && <span aria-hidden className="size-2 shrink-0 rounded-full bg-lit" />}
+                    {/* suppressHydrationWarning: formats in the viewer's local
+                        zone, which legitimately differs from the server's. */}
+                    <span className="data text-small text-text-muted" suppressHydrationWarning>{when(n.createdAt)}</span>
+                  </>
+                }
+              />
+            );
+          })}
+        </ul>
+      </Panel>
     </div>
   );
 }

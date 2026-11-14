@@ -1,3 +1,5 @@
+import { Notice } from "@/components/ui/Notice";
+
 // ════════════════════════════════════════════════════════════════════
 // Foundry · "The organiser has proposed a change"
 //
@@ -9,17 +11,17 @@
 // What it does say is the thing a member needs — that the details below
 // may be about to change — so nobody reads a room number the organiser
 // already knows is wrong and believes it is settled.
+//
+// Drawn as an info Notice (the cold light: something to know, not something
+// gone wrong) with a clock, announced politely.
 // ════════════════════════════════════════════════════════════════════
 
 export function PendingRevisionNotice({ noun }: { noun: string }) {
   return (
-    <div
-      role="status"
-      className="mb-8 rounded-lg border border-border-strong bg-white/[0.03] px-4 py-3 text-[0.8rem] text-text-secondary leading-relaxed"
-    >
+    <Notice role="status" tone="info" icon="clock" className="mb-8">
       The organiser has proposed a change to this {noun} and it&apos;s waiting on a review.
       What you see below is the current, approved version — check back before you rely on the
       details.
-    </div>
+    </Notice>
   );
 }

@@ -4,7 +4,20 @@ import SignOutButton from "./SignOutButton";
 import IngestionToggle from "./IngestionToggle";
 import { getIngestionStatus } from "./actions";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { Badge } from "@/components/ui/Badge";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Entry } from "@/components/ui/Entry";
+import { PageHead } from "@/components/ui/PageHead";
+import { Panel } from "@/components/ui/Panel";
+import { Section } from "@/components/ui/Section";
+import { Stat, StatGrid } from "@/components/ui/Stat";
+import { Icon } from "@/design-system/icons/Icon";
+import type { IconName } from "@/design-system/icons/names";
+import { Page } from "@/components/ui/Page";
 
+// The control room: what is waiting for a person (a ruled sheet of counts, each
+// one a way in, lit only where something is waiting), the one switch that stops
+// new AI spend, and the doors to everything else an admin does.
 export default async function AdminPage() {
   const { supabase } = await requireAdminPage();
 
@@ -15,69 +28,63 @@ export default async function AdminPage() {
   const totalPending = counts.total;
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
-      <div className="max-w-[1200px] mx-auto">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-12 rule-draw pt-6">
-          <div className="min-w-0">
-            <p className="label-wide text-text-secondary mb-3">Admin</p>
-            <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-[1.1] tracking-tight">
-              Foundry control panel
-            </h1>
-            <p className="text-[0.85rem] text-text-muted mt-2 flex items-center gap-2">
-              {totalPending > 0 ? (
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-2.5 py-0.5 text-[0.75rem] font-semibold text-bg-primary">
-                  {totalPending} awaiting review
-                </span>
-              ) : (
-                <span className="inline-flex items-center rounded-lg border border-border px-2.5 py-0.5 text-[0.75rem] text-text-muted">
-                  Queues clear
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/members"
-              className="text-[0.8rem] bg-white/[0.05] border border-border-strong text-text-primary no-underline rounded-lg px-4 py-1.5 transition-colors duration-150 hover:bg-white/[0.10] hover:border-accent"
-            >
-              ← Back to site
-            </Link>
+    <Page as="main">
+      <PageHead
+        context="Admin"
+        title="Foundry control panel"
+        lede={
+          totalPending > 0 ? (
+            <Badge tone="lit" dot>{totalPending} awaiting review</Badge>
+          ) : (
+            <Badge>Queues clear</Badge>
+          )
+        }
+        actions={
+          <>
+            <ButtonLink href="/members" variant="ghost" size="sm" leading={<Icon name="arrow-left" size={18} />}>
+              {/* the arrow is drawn; the character stays in the accessible name, as it always was */}
+              <span className="sr-only">← </span>Back to site
+            </ButtonLink>
             <SignOutButton />
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        <div className="grid grid-cols-1 gap-px border border-border bg-border md:grid-cols-2 lg:grid-cols-5">
-          <QueueLink
-            href="/admin/users"
-            title="Pending alumni profiles"
-            count={counts.profiles}
-            hint="Manual verification"
-          />
-          <QueueLink
-            href="/admin/opportunities"
-            title="Pending opportunities"
-            count={counts.opportunities}
-            hint="Review queue"
-          />
-          <QueueLink
-            href="/admin/events"
-            title="Pending events"
-            count={counts.events}
-            hint="Review queue"
-          />
-          <QueueLink
-            href="/admin/vcs"
-            title="Pending VCs / grants"
-            count={counts.vcs}
-            hint="Review queue"
-          />
-          <QueueLink
-            href="/admin/edits"
-            title="Proposed changes"
-            count={counts.edits}
-            hint="Edits to live listings"
-          />
-        </div>
+      <div className="lm-sections mt-10">
+        <section aria-label="Review queues">
+          <StatGrid min="sm">
+            <QueueStat
+              href="/admin/users"
+              title="Pending alumni profiles"
+              count={counts.profiles}
+              hint="Manual verification"
+            />
+            <QueueStat
+              href="/admin/opportunities"
+              title="Pending opportunities"
+              count={counts.opportunities}
+              hint="Review queue"
+            />
+            <QueueStat
+              href="/admin/events"
+              title="Pending events"
+              count={counts.events}
+              hint="Review queue"
+            />
+            <QueueStat
+              href="/admin/vcs"
+              title="Pending VCs / grants"
+              count={counts.vcs}
+              hint="Review queue"
+            />
+            <QueueStat
+              href="/admin/edits"
+              title="Proposed changes"
+              count={counts.edits}
+              hint="Edits to live listings"
+            />
+          </StatGrid>
+        </section>
 
         <IngestionToggle
           initial={
@@ -87,64 +94,88 @@ export default async function AdminPage() {
           }
         />
 
-        <div className="mt-12 rule-draw pt-6">
-          <p className="label-wide text-text-secondary mb-3">Quick create</p>
-          <p className="text-[0.8rem] text-text-muted mb-4 leading-relaxed">
-            Publish directly without going through the approval queue.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <DiagLink href="/admin/opportunities/new" label="+ Opportunity" />
-            <DiagLink href="/admin/events/new"        label="+ Event" />
-            <DiagLink href="/admin/vcs/new"           label="+ VC / grant" />
+        <Section
+          rule
+          title="Quick create"
+          description="Publish directly without going through the approval queue."
+        >
+          <div className="flex flex-wrap gap-3">
+            <CreateLink href="/admin/opportunities/new" label="Opportunity" />
+            <CreateLink href="/admin/events/new" label="Event" />
+            <CreateLink href="/admin/vcs/new" label="VC / grant" />
           </div>
-        </div>
+        </Section>
 
-        <div className="mt-12 rule-draw pt-6">
-          <p className="label-wide text-text-secondary mb-3">Community management</p>
-          <p className="text-[0.8rem] text-text-muted mb-4 leading-relaxed">
-            Search the full membership and remove accounts. Use the graduate cleanup once a year to roll out current students whose graduation year has passed.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <DiagLink href="/admin/members" label="Member directory · search + delete" />
-            <DiagLink href="/admin/graduates" label="Graduate cleanup" />
-            <DiagLink href="/admin/reports" label="Reported posts · moderation queue" />
-            <DiagLink href="/admin/connections" label="Connections · reports, throttles, pause" />
-            <DiagLink href="/admin/banner" label="Site banner · tell members about an outage" />
-            <DiagLink href="/admin/ai" label="AI · health, limits, job audiences" />
-          </div>
-        </div>
-
+        <Section
+          rule
+          title="Community management"
+          description="Search the full membership and remove accounts. Use the graduate cleanup once a year to roll out current students whose graduation year has passed."
+        >
+          <Panel className="p-2">
+            <ul className="grid sm:grid-cols-2">
+              <DoorEntry href="/admin/members" icon="members" name="Member directory" aside="search + delete" />
+              <DoorEntry href="/admin/graduates" icon="user-check" name="Graduate cleanup" />
+              <DoorEntry href="/admin/reports" icon="flag" name="Reported posts" aside="moderation queue" />
+              <DoorEntry href="/admin/connections" icon="connections" name="Connections" aside="reports, throttles, pause" />
+              <DoorEntry href="/admin/banner" icon="notifications" name="Site banner" aside="tell members about an outage" />
+              <DoorEntry href="/admin/ai" icon="foundry-ai" name="AI" aside="health, limits, job audiences" />
+            </ul>
+          </Panel>
+        </Section>
       </div>
-    </main>
+    </Page>
   );
 }
 
-function QueueLink({ href, title, count, hint }: { href: string; title: string; count: number; hint: string }) {
+// One count and the queue it opens. The whole cell is the link (the title's own
+// link stretches over it), so the accessible name stays the title and the count
+// is read in its place in the list. A queue with something waiting is lit: the
+// number in warm ink and a point of light before the name; an empty one is quiet.
+function QueueStat({ href, title, count, hint }: { href: string; title: string; count: number; hint: string }) {
+  const waiting = count > 0;
   return (
-    <Link
-      href={href}
-      className="block bg-bg-card p-5 no-underline transition-colors duration-150 hover:bg-bg-card-hover"
-    >
-      <div className="flex items-start justify-between mb-1">
-        <div className="text-[0.9rem] font-medium text-text-primary">{title}</div>
-        {count > 0 ? (
-          <div className="data min-w-[1.5rem] rounded-lg bg-accent px-2 py-0.5 text-center text-[0.75rem] font-medium text-bg-primary">{count}</div>
-        ) : (
-          <div className="data px-2 py-0.5 text-[0.8rem] text-text-muted">0</div>
-        )}
-      </div>
-      <div className="text-[0.75rem] text-text-muted">{hint}</div>
-    </Link>
+    <Stat
+      className="group transition-colors hover:bg-tint-1"
+      tone={waiting ? "lit" : "default"}
+      label={
+        <Link
+          href={href}
+          className="text-inherit no-underline after:absolute after:inset-0 after:content-[''] group-hover:text-text-primary"
+        >
+          {waiting && <span aria-hidden className="mr-2 inline-block size-1.5 rounded-full bg-lit align-middle" />}
+          {title}
+        </Link>
+      }
+      value={waiting ? count : <span className="text-text-muted">0</span>}
+      hint={hint}
+    />
   );
 }
 
-function DiagLink({ href, label }: { href: string; label: string }) {
+// "+ Opportunity": the plus is drawn, and stays in the accessible name as text.
+function CreateLink({ href, label }: { href: string; label: string }) {
   return (
-    <Link
-      href={href}
-      className="block rounded-lg border border-border-strong bg-white/[0.03] px-4 py-3 text-center text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:border-accent hover:bg-white/[0.06] hover:text-text-primary"
-    >
+    <ButtonLink href={href} variant="ghost" size="md" leading={<Icon name="plus" size={18} />}>
+      <span className="sr-only">+ </span>
       {label}
-    </Link>
+    </ButtonLink>
+  );
+}
+
+// A door to another admin page: the page's name, what it is for in a quieter ink
+// (the whole label stays one run of text, "Member directory · search + delete").
+function DoorEntry({ href, icon, name, aside }: { href: string; icon: IconName; name: string; aside?: string }) {
+  return (
+    <Entry
+      as="li"
+      href={href}
+      glyph={<Icon name={icon} size={20} />}
+      title={
+        <>
+          {name}
+          {aside && <span className="text-text-muted"> · {aside}</span>}
+        </>
+      }
+    />
   );
 }

@@ -6,13 +6,18 @@ import { SearchInput, FilterPanel, ChipChoice, RangeFilter } from "@/components/
 import { Pager } from "@/components/ui/Pager";
 import { useListingFreshness } from "@/lib/useListingFreshness";
 import { ListingGoneNotice } from "@/components/ListingGoneNotice";
-import { FullPageLink } from "@/components/FullPageLink";
+import { ExternalButtonLink, FullPageLink } from "@/components/FullPageLink";
 import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import { formatDate } from "@/lib/dates";
 import type { Vc, VcFilters } from "@/lib/data/vcs";
-import { externalHref } from "@/lib/safeUrl";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
+import { Disclosure } from "@/components/ui/Disclosure";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Updating } from "@/components/ui/Updating";
+import { Disc } from "@/design-system/icons/Disc";
+import { Icon } from "@/design-system/icons/Icon";
 
 const KINDS = [
   { value: "all",   label: "All" },
@@ -97,11 +102,11 @@ export default function VcsClient({
       <div className={`relative ${url.pending ? "opacity-60 transition-opacity duration-150" : ""}`} aria-busy={url.pending || undefined}>
         {url.pending && <Updating />}
         {visible.length === 0 ? (
-          <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+          <EmptyState icon={matching === 0 ? "vcs" : "search"}>
             {matching === 0 ? "No listings yet." : "No listings match your search or filters."}
-          </div>
+          </EmptyState>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {visible.map((v) => <VcCard key={v.id} vc={v} applied={appliedSet.has(v.id)} onDismiss={() => dismiss(v.id)} />)}
           </div>
         )}
@@ -142,93 +147,65 @@ function VcCard({ vc: v, applied, onDismiss }: {
   const kindLabel = v.kind === "vc" ? "VC" : "Grant";
 
   return (
-    <article id={`v-${v.id}`} className="rounded-2xl bg-bg-card border border-border overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full px-5 py-4 text-left bg-transparent border-0 cursor-pointer transition-colors duration-150 hover:bg-white/[0.02]"
-      >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <span className="px-2 py-0.5 rounded-lg text-[0.65rem] uppercase tracking-wider bg-accent-muted text-accent-light border border-accent/20">
-            {kindLabel}
-          </span>
-          {deadlineLabel && (
-            <span className="text-[0.7rem] text-text-muted">
-              Deadline {deadlineLabel}
+    <Disclosure
+      id={`v-${v.id}`}
+      size="sm"
+      lazy
+      open={open}
+      onOpenChange={setOpen}
+      closedLabel="Show details"
+      openLabel="Hide details"
+      summary={
+        <span className="flex items-start gap-4">
+          <Disc size="sm">
+            <Icon name="vcs" size={18} />
+          </Disc>
+          <span className="grid min-w-0 flex-1 gap-1.5">
+            <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+              <Badge>{kindLabel}</Badge>
+              {deadlineLabel && (
+                <span className="data text-small text-text-muted">Deadline {deadlineLabel}</span>
+              )}
             </span>
-          )}
-        </div>
-        <h3 className="text-[1.05rem] font-medium text-text-primary leading-snug mb-3">
-          {v.name}
-        </h3>
-        <div className="space-y-1.5">
-          <Meta icon={<PosterAvatar name={v.postedBy.firstName} />} text={`Posted by ${v.postedBy.firstName} ${v.postedBy.surname}`} />
-          {(v.amount || v.stage) && (
-            <Meta
-              icon={<DollarIcon />}
-              text={[v.amount, v.stage].filter(Boolean).join(" · ")}
-            />
-          )}
-        </div>
-        <div className="mt-3 text-[0.7rem] text-text-muted">
-          {open ? "▾ Hide details" : "▸ Show details"}
-        </div>
-      </button>
-
-      {open && stale && (
+            <span className="block font-display text-lead text-text-primary">{v.name}</span>
+            <span className="mt-1 grid gap-2 text-small text-text-secondary">
+              <span className="flex items-center gap-2">
+                <Avatar name={v.postedBy.firstName} size="xs" tone="lit" />
+                <span className="min-w-0">Posted by {v.postedBy.firstName} {v.postedBy.surname}</span>
+              </span>
+              {(v.amount || v.stage) && (
+                <span className="flex items-start gap-2">
+                  <Icon name="pound" size={16} className="mt-0.5 shrink-0 text-text-muted" />
+                  <span className="min-w-0">{[v.amount, v.stage].filter(Boolean).join(" · ")}</span>
+                </span>
+              )}
+            </span>
+          </span>
+        </span>
+      }
+    >
+      {stale ? (
         <ListingGoneNotice kind="VC/grant" onDismiss={onDismiss} />
-      )}
+      ) : (
+        <div className="grid gap-5 pt-4">
+          {checking && <p className="text-small text-text-muted">Loading latest details…</p>}
+          <div className="grid gap-1.5">
+            <p className="label-wide text-text-muted">Description</p>
+            <p className="whitespace-pre-wrap text-body text-text-secondary">{v.description}</p>
+          </div>
 
-      {open && !stale && (
-        <div className="px-5 pb-5 pt-1 border-t border-border-subtle">
-          {checking && (
-            <div className="text-[0.7rem] text-text-muted mt-3">Loading latest details…</div>
-          )}
-          <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1 mt-4">Description</div>
-          <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{v.description}</p>
-
-          <div className="mt-5 flex items-start gap-2 flex-wrap">
-            <a
-              href={externalHref(v.link)}
-              target="_blank"
-              rel="noreferrer noopener"
+          <div className="flex flex-wrap items-start gap-3">
+            <ExternalButtonLink
+              href={v.link}
               onClick={() => recordListingEvent("vc_grant", v.id, "external_click")}
-              className="inline-block px-4 py-2 rounded-lg bg-accent text-bg-primary text-[0.825rem] font-medium no-underline transition-colors hover:bg-accent-light"
             >
-              Open link ↗
-            </a>
+              Open link
+            </ExternalButtonLink>
             <MarkActionPill kind="vc_grant" id={v.id} initial={applied} />
             <FullPageLink href={`/vcs/${v.id}`} />
           </div>
         </div>
       )}
-    </article>
-  );
-}
-
-function Meta({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return (
-    <div className="flex items-center gap-2 text-[0.8rem] text-text-secondary">
-      <span className="shrink-0 text-text-muted">{icon}</span>
-      <span className="truncate">{text}</span>
-    </div>
-  );
-}
-
-function PosterAvatar({ name }: { name: string }) {
-  const initial = name.trim().charAt(0).toUpperCase() || "?";
-  return (
-    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent-muted text-accent-light text-[0.65rem] font-medium border border-accent/25">
-      {initial}
-    </span>
-  );
-}
-
-function DollarIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <line x1="12" y1="1" x2="12" y2="23" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
+    </Disclosure>
   );
 }

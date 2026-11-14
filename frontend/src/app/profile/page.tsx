@@ -1,5 +1,5 @@
+import type { Metadata } from "next";
 import type { Database } from "@/lib/database.overrides";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/currentUser";
@@ -7,10 +7,15 @@ import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unava
 import { computeDisplayName } from "@/lib/auth/guard";
 import { destinationForStatus } from "@/lib/auth/status";
 import AppShell from "@/components/app/AppShell";
+import { PageHead } from "@/components/ui/PageHead";
 import { listSkillsDetailed, listSectors, type ProfileIntakeData } from "@/lib/data/taxonomy";
 import { signedImageUrls } from "@/lib/storage/blobRead";
 import AffiliationSection from "./AffiliationSection";
 import ProfileForm from "./ProfileForm";
+import { Trail } from "@/components/ui/Trail";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Edit your profile" };
 
 // Fetches every profile-edit dependency in parallel, validates reachability,
 // and applies the login/status gates. Pulled out of the page component so
@@ -125,31 +130,18 @@ export default async function ProfilePage() {
       isApproved={profile.status === "approved"}
       isAdmin={isAdmin}
     >
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[640px] mx-auto">
-          <Link
-            href="/settings"
-            className="inline-flex items-center text-[0.8rem] text-text-muted no-underline transition-colors duration-150 hover:text-text-secondary mb-6"
-          >
-            ← Settings
-          </Link>
-          <div className="mb-10 rule-draw pt-6">
-            <p className="label-wide text-text-secondary mb-3">Your profile</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
-              Edit your details
-            </h1>
-            <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed">
-              Changes are visible in the directory once you&apos;re approved.
-            </p>
-          </div>
+      <Page>
+        <PageHead
+          context={<Trail href="/settings" label="Settings" current="Your profile" />}
+          title="Edit your details"
+          lede="Changes are visible in the directory once you're approved."
+        />
 
+        <div>
           <ProfileForm {...profileFormProps} />
-
-          <div className="mt-8">
-            <AffiliationSection role={profile.role} />
-          </div>
+          <AffiliationSection role={profile.role} />
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }

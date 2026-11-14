@@ -1,16 +1,30 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteOwnListing, type ListingType } from "./actions";
 import { formatDate } from "@/lib/dates";
 import { ErrorBanner } from "@/components/forms/Banners";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Entry } from "@/components/ui/Entry";
+import { Panel } from "@/components/ui/Panel";
+import { Section } from "@/components/ui/Section";
+import { Icon } from "@/design-system/icons/Icon";
+import type { IconName } from "@/design-system/icons/names";
 
 const EDIT_HREF: Record<ListingType, (id: string) => string> = {
   opportunity: (id) => `/opportunities/${id}/edit`,
   event:       (id) => `/events/${id}/edit`,
   vc_grant:    (id) => `/vcs/${id}/edit`,
+};
+
+const KIND_ICON: Record<ListingType, IconName> = {
+  opportunity: "opportunities",
+  event:       "events",
+  vc_grant:    "vcs",
 };
 
 type Status = "pending" | "approved" | "rejected" | "expired";
@@ -25,14 +39,15 @@ type Item = {
   stats: { views: number; clicks: number };
 };
 
-// Four states that must be told apart at a glance in a mixed list. This is
-// the one place --color-signal (the retired gold) still earns its keep: it
-// marks "approved" without reading as an action, which a white fill would.
-const STATUS_BADGE: Record<Status, string> = {
-  pending:  "bg-white/[0.04] text-text-secondary border-border-strong",
-  approved: "bg-signal-muted text-signal border-signal/40",
-  rejected: "bg-[#ff4d4d]/10 text-[#ff8b8b] border-[#ff4d4d]/30",
-  expired:  "bg-white/[0.02] text-text-muted border-border",
+// Four states that must be told apart at a glance in a mixed list: a review
+// waiting is lit, a live listing is confirmed, a rejected one is danger and an
+// expired one steps back. The word is always on the badge, so colour never
+// carries it alone.
+const STATUS_TONE: Record<Status, BadgeTone> = {
+  pending:  "lit",
+  approved: "success",
+  rejected: "danger",
+  expired:  "neutral",
 };
 
 type Props = {
@@ -45,16 +60,16 @@ export default function MySubmissionsClient({ opportunities, events, vcs }: Prop
   const total = opportunities.length + events.length + vcs.length;
   if (total === 0) {
     return (
-      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+      <EmptyState icon="submissions">
         Nothing pending or rejected. New submissions will appear here while they wait for admin approval.
-      </div>
+      </EmptyState>
     );
   }
   return (
-    <div className="space-y-8">
-      <Section type="opportunity" label="Opportunities" items={opportunities} />
-      <Section type="event"       label="Events"        items={events} />
-      <Section type="vc_grant"    label="VCs & grants"  items={vcs} />
+    <div className="grid gap-10">
+      <ListingSection type="opportunity" label="Opportunities" items={opportunities} />
+      <ListingSection type="event"       label="Events"        items={events} />
+      <ListingSection type="vc_grant"    label="VCs & grants"  items={vcs} />
     </div>
   );
 }
@@ -62,28 +77,31 @@ export default function MySubmissionsClient({ opportunities, events, vcs }: Prop
 // Keeps a long submissions list compact while every item stays reachable.
 // Two patterns by device, both kicking in only past 3 rows:
 //   • Desktop (lg+): a capped, scrollable box (nested scroll is fine with
-//     a mouse, and a power user can flick through many quickly).
+//     a mouse, and a power user can flick through many quickly). It is a
+//     focusable region, so a keyboard can scroll it too.
 //   • Mobile (<lg): show 3, then an "Show all" button expands inline —
 //     no nested scroll on touch, where it's fiddly.
 // All rows are always in the DOM; rows past the 3rd are hidden on mobile
 // via CSS until expanded, so the same markup serves both layouts.
-function Section({ type, label, items }: { type: ListingType; label: string; items: Item[] }) {
+function ListingSection({ type, label, items }: { type: ListingType; label: string; items: Item[] }) {
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
   const overflowing = items.length > 3;
   const hidden = items.length - 3;
   return (
-    <section>
-      <h2 className="text-[0.85rem] text-text-muted mb-3">
-        {label} <span className="text-text-muted">— {items.length}</span>
-      </h2>
-      <div className="rounded-2xl bg-bg-card border border-border overflow-hidden">
+    <Section
+      title={
+        <>
+          {label} <span className="data text-text-muted">— {items.length}</span>
+        </>
+      }
+    >
+      <Panel className="overflow-hidden">
         <div
-          className={`divide-y divide-border-subtle ${
-            overflowing
-              ? "lg:max-h-[340px] lg:overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/30"
-              : ""
-          }`}
+          role={overflowing ? "region" : undefined}
+          aria-label={overflowing ? `${label} submissions` : undefined}
+          tabIndex={overflowing ? 0 : undefined}
+          className={`divide-y divide-border-subtle ${overflowing ? "lg:max-h-[26rem] lg:overflow-y-auto" : ""}`}
         >
           {items.map((it, idx) => (
             <div key={it.id} className={overflowing && idx >= 3 && !expanded ? "max-lg:hidden" : ""}>
@@ -92,16 +110,15 @@ function Section({ type, label, items }: { type: ListingType; label: string; ite
           ))}
         </div>
         {overflowing && (
-          <button
-            type="button"
-            onClick={() => setExpanded((e) => !e)}
-            className="lg:hidden w-full px-4 py-3 border-t border-border-subtle bg-transparent text-[0.8rem] text-text-secondary cursor-pointer transition-colors hover:text-accent-light"
-          >
-            {expanded ? "Show less" : `Show all ${items.length} (${hidden} more)`}
-          </button>
+          <div className="border-t border-border-subtle p-1.5 lg:hidden">
+            <Button variant="quiet" size="md" className="w-full" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
+              {expanded ? "Show less" : `Show all ${items.length} (${hidden} more)`}
+              <Icon name="chevron-down" size={16} className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
         )}
-      </div>
-    </section>
+      </Panel>
+    </Section>
   );
 }
 
@@ -112,6 +129,7 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
   const [confirming, setConfirming] = useState(false);
 
   const submitted = formatDate(item.createdAt);
+  const live = item.status === "approved" || item.status === "expired";
 
   const handleDelete = () => {
     setError("");
@@ -128,102 +146,71 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
     // Test id so E2E can scope to one row. Filtering by "a div containing
     // this title" instead matches every ancestor too, which is how the
     // delete-flow locator used to pick up a *different* row's button.
-    <div className="p-4" data-testid="submission-row">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="text-[0.9rem] text-text-primary truncate">{item.title}</div>
-            <span className={`px-2 py-0.5 rounded-lg text-[0.65rem] uppercase tracking-wider border ${STATUS_BADGE[item.status]}`}>
-              {item.status}
-            </span>
-          </div>
-          {item.subtitle && (
-            <div className="text-[0.75rem] text-text-muted mt-0.5 truncate">{item.subtitle}</div>
-          )}
-          <div className="text-[0.7rem] text-text-muted mt-1 flex items-center gap-3 flex-wrap">
-            <span>Submitted {submitted}</span>
-            {(item.status === "approved" || item.status === "expired") && (
-              <span className="flex items-center gap-2 text-text-secondary">
-                <EyeIcon />
-                {item.stats.views} view{item.stats.views === 1 ? "" : "s"}
-                <span className="text-text-muted/50" aria-hidden>·</span>
-                <ClickIcon />
-                {item.stats.clicks} click{item.stats.clicks === 1 ? "" : "s"}
+    <div data-testid="submission-row">
+      <Entry
+        glyph={<Icon name={KIND_ICON[type]} size={20} />}
+        title={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="min-w-0 break-words">{item.title}</span>
+            <Badge tone={STATUS_TONE[item.status]} dot>{item.status}</Badge>
+          </span>
+        }
+        meta={item.subtitle ?? undefined}
+        className="items-start rounded-none px-4 py-4 sm:px-5"
+      >
+        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-text-muted">
+          <span>Submitted {submitted}</span>
+          {live && (
+            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-text-secondary">
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name="eye" size={16} />
+                {`${item.stats.views} view${item.stats.views === 1 ? "" : "s"}`}
               </span>
-            )}
-          </div>
-          {item.status === "rejected" && item.rejectedReason && (
-            <div className="mt-3 px-3 py-2 rounded-lg bg-[#ff4d4d]/8 border border-[#ff4d4d]/15 text-[0.75rem] text-[#ff8b8b] leading-relaxed">
-              <span className="font-medium">Reviewer:</span> {item.rejectedReason}
-            </div>
+              <span className="text-text-muted" aria-hidden>·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name="pointer" size={16} />
+                {`${item.stats.clicks} click${item.stats.clicks === 1 ? "" : "s"}`}
+              </span>
+            </span>
           )}
-        </div>
+        </p>
+
+        {item.status === "rejected" && item.rejectedReason && (
+          <p className="mt-3 rounded-lg border border-danger-line bg-danger-muted px-3 py-2 text-small text-danger">
+            <span className="font-medium">Reviewer:</span> {item.rejectedReason}
+          </p>
+        )}
+
         {!confirming ? (
-          <div className="shrink-0 flex gap-1.5">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {(item.status === "pending" || item.status === "approved") && (
-              <Link
-                href={EDIT_HREF[type](item.id)}
-                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-transparent border border-border text-text-secondary text-[0.75rem] no-underline transition-colors hover:border-accent hover:text-accent-light"
-              >
+              <ButtonLink href={EDIT_HREF[type](item.id)} variant="ghost" size="sm">
                 {item.status === "approved" ? "Propose a change" : "Edit"}
-              </Link>
+              </ButtonLink>
             )}
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              disabled={pending}
-              className="px-3 py-1.5 rounded-lg bg-transparent border border-[#ff4d4d]/25 text-[#ff6b6b] text-[0.75rem] cursor-pointer transition-colors hover:bg-[#ff4d4d]/10 disabled:opacity-50"
-            >
+            <Button variant="dangerGhost" size="sm" onClick={() => setConfirming(true)} disabled={pending}>
               Delete
-            </button>
+            </Button>
           </div>
         ) : (
-          <div className="shrink-0 flex flex-col items-end gap-1.5">
+          <div className="mt-3 grid gap-3">
             {item.status === "approved" && (
-              <span className="text-[0.7rem] text-[#ff8b8b] text-right max-w-[200px] leading-snug">
+              <p className="max-w-prose text-small text-danger">
                 This is live in the community directory. Deleting it removes it for everyone, immediately, and is irreversible.
-              </span>
+              </p>
             )}
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={pending}
-                className="px-3 py-1.5 rounded-lg bg-[#ff4d4d]/15 border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.75rem] font-medium cursor-pointer transition-colors hover:bg-[#ff4d4d]/25 disabled:opacity-50"
-              >
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="danger" size="sm" onClick={handleDelete} disabled={pending}>
                 {pending ? "Deleting…" : "Confirm"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirming(false)}
-                disabled={pending}
-                className="px-3 py-1.5 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.75rem] cursor-pointer transition-colors hover:bg-white/[0.10] disabled:opacity-50"
-              >
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={pending}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </div>
-      {error && <div className="mt-3"><ErrorBanner>{error}</ErrorBanner></div>}
+      </Entry>
+      {error && <div className="px-4 pb-4 sm:px-5"><ErrorBanner>{error}</ErrorBanner></div>}
     </div>
-  );
-}
-
-function EyeIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function ClickIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M9 11l3 3L22 4" />
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-    </svg>
   );
 }
