@@ -3,11 +3,13 @@ import type { Metadata } from "next";
 // Public landing page for IdeaForge, the society's pre-seed incubator. Its
 // only job right now is to send people to the Tally application form.
 // Linked out rather than embedded so the CSP needs no frame-src change.
-const APPLY_URL = "https://tally.so/r/xXXeW5";
+// Set this to the Tally form URL when applications open; until then the page
+// shows the opening date instead of the button.
+const APPLY_URL: string | null = null;
 
 export const metadata: Metadata = {
   title: "IdeaForge",
-  description: "IdeaForge is Imperial Entrepreneurs' pre-seed incubator. Apply to join the next cohort.",
+  description: "IdeaForge is Imperial Entrepreneurs' pre-seed incubator. Applications open 1 December.",
 };
 
 export default function IdeaForgePage() {
@@ -23,14 +25,18 @@ export default function IdeaForgePage() {
           </p>
         </div>
 
-        <a
-          href={APPLY_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center px-5 py-2.5 rounded-lg bg-accent text-bg-primary text-[0.9rem] font-medium no-underline transition-colors hover:bg-accent-light"
-        >
-          Apply now →
-        </a>
+        {APPLY_URL ? (
+          <a
+            href={APPLY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center px-5 py-2.5 rounded-lg bg-accent text-bg-primary text-[0.9rem] font-medium no-underline transition-colors hover:bg-accent-light"
+          >
+            Apply now →
+          </a>
+        ) : (
+          <p className="text-[0.9rem] text-text-primary font-medium">Applications open 1 December.</p>
+        )}
       </div>
     </main>
   );
