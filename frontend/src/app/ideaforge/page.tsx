@@ -12,7 +12,7 @@ const EMBED_URL = `https://tally.so/embed/${TALLY_FORM_ID}?alignLeft=1&hideTitle
 export const metadata: Metadata = {
   title: "IdeaForge",
   description:
-    "IdeaForge is Imperial Entrepreneurs' student-led pre-seed incubator. Build a startup from scratch over one term, no experience required.",
+    "IdeaForge is Imperial Entrepreneurs' student-led pre-seed incubator. Build a startup from scratch over one term, no experience required. Open applications start 1 December.",
 };
 
 const STATS = [
@@ -79,7 +79,10 @@ export default function IdeaForgePage() {
           </p>
         </div>
 
-        <ApplyCta />
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          <ApplyCta />
+          <p className="text-[0.9rem] text-text-primary font-medium">Open applications start 1 December.</p>
+        </div>
 
         <Section label="Last cohort">
           <dl className="grid grid-cols-3 items-start gap-4">
@@ -123,7 +126,13 @@ export default function IdeaForgePage() {
 
         {/* The orange is the IdeaForge brand colour from the original site. */}
         <section id="apply" className="mt-14 scroll-mt-8">
-          <h2 className="label-wide text-text-secondary mb-5">Apply</h2>
+          <h2 className="label-wide text-text-secondary mb-3">Apply</h2>
+          {/* The Tally form is password-protected until open applications
+              start. The password is shared internally for fast-track
+              applications only, so it must never appear on this page. */}
+          <p className="text-[0.875rem] text-text-secondary leading-relaxed mb-5">
+            Open applications start 1 December. Until then the form is password-protected for fast-track applicants.
+          </p>
           <div className="rounded-xl bg-[#ff4400] p-2 sm:p-3">
             <iframe
               src={EMBED_URL}
