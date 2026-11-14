@@ -123,9 +123,27 @@ export default function IdeaForgePage() {
           </p>
         </Section>
 
-        <div className="mt-14 pt-8 border-t border-border-subtle">
-          <ApplyCta />
-        </div>
+        {/* Placeholder for the Tally application form. The orange is the
+            IdeaForge brand colour from the original IdeaForge site. Embedding
+            the form here later needs tally.so added to the CSP frame-src. */}
+        <section id="apply" className="mt-14 scroll-mt-8">
+          <h2 className="label-wide text-text-secondary mb-5">Apply</h2>
+          <div className="flex min-h-[360px] flex-col items-center justify-center gap-5 rounded-xl bg-[#ff4400] px-6 py-12 text-center">
+            <p className="font-display text-[clamp(1.5rem,3vw,2rem)] leading-tight text-white">Application form</p>
+            {APPLY_URL ? (
+              <a
+                href={APPLY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-5 py-2.5 rounded-lg bg-white text-[#ff4400] text-[0.9rem] font-medium no-underline transition-opacity hover:opacity-90"
+              >
+                Apply now →
+              </a>
+            ) : (
+              <p className="text-[0.95rem] text-white/90">Opens 1 December.</p>
+            )}
+          </div>
+        </section>
       </div>
     </main>
   );
