@@ -18,7 +18,7 @@
 const KNOWN_ROUTE_SEGMENTS: ReadonlySet<string> = new Set([
   // App route folders (src/app/*).
   "admin", "ai-notice", "api", "auth", "calendar", "committee", "community", "connections",
-  "contact", "cookies", "events", "foundry-ai", "home", "intake", "login", "members",
+  "contact", "cookies", "events", "foundry-ai", "home", "ideaforge", "intake", "login", "members",
   "messaging", "my-activity", "my-bookmarks", "my-submissions", "notifications",
   "onboarding", "opportunities", "pending", "privacy", "profile", "rejected",
   "reset-password", "settings", "terms", "vcs",
