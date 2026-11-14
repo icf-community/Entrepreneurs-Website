@@ -23,6 +23,10 @@
 @keyframes orbit-lap   { to { stroke-dashoffset: -100; } }
 /* light that breathes: the warm core behind a mark, the glow behind a lit button */
 @keyframes breathe     { 0%, 100% { opacity: 0.82; } 50% { opacity: 1; } }
+/* the point of light in a page's context line: its glow swells and settles (the dot itself never moves) */
+@keyframes dot-glow    { 0%, 100% { box-shadow: 0 0 8px 0 var(--color-lit-glow); } 50% { box-shadow: 0 0 16px 3px var(--color-lit-glow); } }
+/* the one body on an empty state's orbit, going once round (from where it rests: a little above and to the right) */
+@keyframes orbit-around { from { transform: rotate(50deg); } to { transform: rotate(410deg); } }
 @keyframes swell       { 0%, 100% { transform: scale(0.94); } 50% { transform: scale(1.05); } }
 /* a ring leaving the thing that was pressed */
 @keyframes ripple      { 0% { opacity: 0.85; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }

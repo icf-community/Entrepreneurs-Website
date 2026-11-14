@@ -31,6 +31,8 @@ Every page opens with `<Page>` (`components/ui/Page.tsx`; `.lm-page` and `.lm-co
 
 A page that has a parent says so in its head with `<Trail href label current>` (`components/ui/Trail.tsx`): a drawn left arrow and the parent's name (the character stays as hidden text, so the link is still named "← Settings"), then a chevron and the page's own name. One arrow, one separator, one spacing everywhere. On a phone a page head's actions stack at full width, as a form's do.
 
+A page's head carries the system's quiet character, so no page writes it: a faint pool of amber behind the trail and title (`.lm-pagehead__context::after`; an absolute box that is never wider than the screen's content, with a gradient that fades to nothing before any edge, so it can neither scroll the page nor show a rim), and a 6 px dot before the trail that breathes (`dot-glow`, 11 s). The sidebar's profile chip takes its light from `hueOf(name)`, like any face (`.lm-navitem__mark[data-person][data-hue]`, not on the current page's lit ring).
+
 ## Contract (tests and users rely on it)
 
 One `<nav aria-label="Main">`; link names and hrefs fixed; `aria-current="page"` on the active row (the lit ring is drawn from it: `.lm-navitem[aria-current="page"]`); buttons "Collapse navigation" / "Expand navigation" /

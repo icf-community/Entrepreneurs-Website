@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import SignOutButton from "@/app/admin/SignOutButton";
 import { PendingBadge } from "@/components/connections/PendingBadge";
+import { hueOf } from "@/components/ui/avatarHue";
 import { UnreadBadge } from "@/components/notifications/UnreadBadge";
 import { Icon } from "@/design-system/icons/Icon";
 import type { IconName } from "@/design-system/icons/names";
@@ -305,7 +306,7 @@ function SidebarFooter({
         className="lm-navitem"
         data-tone="profile"
       >
-        <span className="lm-navitem__mark" data-person aria-hidden>
+        <span className="lm-navitem__mark" data-person data-hue={hueOf(name)} aria-hidden>
           {initial || <Icon name="profile" size={18} />}
         </span>
         <span className="lm-navitem__lines">

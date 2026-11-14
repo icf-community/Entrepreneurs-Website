@@ -30,5 +30,5 @@ export function MemberPhoto({
 }) {
   // The same two letters the square placeholder always showed.
   const initials = `${member.firstName[0] ?? ""}${member.surname[0] ?? ""}`.toUpperCase();
-  return <Avatar src={member.avatarUrl} initials={initials} size={size} lit={lit} className={className} />;
+  return <Avatar src={member.avatarUrl} name={member.firstName} initials={initials} size={size} lit={lit} className={className} />;
 }

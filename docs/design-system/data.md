@@ -103,6 +103,7 @@ Avatar placed in an `Entry`'s glyph disc takes the disc's ring automatically (`.
 - The photo is a real `<img>` with the alt text it always had, **empty**, because the name is written beside it. Give `alt` only where the name is not
   (then the initials carry it too, as `role="img"`).
 - `src` may be a signed URL. If it fails to load (they expire) the initials take its place; a new `src` gets its own try.
+- **A face with no photo is drawn in a light.** `Avatar` sets `data-hue="warm" | "sun" | "cool"` from `hueOf(name)` (`ui/avatarHue.ts`; pure, so a server component can call it, as the sidebar's profile chip does) and `data.css` turns that into the initials' colour, a ring that takes a 46 % share of it and a 12 % wash. Two in five names get no hue and stay neutral, so a list reads as a few warm faces in a quiet crowd. The hue comes from the **first name only** (the same person is "Ada", "Ada Okafor" and "Ada O." in different places) and is dropped for a photo, a `lit` avatar and `tone="lit"` (those stay amber). An avatar in an `Entry`'s glyph disc keeps the colour on its initials and the **disc** wears the ring and wash (`.lm-disc:has(> .lm-avatar[data-hue])` in `components.css`, which sets only the two variables the disc reads, so a lit or pointed-at ring still wins): one ring, never a ring in a ring. Pass `name` (the full name, or the first), not just `initials`; `MemberPhoto` passes the first name. The three lights are `--color-person-*` in `tokens.css`.
 - `AvatarStack`: overlapping faces and a `+N` count. The faces are decorative, and the names are in the DOM as visually hidden text (or `label`).
 
 ## Stat and StatGrid
@@ -223,7 +224,7 @@ share the width, so nothing is wider than the screen at 320 px. It adds no `role
 | Family | Classes | State and variants |
 |---|---|---|
 | Tabs | `lm-tabs`, `lm-tab`, `lm-tab__count`, `lm-tabpanel` | `lm-tabs--segmented`, `--sm`, `--fill`; state from `[aria-current]`, `[aria-pressed="true"]`, `[aria-selected="true"]` |
-| Avatar | `lm-avatar`, `lm-avatar__img`, `lm-avatars`, `lm-avatars__more` | `data-size`, `data-lit`, `data-tone="lit"`, `data-ring="none"` |
+| Avatar | `lm-avatar`, `lm-avatar__img`, `lm-avatars`, `lm-avatars__more` | `data-size`, `data-lit`, `data-tone="lit"`, `data-ring="none"`, `data-hue` |
 | Stat | `lm-statgrid`, `lm-stat`, `lm-stat__label`, `__value`, `__hint`, `__ring`, `__bar` | `data-min` (grid), `data-size`, `data-tone`, `data-meter` |
 | Table | `lm-tablebox` (the container), `lm-tablescroll` (the region), `lm-table` | `data-narrow="stack"\|"scroll"`, `data-density="compact"`, `data-tall`; on rows `data-selected`; on cells `data-label`, `data-numeric`, `data-primary`, `data-actions`, `data-nowrap`; `--lm-table-min`, `--lm-table-max` |
 | Disclosure | `lm-disclosure` (a `lm-panel`), `__trigger`, `__summary`, `__state`, `__label`, `__chev`, `__body`, `__foot`, `__accessory`; `lm-collapse`, `__inner` | `data-open`, `data-pad="sm"`, `data-accessory` |

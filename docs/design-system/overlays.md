@@ -185,7 +185,7 @@ Built on it, one family: `ErrorBanner` (alert, danger), `SuccessBanner` (status,
 
 ### EmptyState (`ui/EmptyState.tsx`)
 
-A glyph in a ring with an orbit hairline round it (one amber body on the orbit), a title, one line and an action. It replaces about twenty pasted cards, and takes the old card's
+A glyph in a ring with an orbit hairline round it, one small amber body on the orbit (it circles once every 40 s, and rests at 50°, a little above and to the right, under reduced motion), a title, one line and an action. It replaces about twenty pasted cards, and takes the old card's
 sentence as `children`, so adopting it changes no words:
 
 ```tsx

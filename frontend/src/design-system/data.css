@@ -187,9 +187,18 @@
   .lm-avatar[data-size="xl"] { --_d: 96px; --_f: 0.34; border-width: 2px; }
   .lm-avatar[data-tone="lit"] { background: var(--color-lit-muted); border-color: var(--color-lit-line); color: var(--color-accent-light); }
   .lm-avatar[data-lit] { border-color: var(--color-warm); color: var(--color-accent-light); box-shadow: 0 0 0 3px var(--color-lit-muted), 0 0 24px -3px var(--color-lit-glow); }
+  /* A face with no photo is its initials in a light (avatarHue.ts picks one from the first name; none in two cases of five). Lit and "lit"-toned
+     avatars are amber and ignore it; an avatar in a disc keeps its colour, and the disc wears the ring and wash instead (components.css, .lm-disc). */
+  .lm-avatar[data-hue]:not([data-lit], [data-tone="lit"]) { --_h: var(--color-person-warm); color: var(--_h); }
+  .lm-avatar[data-hue="sun"]:not([data-lit], [data-tone="lit"])  { --_h: var(--color-person-sun); }
+  .lm-avatar[data-hue="cool"]:not([data-lit], [data-tone="lit"]) { --_h: var(--color-person-cool); }
+  .lm-avatar[data-hue]:not([data-lit], [data-tone="lit"], [data-ring="none"]) {
+    border-color: color-mix(in oklab, var(--_h) 46%, var(--color-border-strong));
+    background: linear-gradient(color-mix(in oklab, var(--_h) 12%, transparent), color-mix(in oklab, var(--_h) 12%, transparent)), linear-gradient(var(--color-tint-2), var(--color-tint-2)), var(--color-bg-card);
+  }
   .lm-avatar[data-ring="none"] { border-color: transparent; }
   .lm-avatar__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-  .lm-disc > .lm-avatar, .lm-disc > .lm-avatar[data-tone="lit"], .lm-disc > .lm-avatar[data-lit] { width: 100%; height: 100%; border-color: transparent; background: none; box-shadow: none; }
+  .lm-disc > .lm-avatar, .lm-disc > .lm-avatar[data-hue], .lm-disc > .lm-avatar[data-tone="lit"], .lm-disc > .lm-avatar[data-lit] { width: 100%; height: 100%; border-color: transparent; background: none; box-shadow: none; }
 
   /* a few people, overlapping; the surplus is a count in the same ring */
   .lm-avatars { display: inline-flex; align-items: center; vertical-align: middle; }
@@ -428,6 +437,8 @@
   .lm-disclosure[data-open] > .lm-disclosure__trigger { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
   @media (hover: hover) {
     .lm-disclosure__trigger:hover { background: var(--color-tint-1); }
+    /* pointed at, the card's ring lights, as a row's does in a list (components.css, .lm-entry:hover .lm-disc) */
+    .lm-disclosure__trigger:hover .lm-disc { color: var(--color-accent-light); border-color: var(--color-lit-line); box-shadow: 0 0 22px -4px var(--color-lit-glow); }
   }
   /* the card's own edge is the ring, so the focus ring is drawn inside it (the offset is the variable the global :focus-visible reads) */
   .lm-disclosure__trigger { --focus-offset: -3px; }

@@ -35,13 +35,14 @@ A page never names a hue, a size or a radius. It names a **role** (`bg-bg-card`,
 - *Re-colour the product*: edit the six lights and the surface steps in `tokens.css`. Contrast is re-checked by `tokens.contrast.test.ts`.
 - *Make everything rounder, denser, bigger*: `--radius-*`, the `--text-*` scale, the `html` font-size lever in `base.css` (125 %: every rem scales with it).
 - *Change how every button, panel, field, dialog or tab looks*: its class in `components.css`, `forms.css`, `overlays.css` or `data.css`.
+- *Change the character* (how warm a page's head is, how a pressable card lights, which faces get a light, how the empty state's body moves): `.lm-pagehead__context` and `.lm-panel[data-interactive]` in `components.css`, `.lm-avatar[data-hue]` in `data.css`, `.lm-empty__glyph::after` in `overlays.css`, and the three `--color-person-*` in `tokens.css`. Nothing on a page names them, so nothing else moves.
 - *Change the logo*: replace `design-system/logo/logo-data.ts`, run `node scripts/logo/build-assets.mjs`, update the fingerprints in `logo.guard.test.ts` ([logo.md](logo.md)).
 
 ## Guards (they run in `pnpm test`, so CI holds the system in place)
 
 | Test | What it pins |
 |---|---|
-| `design-system/tokens.contrast.test.ts` | Evaluates `tokens.css` as a browser would. Text 4.5:1 on every surface and on every tint over it, controls and focus 3:1, no purple (OKLCH hue 285–345° at chroma ≥ 0.03), every `color-mix` in oklab. The hand-written colours in `app/global-error.tsx` (the one page that renders with no stylesheet) must still be the tokens. |
+| `design-system/tokens.contrast.test.ts` | Evaluates `tokens.css` as a browser would. Text 4.5:1 on every surface and on every tint over it (the three person lights too, plain and on their own wash), controls and focus 3:1, no purple (OKLCH hue 285–345° at chroma ≥ 0.03), every `color-mix` in oklab. The hand-written colours in `app/global-error.tsx` (the one page that renders with no stylesheet) must still be the tokens. |
 | `design-system/tokens.guard.test.ts` | Nothing bypasses the system: no raw hex or `rgb()/oklch()` in code, no default Tailwind palette class (`bg-black/60`, `text-gray-400`), no hand-written tints, no arbitrary or default type sizes, no tracked-caps labels, no `color-mix(in oklch …)`, no raw hue in a stylesheet. |
 | `design-system/logo.guard.test.ts` | The 2026 logo is the only logo: the vector data's fingerprint, the 2025 files gone and unreferenced, no `<img>` of a logo, the roundel ≥ 45 px and the lockup ≥ 51 px, the raster exports at their sizes. |
 

@@ -26,6 +26,7 @@ which is why colour mixing is always `color-mix(in oklab, …)`: mixed in oklch,
 | Action | `accent` (= sun), `accent-light` (a lit word or link), `accent-dim`, `accent-muted`, `focus` | cream with the night on it is the strongest control |
 | Light | `lit`, `lit-muted`, `lit-line`, `lit-glow`, `signal` | selection, chosen things, glow |
 | Status | `danger`, `danger-muted`, `danger-line`, `success`, `success-muted`, `info` | always with a word or a drawn mark beside the colour |
+| People | `person-warm`, `person-sun`, `person-cool` | the initials of a face with no photo: amber, a cream that leans yellow, a sky blue. Written in OKLCH in `tokens.css`, each at least 4.5:1 as text on every surface and on its own 12 % wash (pinned). Never for anything but a face |
 
 ## Type
 

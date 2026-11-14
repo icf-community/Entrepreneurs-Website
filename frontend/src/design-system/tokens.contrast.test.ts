@@ -156,6 +156,18 @@ describe("text reads (WCAG 1.4.3, 4.5:1)", () => {
     }
   }
 
+  // the three lights a photo-less face is drawn in (avatarHue.ts): the initials are text, on a ring filled with 12 % of the same light (data.css)
+  for (const role of ["person-warm", "person-sun", "person-cool"]) {
+    for (const surface of SURFACES) {
+      it(`${role} (initials) on ${surface}, plain and on its own fill`, () => {
+        const plain = surfaceRgb(surface);
+        expect(ratio(textRgb(role, plain), plain)).toBeGreaterThanOrEqual(4.5);
+        const fill = over({ ...token(role), alpha: 0.12 }, over(token("tint-2"), plain));
+        expect(ratio(textRgb(role, fill), fill)).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+  }
+
   it.each([
     ["accent-light", "lit-muted"],
     ["lit", "lit-muted"],
@@ -220,6 +232,7 @@ describe("DESIGN.md states the colours tokens.css has", () => {
     "surface-secondary": "bg-secondary", "surface-card": "bg-card", "surface-card-hover": "bg-card-hover", "surface-raised": "bg-raised",
     "text-secondary": "text-secondary", "text-muted": "text-muted", border: "border", "border-subtle": "border-subtle", "border-strong": "border-strong",
     "accent-light": "accent-light", "accent-dim": "accent-dim", danger: "danger", success: "success",
+    "person-warm": "person-warm", "person-sun": "person-sun", "person-cool": "person-cool",
   };
   const entries = [...block.matchAll(/  ([a-z0-9-]+): "([^"]+)"/g)];
 

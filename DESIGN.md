@@ -21,6 +21,9 @@ colors:
   accent-dim: "oklch(0.72 0.021 87)"
   danger: "oklch(0.75 0.15 28)"
   success: "oklch(0.8 0.11 165)"
+  person-warm: "oklch(0.84 0.1 70)"
+  person-sun: "oklch(0.93 0.07 95)"
+  person-cool: "oklch(0.82 0.07 235)"
 typography:
   hero:
     fontFamily: "Funnel Display, Helvetica Neue, Arial, sans-serif"
@@ -143,7 +146,8 @@ The system is drawn from the logo, not applied to it. The 2026 roundel is a ring
 - Six lights; components name a role (`bg-bg-card`, `text-text-muted`, `border-border-strong`), never a hue.
 - Cream is the one action and the focus ring; amber is light itself (glow, chosen, the lit part of a gauge) and is never an action fill. At most one lit thing per view.
 - Funnel Display, light and tight, for headings; Host Grotesk for everything else; no monospace anywhere.
-- A hairline and a whisper of top light make a surface; one soft shadow lifts an overlay; only a lit thing gets warm light.
+- A hairline and a whisper of top light make a surface; one soft shadow lifts an overlay; only a lit thing, or the one being pointed at, gets warm light.
+- A little character, all of it light and none of it copy: a warm pool behind each page's title and a dot that breathes before it, a card that warms its edge and lights the ring inside it when pointed at, a face in one of three lights, a small body that circles an empty state.
 - One exponential ease-out and four durations; transform and opacity only; idle loops of 8 s and slower; every entrance lands on its end state under `prefers-reduced-motion`.
 - The landing page is the Lumen mock (a WebGL scene with the roundel at its centre and a rail down the right edge whose cursor is the roundel). The signed-in app keeps a labelled left sidebar in the same language.
 
@@ -170,11 +174,15 @@ A palette of one night and its lights. Values are OKLCH (the build serialises th
 ### Status
 - **Danger** (`oklch(0.75 0.15 28)`) and **Success** (`oklch(0.8 0.11 165)`): always with a word or a drawn mark beside the colour, never a stripe.
 
+### People
+- **Person lights** (`person-warm` `oklch(0.84 0.1 70)` amber, `person-sun` `oklch(0.93 0.07 95)` a cream that leans yellow, `person-cool` `oklch(0.82 0.07 235)` sky): the only place a hue varies. A face with no photo is its initials in one of these lights, or in none (two in five stay neutral), chosen from the first name so a person is the same colour on every page (`components/ui/avatarHue.ts`). The ring takes a 46 % share of the light and the face a 12 % wash of it. Each light is pinned at 4.5:1 as text on every surface and on its own wash by `tokens.contrast.test.ts`, like ink.
+
 ### Named Rules
 **The One Lit Thing Rule.** A view has at most one lit thing: one cream action, or one lit panel. Its rarity is what makes it read as light.
 **The Role, Not the Hue Rule.** A component never names a colour; it names what the colour is for. If a role is missing, add it to `tokens.css` first.
 **The Night Shows Through Rule.** The atmosphere (a warm core high on the left, one cold breath in the opposite corner, two tiles of star dust) is one fixed layer behind every page. A page wrapper never takes an opaque background; panels may.
 **The No Purple Rule.** No colour token sits at OKLCH hue 285–345° at chroma 0.03 or more. `tokens.contrast.test.ts` fails if one does.
+**The Faces Carry the Hue Rule.** A person light colours a face and nothing else: never a status, a badge, a button or a photo, never a fourth light, and never on the one *lit* (chosen) face, which stays amber.
 
 ## Typography
 
@@ -199,7 +207,7 @@ The scale is a 1.25 ratio from a 16 px body (plus Small for dense rows). The app
 
 ## Layout
 
-The signed-in app is a **labelled rail and a content column**. From 1024 px the rail is fixed at 280 px (92 px collapsed to a column of rings, remembered in `localStorage`); below that an app bar of 76 px (the menu control and the roundel, sized so a 45 px ring keeps a quarter of its height clear) opens the same rail as a drawer. The column's side margin is the fluid `--gutter` (20–56 px) everywhere. Every page sits in the same frame (`Page`): that margin, `--page-top` above and `--page-bottom` below, a column of at most `--content-max`, and, for a page of one column, `--col-page` (820 px) or `--col-narrow` (640 px) starting at the frame's left edge, so a title never moves sideways between pages. Every page opens with `PageHead`: where you are (a plain trail), the title, one sentence, the actions, and a hairline rule that draws across the top as it scrolls into view and lights its end.
+The signed-in app is a **labelled rail and a content column**. From 1024 px the rail is fixed at 280 px (92 px collapsed to a column of rings, remembered in `localStorage`); below that an app bar of 76 px (the menu control and the roundel, sized so a 45 px ring keeps a quarter of its height clear) opens the same rail as a drawer. The column's side margin is the fluid `--gutter` (20–56 px) everywhere. Every page sits in the same frame (`Page`): that margin, `--page-top` above and `--page-bottom` below, a column of at most `--content-max`, and, for a page of one column, `--col-page` (820 px) or `--col-narrow` (640 px) starting at the frame's left edge, so a title never moves sideways between pages. Every page opens with `PageHead`: where you are (a plain trail), the title, one sentence, the actions, and a hairline rule that draws across the top as it scrolls into view and lights its end. A faint pool of amber sits behind the trail and title (it is fainter than the page's own warm core, and fades out well inside the head's box), and the dot before the trail breathes on an 11 s loop.
 
 Rhythm is generous and uncluttered by rule: one clear primary action per view; secondary detail goes behind a disclosure, a popover, a sheet or a tooltip (the words stay in the DOM and every action stays reachable by keyboard); long chip sets collapse to what is chosen plus a "+" ring. Nothing scrolls sideways at 320 px, every control is at least 44 px (24 px is the floor), and tables become stacked cards below 640 px of their own width with the same markup.
 
@@ -207,7 +215,7 @@ The landing page is a single scene: the star-built roundel never rotates; six au
 
 ## Elevation & Depth
 
-Depth is **tonal and hairline first**. A surface is a step of the night, a 1 px edge and an inset whisper of light along its top edge (4 % ink); it is never lifted by a shadow. An overlay (dialog, sheet, popover, menu) is raised: the raised surface, a hairline, the same whisper, and one soft shadow. Only a *lit* thing carries warm light.
+Depth is **tonal and hairline first**. A surface is a step of the night, a 1 px edge and an inset whisper of light along its top edge (4 % ink); it is never lifted by a shadow. An overlay (dialog, sheet, popover, menu) is raised: the raised surface, a hairline, the same whisper, and one soft shadow. Only a *lit* thing, or one being pointed at for as long as it is, carries warm light.
 
 ### Shadow Vocabulary
 - **Pop** (`0 18px 50px -14px oklch(0 0 0 / 0.65), 0 2px 8px -2px oklch(0 0 0 / 0.4)`): every overlay.
@@ -235,17 +243,17 @@ Every component is a class in a design-system stylesheet keyed by `data-*` attri
 - **Chips and switches:** a chip is a pill that is pressed or not (`aria-pressed`); a switch is a pill track with a ring for a knob that travels and lights. Checkboxes and radios are native inputs redrawn. Long chip sets collapse.
 
 ### Panels, entries, badges
-- **Panel:** `bg-card`, a hairline, a whisper of top light, 14 px radius; tones inset, lit and danger. **Entry:** one row of a list with a glyph in a ring, a title, meta and a trailing control; a link makes the whole row the target. **Badge:** a small pill that says what kind or what state; tone is meaning, always with a word.
+- **Panel:** `bg-card`, a hairline, a whisper of top light, 14 px radius; tones inset, lit and danger. A panel you can press, pointed at or holding keyboard focus, warms its edge, gains a faint pool of amber underneath and lights the ring or face inside it. **Entry:** one row of a list with a glyph in a ring, a title, meta and a trailing control; a link makes the whole row the target. **Badge:** a small pill that says what kind or what state; tone is meaning, always with a word.
 
 ### Navigation
 - **The rail:** pill rows with a 36 px ring's worth of room at the left, empty until the row is the current page or is pointed at, when the ring draws and lights. The brand is the roundel alone at 48 px. Collapsed it is a column of rings with the labels kept for screen readers. A navigation in flight turns the row's ring and sweeps a hairline across the top of the viewport.
 - **Tabs:** a hairline with a lit dot under the current tab (links, toggle buttons, or a true ARIA tablist), or a segmented pill.
 
 ### Data and structure
-- **Tables** are a focusable named region that stacks into cards on a narrow container; **stats** draw a ring or bar only where a limit exists; **avatars** are a ring with initials or a photo, lit when they are the chosen one; disclosures, definition lists, pagers, progress, meters and step dots follow the same two devices (the hairline with a lit end, and the ring).
+- **Tables** are a focusable named region that stacks into cards on a narrow container; **stats** draw a ring or bar only where a limit exists; **avatars** are a ring with initials or a photo, lit when they are the chosen one, and, with no photo, in one of the three person lights (People, above); disclosures, definition lists, pagers, progress, meters and step dots follow the same two devices (the hairline with a lit end, and the ring).
 
 ### Overlays and feedback
-- **Dialog** (native `<dialog>`, focus trapped, `Close` ring), **Sheet** (a drawer from either edge), **Popover/Menu/Tooltip** (top layer, placed in script and flipped at the edges), **Notice** (info, lit, danger, success: a hairline, a wash and an icon, never a stripe), **EmptyState**, **Toast**, **Skeleton**. Prefer a popover or a disclosure to a modal whenever the task needs neither interruption nor protected focus.
+- **Dialog** (native `<dialog>`, focus trapped, `Close` ring), **Sheet** (a drawer from either edge), **Popover/Menu/Tooltip** (top layer, placed in script and flipped at the edges), **Notice** (info, lit, danger, success: a hairline, a wash and an icon, never a stripe), **EmptyState** (a small amber body circles its ring once every 40 s; under reduced motion it rests at 50°), **Toast**, **Skeleton**. Prefer a popover or a disclosure to a modal whenever the task needs neither interruption nor protected focus.
 
 ### Icons, glyphs and the logo
 - **Icons** (88, 24 grid, 1.75 stroke, round caps) are functional; **glyphs** (18, a Ø40 ring with a solid mirror-symmetric figure) are identity: the six audiences, the listing kinds, the event types, the sign-up steps. Both keep one opening in every silhouette.
@@ -263,6 +271,7 @@ Every component is a class in a design-system stylesheet keyed by `data-*` attri
 ### Don't:
 - **Don't** hard-code a hex, an `rgb()`, a Tailwind palette class (`bg-black/60`), an arbitrary type size (`text-[13px]`) or `uppercase` tracking; `tokens.guard.test.ts` fails the build on all of them.
 - **Don't** use purple, gradient text, coloured card stripes, hard offset shadows, monospace, or tracked capitals.
+- **Don't** use a person light for anything but a face, or add character to a page of its own: the character is in the system (page head, pressable panel, face, empty state), so one change in `tokens.css` or the design-system stylesheets changes it everywhere.
 - **Don't** give a page wrapper an opaque background, nest a panel in a panel, or open a modal for a task that needs neither interruption nor protected focus.
 - **Don't** draw the logo as an image, resize it under its minimums, or set a word beside the roundel alone; `logo.guard.test.ts` fails on all three, and on any trace of the 2025 logo.
 - **Don't** make a decorative idle loop faster than 8 s, animate layout properties, or leave an entrance at `opacity: 0` under reduced motion.

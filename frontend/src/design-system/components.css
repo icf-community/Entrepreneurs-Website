@@ -154,9 +154,29 @@
   .lm-panel[data-tone="plain"]  { background: transparent; border-color: transparent; box-shadow: none; }
   .lm-panel[data-tone="lit"]    { border-color: var(--color-lit-line); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-warm) 14%, transparent), 0 18px 60px -28px color-mix(in oklab, var(--color-warm) 45%, transparent); }
   .lm-panel[data-tone="danger"] { border-color: var(--color-danger-line); background: color-mix(in oklab, var(--color-danger) 6%, var(--color-bg-card)); }
-  .lm-panel[data-interactive] { transition: border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out); }
+  .lm-panel[data-interactive] { transition: border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out); }
+  /* pointed at (or focused inside), a card catches a little warm light along its top edge and its ring lights: the same gesture as a row's ring and
+     the rail's cursor, so the whole product answers a pointer the same way. Hover only where there is a pointer to hover with (a touch screen would
+     leave the card lit after a tap); focus anywhere. */
+  .lm-panel[data-interactive]:has(:focus-visible) {
+    background: var(--color-bg-card-hover);
+    border-color: var(--color-border-strong);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-warm) 16%, transparent), 0 20px 50px -32px color-mix(in oklab, var(--color-warm) 40%, transparent);
+  }
+  .lm-panel[data-interactive]:has(:focus-visible) :is(.lm-avatar:not([data-ring="none"]), .lm-disc) {
+    border-color: var(--color-lit-line);
+    box-shadow: 0 0 22px -4px var(--color-lit-glow);
+  }
   @media (hover: hover) {
-    .lm-panel[data-interactive]:hover { background: var(--color-bg-card-hover); border-color: var(--color-border-strong); }
+    .lm-panel[data-interactive]:hover {
+      background: var(--color-bg-card-hover);
+      border-color: var(--color-border-strong);
+      box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-warm) 16%, transparent), 0 20px 50px -32px color-mix(in oklab, var(--color-warm) 40%, transparent);
+    }
+    .lm-panel[data-interactive]:hover :is(.lm-avatar:not([data-ring="none"]), .lm-disc) {
+      border-color: var(--color-lit-line);
+      box-shadow: 0 0 22px -4px var(--color-lit-glow);
+    }
   }
   .lm-panel[data-size="sm"] { border-radius: var(--radius-lg); }
   .lm-panel[data-size="lg"] { border-radius: var(--radius-2xl); }
@@ -169,9 +189,9 @@
     width: var(--_d, 44px);
     height: var(--_d, 44px);
     border-radius: 50%;
-    border: 1.5px solid var(--color-border-strong);
+    border: 1.5px solid var(--_disc-ring, var(--color-border-strong));
     color: var(--color-text-secondary);
-    background: var(--color-tint-1);
+    background: var(--_disc-wash, var(--color-tint-1));
     transition: color var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
   }
   .lm-disc[data-size="sm"] { --_d: 36px; }
@@ -181,6 +201,16 @@
     border-color: var(--color-lit-line);
     box-shadow: 0 0 22px -4px var(--color-lit-glow);
   }
+  /* A face drawn in a disc (an Entry's glyph) wears its light on the disc's own ring, so there is one ring in the face's colour, as on a card
+     (data.css draws the same on an avatar standing alone). Only the two variables the disc reads are set here, so the lit and pointed-at rules
+     above still win. */
+  .lm-disc:not([data-lit]):has(> .lm-avatar[data-hue]:not([data-lit], [data-tone="lit"])) {
+    --_h: var(--color-person-warm);
+    --_disc-ring: color-mix(in oklab, var(--_h) 46%, var(--color-border-strong));
+    --_disc-wash: linear-gradient(color-mix(in oklab, var(--_h) 12%, transparent), color-mix(in oklab, var(--_h) 12%, transparent)), linear-gradient(var(--color-tint-2), var(--color-tint-2)), var(--color-bg-card);
+  }
+  .lm-disc:not([data-lit]):has(> .lm-avatar[data-hue="sun"]:not([data-lit], [data-tone="lit"]))  { --_h: var(--color-person-sun); }
+  .lm-disc:not([data-lit]):has(> .lm-avatar[data-hue="cool"]:not([data-lit], [data-tone="lit"])) { --_h: var(--color-person-cool); }
 
   /* ── Entry: one row of a list (a member, a listing, a notification): glyph, words, a trailing control. ─────── */
   .lm-entry {
@@ -238,9 +268,23 @@
   .lm-col[data-align="center"] { margin-inline: auto; }
 
   /* ── Page head: a page's own opening. Context, the title, a lede, actions; a rule draws under it and lights its end. ───── */
-  .lm-pagehead { position: relative; display: grid; gap: 14px; padding-top: 28px; padding-bottom: 8px; }
-  .lm-pagehead__context { display: inline-flex; align-items: center; gap: 8px; min-height: 24px; color: var(--color-text-muted); font-size: var(--text-caption); font-weight: 500; line-height: 1.3; }
-  .lm-pagehead__context::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--color-warm); box-shadow: 0 0 8px 0 var(--color-lit-glow); flex: none; }
+  .lm-pagehead { position: relative; isolation: isolate; display: grid; gap: 14px; padding-top: 28px; padding-bottom: 8px; }
+  .lm-pagehead__context { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 24px; color: var(--color-text-muted); font-size: var(--text-caption); font-weight: 500; line-height: 1.3; }
+  .lm-pagehead__context::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--color-warm); box-shadow: 0 0 8px 0 var(--color-lit-glow); flex: none; animation: dot-glow 11s ease-in-out infinite; }
+  /* The point of warm light lights the title: a soft pool of it behind the head, drawn on a box larger than the head and fading to nothing before any
+     edge of it, so it never shows a seam. It rises with the context line and moves with the page over the fixed atmosphere, which gives the head a
+     little depth of its own. */
+  .lm-pagehead__context::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: 0;
+    top: -3.5rem;
+    width: min(20rem, calc(100vw - var(--gutter) * 2));   /* never wider than the screen's content: an absolute box that stuck out would scroll the page */
+    height: 11rem;
+    pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in oklab, var(--color-warm) 7%, transparent), transparent);
+  }
   .lm-pagehead__context a { display: inline-flex; align-items: center; gap: 8px; min-width: 24px; min-height: 24px; color: inherit; text-decoration: none; }   /* a flex item is not inline text: it needs the 24 px target */
   .lm-pagehead__context a:hover { color: var(--color-text-primary); text-decoration: underline; text-underline-offset: 3px; }
   .lm-pagehead__title { font-family: var(--font-display); font-weight: 300; font-size: var(--text-display); line-height: var(--text-display--line-height); letter-spacing: var(--tracking-display); color: var(--color-text-primary); margin: 0; text-wrap: balance; }

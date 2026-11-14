@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { hueOf } from "./avatarHue";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Avatar (Lumen)
@@ -14,6 +15,11 @@ import { useState } from "react";
 //   tone    "lit" for a small marker of who posted or organised (amber, soft)
 //   ring    false when something else already draws the ring: an Entry's
 //           glyph disc does, and an Avatar inside it drops its own (data.css)
+//
+// With no photo the initials are drawn in a light chosen from the first name
+// (avatarHue.ts: three in five faces are warm, sun or cool, two in five neutral),
+// so people in a list are told apart at a glance and each keeps their colour.
+// A lit or "lit"-toned avatar is amber and ignores it.
 //
 // The photo is a real <img> with the alt text it always had: empty, because
 // the name is written beside it. Give `alt` only where the name is not (then
@@ -72,6 +78,7 @@ export function Avatar({
       data-lit={lit || undefined}
       data-tone={tone === "lit" ? "lit" : undefined}
       data-ring={ring ? undefined : "none"}
+      data-hue={photo ? undefined : hueOf(name ?? initials)}
       role={named && !photo ? "img" : undefined}
       aria-label={named && !photo ? alt : undefined}
     >

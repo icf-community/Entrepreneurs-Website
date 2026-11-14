@@ -427,16 +427,19 @@
     border: 1px solid var(--color-border-subtle);
     border-radius: 50%;
   }
+  /* the body on the orbit: a box a little larger than the orbit, centred on the ring, with the body drawn on its top point and a glow round it;
+     the box turns once every forty seconds. At rest (reduced motion) it sits at 50°, a little above and to the right, where it always was. */
   .lm-empty__glyph::after {
     content: "";
     position: absolute;
-    left: calc(50% + var(--_r) * 0.766 - 3px);
-    top: calc(50% - var(--_r) * 0.643 - 3px);
-    width: 6px;
-    height: 6px;
-    background: var(--color-warm);
+    inset: calc(var(--_o) * -1 - 11px);
     border-radius: 50%;
-    box-shadow: 0 0 10px 1px var(--color-lit-glow);
+    pointer-events: none;
+    background:
+      radial-gradient(circle 3px at 50% 11px, var(--color-warm) 94%, transparent 100%),
+      radial-gradient(circle 11px at 50% 11px, var(--color-lit-glow), transparent 100%);
+    transform: rotate(50deg);
+    animation: orbit-around 40s linear infinite;
   }
   .lm-empty__title {
     margin: 0;

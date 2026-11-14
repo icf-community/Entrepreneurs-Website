@@ -246,6 +246,15 @@ function AvatarDemo() {
           <Avatar name="Elena Petrova" size="xl" />
         </div>
       </Variant>
+      <Variant caption="Person lights: with no photo, the initials take one of three lights from the first name (amber, cream, sky) and two in five stay neutral. Never on a photo, a lit ring or a lit marker.">
+        <div className="flex flex-wrap items-center gap-5">
+          <Avatar name="Elena Petrova" size="lg" />
+          <Avatar name="Alan Reid" size="lg" />
+          <Avatar name="David Osei" size="lg" />
+          <Avatar name="Hannah Cole" size="lg" />
+          <Avatar name="Indie Intake" size="lg" />
+        </div>
+      </Variant>
       <Variant caption="A photograph (stand-ins drawn in this file), the same sizes. The alt text is empty because the name is written beside it.">
         <div className="flex flex-wrap items-end gap-5">
           <Avatar src={PHOTOS.elena} name="Elena Petrova" size="xs" />

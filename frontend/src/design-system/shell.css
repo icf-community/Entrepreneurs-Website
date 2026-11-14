@@ -167,6 +167,15 @@
     font-weight: 400;
     line-height: 1;
   }
+  /* the member's own light (avatarHue.ts), the same colour their face has everywhere; the current page's lit ring still wins */
+  .lm-navitem:not([aria-current="page"]) .lm-navitem__mark[data-person][data-hue] {
+    --_h: var(--color-person-warm);
+    color: var(--_h);
+    border-color: color-mix(in oklab, var(--_h) 46%, var(--color-border-strong));
+    background: color-mix(in oklab, var(--_h) 12%, transparent);
+  }
+  .lm-navitem:not([aria-current="page"]) .lm-navitem__mark[data-person][data-hue="sun"]  { --_h: var(--color-person-sun); }
+  .lm-navitem:not([aria-current="page"]) .lm-navitem__mark[data-person][data-hue="cool"] { --_h: var(--color-person-cool); }
   .lm-navitem__lines { display: grid; min-width: 0; gap: 1px; }
   .lm-navitem__lines > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lm-navitem__sub { color: var(--color-text-muted); font-size: var(--text-caption); }

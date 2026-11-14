@@ -79,6 +79,13 @@
   --color-success-muted: color-mix(in oklab, var(--color-success) 13%, transparent);
   --color-info:          var(--color-cool);
 
+  /* ── 7b. People. A face with no photo is its initials in one of three lights (or none: two in five stay neutral), picked from the first name,
+        so a person is the same colour wherever they appear. Amber, a cream that leans yellow, and a sky blue, each light enough to read as text
+        on every surface (pinned by the contrast test like ink). Never purple. */
+  --color-person-warm: oklch(0.84 0.1 70);
+  --color-person-sun:  oklch(0.93 0.07 95);
+  --color-person-cool: oklch(0.82 0.07 235);
+
   /* ── 8. Type. Two faces: Funnel Display for headings (light, tight), Host Grotesk for everything else. Both come from
         next/font in layout.tsx, so they are self-hosted. ──────────────────────────────────────────────────────────── */
   --font-display: var(--font-funnel), "Helvetica Neue", Arial, sans-serif;
