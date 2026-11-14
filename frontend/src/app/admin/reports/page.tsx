@@ -5,6 +5,7 @@ import { requireAdminPage } from "@/lib/auth/guard";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { PageHead } from "@/components/ui/PageHead";
 import { Icon } from "@/design-system/icons/Icon";
+import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/reports
@@ -40,32 +41,26 @@ export default async function AdminReportsPage({
   const { reports, matching } = await adminReportsPage(supabase, { status, page });
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="min-h-screen px-[var(--gutter)] py-10 sm:py-12 text-text-primary"
-    >
-      <div className="mx-auto max-w-[var(--content-max)]">
-        <PageHead
-          className="mb-8"
-          context="Admin · reported posts"
-          title="Reported posts"
-          lede="Members report posts from the Community feed. Resolving a report emails the reporter with the outcome, whichever way it goes. Reports are kept for 12 months."
-          actions={
-            <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
-              Admin home
-            </ButtonLink>
-          }
-        />
+    <Page as="main">
+      <PageHead
+        className="mb-8"
+        context="Admin · reported posts"
+        title="Reported posts"
+        lede="Members report posts from the Community feed. Resolving a report emails the reporter with the outcome, whichever way it goes. Reports are kept for 12 months."
+        actions={
+          <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
+            Admin home
+          </ButtonLink>
+        }
+      />
 
-        <ReportsClient
-          reports={reports}
-          status={status}
-          page={page}
-          matching={matching}
-          pageSize={REPORTS_PAGE_SIZE}
-        />
-      </div>
-    </main>
+      <ReportsClient
+        reports={reports}
+        status={status}
+        page={page}
+        matching={matching}
+        pageSize={REPORTS_PAGE_SIZE}
+      />
+    </Page>
   );
 }

@@ -4,6 +4,7 @@ import { requireAdminPage } from "@/lib/auth/guard";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { PageHead } from "@/components/ui/PageHead";
 import { Icon } from "@/design-system/icons/Icon";
+import { Page } from "@/components/ui/Page";
 
 // bulkApproveOpportunities/bulkRejectOpportunities are one SECURITY
 // DEFINER RPC call per id (see runBulk's own comment on why that's
@@ -22,27 +23,25 @@ export default async function AdminOpportunitiesPage() {
   const pending = await listPendingOpportunities(supabase);
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen px-[var(--gutter)] py-10 sm:py-12 text-text-primary">
-      <div className="mx-auto max-w-[var(--content-max)]">
-        <PageHead
-          className="mb-8"
-          context="Admin · review queue"
-          title="Pending opportunities"
-          lede={`${pending.length} awaiting review.`}
-          actions={
-            <>
-              <ButtonLink href="/admin/opportunities/new" variant="ghost" size="sm" leading={<Icon name="plus" size={18} />}>
-                <span className="sr-only">+ </span>New opportunity
-              </ButtonLink>
-              <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
-                Admin home
-              </ButtonLink>
-            </>
-          }
-        />
+    <Page as="main">
+      <PageHead
+        className="mb-8"
+        context="Admin · review queue"
+        title="Pending opportunities"
+        lede={`${pending.length} awaiting review.`}
+        actions={
+          <>
+            <ButtonLink href="/admin/opportunities/new" variant="ghost" size="sm" leading={<Icon name="plus" size={18} />}>
+              <span className="sr-only">+ </span>New opportunity
+            </ButtonLink>
+            <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
+              Admin home
+            </ButtonLink>
+          </>
+        }
+      />
 
-        <OpportunitiesReview items={pending} />
-      </div>
-    </main>
+      <OpportunitiesReview items={pending} />
+    </Page>
   );
 }

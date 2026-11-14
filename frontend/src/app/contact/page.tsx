@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/currentUser";
 import AppShell from "@/components/app/AppShell";
@@ -8,6 +7,8 @@ import { PageHead } from "@/components/ui/PageHead";
 import { Icon } from "@/design-system/icons/Icon";
 import { PublicHeader } from "@/app/login/PublicHeader";
 import ContactForm from "./ContactForm";
+import { Page } from "@/components/ui/Page";
+import { Trail } from "@/components/ui/Trail";
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -36,49 +37,34 @@ export default async function ContactPage() {
   }
 
   const body = (
-    <div className="px-[var(--gutter)] py-10 sm:py-12">
-      <div className="mx-auto max-w-[640px]">
-        {/* The trail: a member came from Settings, so the way back is the first step of it; a visitor is just on Contact. */}
-        <PageHead
-          context={
-            member ? (
-              <>
-                <Link href="/settings" className="gap-2">
-                  <Icon name="arrow-left" size={16} />
-                  <span className="sr-only">← </span>Settings
-                </Link>
-                <Icon name="chevron-right" size={14} />
-                Contact
-              </>
-            ) : (
-              "Contact"
-            )
-          }
-          title="Get in touch"
-          lede={
-            user ? (
-              <>
-                Report a bug, ask a question, or flag something off. We&apos;ll reply to{" "}
-                <span className="text-text-primary">{user.email}</span>.
-              </>
-            ) : (
-              <>
-                Questions about Imperial Entrepreneurs, partnerships, or membership? Send us a
-                message and we&apos;ll get back to you.
-              </>
-            )
-          }
-        />
+    <Page width="narrow" align={member ? undefined : "center"}>
+      {/* The trail: a member came from Settings, so the way back is the first step of it; a visitor is just on Contact. */}
+      <PageHead
+        context={member ? <Trail href="/settings" label="Settings" current="Contact" /> : "Contact"}
+        title="Get in touch"
+        lede={
+          user ? (
+            <>
+              Report a bug, ask a question, or flag something off. We&apos;ll reply to{" "}
+              <span className="text-text-primary">{user.email}</span>.
+            </>
+          ) : (
+            <>
+              Questions about Imperial Entrepreneurs, partnerships, or membership? Send us a
+              message and we&apos;ll get back to you.
+            </>
+          )
+        }
+      />
 
-        <div className="mt-8">
-          <ContactForm
-            defaultName={member?.name ?? undefined}
-            defaultEmail={user?.email ?? undefined}
-            lockEmail={!!user?.email}
-          />
-        </div>
+      <div className="mt-8">
+        <ContactForm
+          defaultName={member?.name ?? undefined}
+          defaultEmail={user?.email ?? undefined}
+          lockEmail={!!user?.email}
+        />
       </div>
-    </div>
+    </Page>
   );
 
   // Signed in: the member rail, in whatever mode their status allows.

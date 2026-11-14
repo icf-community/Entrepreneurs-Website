@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { isUuid } from "@/lib/uuid";
 import { notFound } from "next/navigation";
 import ListingDetailShell, {
@@ -10,6 +11,8 @@ import { formatDate } from "@/lib/dates";
 import VcActions from "./VcActions";
 import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
+
+export const metadata: Metadata = { title: "Grant or VC" };
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One VC or grant

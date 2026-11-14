@@ -25,7 +25,7 @@ export function IntakeNavButtons({
       <Button
         type="button"
         variant="ghost"
-        size="md"
+        size="lg"
         onClick={onBack}
         disabled={backDisabled || busy}
         className={backDisabled ? "invisible" : ""}
@@ -38,7 +38,7 @@ export function IntakeNavButtons({
       <span className="flex-1" />
 
       {/* the last screen's action is the one thing the whole flow exists for: it is the lit one */}
-      <Button type="button" variant="primary" size="md" onClick={onNext} loading={busy} lit={isLast}>
+      <Button type="button" variant="primary" size="lg" onClick={onNext} loading={busy} lit={isLast}>
         {isLast ? "Finish" : "Continue"}
         <span className="sr-only"> →</span>
         <Icon name="arrow-right" size={16} />

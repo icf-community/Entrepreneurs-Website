@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { Children, Fragment, isValidElement, type ReactNode } from "react";
 import { PageHead } from "@/components/ui/PageHead";
 import { Section } from "@/components/ui/Section";
-import { Icon } from "@/design-system/icons/Icon";
+import { Trail } from "@/components/ui/Trail";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · a long legal document (Lumen)
@@ -77,21 +76,7 @@ export function LegalDocument({
     <main id="main-content" tabIndex={-1} className="px-[var(--gutter)] pb-24 pt-6 sm:pt-10">
       <div className="mx-auto max-w-[1140px]">
         <PageHead
-          context={
-            <>
-              <Link href={back.href} className="gap-2">
-                <Icon name="arrow-left" size={16} />
-                <span className="sr-only">← </span>
-                {back.label}
-              </Link>
-              {kicker ? (
-                <>
-                  <Icon name="chevron-right" size={14} />
-                  {kicker}
-                </>
-              ) : null}
-            </>
-          }
+          context={<Trail href={back.href} label={back.label} current={kicker || undefined} />}
           title={title}
           lede={`Last updated: ${updated}.`}
         />

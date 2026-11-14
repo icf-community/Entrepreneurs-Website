@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import AppShell from "@/components/app/AppShell";
 import { requireApprovedUser } from "@/lib/auth/guard";
@@ -12,6 +13,9 @@ import {
 import { aiModeEnabled } from "@/lib/ai/data";
 import MembersClient from "./MembersClient";
 import { flattenSearchParams, pageParam, yearParam } from "@/lib/filters/serverParams";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Members" };
 
 type SearchParams = {
   q?: string; role?: string; course?: string; sector?: string;
@@ -53,22 +57,20 @@ export default async function CommunityPage({
 
   return (
     <AppShell active="members" name={displayName} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] pb-20 pt-6 sm:pt-10">
-        <div className="mx-auto max-w-[var(--content-max)]">
-          {/* The eyebrow label became the masthead's context line; the title and its rule are PageHead's. */}
-          <PageHead context="Members" title="The Foundry directory" className="mb-8" />
-          <Suspense
-            fallback={
-              <>
-                <FilterBarSkeleton />
-                <CardGridSkeleton className="mt-8" count={9} />
-              </>
-            }
-          >
-            <Directory data={data} filters={filters} aiEnabled={aiEnabled} />
-          </Suspense>
-        </div>
-      </div>
+      <Page>
+        {/* The eyebrow label became the masthead's context line; the title and its rule are PageHead's. */}
+        <PageHead context="Members" title="The Foundry directory" className="mb-8" />
+        <Suspense
+          fallback={
+            <>
+              <FilterBarSkeleton />
+              <CardGridSkeleton className="mt-8" count={9} />
+            </>
+          }
+        >
+          <Directory data={data} filters={filters} aiEnabled={aiEnabled} />
+        </Suspense>
+      </Page>
     </AppShell>
   );
 }

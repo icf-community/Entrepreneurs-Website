@@ -4,6 +4,7 @@ import SubmittedBanner from "@/components/SubmittedBanner";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { PageHead } from "@/components/ui/PageHead";
 import { Icon } from "@/design-system/icons/Icon";
+import { Page } from "@/components/ui/Page";
 
 // The chrome shared by /opportunities, /events and /vcs: nav, main
 // landmark, the masthead (section name + heading + count), and the
@@ -50,32 +51,30 @@ export default function ListingPageShell({
 
   return (
     <AppShell active={active} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[var(--content-max)]">
-          {justSubmitted && <SubmittedBanner kind={submittedKind} />}
-          <PageHead
-            className="mb-8"
-            context={eyebrow}
-            title={title}
-            lede={summary}
-            actions={
-              <>
-                {actions}
-                <ButtonLink href={cta.href} variant="primary" size="md" lit>
-                  {label}
-                  {arrow && (
-                    <>
-                      <span className="sr-only"> →</span>
-                      <Icon name="arrow-right" size={18} />
-                    </>
-                  )}
-                </ButtonLink>
-              </>
-            }
-          />
-          {children}
-        </div>
-      </div>
+      <Page>
+        {justSubmitted && <SubmittedBanner kind={submittedKind} />}
+        <PageHead
+          className="mb-8"
+          context={eyebrow}
+          title={title}
+          lede={summary}
+          actions={
+            <>
+              {actions}
+              <ButtonLink href={cta.href} variant="primary" size="md" lit>
+                {label}
+                {arrow && (
+                  <>
+                    <span className="sr-only"> →</span>
+                    <Icon name="arrow-right" size={18} />
+                  </>
+                )}
+              </ButtonLink>
+            </>
+          }
+        />
+        {children}
+      </Page>
     </AppShell>
   );
 }

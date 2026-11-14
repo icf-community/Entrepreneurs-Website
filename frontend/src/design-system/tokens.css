@@ -134,6 +134,10 @@
 :root {
   --gutter: clamp(20px, 3.6vw, 56px);        /* the page's side margin, everywhere */
   --content-max: 72rem;                       /* the widest a page's column grows */
+  --col-page: 41rem;                          /* a page of one column: a feed, a detail, a form (820 px) */
+  --col-narrow: 32rem;                        /* a short form or a single message (640 px) */
+  --page-top: 2.5rem;                         /* above a page's head (3rem from sm up) */
+  --page-bottom: 5rem;                        /* below a page's last block */
   --measure: 34ch;                            /* a lede or a caption never runs wider */
   --touch: 44px;                              /* the smallest a control may be */
   --rail-width: 280px;                        /* the signed-in rail, labelled */

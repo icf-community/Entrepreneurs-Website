@@ -6,6 +6,7 @@ import { communityFeedPage } from "@/lib/data/posts";
 import { uploadsEnabled } from "@/lib/storage/uploadTicket";
 import { toFeedView } from "./feedView";
 import CommunityClient from "./CommunityClient";
+import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /community
@@ -33,29 +34,27 @@ export default async function CommunityPage() {
 
   return (
     <AppShell active="community" name={displayName} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[720px]">
-          <PageHead
-            context="Community"
-            title={<>What&rsquo;s happening</>}
-            lede={
-              <>
-                Share what you&rsquo;re building, ask for help, or point people at something worth
-                seeing. Posts are visible to approved members only and are deleted automatically
-                after seven days.
-              </>
-            }
-          />
+      <Page width="page">
+        <PageHead
+          context="Community"
+          title={<>What&rsquo;s happening</>}
+          lede={
+            <>
+              Share what you&rsquo;re building, ask for help, or point people at something worth
+              seeing. Posts are visible to approved members only and are deleted automatically
+              after seven days.
+            </>
+          }
+        />
 
-          <CommunityClient
-            initialPosts={await toFeedView(posts)}
-            initialCursor={nextCursor}
-            currentUserId={user.id}
-            isAdmin={isAdmin}
-            uploadsAvailable={uploadsEnabled()}
-          />
-        </div>
-      </div>
+        <CommunityClient
+          initialPosts={await toFeedView(posts)}
+          initialCursor={nextCursor}
+          currentUserId={user.id}
+          isAdmin={isAdmin}
+          uploadsAvailable={uploadsEnabled()}
+        />
+      </Page>
     </AppShell>
   );
 }

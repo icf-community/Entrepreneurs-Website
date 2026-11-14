@@ -6,6 +6,7 @@ import type { Db } from "@/lib/data/query";
 import UsersReview from "./UsersReview";
 import { requireAdminPage } from "@/lib/auth/guard";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { Page } from "@/components/ui/Page";
 
 // Smaller than /admin/members's 50: each row here is a full review card
 // with bio, what they're working on, and their links — the heaviest
@@ -35,25 +36,23 @@ export default async function AdminUsersPage({
   const data = loadPending(supabase, page);
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen px-[var(--gutter)] pb-24 pt-10 text-text-primary">
-      <div className="mx-auto max-w-[var(--content-max)]">
-        {/* The count streams in beside the header; PageHead takes a block lede
-            when it is not a plain sentence, so the skeleton <div> is safe here. */}
-        <AdminPageHeader
-          eyebrow="Admin · review queue"
-          title="Pending alumni profiles"
-          description={
-            <Suspense fallback={<Skeleton className="h-3 w-32" />}>
-              <PendingCount data={data} />
-            </Suspense>
-          }
-        />
+    <Page as="main">
+      {/* The count streams in beside the header; PageHead takes a block lede
+          when it is not a plain sentence, so the skeleton <div> is safe here. */}
+      <AdminPageHeader
+        eyebrow="Admin · review queue"
+        title="Pending alumni profiles"
+        description={
+          <Suspense fallback={<Skeleton className="h-3 w-32" />}>
+            <PendingCount data={data} />
+          </Suspense>
+        }
+      />
 
-        <Suspense fallback={<RowListSkeleton count={4} />}>
-          <Queue data={data} page={page} />
-        </Suspense>
-      </div>
-    </main>
+      <Suspense fallback={<RowListSkeleton count={4} />}>
+        <Queue data={data} page={page} />
+      </Suspense>
+    </Page>
   );
 }
 

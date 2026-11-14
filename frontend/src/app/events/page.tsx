@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import ListingPageShell from "@/components/ListingPageShell";
@@ -7,6 +8,8 @@ import { markedIds } from "@/lib/data/activity";
 import { listApprovedEvents, type FoundryEvent } from "@/lib/data/events";
 import type { Db } from "@/lib/data/query";
 import EventsClient from "./EventsClient";
+
+export const metadata: Metadata = { title: "Events" };
 
 export default async function EventsPage({
   searchParams,

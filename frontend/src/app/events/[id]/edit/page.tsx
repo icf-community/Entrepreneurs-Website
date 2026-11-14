@@ -1,14 +1,17 @@
+import type { Metadata } from "next";
 import { isUuid } from "@/lib/uuid";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/app/AppShell";
 import { PageHead } from "@/components/ui/PageHead";
-import { Icon } from "@/design-system/icons/Icon";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { posterName } from "@/lib/data/profiles";
 import { listingEditSnapshot } from "@/lib/listings/editSnapshot";
 import EventForm, { type EventInitialValues } from "../../new/EventForm";
 import { EditStatusNote, QueuedRevisionBanner } from "@/components/forms/EditStatusNote";
+import { Page } from "@/components/ui/Page";
+import { Trail } from "@/components/ui/Trail";
+
+export const metadata: Metadata = { title: "Edit event" };
 
 type Params = { id: string };
 
@@ -71,37 +74,24 @@ export default async function EditEventPage({ params }: { params: Promise<Params
 
   return (
     <AppShell active="events" name={displayName} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[820px]">
-          <PageHead
-            className="mb-8"
-            context={
-              <>
-                {/* The arrow is drawn; the character stays as hidden text so the link's name is still "← Your submissions". */}
-                <Link href="/my-submissions" className="inline-flex items-center gap-1.5">
-                  <Icon name="arrow-left" size={16} />
-                  <span className="sr-only">← </span>
-                  Your submissions
-                </Link>
-                <span aria-hidden="true">/</span>
-                Edit event
-              </>
-            }
-            title={row.title}
-            lede={<EditStatusNote status={row.status} noun="event" />}
-          />
-          {revision && <QueuedRevisionBanner queuedAt={revision.createdAt} />}
-          <EventForm
-            signupEmail={user.email ?? ""}
-            defaultOrganiser={defaultOrganiser}
-            mode="user"
-            editingId={id}
-            editVersion={row.edit_version}
-            initialValues={initialValues}
-            reviewOnSave={row.status === "approved"}
-          />
-        </div>
-      </div>
+      <Page width="page">
+        <PageHead
+          className="mb-8"
+          context={<Trail href="/my-submissions" label="Your submissions" current="Edit event" />}
+          title={row.title}
+          lede={<EditStatusNote status={row.status} noun="event" />}
+        />
+        {revision && <QueuedRevisionBanner queuedAt={revision.createdAt} />}
+        <EventForm
+          signupEmail={user.email ?? ""}
+          defaultOrganiser={defaultOrganiser}
+          mode="user"
+          editingId={id}
+          editVersion={row.edit_version}
+          initialValues={initialValues}
+          reviewOnSave={row.status === "approved"}
+        />
+      </Page>
     </AppShell>
   );
 }

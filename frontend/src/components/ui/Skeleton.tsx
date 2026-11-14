@@ -130,7 +130,7 @@ export function TableSkeleton({ rows = 8, className = "" }: { rows?: number; cla
 export function PageHeaderSkeleton({ className = "" }: { className?: string }) {
   return (
     <div className={`lm-skel-head mb-8 ${className}`}>
-      <Skeleton className="h-3 w-24" />
+      <div className="lm-skel-head__context"><Skeleton className="h-3 w-24" /></div>
       <div className="grid grid-cols-1 gap-3">
         <Skeleton className="lm-skel--title w-[22rem] max-w-full" />
         <Skeleton className="h-4 w-full max-w-[24rem]" />

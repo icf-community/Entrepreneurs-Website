@@ -33,6 +33,7 @@ import { useGoogleAuth } from "@/lib/auth/hooks/useGoogleAuth";
 import { usePasswordRecovery } from "@/lib/auth/hooks/usePasswordRecovery";
 import type { Mode, Role, Track } from "@/lib/auth/hooks/loginTypes";
 import { track as trackEvent } from "@/lib/analytics/track";
+import { Trail } from "@/components/ui/Trail";
 
 /* ── The sky ──────────────────────────────────────────────────────── */
 // The starfield is the one background this brand owns: the mark sits in the sky
@@ -409,12 +410,7 @@ function AuthHeading({ mode, track }: { mode: Mode; track: Track | null }) {
 
   return (
     <PageHead
-      context={
-        <Link href="/" className="gap-2">
-          <Icon name="arrow-left" size={16} />
-          <span className="sr-only">← </span>Back to home
-        </Link>
-      }
+      context={<Trail href="/" label="Back to home" />}
       title={heading}
       lede={subtitle}
     />

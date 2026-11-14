@@ -1,6 +1,7 @@
 import AppShell from "@/components/app/AppShell";
 import type { NavKey } from "@/components/app/Sidebar";
 import { FilterBarSkeleton, CardGridSkeleton, RowListSkeleton, PageHeaderSkeleton } from "@/components/ui/Skeleton";
+import { Page } from "@/components/ui/Page";
 
 // Shared by every loading.tsx whose route is a title + filter bar + a grid
 // or row list of cards (calendar, events, vcs, members, my-activity,
@@ -23,15 +24,13 @@ export function FilteredListLoadingSkeleton({
 }) {
   return (
     <AppShell active={active}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[var(--content-max)]">
-          <PageHeaderSkeleton />
-          <FilterBarSkeleton />
-          <div className="mt-8">
-            {body === "cards" ? <CardGridSkeleton /> : <RowListSkeleton />}
-          </div>
+      <Page>
+        <PageHeaderSkeleton />
+        <FilterBarSkeleton />
+        <div className="mt-8">
+          {body === "cards" ? <CardGridSkeleton /> : <RowListSkeleton />}
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }

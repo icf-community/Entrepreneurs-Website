@@ -1,5 +1,6 @@
 import AppShell from "@/components/app/AppShell";
 import { PageHeaderSkeleton, RowListSkeleton } from "@/components/ui/Skeleton";
+import { Page } from "@/components/ui/Page";
 
 // Every other listing page (members, calendar, events, opportunities, vcs,
 // profile) has one of these; /community was the one blocking async server
@@ -13,12 +14,10 @@ import { PageHeaderSkeleton, RowListSkeleton } from "@/components/ui/Skeleton";
 export default function Loading() {
   return (
     <AppShell active="community">
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[720px]">
-          <PageHeaderSkeleton />
-          <RowListSkeleton count={4} />
-        </div>
-      </div>
+      <Page width="page">
+        <PageHeaderSkeleton />
+        <RowListSkeleton count={4} />
+      </Page>
     </AppShell>
   );
 }

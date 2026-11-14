@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { throwIfAuthUnreachable, throwIfUnreachable } from "@/lib/supabase/unavailable";
@@ -21,6 +22,9 @@ import { anyAiModeEnabled, listConcepts, myAiSettings } from "@/lib/ai/data";
 import { EducationForm } from "@/components/forms/EducationForm";
 import AiSettingsCard from "./AiSettingsCard";
 import { SettingsSection } from "./SettingsSection";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Settings" };
 
 // Fetches the settings page's cascading, approval-gated data (connections,
 // education, AI settings only load once we know the member is approved, and
@@ -79,7 +83,7 @@ export default async function SettingsPage() {
       isApproved={profile.status === "approved"}
       isAdmin={isAdmin}
     >
-      <div className="mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)] pb-24 pt-4 sm:pt-6">
+      <Page>
         <PageHead
           context="Settings"
           title="Account & profile"
@@ -141,7 +145,7 @@ export default async function SettingsPage() {
             <DeleteAccountSection email={user.email ?? ""} />
           </div>
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }

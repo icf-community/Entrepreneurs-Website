@@ -1,5 +1,5 @@
+import type { Metadata } from "next";
 import type { Database } from "@/lib/database.overrides";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/currentUser";
@@ -8,11 +8,14 @@ import { computeDisplayName } from "@/lib/auth/guard";
 import { destinationForStatus } from "@/lib/auth/status";
 import AppShell from "@/components/app/AppShell";
 import { PageHead } from "@/components/ui/PageHead";
-import { Icon } from "@/design-system/icons/Icon";
 import { listSkillsDetailed, listSectors, type ProfileIntakeData } from "@/lib/data/taxonomy";
 import { signedImageUrls } from "@/lib/storage/blobRead";
 import AffiliationSection from "./AffiliationSection";
 import ProfileForm from "./ProfileForm";
+import { Trail } from "@/components/ui/Trail";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Edit your profile" };
 
 // Fetches every profile-edit dependency in parallel, validates reachability,
 // and applies the login/status gates. Pulled out of the page component so
@@ -127,18 +130,9 @@ export default async function ProfilePage() {
       isApproved={profile.status === "approved"}
       isAdmin={isAdmin}
     >
-      <div className="mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)] pb-24 pt-4 sm:pt-6">
+      <Page>
         <PageHead
-          context={
-            <>
-              <Link href="/settings">
-                <Icon name="arrow-left" size={16} className="mr-1.5" />
-                <span className="sr-only">← </span>Settings
-              </Link>
-              <span aria-hidden="true">/</span>
-              <span>Your profile</span>
-            </>
-          }
+          context={<Trail href="/settings" label="Settings" current="Your profile" />}
           title="Edit your details"
           lede="Changes are visible in the directory once you're approved."
         />
@@ -147,7 +141,7 @@ export default async function ProfilePage() {
           <ProfileForm {...profileFormProps} />
           <AffiliationSection role={profile.role} />
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }

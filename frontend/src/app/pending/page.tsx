@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/currentUser";
@@ -9,6 +10,8 @@ import { SiteBanner } from "@/components/SiteBanner";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { PageHead } from "@/components/ui/PageHead";
 import { StepDots, type StepItem } from "@/components/ui/StepDots";
+
+export const metadata: Metadata = { title: "Application received" };
 
 // Where an application stands, drawn: it was sent (lit), it is being read by a person (the ring), and the answer comes by email (still to come).
 // The words are read by a screen reader, not drawn, and say nothing the page does not already say.

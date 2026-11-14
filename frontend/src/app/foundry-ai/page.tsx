@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import AppShell from "@/components/app/AppShell";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHead } from "@/components/ui/PageHead";
@@ -5,6 +6,9 @@ import { requireApprovedUser } from "@/lib/auth/guard";
 import { aiState } from "@/lib/ai/data";
 import type { AiMode } from "@/lib/ai/types";
 import FoundryAiClient from "./FoundryAiClient";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Foundry AI" };
 
 // Foundry AI (AI-plan §12, F11). While every AI flag is off this stays the
 // "Coming soon" placeholder; it becomes the AI page when a mode ships.
@@ -33,22 +37,20 @@ export default async function FoundryAiPage({
 
   return (
     <AppShell active="foundryAi" name={displayName} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[var(--content-max)]">
-          <PageHead className="mb-8" context="Foundry AI" title={enabled ? "Search the network" : "Coming soon"} />
-          {enabled ? (
-            <FoundryAiClient
-              state={state}
-              initialMode={modeOf(sp.mode)}
-              initialJobId={uuidOrNull(sp.job)}
-              initialConversationId={uuidOrNull(sp.c)}
-              initialDraftId={uuidOrNull(sp.draft)}
-            />
-          ) : (
-            <EmptyState icon="foundry-ai">We&apos;re building this. Check back soon.</EmptyState>
-          )}
-        </div>
-      </div>
+      <Page>
+        <PageHead className="mb-8" context="Foundry AI" title={enabled ? "Search the network" : "Coming soon"} />
+        {enabled ? (
+          <FoundryAiClient
+            state={state}
+            initialMode={modeOf(sp.mode)}
+            initialJobId={uuidOrNull(sp.job)}
+            initialConversationId={uuidOrNull(sp.c)}
+            initialDraftId={uuidOrNull(sp.draft)}
+          />
+        ) : (
+          <EmptyState icon="foundry-ai">We&apos;re building this. Check back soon.</EmptyState>
+        )}
+      </Page>
     </AppShell>
   );
 }

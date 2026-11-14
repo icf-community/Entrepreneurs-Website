@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import AppShell from "@/components/app/AppShell";
@@ -21,6 +22,9 @@ import { newestEvents } from "@/lib/data/events";
 import { newestOpportunities } from "@/lib/data/opportunities";
 import { newestVcs } from "@/lib/data/vcs";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Home" };
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Home
@@ -93,60 +97,58 @@ export default async function HomePage() {
 
   return (
     <AppShell active="home" name={fullName || name}>
-      <div className="px-[var(--gutter)] pb-20 pt-6 sm:pt-10">
-        <div className="mx-auto max-w-[var(--content-max)]">
-          <PageHead context="Hello," title={name} className="mb-8" />
+      <Page>
+        <PageHead context="Hello," title={name} className="mb-8" />
 
-          <div className="lm-sections">
-            {hasPrompts && (
-              // What is waiting on the member personally, kept together. Every card in it
-              // draws its own bottom margin (the intake prompt is the shell's), so the grid
-              // gap is the only spacing between them.
-              <div className="grid gap-4 [&>*]:mb-0">
-                {showGraduationPrompt && <GraduationPrompt currentYear={new Date().getFullYear()} />}
-                {showIntakePrompt && <IntakePromptCard />}
-                {pendingConnections > 0 && <ConnectionRequestsCard count={pendingConnections} />}
-              </div>
-            )}
+        <div className="lm-sections">
+          {hasPrompts && (
+            // What is waiting on the member personally, kept together. Every card in it
+            // draws its own bottom margin (the intake prompt is the shell's), so the grid
+            // gap is the only spacing between them.
+            <div className="grid gap-4 [&>*]:mb-0">
+              {showGraduationPrompt && <GraduationPrompt currentYear={new Date().getFullYear()} />}
+              {showIntakePrompt && <IntakePromptCard />}
+              {pendingConnections > 0 && <ConnectionRequestsCard count={pendingConnections} />}
+            </div>
+          )}
 
-            <Suspense fallback={<StripSkeleton />}>
-              <Newest data={members} />
+          <Suspense fallback={<StripSkeleton />}>
+            <Newest data={members} />
+          </Suspense>
+
+          <Section
+            title="Events"
+            description="Foundry gatherings and member meetups"
+            actions={<ViewAll href="/events" label="Events" />}
+          >
+            <Suspense fallback={<EventsSkeleton />}>
+              <Events data={events} />
             </Suspense>
+          </Section>
 
+          <div className="grid gap-[var(--section-gap)] lg:grid-cols-2 lg:gap-x-10">
             <Section
-              title="Events"
-              description="Foundry gatherings and member meetups"
-              actions={<ViewAll href="/events" label="Events" />}
+              title="Opportunities"
+              description="Roles, projects and introductions shared by members"
+              actions={<ViewAll href="/opportunities" label="Opportunities" />}
             >
-              <Suspense fallback={<EventsSkeleton />}>
-                <Events data={events} />
+              <Suspense fallback={<RowsSkeleton />}>
+                <Opportunities data={opps} />
               </Suspense>
             </Section>
 
-            <div className="grid gap-[var(--section-gap)] lg:grid-cols-2 lg:gap-x-10">
-              <Section
-                title="Opportunities"
-                description="Roles, projects and introductions shared by members"
-                actions={<ViewAll href="/opportunities" label="Opportunities" />}
-              >
-                <Suspense fallback={<RowsSkeleton />}>
-                  <Opportunities data={opps} />
-                </Suspense>
-              </Section>
-
-              <Section
-                title="VCs and Grants"
-                description="Funding routes open to Foundry founders"
-                actions={<ViewAll href="/vcs" label="VCs and Grants" />}
-              >
-                <Suspense fallback={<RowsSkeleton />}>
-                  <Vcs data={vcs} />
-                </Suspense>
-              </Section>
-            </div>
+            <Section
+              title="VCs and Grants"
+              description="Funding routes open to Foundry founders"
+              actions={<ViewAll href="/vcs" label="VCs and Grants" />}
+            >
+              <Suspense fallback={<RowsSkeleton />}>
+                <Vcs data={vcs} />
+              </Suspense>
+            </Section>
           </div>
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }

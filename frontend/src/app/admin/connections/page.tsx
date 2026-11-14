@@ -9,6 +9,7 @@ import { getConnectionsStatus } from "../actions";
 import ConnectionsAdminClient from "./ConnectionsAdminClient";
 import { requireAdminPage } from "@/lib/auth/guard";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/connections
@@ -57,33 +58,27 @@ export default async function AdminConnectionsPage({
   ]);
 
   return (
-    <main
-      id="main-content"
-      tabIndex={-1}
-      className="min-h-screen px-[var(--gutter)] pb-24 pt-10 text-text-primary"
-    >
-      <div className="mx-auto max-w-[var(--content-max)]">
-        <AdminPageHeader
-          eyebrow="Admin · connections"
-          title="Connections"
-          description="Members connect to exchange email addresses. Reports here are about a specific connection and the note that came with it — resolving one emails the reporter with the outcome, whichever way it goes."
-        />
+    <Page as="main">
+      <AdminPageHeader
+        eyebrow="Admin · connections"
+        title="Connections"
+        description="Members connect to exchange email addresses. Reports here are about a specific connection and the note that came with it — resolving one emails the reporter with the outcome, whichever way it goes."
+      />
 
-        <ConnectionsAdminClient
-          reports={reports}
-          status={status}
-          page={page}
-          matching={matching}
-          pageSize={CONNECTION_REPORTS_PAGE_SIZE}
-          senders={senders}
-          stats={stats}
-          connectionsStatus={
-            connectionsStatus.ok
-              ? connectionsStatus.data
-              : { enabled: true, lastChangedAt: null, lastChangedBy: null }
-          }
-        />
-      </div>
-    </main>
+      <ConnectionsAdminClient
+        reports={reports}
+        status={status}
+        page={page}
+        matching={matching}
+        pageSize={CONNECTION_REPORTS_PAGE_SIZE}
+        senders={senders}
+        stats={stats}
+        connectionsStatus={
+          connectionsStatus.ok
+            ? connectionsStatus.data
+            : { enabled: true, lastChangedAt: null, lastChangedBy: null }
+        }
+      />
+    </Page>
   );
 }

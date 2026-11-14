@@ -5,6 +5,7 @@ import { requireApprovedUser } from "@/lib/auth/guard";
 import { myPostsPage } from "@/lib/data/posts";
 import { toMyPostView } from "../feedView";
 import MyPostsClient from "./MyPostsClient";
+import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /community/mine
@@ -31,25 +32,23 @@ export default async function MyPostsPage() {
 
   return (
     <AppShell active="community" name={displayName} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[720px]">
-          <PageHead
-            context="Community"
-            title="My posts"
-            lede={
-              <>
-                Everything you&rsquo;ve posted that hasn&rsquo;t expired yet. Posts are deleted
-                automatically seven days after publishing, and you can remove one sooner at any time.
-              </>
-            }
-          />
+      <Page width="page">
+        <PageHead
+          context="Community"
+          title="My posts"
+          lede={
+            <>
+              Everything you&rsquo;ve posted that hasn&rsquo;t expired yet. Posts are deleted
+              automatically seven days after publishing, and you can remove one sooner at any time.
+            </>
+          }
+        />
 
-          <MyPostsClient
-            initialPosts={await toMyPostView(posts)}
-            initialCursor={nextCursor}
-          />
-        </div>
-      </div>
+        <MyPostsClient
+          initialPosts={await toMyPostView(posts)}
+          initialCursor={nextCursor}
+        />
+      </Page>
     </AppShell>
   );
 }

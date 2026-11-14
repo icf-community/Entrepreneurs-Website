@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { flattenSearchParams, yearParam } from "@/lib/filters/serverParams";
 import { Suspense } from "react";
 import AppShell from "@/components/app/AppShell";
@@ -20,6 +21,9 @@ import {
   type ConnectionGraph,
 } from "@/lib/data/connections";
 import ConnectionsClient, { type Tab, type View } from "./ConnectionsClient";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Connections" };
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /connections
@@ -88,28 +92,26 @@ export default async function ConnectionsPage({
 
   return (
     <AppShell active="connections" name={displayName} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[var(--content-max)]">
-          <PageHead
-            context="Connections"
-            title="People you can reach"
-            lede="A connection is a mutual agreement to share email addresses. Either of you can undo it at any time."
-          />
+      <Page>
+        <PageHead
+          context="Connections"
+          title="People you can reach"
+          lede="A connection is a mutual agreement to share email addresses. Either of you can undo it at any time."
+        />
 
-          <div className="mt-8">
-            <Suspense
-              fallback={
-                <>
-                  <FilterBarSkeleton />
-                  <CardGridSkeleton className="mt-8" count={6} />
-                </>
-              }
-            >
-              <Tabs data={data} tab={tab} view={view} filters={filters} myEmail={user.email ?? ""} displayName={displayName} />
-            </Suspense>
-          </div>
+        <div className="mt-8">
+          <Suspense
+            fallback={
+              <>
+                <FilterBarSkeleton />
+                <CardGridSkeleton className="mt-8" count={6} />
+              </>
+            }
+          >
+            <Tabs data={data} tab={tab} view={view} filters={filters} myEmail={user.email ?? ""} displayName={displayName} />
+          </Suspense>
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }

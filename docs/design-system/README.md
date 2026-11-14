@@ -15,7 +15,7 @@ those lights, so the look is decided in one file and the whole site follows it.
 | Voice that sizes alone cannot carry (`.font-display`, `.data`, `.measure`) | `design-system/typography.css` |
 | Keyframes, rule-draw, reduced-motion contract | `design-system/motion.css` |
 | The night behind every page (the atmosphere) | `design-system/surfaces.css` |
-| Classes behind Button, Panel, Entry, Badge, PageHead | `design-system/components.css` |
+| Classes behind Button, Panel, Entry, Badge, Page, PageHead | `design-system/components.css` (the page frame: [shell.md](shell.md)) |
 | The signed-in frame: rail, app bar, drawer | `design-system/shell.css` ([shell.md](shell.md)) |
 | Form controls | `design-system/forms.css` ([forms.md](forms.md)) |
 | Dialogs, sheets, popovers, menus, toasts, banners, skeletons | `design-system/overlays.css` ([overlays.md](overlays.md)) |

@@ -76,6 +76,10 @@ rounded:
 spacing:
   gutter: "clamp(20px, 3.6vw, 56px)"
   content-max: "72rem"
+  col-page: "41rem"
+  col-narrow: "32rem"
+  page-top: "2.5rem"
+  page-bottom: "5rem"
   touch: "44px"
   rail: "280px"
   rail-collapsed: "92px"
@@ -195,7 +199,7 @@ The scale is a 1.25 ratio from a 16 px body (plus Small for dense rows). The app
 
 ## Layout
 
-The signed-in app is a **labelled rail and a content column**. From 1024 px the rail is fixed at 280 px (92 px collapsed to a column of rings, remembered in `localStorage`); below that an app bar of 76 px (the menu control and the roundel, sized so a 45 px ring keeps a quarter of its height clear) opens the same rail as a drawer. The column's side margin is the fluid `--gutter` (20–56 px) everywhere. Every page opens with `PageHead`: where you are (a plain trail), the title, one sentence, the actions, and a hairline rule that draws across the top as it scrolls into view and lights its end.
+The signed-in app is a **labelled rail and a content column**. From 1024 px the rail is fixed at 280 px (92 px collapsed to a column of rings, remembered in `localStorage`); below that an app bar of 76 px (the menu control and the roundel, sized so a 45 px ring keeps a quarter of its height clear) opens the same rail as a drawer. The column's side margin is the fluid `--gutter` (20–56 px) everywhere. Every page sits in the same frame (`Page`): that margin, `--page-top` above and `--page-bottom` below, a column of at most `--content-max`, and, for a page of one column, `--col-page` (820 px) or `--col-narrow` (640 px) starting at the frame's left edge, so a title never moves sideways between pages. Every page opens with `PageHead`: where you are (a plain trail), the title, one sentence, the actions, and a hairline rule that draws across the top as it scrolls into view and lights its end.
 
 Rhythm is generous and uncluttered by rule: one clear primary action per view; secondary detail goes behind a disclosure, a popover, a sheet or a tooltip (the words stay in the DOM and every action stays reachable by keyboard); long chip sets collapse to what is chosen plus a "+" ring. Nothing scrolls sideways at 320 px, every control is at least 44 px (24 px is the floor), and tables become stacked cards below 640 px of their own width with the same markup.
 

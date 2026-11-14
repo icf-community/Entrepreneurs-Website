@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { flattenSearchParams, pageParam, isoDayParam } from "@/lib/filters/serverParams";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -8,6 +9,8 @@ import { markedIds } from "@/lib/data/activity";
 import { listApprovedVcs, VC_PAGE_SIZE, type Vc, type VcFilters } from "@/lib/data/vcs";
 import type { Db } from "@/lib/data/query";
 import VcsClient from "./VcsClient";
+
+export const metadata: Metadata = { title: "Grants & VCs" };
 
 type SearchParams = {
   submitted?: string; v?: string;

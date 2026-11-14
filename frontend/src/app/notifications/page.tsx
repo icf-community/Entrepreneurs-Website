@@ -4,6 +4,7 @@ import { PageHead } from "@/components/ui/PageHead";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { myNotifications } from "@/lib/data/notifications";
 import NotificationsList from "./NotificationsList";
+import { Page } from "@/components/ui/Page";
 
 export const metadata: Metadata = {
   title: "Notifications",
@@ -16,12 +17,10 @@ export default async function NotificationsPage() {
 
   return (
     <AppShell active="notifications" name={displayName} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] pb-20 pt-6 sm:pt-10">
-        <div className="mx-auto max-w-[44rem]">
-          <PageHead context="Notifications" title="What's new for you" className="mb-8" />
-          <NotificationsList initial={items} />
-        </div>
-      </div>
+      <Page width="page">
+        <PageHead context="Notifications" title="What's new for you" className="mb-8" />
+        <NotificationsList initial={items} />
+      </Page>
     </AppShell>
   );
 }

@@ -245,7 +245,7 @@ function MemberResultsGrid({
           {facets.total === 0 ? "No members yet." : "No members match your search or filters."}
         </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {members.map((m) => <MemberCard key={m.id} member={m} onClick={() => onOpenMember(m)} />)}
         </div>
       )}

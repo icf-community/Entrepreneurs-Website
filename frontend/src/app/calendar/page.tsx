@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import AppShell from "@/components/app/AppShell";
 import { PageHead } from "@/components/ui/PageHead";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { myActivity } from "@/lib/data/activity";
 import { myCalendarListings } from "@/lib/data/ownListings";
 import CalendarClient, { type CalItem } from "./CalendarClient";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Calendar" };
 
 export default async function CalendarPage() {
   const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
@@ -88,13 +92,11 @@ export default async function CalendarPage() {
 
   return (
     <AppShell active="calendar" name={displayName} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] pb-20 pt-6 sm:pt-10">
-        <div className="mx-auto max-w-[var(--content-max)]">
-          {/* The month grid is the one dense table on the site, so the column is the widest one. */}
-          <PageHead context="Your calendar" title="Events, opportunity deadlines, and VC deadlines" className="mb-8" />
-          <CalendarClient items={items} />
-        </div>
-      </div>
+      <Page>
+        {/* The month grid is the one dense table on the site, so the column is the widest one. */}
+        <PageHead context="Your calendar" title="Events, opportunity deadlines, and VC deadlines" className="mb-8" />
+        <CalendarClient items={items} />
+      </Page>
     </AppShell>
   );
 }

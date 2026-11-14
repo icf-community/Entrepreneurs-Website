@@ -13,6 +13,7 @@ import { Section } from "@/components/ui/Section";
 import { Stat, StatGrid } from "@/components/ui/Stat";
 import { Icon } from "@/design-system/icons/Icon";
 import type { IconName } from "@/design-system/icons/names";
+import { Page } from "@/components/ui/Page";
 
 // The control room: what is waiting for a person (a ruled sheet of counts, each
 // one a way in, lit only where something is waiting), the one switch that stops
@@ -27,104 +28,102 @@ export default async function AdminPage() {
   const totalPending = counts.total;
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen px-[var(--gutter)] pb-24 pt-10 text-text-primary">
-      <div className="mx-auto max-w-[var(--content-max)]">
-        <PageHead
-          context="Admin"
-          title="Foundry control panel"
-          lede={
-            totalPending > 0 ? (
-              <Badge tone="lit" dot>{totalPending} awaiting review</Badge>
-            ) : (
-              <Badge>Queues clear</Badge>
-            )
-          }
-          actions={
-            <>
-              <ButtonLink href="/members" variant="ghost" size="sm" leading={<Icon name="arrow-left" size={18} />}>
-                {/* the arrow is drawn; the character stays in the accessible name, as it always was */}
-                <span className="sr-only">← </span>Back to site
-              </ButtonLink>
-              <SignOutButton />
-            </>
+    <Page as="main">
+      <PageHead
+        context="Admin"
+        title="Foundry control panel"
+        lede={
+          totalPending > 0 ? (
+            <Badge tone="lit" dot>{totalPending} awaiting review</Badge>
+          ) : (
+            <Badge>Queues clear</Badge>
+          )
+        }
+        actions={
+          <>
+            <ButtonLink href="/members" variant="ghost" size="sm" leading={<Icon name="arrow-left" size={18} />}>
+              {/* the arrow is drawn; the character stays in the accessible name, as it always was */}
+              <span className="sr-only">← </span>Back to site
+            </ButtonLink>
+            <SignOutButton />
+          </>
+        }
+      />
+
+      <div className="lm-sections mt-10">
+        <section aria-label="Review queues">
+          <StatGrid min="sm">
+            <QueueStat
+              href="/admin/users"
+              title="Pending alumni profiles"
+              count={counts.profiles}
+              hint="Manual verification"
+            />
+            <QueueStat
+              href="/admin/opportunities"
+              title="Pending opportunities"
+              count={counts.opportunities}
+              hint="Review queue"
+            />
+            <QueueStat
+              href="/admin/events"
+              title="Pending events"
+              count={counts.events}
+              hint="Review queue"
+            />
+            <QueueStat
+              href="/admin/vcs"
+              title="Pending VCs / grants"
+              count={counts.vcs}
+              hint="Review queue"
+            />
+            <QueueStat
+              href="/admin/edits"
+              title="Proposed changes"
+              count={counts.edits}
+              hint="Edits to live listings"
+            />
+          </StatGrid>
+        </section>
+
+        <IngestionToggle
+          initial={
+            ingestionStatus.ok
+              ? ingestionStatus.data
+              : { enabled: true, lastChangedAt: null, lastChangedBy: null }
           }
         />
 
-        <div className="lm-sections mt-10">
-          <section aria-label="Review queues">
-            <StatGrid min="sm">
-              <QueueStat
-                href="/admin/users"
-                title="Pending alumni profiles"
-                count={counts.profiles}
-                hint="Manual verification"
-              />
-              <QueueStat
-                href="/admin/opportunities"
-                title="Pending opportunities"
-                count={counts.opportunities}
-                hint="Review queue"
-              />
-              <QueueStat
-                href="/admin/events"
-                title="Pending events"
-                count={counts.events}
-                hint="Review queue"
-              />
-              <QueueStat
-                href="/admin/vcs"
-                title="Pending VCs / grants"
-                count={counts.vcs}
-                hint="Review queue"
-              />
-              <QueueStat
-                href="/admin/edits"
-                title="Proposed changes"
-                count={counts.edits}
-                hint="Edits to live listings"
-              />
-            </StatGrid>
-          </section>
+        <Section
+          rule
+          title="Quick create"
+          description="Publish directly without going through the approval queue."
+        >
+          <div className="flex flex-wrap gap-3">
+            <CreateLink href="/admin/opportunities/new" label="Opportunity" />
+            <CreateLink href="/admin/events/new" label="Event" />
+            <CreateLink href="/admin/vcs/new" label="VC / grant" />
+          </div>
+        </Section>
 
-          <IngestionToggle
-            initial={
-              ingestionStatus.ok
-                ? ingestionStatus.data
-                : { enabled: true, lastChangedAt: null, lastChangedBy: null }
-            }
-          />
-
-          <Section
-            rule
-            title="Quick create"
-            description="Publish directly without going through the approval queue."
-          >
-            <div className="flex flex-wrap gap-3">
-              <CreateLink href="/admin/opportunities/new" label="Opportunity" />
-              <CreateLink href="/admin/events/new" label="Event" />
-              <CreateLink href="/admin/vcs/new" label="VC / grant" />
-            </div>
-          </Section>
-
-          <Section
-            rule
-            title="Community management"
-            description="Search the full membership and remove accounts. Use the graduate cleanup once a year to roll out current students whose graduation year has passed."
-          >
-            <Panel className="p-2">
-              <ul className="grid sm:grid-cols-2">
-                <DoorEntry href="/admin/members" icon="members" name="Member directory" aside="search + delete" />
-                <DoorEntry href="/admin/graduates" icon="user-check" name="Graduate cleanup" />
-                <DoorEntry href="/admin/reports" icon="flag" name="Reported posts" aside="moderation queue" />
-                <DoorEntry href="/admin/connections" icon="connections" name="Connections" aside="reports, throttles, pause" />
-                <DoorEntry href="/admin/banner" icon="notifications" name="Site banner" aside="tell members about an outage" />
-                <DoorEntry href="/admin/ai" icon="foundry-ai" name="AI" aside="health, limits, job audiences" />
-              </ul>
-            </Panel>
-          </Section>
-        </div>
+        <Section
+          rule
+          title="Community management"
+          description="Search the full membership and remove accounts. Use the graduate cleanup once a year to roll out current students whose graduation year has passed."
+        >
+          <Panel className="p-2">
+            <ul className="grid sm:grid-cols-2">
+              <DoorEntry href="/admin/members" icon="members" name="Member directory" aside="search + delete" />
+              <DoorEntry href="/admin/graduates" icon="user-check" name="Graduate cleanup" />
+              <DoorEntry href="/admin/reports" icon="flag" name="Reported posts" aside="moderation queue" />
+              <DoorEntry href="/admin/connections" icon="connections" name="Connections" aside="reports, throttles, pause" />
+              <DoorEntry href="/admin/banner" icon="notifications" name="Site banner" aside="tell members about an outage" />
+              <DoorEntry href="/admin/ai" icon="foundry-ai" name="AI" aside="health, limits, job audiences" />
+            </ul>
+          </Panel>
+        </Section>
       </div>
-    </main>
+    </Page>
   );
 }
 

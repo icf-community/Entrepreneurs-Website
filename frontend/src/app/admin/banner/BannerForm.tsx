@@ -158,11 +158,11 @@ export default function BannerForm({ current }: { current: Current }) {
         <BannerPreview severity={severity} message={message} linkUrl={linkUrl} linkInvalid={linkInvalid} />
 
         <FormActions>
-          <Button variant="primary" size="md" loading={busy === "publish"} disabled={!canPublish} onClick={publish}>
+          <Button variant="primary" size="lg" loading={busy === "publish"} disabled={!canPublish} onClick={publish}>
             Publish banner
           </Button>
           {current?.enabled && (
-            <Button variant="ghost" size="md" loading={busy === "clear"} disabled={busy !== null} onClick={clear}>
+            <Button variant="ghost" size="lg" loading={busy === "clear"} disabled={busy !== null} onClick={clear}>
               Clear banner
             </Button>
           )}

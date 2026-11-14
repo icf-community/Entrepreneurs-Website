@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentUser } from "@/lib/auth/currentUser";
@@ -9,6 +10,8 @@ import { SiteBanner } from "@/components/SiteBanner";
 import { PageHead } from "@/components/ui/PageHead";
 import { Disc } from "@/design-system/icons/Disc";
 import { Icon } from "@/design-system/icons/Icon";
+
+export const metadata: Metadata = { title: "Application not approved" };
 
 export default async function RejectedPage() {
   const supabase = await createClient();

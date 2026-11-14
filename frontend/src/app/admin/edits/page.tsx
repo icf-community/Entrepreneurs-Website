@@ -8,6 +8,7 @@ import { requireAdminPage } from "@/lib/auth/guard";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { PageHead } from "@/components/ui/PageHead";
 import { Icon } from "@/design-system/icons/Icon";
+import { Page } from "@/components/ui/Page";
 
 export default async function AdminListingEditsPage() {
   await requireAdminPage();
@@ -21,28 +22,26 @@ export default async function AdminListingEditsPage() {
   );
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen px-[var(--gutter)] py-10 sm:py-12 text-text-primary">
-      <div className="mx-auto max-w-[var(--content-max)]">
-        <PageHead
-          className="mb-8"
-          context="Admin · review queue"
-          title="Proposed changes"
-          lede={
-            <>
-              {items.length} waiting. Each of these listings is <em>already live</em> and stays
-              live exactly as published until you approve the change — nothing here is
-              currently hidden from members.
-            </>
-          }
-          actions={
-            <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
-              Admin home
-            </ButtonLink>
-          }
-        />
+    <Page as="main">
+      <PageHead
+        className="mb-8"
+        context="Admin · review queue"
+        title="Proposed changes"
+        lede={
+          <>
+            {items.length} waiting. Each of these listings is <em>already live</em> and stays
+            live exactly as published until you approve the change — nothing here is
+            currently hidden from members.
+          </>
+        }
+        actions={
+          <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
+            Admin home
+          </ButtonLink>
+        }
+      />
 
-        <EditsReview items={items} labels={FIELD_LABELS} changed={changed} />
-      </div>
-    </main>
+      <EditsReview items={items} labels={FIELD_LABELS} changed={changed} />
+    </Page>
   );
 }

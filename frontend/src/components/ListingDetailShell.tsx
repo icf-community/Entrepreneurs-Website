@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import AppShell from "@/components/app/AppShell";
 import { ButtonLink } from "@/components/ui/ButtonLink";
@@ -8,7 +7,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHead } from "@/components/ui/PageHead";
 import { Panel } from "@/components/ui/Panel";
 import { PageHeaderSkeleton, Skeleton, SkeletonRegion } from "@/components/ui/Skeleton";
-import { Icon } from "@/design-system/icons/Icon";
+import { Page } from "@/components/ui/Page";
+import { Trail } from "@/components/ui/Trail";
 
 // The chrome shared by /opportunities/[id], /events/[id] and /vcs/[id]:
 // nav, a way back to the list the reader came from, and the masthead.
@@ -34,28 +34,15 @@ export default function ListingDetailShell({
 }) {
   return (
     <AppShell active={active} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[820px]">
-          <PageHead
-            className="mb-8"
-            context={
-              <>
-                {/* The arrow is drawn; the character stays as hidden text so the link's name is still "← All opportunities" (urlfilters.spec). */}
-                <Link href={backHref} className="inline-flex items-center gap-1.5">
-                  <Icon name="arrow-left" size={16} />
-                  <span className="sr-only">← </span>
-                  {backLabel}
-                </Link>
-                <span aria-hidden="true">/</span>
-                {eyebrow}
-              </>
-            }
-            title={title}
-            lede={meta}
-          />
-          {children}
-        </div>
-      </div>
+      <Page width="page">
+        <PageHead
+          className="mb-8"
+          context={<Trail href={backHref} label={backLabel} current={eyebrow} />}
+          title={title}
+          lede={meta}
+        />
+        {children}
+      </Page>
     </AppShell>
   );
 }
@@ -149,32 +136,30 @@ export function ActionSection({ title, children }: { title: string; children: Re
 export function ListingDetailSkeleton({ active }: { active: "opportunities" | "events" | "vcs" }) {
   return (
     <AppShell active={active}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[820px]">
-          <SkeletonRegion>
-            <PageHeaderSkeleton />
-            <div className="grid gap-10">
-              <div className="grid gap-3">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-2/3" />
-              </div>
-              <Panel className="p-5 sm:p-6">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {Array.from({ length: 4 }, (_, i) => (
-                    <div key={i} className="grid gap-2">
-                      <Skeleton className="h-3 w-20" />
-                      <Skeleton className="h-4 w-32" />
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-              <Skeleton className="h-11 w-48 rounded-full" />
+      <Page width="page">
+        <SkeletonRegion>
+          <PageHeaderSkeleton />
+          <div className="grid gap-10">
+            <div className="grid gap-3">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
             </div>
-          </SkeletonRegion>
-        </div>
-      </div>
+            <Panel className="p-5 sm:p-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                {Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className="grid gap-2">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                ))}
+              </div>
+            </Panel>
+            <Skeleton className="h-11 w-48 rounded-full" />
+          </div>
+        </SkeletonRegion>
+      </Page>
     </AppShell>
   );
 }

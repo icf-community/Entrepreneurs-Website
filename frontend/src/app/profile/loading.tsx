@@ -1,13 +1,14 @@
 import AppShell from "@/components/app/AppShell";
 import { Panel } from "@/components/ui/Panel";
 import { FormSkeleton, PageHeaderSkeleton, Skeleton } from "@/components/ui/Skeleton";
+import { Page } from "@/components/ui/Page";
 
 // Same reasoning as members/loading.tsx. Drawn as the page is: the head, then
 // rows with the title and its sentence at the side and the fields beside them.
 export default function Loading() {
   return (
     <AppShell active="settings">
-      <div className="mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)] pb-24 pt-4 sm:pt-6">
+      <Page>
         <PageHeaderSkeleton />
         <div className="mt-8">
           <div className="grid gap-x-12 gap-y-6 border-t border-border-subtle py-9 xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
@@ -27,7 +28,7 @@ export default function Loading() {
             <FormSkeleton fields={4} className="max-w-[34rem]" />
           </div>
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }

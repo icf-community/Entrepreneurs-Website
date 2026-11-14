@@ -94,6 +94,28 @@ describe("nothing bypasses the design system", () => {
     expect(bad).toEqual([]);
   });
 
+  it("every page is framed by <Page> (components/ui/Page.tsx): no page builds its own gutter, top space and column", () => {
+    // These are compositions of their own (a centred card, a header of their own, a document with a table of contents), not a page in a
+    // column. Anything else that writes `px-[var(--gutter)]` is a page that should be `<Page width="…">`, so its head starts where the others do.
+    const STANDALONE = new Set([
+      "app/error.tsx", "app/not-found.tsx", "app/login/page.tsx", "app/login/LoginClient.tsx", "app/login/PublicHeader.tsx",
+      "app/reset-password/page.tsx", "app/pending/page.tsx", "app/rejected/page.tsx",
+      "app/onboarding/OnboardingForm.tsx", "app/onboarding/loading.tsx", "components/intake/IntakeFlow.tsx", "app/intake/loading.tsx",
+      "app/privacy/LegalDocument.tsx",
+    ]);
+    const bad: string[] = [];
+    for (const f of code) {
+      if (STANDALONE.has(rel(f))) continue;
+      if (rel(f).startsWith("design-system/")) continue;
+      const text = stripComments(readFileSync(f, "utf8"));
+      text.split("\n").forEach((line, i) => {
+        if (/px-\[var\(--gutter\)\]/.test(line)) bad.push(`${rel(f)}:${i + 1}`);
+        if (/\bmx-auto\b[^"'`]*\bmax-w-\[(?:\d+(?:px|rem)|var\(--content-max\))\]/.test(line) && /app\/.*\/(?:page|loading)\.tsx$/.test(rel(f))) bad.push(`${rel(f)}:${i + 1}  a hand-set page column`);
+      });
+    }
+    expect(bad).toEqual([]);
+  });
+
   it("stylesheets name no raw hue outside tokens.css and surfaces.css (the dust tiles are data)", () => {
     const bad: string[] = [];
     for (const f of styles) {

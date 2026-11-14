@@ -1,5 +1,6 @@
 import AppShell from "@/components/app/AppShell";
 import { CardGridSkeleton, PageHeaderSkeleton } from "@/components/ui/Skeleton";
+import { Page } from "@/components/ui/Page";
 
 // Painted the instant a navigation to this route starts, before the server
 // has finished anything. Next.js wraps the segment in a Suspense boundary
@@ -22,12 +23,10 @@ import { CardGridSkeleton, PageHeaderSkeleton } from "@/components/ui/Skeleton";
 export default function Loading() {
   return (
     <AppShell active="calendar">
-      <div className="px-[var(--gutter)] pb-20 pt-6 sm:pt-10">
-        <div className="mx-auto max-w-[var(--content-max)]">
-          <PageHeaderSkeleton />
-          <CardGridSkeleton count={3} />
-        </div>
-      </div>
+      <Page>
+        <PageHeaderSkeleton />
+        <CardGridSkeleton count={3} />
+      </Page>
     </AppShell>
   );
 }

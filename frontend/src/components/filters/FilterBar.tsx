@@ -203,8 +203,9 @@ export function RangeFilter({
         {label}
         {hint && <span className="lm-label__hint">{hint}</span>}
       </div>
-      {/* a pair of years shrinks to stay on one line; a pair of dates needs the room, so it wraps instead */}
-      <div className={`flex items-center gap-3 ${type === "date" ? "flex-wrap" : ""}`}>
+      {/* a pair of years shrinks to stay on one line; a pair of dates needs the room, so on a phone they stack ("to" between them) rather than
+          wrap and leave the "to" at the end of a line */}
+      <div className={type === "date" ? "grid gap-2 sm:flex sm:items-center sm:gap-3" : "flex items-center gap-3"}>
         <RangeInput
           type={type}
           ariaLabel={fromLabel}
@@ -268,7 +269,7 @@ function RangeInput({
         if (commitOn === "change") onCommit(e.target.value);
       }}
       onBlur={(e) => { if (commitOn === "blur") onCommit(e.target.value); }}
-      className={type === "number" ? "min-w-0 max-w-40 flex-1" : "min-w-0 max-w-64 flex-1 basis-44"}
+      className={type === "number" ? "min-w-0 max-w-40 flex-1" : "min-w-0 max-w-64 flex-1 basis-44 max-sm:max-w-none"}
     />
   );
 }

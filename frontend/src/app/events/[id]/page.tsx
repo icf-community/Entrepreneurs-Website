@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { isUuid } from "@/lib/uuid";
 import { notFound } from "next/navigation";
 import ListingDetailShell, {
@@ -13,6 +14,8 @@ import EventActions, { ContactOrganiserLink } from "./EventActions";
 import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 import { externalHref } from "@/lib/safeUrl";
+
+export const metadata: Metadata = { title: "Event" };
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One event

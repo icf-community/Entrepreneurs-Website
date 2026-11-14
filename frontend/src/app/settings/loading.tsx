@@ -1,5 +1,6 @@
 import AppShell from "@/components/app/AppShell";
 import { FormSkeleton, PageHeaderSkeleton, Skeleton } from "@/components/ui/Skeleton";
+import { Page } from "@/components/ui/Page";
 
 // Same reasoning as members/loading.tsx: painted the instant navigation
 // starts, sized like the real page so nothing jumps when it streams in
@@ -8,7 +9,7 @@ import { FormSkeleton, PageHeaderSkeleton, Skeleton } from "@/components/ui/Skel
 export default function Loading() {
   return (
     <AppShell active="settings">
-      <div className="mx-auto w-full max-w-[var(--content-max)] px-[var(--gutter)] pb-24 pt-4 sm:pt-6">
+      <Page>
         <PageHeaderSkeleton />
         <div className="mt-8">
           {Array.from({ length: 3 }, (_, i) => (
@@ -25,7 +26,7 @@ export default function Loading() {
             </div>
           ))}
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }

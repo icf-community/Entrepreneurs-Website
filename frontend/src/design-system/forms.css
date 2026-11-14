@@ -612,7 +612,7 @@
   .lm-formsec { display: grid; gap: 24px; padding: 24px; }
   @media (min-width: 40rem) { .lm-formsec { padding: 32px; } }
   .lm-formsec__head { display: grid; gap: 6px; }
-  .lm-formsec__title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: var(--text-title); line-height: var(--text-title--line-height); letter-spacing: var(--tracking-display); color: var(--color-text-primary); text-wrap: balance; }
+  .lm-formsec__title { margin: 0; font-family: var(--font-display); font-weight: 300; font-size: var(--text-title); line-height: var(--text-title--line-height); letter-spacing: var(--tracking-display); color: var(--color-text-primary); text-wrap: balance; }
   .lm-formsec__desc { margin: 0; max-width: 62ch; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.5; }
 
   .lm-group { padding-top: 24px; border-top: 1px solid var(--color-border-subtle); }

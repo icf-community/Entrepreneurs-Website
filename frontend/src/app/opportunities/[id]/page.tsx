@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { isUuid } from "@/lib/uuid";
 import { notFound } from "next/navigation";
 import { ViewProfileButton } from "@/components/members/ViewProfileButton";
@@ -16,6 +17,8 @@ import OpportunityActions from "./OpportunityActions";
 import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 import { externalHref } from "@/lib/safeUrl";
+
+export const metadata: Metadata = { title: "Opportunity" };
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · One opportunity

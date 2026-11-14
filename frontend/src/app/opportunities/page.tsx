@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import ListingPageShell from "@/components/ListingPageShell";
@@ -17,6 +18,8 @@ import { EducationForm } from "@/components/forms/EducationForm";
 import type { Db } from "@/lib/data/query";
 import { aiModeEnabled } from "@/lib/ai/data";
 import OpportunitiesClient from "./OpportunitiesClient";
+
+export const metadata: Metadata = { title: "Opportunities" };
 
 export default async function OpportunitiesPage({
   searchParams,

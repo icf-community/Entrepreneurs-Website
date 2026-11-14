@@ -490,5 +490,6 @@
   .lm-skel[data-shape="ring"] { background: var(--color-tint-1); border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--color-border-subtle); }
   /* a page's opening: the same rule, context line, title and lede as PageHead, sized so nothing jumps when the real head arrives */
   .lm-skel-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding-top: 28px; padding-bottom: 8px; border-top: 1px solid var(--color-border); }
+  .lm-skel-head__context { display: flex; align-items: center; min-height: 24px; }   /* as tall as PageHead's context line */
   .lm-skel--title { height: calc(var(--text-display) * var(--text-display--line-height)); }
 }

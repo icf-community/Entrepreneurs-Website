@@ -7,6 +7,7 @@ import { PageHead } from "@/components/ui/PageHead";
 import { Icon } from "@/design-system/icons/Icon";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { MESSAGING_ENABLED } from "@/lib/features";
+import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Messaging (not yet)
@@ -34,35 +35,33 @@ export default async function MessagingPage() {
 
   return (
     <AppShell active="messaging" name={displayName} isAdmin={isAdmin}>
-      <div className="px-[var(--gutter)] py-10 sm:py-12">
-        <div className="mx-auto max-w-[720px]">
-          <PageHead
-            context="Messaging"
-            title="Coming Soon!"
-            lede="Member-to-member messaging is being built. Soon you will be able to reach anyone in the directory from here — introductions, questions about a role, or a note to someone building in your space — without leaving Foundry."
-          />
+      <Page width="page">
+        <PageHead
+          context="Messaging"
+          title="Coming Soon!"
+          lede="Member-to-member messaging is being built. Soon you will be able to reach anyone in the directory from here — introductions, questions about a role, or a note to someone building in your space — without leaving Foundry."
+        />
 
-          <div className="mt-8">
-            <EmptyState
-              icon="messaging"
-              action={
-                <>
-                  <ButtonLink href="/members" variant="primary" size="md">
-                    Browse members
-                    <Icon name="arrow-right" size={16} />
-                  </ButtonLink>
-                  <ButtonLink href="/opportunities" variant="ghost" size="md">
-                    See opportunities
-                  </ButtonLink>
-                </>
-              }
-            >
-              Until then, member profiles carry the contact links people have chosen to
-              share, and every opportunity lists how to apply.
-            </EmptyState>
-          </div>
+        <div className="mt-8">
+          <EmptyState
+            icon="messaging"
+            action={
+              <>
+                <ButtonLink href="/members" variant="primary" size="md">
+                  Browse members
+                  <Icon name="arrow-right" size={16} />
+                </ButtonLink>
+                <ButtonLink href="/opportunities" variant="ghost" size="md">
+                  See opportunities
+                </ButtonLink>
+              </>
+            }
+          >
+            Until then, member profiles carry the contact links people have chosen to
+            share, and every opportunity lists how to apply.
+          </EmptyState>
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }
