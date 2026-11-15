@@ -83,6 +83,12 @@ describe("buildCsp", () => {
     expect(csp).toMatch(/connect-src[^;]*https:\/\/challenges\.cloudflare\.com/);
   });
 
+  it("allows Tally in frame-src only, for the IdeaForge form embed", () => {
+    const csp = buildCsp("n");
+    expect(csp).toMatch(/frame-src[^;]*https:\/\/tally\.so/);
+    expect(csp).not.toMatch(/script-src[^;]*tally/);
+  });
+
   it("omits unset optional origins without leaving empty tokens", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
     vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "");

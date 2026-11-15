@@ -57,6 +57,7 @@ export const ROUTES: { path: string; gate: Gate }[] = [
   { path: "/login", gate: "public" },
   { path: "/ai-notice", gate: "public" },
   { path: "/contact", gate: "public" },
+  { path: "/ideaforge", gate: "public" },
   { path: "/cookies", gate: "public" },
   { path: "/privacy", gate: "public" },
   { path: "/terms", gate: "public" },

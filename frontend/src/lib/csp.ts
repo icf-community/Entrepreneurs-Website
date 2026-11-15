@@ -75,6 +75,11 @@ export function buildCsp(nonce: string): string {
 
   const turnstile = "https://challenges.cloudflare.com";
 
+  // The IdeaForge application form (/ideaforge) is a Tally embed. frame-src
+  // only: the iframe runs on Tally's origin, so nothing here lets Tally run
+  // script in our pages.
+  const tally = "https://tally.so";
+
   // Community post images. Served straight from Azure Blob over a
   // short-expiry SAS, so the browser fetches them from the storage account
   // host rather than from us. Derived from the same env the URL signer
@@ -140,7 +145,7 @@ export function buildCsp(nonce: string): string {
     `img-src ${imgSrc.join(" ")}`,
     `font-src 'self' data:`,
     `connect-src ${connectSrc.join(" ")}`,
-    `frame-src ${turnstile}`,
+    `frame-src ${turnstile} ${tally}`,
     `worker-src 'self' blob:`,
     `object-src 'none'`,
     `base-uri 'self'`,
