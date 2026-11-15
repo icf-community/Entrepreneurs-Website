@@ -12,6 +12,24 @@ import { mailtoHref } from "@/lib/safeUrl";
 // calendar popover, the going pill — and the mailto in the facts grid, which
 // lives here only because clicking it is a tracked event.
 
+/**
+ * The page's one lit action. It is a client component of its own because the click
+ * is a tracked event, and the page hands it to the masthead (ListingDetailShell's
+ * `actions`), apart from the calendar and the going pill under the facts.
+ */
+export function EventRsvpButton({ id, href }: { id: string; href: string }) {
+  return (
+    <ExternalButtonLink
+      href={href}
+      size="md"
+      lit
+      onClick={() => recordListingEvent("event", id, "external_click")}
+    >
+      RSVP on Luma
+    </ExternalButtonLink>
+  );
+}
+
 export default function EventActions({
   event: ev, going,
 }: {
@@ -29,14 +47,7 @@ export default function EventActions({
   }, [ev.id]);
 
   return (
-    <div className="flex flex-wrap items-start gap-3">
-      <ExternalButtonLink
-        href={ev.lumaLink}
-        lit
-        onClick={() => recordListingEvent("event", ev.id, "external_click")}
-      >
-        RSVP on Luma
-      </ExternalButtonLink>
+    <div className="lm-actionrow">
       <AddToCalendarMenu
         title={ev.title}
         description={ev.description}

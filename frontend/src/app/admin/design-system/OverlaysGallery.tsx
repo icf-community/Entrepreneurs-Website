@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { MenuItem, MenuSeparator } from "@/components/ui/Popover";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
+import { Section } from "@/components/ui/Section";
 import { CardGridSkeleton, FilterBarSkeleton, FormSkeleton, PageHeaderSkeleton, RowListSkeleton, Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { Updating } from "@/components/ui/Updating";
@@ -24,6 +25,7 @@ import {
   ToastSpecimens,
   TooltipsDemo,
 } from "./OverlaysDemos";
+import { titleOf } from "./sections";
 
 // The Overlays section of the design-system gallery (/admin/design-system). Owned by the overlays family: every component of the
 // family, in every state, with real content and a one-line note on when to use it (and when not to). A server component: the pieces
@@ -84,14 +86,12 @@ function DialogSpecimen({ danger = false }: { danger?: boolean }) {
 
 export function OverlaysGallery() {
   return (
-    <section id="overlays" className="grid grid-cols-1 gap-10 border-t border-border-subtle py-12">
-      <div className="grid grid-cols-1 gap-2">
-        <h2 className="font-display text-heading text-text-primary">Overlays and feedback</h2>
-        <p className="measure-prose text-small text-text-secondary">
-          Everything that sits over a page or answers an action. An overlay is raised: a hairline, a whisper of warm light on its top edge, one soft shadow. Status is a tone, never a stripe. Prefer a popover or a disclosure to a modal whenever the task needs neither interruption nor protected focus.
-        </p>
-      </div>
-
+    <Section
+      rule
+      id="overlays"
+      title={titleOf("overlays")}
+      description="Everything that sits over a page or answers an action. An overlay is raised: a hairline, a whisper of warm light on its top edge, one soft shadow. Status is a tone, never a stripe. Prefer a popover or a disclosure to a modal whenever the task needs neither interruption nor protected focus."
+    >
       <div className="grid grid-cols-1 gap-12">
         <Block
           title="Dialog"
@@ -342,7 +342,6 @@ export function OverlaysGallery() {
           <Caption>The sweep is slow (4 s, mostly rest) and stops under reduced motion; the spinner keeps turning, slowly, because a frozen one reads as a hung request. Blocks keep animate-pulse and regions aria-busy for the specs.</Caption>
         </Block>
       </div>
-
-    </section>
+    </Section>
   );
 }

@@ -10,8 +10,9 @@ import { settle } from "@/lib/settle";
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Mark-as-applied / going pill
 //
-// Inline self-attestation control rendered next to the external apply
-// or RSVP CTA on each listing card. Optimistic local toggle with
+// Self-attestation control rendered next to the external apply or RSVP
+// CTA on each listing card. It fills the cell it is given (an action row's,
+// lm-actionrow), so it lines up with the buttons beside it. Optimistic local toggle with
 // rollback on RPC failure. Failure state is surfaced inline (a drawn
 // mark and a sentence) rather than via a modal — the action is low-stakes.
 //
@@ -56,12 +57,12 @@ export function MarkActionPill({ kind, id, initial, onChange }: Props) {
   const label = actionLabel(kind, marked);
 
   return (
-    <div className="inline-flex flex-col items-start gap-2">
+    <div className="grid gap-2">
       <Chip
         pressed={marked}
         onClick={(e) => { e.stopPropagation(); void toggle(); }}
         aria-busy={pending || undefined}
-        className="min-h-[var(--touch)] aria-busy:cursor-progress"
+        className="min-h-[var(--touch)] justify-center aria-busy:cursor-progress"
       >
         <span className="inline-flex items-center gap-2">
           {marked ? null : <Icon name="ring" size={16} />}

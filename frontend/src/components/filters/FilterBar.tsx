@@ -99,7 +99,7 @@ export function FilterPanel({
         // The class is applied only while open, so React remounting the
         // attribute is what fires the animation. Left on permanently it
         // would run once, invisibly, behind `hidden`.
-        className={`grid gap-6 p-5 sm:p-6 ${open ? "anim-panel" : ""}`}
+        className={`lm-filters p-5 sm:p-6 ${open ? "anim-panel" : ""}`}
       >
         {children}
       </Panel>

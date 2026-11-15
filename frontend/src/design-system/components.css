@@ -212,6 +212,38 @@
   .lm-disc:not([data-lit]):has(> .lm-avatar[data-hue="sun"]:not([data-lit], [data-tone="lit"]))  { --_h: var(--color-person-sun); }
   .lm-disc:not([data-lit]):has(> .lm-avatar[data-hue="cool"]:not([data-lit], [data-tone="lit"])) { --_h: var(--color-person-cool); }
 
+  /* ── Action row: the buttons of a card or a detail block ────────────────────────────────────────────────────────────
+     Equal cells (at least 11rem each) that fill the row, instead of a ragged run of pills of different widths that wraps into four rows of 165, 200,
+     156 and 164 px. A lone button is one cell wide; on a phone the cells are the whole row, so the buttons stack at full width, as the page head's
+     and a form's do. */
+  .lm-actionrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: 12px; align-items: stretch; }
+  .lm-actionrow > .lm-btn { width: 100%; }
+
+  /* ── Filters: the groups inside an open filter panel ─────────────────────────────────────────────────────────────────
+     As many columns as the panel has room for (each at least 18rem), top-aligned, instead of one tall column that pushed the results below the fold
+     (six groups were 654 px of panel in front of the member table). */
+  .lm-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); align-items: start; gap: 24px 32px; }
+
+  /* ── Cards: a grid of cards that fits the column it is in ──────────────────────────────────────────────────────────
+     The columns come from the room the grid has, not from the window. Beside the 280 px rail a 1024 px window leaves 670 px, and a breakpoint keyed
+     to the window (lg:grid-cols-3) put three cards of 210 px in it, so names and courses were cut. Each column is at least --_min wide and there
+     are at most --_cols of them; spare room goes to the cards, and an empty track stays empty (one card is one card wide). */
+  .lm-cards {
+    --_gap: 16px;
+    --_min: 15rem;
+    --_cols: 3;
+    display: grid;
+    gap: var(--_gap);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--_min), calc((100% - (var(--_cols) - 1) * var(--_gap)) / var(--_cols)))), 1fr));
+  }
+  /* A strip of five tiles (the newest members). Its columns come from its own width and are only ever 2, 3 or 5 across, because five tiles in four
+     columns leave one alone on a row: two across below 33rem (2 + 2 + 1), three to 52rem (3 + 2), then all five. The tiles share each row, so a short
+     last row stretches across instead of leaving a gap. */
+  .lm-tiles { container-type: inline-size; display: flex; flex-wrap: wrap; gap: 12px; }
+  .lm-tiles > * { flex: 1 1 calc(50% - 6px); min-width: 0; }
+  @container (min-width: 33rem) { .lm-tiles > * { flex-basis: calc(33.333% - 8px); } }
+  @container (min-width: 52rem) { .lm-tiles > * { flex-basis: calc(20% - 9.6px); } }
+
   /* ── Entry: one row of a list (a member, a listing, a notification): glyph, words, a trailing control. ─────── */
   .lm-entry {
     position: relative;
@@ -289,11 +321,19 @@
   .lm-pagehead__context a:hover { color: var(--color-text-primary); text-decoration: underline; text-underline-offset: 3px; }
   .lm-pagehead__title { font-family: var(--font-display); font-weight: 300; font-size: var(--text-display); line-height: var(--text-display--line-height); letter-spacing: var(--tracking-display); color: var(--color-text-primary); margin: 0; text-wrap: balance; }
   .lm-pagehead__lede { max-width: 46ch; margin: 0; color: var(--color-text-secondary); font-size: var(--text-body); line-height: 1.5; }
-  .lm-pagehead__row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
+  /* The actions sit level with the title, not with the foot of the lede (a lede of three lines would drop them a hundred pixels below the title), and
+     the title gives way before they do: it wraps at 22rem rather than letting the actions fall under it as the window narrows. */
+  .lm-pagehead__row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px 24px; }
+  .lm-pagehead__row > :first-child { flex: 1 1 22rem; min-width: 0; }
   .lm-pagehead__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  /* A quiet button is words with room for a pointer round them. At the edge of the head that room hangs out, so the words line up with the title and
+     the rule (the right edge when the actions sit beside the title, the left edge when they stack under it on a phone). */
+  .lm-pagehead__actions > .lm-btn[data-variant="quiet"]:last-child { margin-inline-end: calc(var(--_px) * -0.6); }
+  .lm-pagehead__actions > .lm-btn[data-variant="quiet"]:only-child { margin-inline-start: calc(var(--_px) * -0.6); }
   /* on a phone a page's actions stack at full width, as a form's do (forms.css, .lm-actions), instead of a ragged run of pills of different widths */
   @media (max-width: 30rem) {
     .lm-pagehead__actions { width: 100%; }
     .lm-pagehead__actions > .lm-btn:not([data-variant="quiet"]) { flex: 1 1 100%; }   /* a quiet button is a text link with a ring: it stays as wide as its words */
+    .lm-pagehead__actions > .lm-btn[data-variant="quiet"]:first-child { margin-inline-start: calc(var(--_px) * -0.6); }
   }
 }

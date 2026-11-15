@@ -35,7 +35,7 @@ export default async function VcsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const { supabase, isAdmin } = await requireApprovedUser();
+  const { supabase, isAdmin, displayName } = await requireApprovedUser();
   const sp = flattenSearchParams(await searchParams, []);
 
   // /vcs?v=<id> was how a listing was linked to before it had a
@@ -59,6 +59,7 @@ export default async function VcsPage({
   return (
     <ListingPageShell
       active="vcs"
+      name={displayName}
       isAdmin={isAdmin}
       justSubmitted={justSubmitted}
       submittedKind="VC/grant"

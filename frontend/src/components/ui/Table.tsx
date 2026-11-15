@@ -27,6 +27,9 @@ import type { CSSProperties, HTMLAttributes, ReactNode, TdHTMLAttributes, ThHTML
 //     cell of buttons `actions`. `narrow="scroll"` keeps the sideways scroll at
 //     every width instead (for dense numeric tables); `minWidth` then sets how
 //     wide the table is before it scrolls.
+//   * `stackBelow` ("md" 880 px, "lg" 1140 px of the table's width) makes a table with many columns stack earlier than 640 px, so it never sits behind a
+//     sideways scroll that hides a third of its columns on a tablet. `TD wide` puts a long value (an email address) on the line under its label when
+//     stacked; `TD empty` draws nothing when stacked (a cell that holds only a dash).
 //   * explicit ARIA roles on every part, because browsers drop table semantics
 //     when CSS changes a table's display (the stacked layout does), and the
 //     roles put them back.
@@ -45,6 +48,7 @@ export function Table({
   caption,
   captionVisible = false,
   narrow = "stack",
+  stackBelow = "sm",
   density = "comfortable",
   minWidth,
   maxHeight,
@@ -57,6 +61,8 @@ export function Table({
   caption?: ReactNode;
   captionVisible?: boolean;
   narrow?: "stack" | "scroll";
+  /** For narrow="stack": the width of the table below which it stacks: sm 640 px (the default), md 880 px, lg 1140 px. */
+  stackBelow?: "sm" | "md" | "lg";
   density?: "comfortable" | "compact";
   /** For narrow="scroll": the width below which the table scrolls sideways, e.g. "44rem". */
   minWidth?: string;
@@ -68,26 +74,28 @@ export function Table({
   const tableStyle = minWidth ? ({ "--lm-table-min": minWidth } as CSSProperties) : undefined;
   const regionStyle = maxHeight ? ({ "--lm-table-max": maxHeight } as CSSProperties) : undefined;
   return (
-    <div className={`lm-tablebox ${className}`.trim()}>
-      <div
-        role="region"
-        aria-label={label}
-        tabIndex={0}
-        className="lm-tablescroll"
-        data-narrow={narrow}
-        data-tall={maxHeight ? "" : undefined}
-        style={regionStyle}
-      >
-        <table
-          role={ROLE.table}
-          className="lm-table"
+    <div className={`lm-tablebox ${className}`.trim()} data-stack-below={stackBelow === "sm" ? undefined : stackBelow}>
+      <div className="lm-tablecq">
+        <div
+          role="region"
+          aria-label={label}
+          tabIndex={0}
+          className="lm-tablescroll"
           data-narrow={narrow}
-          data-density={density === "compact" ? "compact" : undefined}
-          style={tableStyle}
+          data-tall={maxHeight ? "" : undefined}
+          style={regionStyle}
         >
-          {caption ? <caption className={captionVisible ? undefined : "sr-only"}>{caption}</caption> : null}
-          {children}
-        </table>
+          <table
+            role={ROLE.table}
+            className="lm-table"
+            data-narrow={narrow}
+            data-density={density === "compact" ? "compact" : undefined}
+            style={tableStyle}
+          >
+            {caption ? <caption className={captionVisible ? undefined : "sr-only"}>{caption}</caption> : null}
+            {children}
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -137,6 +145,8 @@ export function TD({
   primary = false,
   actions = false,
   nowrap = false,
+  wide = false,
+  empty = false,
   ...rest
 }: {
   /** The column's name, printed before the value when the table stacks. Leave it off for a cell that needs none. */
@@ -148,6 +158,10 @@ export function TD({
   /** A cell of buttons: right-aligned, never wrapped; left-aligned and wrapped when stacked. */
   actions?: boolean;
   nowrap?: boolean;
+  /** When stacked, the value goes on the line under its label (for a long one: an email address). */
+  wide?: boolean;
+  /** When stacked, the cell is not drawn at all (it holds only a dash). The table still shows it. */
+  empty?: boolean;
 } & TdHTMLAttributes<HTMLTableCellElement>) {
   return (
     <td
@@ -157,6 +171,8 @@ export function TD({
       data-primary={primary || undefined}
       data-actions={actions || undefined}
       data-nowrap={nowrap || undefined}
+      data-wide={wide || undefined}
+      data-empty={empty || undefined}
       {...rest}
     />
   );

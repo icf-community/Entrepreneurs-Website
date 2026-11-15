@@ -7,12 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { closeDialog } from "@/components/ui/dialogCloser";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { LinkTabs } from "@/components/ui/LinkTabs";
 import { Panel } from "@/components/ui/Panel";
-import { Icon } from "@/design-system/icons/Icon";
 import { deleteMyPost, loadMoreMyPosts } from "../actions";
 import PostBody from "../PostBody";
-import { PostImages } from "../PostCard";
+import { PostFooterActions, PostImages } from "../PostCard";
 import type { MyPostView } from "../feedView";
 import { ErrorBanner } from "@/components/forms/Banners";
 
@@ -22,8 +20,9 @@ import { ErrorBanner } from "@/components/forms/Banners";
 // Every post here still expires 7 days after posting (purge_expired_posts,
 // unchanged) — this view just no longer surfaces a countdown for it.
 //
-// The two views of the feed are real routes, so they are link tabs: the URL
-// says which one you are on, and "My posts" can be linked and bookmarked.
+// The two views of the feed are real routes: the URL says which one you are
+// on, and "My posts" can be linked and bookmarked. The way back to the feed is
+// in the page head, where /community has its own switch.
 // ════════════════════════════════════════════════════════════════════
 
 export default function MyPostsClient({
@@ -41,16 +40,7 @@ export default function MyPostsClient({
   const [pending, start] = useTransition();
 
   return (
-    <div className="mt-8 grid grid-cols-1 gap-6">
-      <LinkTabs
-        label="Community views"
-        value="mine"
-        items={[
-          { value: "all", href: "/community", label: "All posts" },
-          { value: "mine", href: "/community/mine", label: "My posts" },
-        ]}
-      />
-
+    <div className="grid grid-cols-1 gap-6">
       {posts.length === 0 ? (
         <EmptyState icon="community">
           You haven&rsquo;t posted anything yet, or your posts have expired.{" "}
@@ -72,8 +62,6 @@ export default function MyPostsClient({
                 {new Date(post.createdAt).toLocaleDateString("en-GB", {
                   day: "numeric", month: "short", year: "numeric",
                 })}
-                <span aria-hidden className="mx-1.5">·</span>
-                <span className="tnum">{post.likeCount === 1 ? "1 like" : `${post.likeCount} likes`}</span>
               </p>
 
               <h2 className="mt-3 break-words font-display text-title text-text-primary">
@@ -85,16 +73,15 @@ export default function MyPostsClient({
 
               <PostImages images={post.images} />
 
-              <div className="mt-6 flex border-t border-border-subtle pt-4">
-                <Button
-                  variant="dangerGhost"
-                  size="sm"
-                  leading={<Icon name="trash" size={18} />}
-                  onClick={() => setConfirming(post)}
-                >
-                  Delete
-                </Button>
-              </div>
+              {/* The same footer as the author's own post in the feed: the likes at the left, Delete at the right. */}
+              <PostFooterActions
+                kind="member"
+                isAuthor
+                isAdmin={false}
+                liked={false}
+                likeCount={post.likeCount}
+                onOpenDialog={() => setConfirming(post)}
+              />
             </Panel>
           ))}
         </div>

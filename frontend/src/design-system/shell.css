@@ -43,7 +43,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 20px 18px 12px 22px;
+    padding: 20px 18px 12px 12px;   /* the roundel's art starts where the rows' rings do (18 px), the toggle ends where the rule does (18 px from the right) */
   }
   .lm-rail[data-collapsed] .lm-rail__head { flex-direction: column; justify-content: center; gap: 14px; padding: 20px 0 12px; }
 
@@ -87,7 +87,7 @@
   }
   .lm-rail[data-collapsed] .lm-rail__nav { padding-inline: 0; }
   .lm-rail__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-  .lm-rail__rule { height: 1px; margin: 12px 18px; border: 0; background: var(--color-border-subtle); }
+  .lm-rail__rule { height: 1px; margin: 12px 4px; border: 0; background: var(--color-border-subtle); }   /* from the rings' left edge to the toggle's right edge */
   .lm-rail[data-collapsed] .lm-rail__rule { margin-inline: 26px; }
 
   .lm-rail__foot {
@@ -208,6 +208,43 @@
   }
   .lm-rail[data-collapsed] .lm-navitem .lm-badge { display: none; }
   .lm-rail[data-collapsed] .lm-navitem__pending { left: 4px; }
+
+  /* ── A window shorter than the rail ─────────────────────────────────────────────────────────────────────────────
+     The rail needs about 910 px of height (the brand 98, fourteen rows 683, the member 129) and a laptop's window has 650 to 800. So it gives height
+     back in steps instead of cutting rows off the bottom: first the air round the head, the rule and the foot (any pointer); then, for a mouse only
+     (a finger needs its 44 px), the rows themselves, to 40 and then 36 with the ring a little smaller. What still does not fit scrolls, and the
+     edge that has more behind it fades (Sidebar sets data-cue from the scroll position), because an overlay scroll bar says nothing. */
+  @media (max-height: 57.5rem) {
+    .lm-rail__head { padding-top: 14px; padding-bottom: 6px; }
+    .lm-rail[data-collapsed] .lm-rail__head { gap: 8px; padding-top: 14px; padding-bottom: 6px; }
+    .lm-rail__nav { padding-top: 4px; padding-bottom: 8px; }
+    .lm-rail__list { gap: 1px; }
+    .lm-rail__rule { margin-block: 8px; }
+    .lm-rail__foot { gap: 2px; padding-top: 8px; padding-bottom: 10px; }
+  }
+  @media (max-height: 57.5rem) and (pointer: fine) {
+    .lm-navitem { min-height: 40px; padding-block: 2px; }
+    .lm-navitem[data-tone="outline"] { padding-block: 1px; }
+    .lm-navitem[data-tone="profile"] { min-height: 48px; }
+    .lm-rail[data-collapsed] .lm-navitem { padding-block: 2px; }
+  }
+  @media (max-height: 48.5rem) and (pointer: fine) {
+    .lm-rail__head { padding-top: 10px; padding-bottom: 4px; }
+    .lm-rail[data-collapsed] .lm-rail__head { padding-top: 10px; padding-bottom: 4px; }
+    .lm-rail__nav { padding-top: 2px; padding-bottom: 6px; }
+    .lm-rail__rule { margin-block: 6px; }
+    .lm-navitem { min-height: 36px; padding-block: 0; }
+    .lm-navitem[data-tone="outline"] { padding-block: 0; }
+    .lm-navitem[data-tone="profile"] { min-height: 44px; }
+    .lm-navitem__mark { width: 32px; height: 32px; }
+    .lm-navitem__pending { width: 32px; height: 32px; margin-top: -16px; }
+    .lm-rail[data-collapsed] .lm-navitem { padding-block: 0; }
+    .lm-rail[data-collapsed] .lm-navitem__pending { left: 6px; }
+    .lm-rail:not([data-drawer]) .lm-rail__toggle { width: 36px; height: 36px; }
+  }
+  .lm-rail__nav[data-cue="end"]   { -webkit-mask-image: linear-gradient(to bottom, var(--color-void) calc(100% - 40px), transparent); mask-image: linear-gradient(to bottom, var(--color-void) calc(100% - 40px), transparent); }
+  .lm-rail__nav[data-cue="start"] { -webkit-mask-image: linear-gradient(to bottom, transparent, var(--color-void) 40px); mask-image: linear-gradient(to bottom, transparent, var(--color-void) 40px); }
+  .lm-rail__nav[data-cue="both"]  { -webkit-mask-image: linear-gradient(to bottom, transparent, var(--color-void) 40px, var(--color-void) calc(100% - 40px), transparent); mask-image: linear-gradient(to bottom, transparent, var(--color-void) 40px, var(--color-void) calc(100% - 40px), transparent); }
 
   @media (prefers-reduced-motion: reduce) {
     .lm-rail { transition: none; }

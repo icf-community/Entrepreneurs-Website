@@ -40,4 +40,4 @@
 
 /* A lede or a caption never runs wider than this. */
 .measure { max-width: var(--measure); }
-.measure-prose { max-width: 62ch; }
+.measure-prose { max-width: var(--measure-prose); }

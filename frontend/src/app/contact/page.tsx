@@ -6,6 +6,7 @@ import { ButtonLink } from "@/components/ui/ButtonLink";
 import { PageHead } from "@/components/ui/PageHead";
 import { Icon } from "@/design-system/icons/Icon";
 import { PublicHeader } from "@/app/login/PublicHeader";
+import { PublicFooter } from "@/components/PublicFooter";
 import ContactForm from "./ContactForm";
 import { Page } from "@/components/ui/Page";
 import { Trail } from "@/components/ui/Trail";
@@ -89,6 +90,8 @@ export default async function ContactPage() {
       <main id="main-content" tabIndex={-1} className="flex-1">
         {body}
       </main>
+      {/* The form takes a name and an email, so the policy that says what becomes of them is one link away (a member has the rail and Settings). */}
+      <PublicFooter />
     </div>
   );
 }

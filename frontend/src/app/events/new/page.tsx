@@ -6,6 +6,7 @@ import { requireApprovedUser } from "@/lib/auth/guard";
 import { posterName } from "@/lib/data/profiles";
 import EventForm from "./EventForm";
 import { Page } from "@/components/ui/Page";
+import { Trail } from "@/components/ui/Trail";
 
 export const metadata: Metadata = { title: "Post an event" };
 
@@ -20,7 +21,7 @@ export default async function NewEventPage() {
       <Page width="page">
         <PageHead
           className="mb-8"
-          context="Post an event"
+          context={<Trail href="/events" label="All events" current="Post an event" />}
           title="Share an event with the network"
           lede="Submissions go to the admin queue for review before they appear on the Events tab."
         />

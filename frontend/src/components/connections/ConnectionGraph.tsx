@@ -430,7 +430,7 @@ function ClusterSummary({
         ))}
       </div>
 
-      <ul className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="lm-cards mt-5 [--_gap:8px] [--_min:17rem]">
         {members.map((m) => (
           <Entry
             key={m.id}

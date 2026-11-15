@@ -31,11 +31,11 @@ export default async function AdminEventsPage() {
         lede={`${pending.length} awaiting review.`}
         actions={
           <>
-            <ButtonLink href="/admin/events/new" variant="ghost" size="sm" leading={<Icon name="plus" size={18} />}>
-              <span className="sr-only">+ </span>New event
-            </ButtonLink>
             <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
               Admin home
+            </ButtonLink>
+            <ButtonLink href="/admin/events/new" variant="ghost" size="sm" leading={<Icon name="plus" size={18} />}>
+              <span className="sr-only">+ </span>New event
             </ButtonLink>
           </>
         }

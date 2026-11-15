@@ -145,7 +145,8 @@
   --col-narrow: 32rem;                        /* a short form or a single message (640 px) */
   --page-top: 2.5rem;                         /* above a page's head (3rem from sm up) */
   --page-bottom: 5rem;                        /* below a page's last block */
-  --measure: 34ch;                            /* a lede or a caption never runs wider */
+  --measure: 34ch;                            /* a caption never runs wider */
+  --measure-prose: 56ch;                      /* a paragraph never runs wider: about 75 characters in this face (ch is the width of a 0, 10.4 px here; an average glyph is 7.6 px) */
   --touch: 44px;                              /* the smallest a control may be */
   --rail-width: 280px;                        /* the signed-in rail, labelled */
   --rail-width-collapsed: 92px;               /* the same rail with its labels away: a column of rings */

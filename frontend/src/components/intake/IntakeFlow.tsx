@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { BrandLogo } from "@/components/BrandLogo";
+import { PublicHeader } from "@/app/login/PublicHeader";
 import { Button } from "@/components/ui/Button";
+import { Page } from "@/components/ui/Page";
 import { PageHead } from "@/components/ui/PageHead";
 import { Panel } from "@/components/ui/Panel";
 import { ErrorBanner } from "@/components/forms/Banners";
@@ -361,28 +361,26 @@ export default function IntakeFlow({
   // opposite. Only this one screen's heading needs to be role-aware; everything else can keep reading straight from steps.ts.
   const heading = step === "cv" ? (role === "student" ? "Your CV" : "Your CV, if you have one") : meta.title;
   const enter = dir === "fwd" ? "anim-step-fwd" : "anim-step-back";
+  const errorBanner = error ? (
+    <div className="mb-6">
+      <ErrorBanner>{error}</ErrorBanner>
+    </div>
+  ) : null;
 
   return (
     // no background of its own: the atmosphere (the night behind every page) shows through
     <div className="flex min-h-screen flex-col">
-      <header className="z-40 border-b border-border-subtle bg-bg-primary/85 px-[var(--gutter)] backdrop-blur-md sm:sticky sm:top-0">
-        <div className="mx-auto flex max-w-[var(--content-max)] flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3.5">
-          <Link href="/" className="no-underline">
-            <BrandLogo size="sm" />
-          </Link>
-          {!done && compulsoryDone && (
-            <Button type="button" variant="ghost" size="sm" onClick={skip} disabled={busy}>
-              Skip for now
-            </Button>
-          )}
-        </div>
-      </header>
+      {/* the same bar as every page before the rail, held at the top while a long screen scrolls */}
+      <PublicHeader sticky>
+        {!done && compulsoryDone && (
+          <Button type="button" variant="ghost" size="sm" onClick={skip} disabled={busy}>
+            Skip for now
+          </Button>
+        )}
+      </PublicHeader>
 
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="mx-auto w-full max-w-[var(--content-max)] flex-1 px-[var(--gutter)] pb-24 pt-6 lg:pt-10"
-      >
+      {/* the page frame: the head sits as far under the bar as it does on every other page (the column is the rail and the screen) */}
+      <Page as="main" className="flex-1">
         {done ? (
           <IntakeDoneScreen onGoToDashboard={() => router.push("/home")} />
         ) : (
@@ -411,17 +409,16 @@ export default function IntakeFlow({
               </div>
 
               <div key={`${step}-body`} className={enter}>
-                {error && (
-                  <div className="mb-6">
-                    <ErrorBanner>{error}</ErrorBanner>
-                  </div>
-                )}
-
-                {/* the "You're in" screen is a moment, not a form: its cards are the surfaces, so it gets no card of its own */}
+                {/* the "You're in" screen is a moment, not a form: its cards are the surfaces, so it gets no card of its own (and its error sits above them).
+                    Everywhere else the error is the first thing in the card, as it is on /onboarding and /login. */}
                 {step === "youre-in" ? (
-                  <IntakeStepBody step={step} screenProps={screenProps} matches={matches} />
+                  <>
+                    {errorBanner}
+                    <IntakeStepBody step={step} screenProps={screenProps} matches={matches} />
+                  </>
                 ) : (
                   <Panel className="p-6 sm:p-8">
+                    {errorBanner}
                     <IntakeStepBody step={step} screenProps={screenProps} matches={matches} />
                   </Panel>
                 )}
@@ -448,7 +445,7 @@ export default function IntakeFlow({
             </div>
           </div>
         )}
-      </main>
+      </Page>
     </div>
   );
 }

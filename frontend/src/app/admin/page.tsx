@@ -50,7 +50,7 @@ export default async function AdminPage() {
         }
       />
 
-      <div className="lm-sections mt-10">
+      <div className="lm-sections mt-8">
         <section aria-label="Review queues">
           <StatGrid min="sm">
             <QueueStat

@@ -16,13 +16,18 @@ import { Trail } from "@/components/ui/Trail";
 // Sibling of ListingPageShell, and deliberately the same masthead (PageHead) so
 // a listing's own page reads as part of its section rather than as a different
 // app. Narrower measure though: this is one thing to read, not a grid to scan.
-// The way back and the section's name are PageHead's context trail.
+// The way back and the section's name are PageHead's context trail, and the one
+// lit action (RSVP, Email to apply, Open link) is PageHead's actions: a reader who
+// came to act should not have to scroll past the description and the facts to find
+// it (on a phone it was a screen and a half down).
 
 export default function ListingDetailShell({
-  active, isAdmin, backHref, backLabel, eyebrow, title, meta, children,
+  active, isAdmin, name, backHref, backLabel, eyebrow, title, meta, actions, children,
 }: {
   active: "opportunities" | "events" | "vcs";
   isAdmin: boolean;
+  /** The member's name, for the rail's identity chip (every other page shows it, so these must too). */
+  name?: string;
   backHref: string;
   /** Completes "← …", e.g. "All opportunities". */
   backLabel: string;
@@ -30,16 +35,19 @@ export default function ListingDetailShell({
   title: string;
   /** One line under the heading: the facts a reader scans for first. */
   meta?: ReactNode;
+  /** The page's one lit button, if it has one. Pass nothing (not an empty node) when there is none: PageHead draws an actions row for any node. */
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <AppShell active={active} isAdmin={isAdmin}>
+    <AppShell active={active} name={name} isAdmin={isAdmin}>
       <Page width="page">
         <PageHead
           className="mb-8"
           context={<Trail href={backHref} label={backLabel} current={eyebrow} />}
           title={title}
           lede={meta}
+          actions={actions}
         />
         {children}
       </Page>
@@ -88,11 +96,18 @@ export function Fact({ label, children }: { label: string; children: ReactNode }
   return <Definition term={label}>{children}</Definition>;
 }
 
-/** The facts of a listing: one ruled surface holding a DefinitionList of <Fact>s. */
+/**
+ * The facts of a listing: one ruled surface holding a DefinitionList of <Fact>s.
+ *
+ * The grid is two columns on this page, so an odd number of facts leaves the last one alone
+ * on a half-empty row ("Posted by" under four others, with its LinkedIn link and a button).
+ * The last fact of an odd run takes the whole row instead; with one column (a phone) the
+ * rule changes nothing.
+ */
 export function Facts({ children }: { children: ReactNode }) {
   return (
     <Panel className="p-5 sm:p-6">
-      <DefinitionList>{children}</DefinitionList>
+      <DefinitionList className="[&>div:last-child:nth-child(odd)]:col-span-full">{children}</DefinitionList>
     </Panel>
   );
 }

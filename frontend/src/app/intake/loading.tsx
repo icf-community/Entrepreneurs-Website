@@ -1,4 +1,5 @@
-import { BrandLogo } from "@/components/BrandLogo";
+import { PublicHeader } from "@/app/login/PublicHeader";
+import { Page } from "@/components/ui/Page";
 import { Panel } from "@/components/ui/Panel";
 import { PageHeaderSkeleton, Skeleton, SkeletonRegion } from "@/components/ui/Skeleton";
 
@@ -29,20 +30,11 @@ function RailGroup({ rows }: { rows: number }) {
 export default function Loading() {
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="z-40 border-b border-border-subtle bg-bg-primary/85 px-[var(--gutter)] backdrop-blur-md sm:sticky sm:top-0">
-        <div className="mx-auto flex max-w-[var(--content-max)] flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3.5">
-          <div>
-            <BrandLogo size="sm" />
-          </div>
-          <Skeleton className="h-11 w-32 rounded-full" />
-        </div>
-      </header>
+      <PublicHeader sticky>
+        <Skeleton className="h-11 w-32 rounded-full" />
+      </PublicHeader>
 
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="mx-auto w-full max-w-[var(--content-max)] flex-1 px-[var(--gutter)] pb-24 pt-6 lg:pt-10"
-      >
+      <Page as="main" className="flex-1">
         <SkeletonRegion className="grid gap-10 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-16">
           <div className="hidden pt-[28px] lg:block">
             <RailGroup rows={2} />
@@ -66,7 +58,7 @@ export default function Loading() {
             </Panel>
           </div>
         </SkeletonRegion>
-      </main>
+      </Page>
     </div>
   );
 }

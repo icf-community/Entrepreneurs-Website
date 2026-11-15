@@ -2,12 +2,14 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Panel } from "@/components/ui/Panel";
+import { Section } from "@/components/ui/Section";
 import { Disc } from "@/design-system/icons/Disc";
 import { Glyph } from "@/design-system/icons/Glyph";
 import { Icon } from "@/design-system/icons/Icon";
 import { DRAWINGS } from "@/design-system/icons/drawings";
 import { AUDIENCES, EVENT_TYPES, GLYPH_MIN_SIZE, LISTING_KINDS, SIGNUP_STEPS, STATUS_GLYPHS, type GlyphName } from "@/design-system/icons/glyphs";
 import { ICON_NAMES, type IconName } from "@/design-system/icons/names";
+import { titleOf } from "./sections";
 
 // The Icons section of the design-system gallery (/admin/design-system). Two families, one language: the UI icons (24 grid, 1.75 stroke, an
 // opening in every outline) and the identity glyphs (48 grid, a ring, a solid figure). Every name in names.ts and glyphs.ts is shown, at the
@@ -187,15 +189,17 @@ const SHELL_ROWS: readonly { icon: IconName; label: string; lit?: boolean }[] = 
 
 export function IconsGallery() {
   return (
-    <section className="grid gap-6 border-t border-border-subtle py-12">
-      <div className="grid gap-2">
-        <h2 className="font-display text-heading text-text-primary">Icons and glyphs</h2>
-        <p className="measure-prose text-small text-text-secondary">
+    <Section
+      rule
+      id="icons"
+      title={titleOf("icons")}
+      description={
+        <>
           Two families in one hand. Icons are functional line drawings on a 24 grid; glyphs are the identity figures on a 48 grid, each inside the roundel&apos;s ring. Both come from the logo: a ring with one opening where
           the rocket breaks out, plumes with slits, four-point sparks as the only ornament. Drawn sizes are 16, 20 and 24 for icons, 28 and up for glyphs.
-        </p>
-      </div>
-
+        </>
+      }
+    >
       <div className="grid gap-16">
         <Demo
           title="The whole set"
@@ -359,6 +363,6 @@ export function IconsGallery() {
           </div>
         </Demo>
       </div>
-    </section>
+    </Section>
   );
 }

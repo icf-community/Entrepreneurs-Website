@@ -1,11 +1,12 @@
 import { requireAdminPage } from "@/lib/auth/guard";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Entry } from "@/components/ui/Entry";
-import { PageHead } from "@/components/ui/PageHead";
 import { Page } from "@/components/ui/Page";
 import { Panel } from "@/components/ui/Panel";
+import { Section } from "@/components/ui/Section";
 import { Trail } from "@/components/ui/Trail";
 import { Icon } from "@/design-system/icons/Icon";
 import { Lockup } from "@/design-system/logo/Lockup";
@@ -15,6 +16,8 @@ import { DataGallery } from "./DataGallery";
 import { FormsGallery } from "./FormsGallery";
 import { IconsGallery } from "./IconsGallery";
 import { OverlaysGallery } from "./OverlaysGallery";
+import { titleOf } from "./sections";
+import { StyleGuideNav } from "./StyleGuideNav";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /admin/design-system
@@ -26,18 +29,6 @@ import { OverlaysGallery } from "./OverlaysGallery";
 // ════════════════════════════════════════════════════════════════════
 
 export const metadata = { title: "Design system" };
-
-function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
-  return (
-    <section className="grid gap-6 border-t border-border-subtle py-12">
-      <div className="grid gap-2">
-        <h2 className="font-display text-heading text-text-primary">{title}</h2>
-        {note ? <p className="measure-prose text-small text-text-secondary">{note}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 function Swatch({ cls, name, role }: { cls: string; name: string; role: string }) {
   return (
@@ -51,17 +42,11 @@ function Swatch({ cls, name, role }: { cls: string; name: string; role: string }
   );
 }
 
-export default async function DesignSystemPage() {
-  await requireAdminPage();
+/** The twelve sections, in the order of sections.ts: the page's own (colour, type, layout, buttons, logo) and the four galleries. */
+function Sections() {
   return (
-    <Page as="main">
-      <PageHead
-        context="Admin"
-        title="Lumen design system"
-        lede="Colour is light direction, not decoration: six lights, one curve, a few gestures that all come from the logo."
-      />
-
-      <Section title="The six lights" note="Everything else is a role built from these. Components name a role (bg-bg-card, text-text-muted, border-border-strong), never a hue.">
+    <>
+      <Section rule id="lights" title={titleOf("lights")} description="Everything else is a role built from these. Components name a role (bg-bg-card, text-text-muted, border-border-strong), never a hue.">
         <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-6">
           <Swatch cls="bg-void" name="void" role="the night" />
           <Swatch cls="bg-ink" name="ink" role="what is read" />
@@ -72,7 +57,7 @@ export default async function DesignSystemPage() {
         </div>
       </Section>
 
-      <Section title="Surfaces, ink and lines" note="Four steps of night, three steps of ink (all at least 4.5:1 on every surface, pinned by a test), a rule and a firm edge for anything you can press.">
+      <Section rule id="surfaces" title={titleOf("surfaces")} description="Four steps of night, three steps of ink (all at least 4.5:1 on every surface, pinned by a test), a rule and a firm edge for anything you can press.">
         <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-6">
           <Swatch cls="bg-bg-primary" name="bg-primary" role="the page" />
           <Swatch cls="bg-bg-secondary" name="bg-secondary" role="bands, sidebar" />
@@ -95,7 +80,7 @@ export default async function DesignSystemPage() {
         </div>
       </Section>
 
-      <Section title="Type" note="Funnel Display for headings (light, tight), Host Grotesk for everything else, on a 1.25 ratio from a 16 px body. No monospace: measured values use tabular figures (.data).">
+      <Section rule id="type" title={titleOf("type")} description="Funnel Display for headings (light, tight), Host Grotesk for everything else, on a 1.25 ratio from a 16 px body. No monospace: measured values use tabular figures (.data).">
         <div className="grid gap-5">
           <p className="font-display text-hero text-text-primary">hero: the landing headline</p>
           <p className="font-display text-display text-text-primary">display: a page&apos;s own h1</p>
@@ -108,13 +93,34 @@ export default async function DesignSystemPage() {
         </div>
       </Section>
 
-      <Section title="Page layout" note="Every page sits in one frame (Page), so its title starts in the same place on each: the gutter at the side, the same space above and below, and a column that starts at the frame's left edge. A page of one column is narrower; it is not centred.">
+      <Section rule id="layout" title={titleOf("layout")} description="Every page sits in one frame (Page), so its title starts in the same place on each: the gutter at the side, the same space above and below, and a column that starts at the frame's left edge. A page of one column is narrower; it is not centred.">
         <div className="grid gap-3">
           {([["wide", "up to content-max (72rem): lists, dashboards, settings", "var(--content-max)"], ["page", "col-page (820 px): a feed, a detail, a form", "var(--col-page)"], ["narrow", "col-narrow (640 px): a short form", "var(--col-narrow)"]] as const).map(([name, use, width]) => (
             <div key={name} className="rounded-lg border border-border bg-tint-1 px-4 py-3 text-small text-text-secondary" style={{ maxWidth: width }}>
               <span className="text-text-primary">{name}</span> · {use}
             </div>
           ))}
+        </div>
+        <div className="grid gap-3">
+          <p className="text-small text-text-secondary">Cards take their columns from the room the column has, not from the window: at least 15rem each and three across at most (<code>lm-cards</code>).</p>
+          <div className="lm-cards">
+            {["Alan", "Elena", "David", "Hannah", "Indie"].map((n) => (
+              <Panel key={n} className="p-5 text-small text-text-secondary"><span className="text-text-primary">{n}</span> · a card</Panel>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-3">
+          <p className="text-small text-text-secondary">A strip of five tiles is two, three or five across and never four and one (<code>lm-tiles</code>); the buttons of a card or a detail block are equal cells that fill the row (<code>lm-actionrow</code>).</p>
+          <div className="lm-tiles">
+            {["One", "Two", "Three", "Four", "Five"].map((n) => (
+              <Panel key={n} className="p-4 text-center text-small text-text-secondary">{n}</Panel>
+            ))}
+          </div>
+          <div className="lm-actionrow">
+            <Button variant="primary" size="md">Primary</Button>
+            <Button variant="ghost" size="md">Ghost</Button>
+            <Button variant="ghost" size="md">Ghost</Button>
+          </div>
         </div>
         <div className="grid gap-2">
           <p className="text-small text-text-secondary">A page with a parent says so with a Trail: a drawn arrow and the parent&rsquo;s name, then a chevron and its own name.</p>
@@ -124,7 +130,7 @@ export default async function DesignSystemPage() {
         </div>
       </Section>
 
-      <Section title="Buttons" note="A pill. Cream with the night on it is the strongest control the system makes; one per view. Pointing at it lights a ring; pressing it sinks it a pixel. Buttons and links share the shapes.">
+      <Section rule id="buttons" title={titleOf("buttons")} description="A pill. Cream with the night on it is the strongest control the system makes; one per view. Pointing at it lights a ring; pressing it sinks it a pixel. Buttons and links share the shapes.">
         <div className="grid gap-6">
           <div className="flex flex-wrap items-center gap-5">
             <Button variant="primary" leading={<OrbitGlyph />}>Join Foundry</Button>
@@ -145,7 +151,7 @@ export default async function DesignSystemPage() {
         </div>
       </Section>
 
-      <Section title="Badges and panels" note="A badge says what kind or what state; tone is meaning. A panel is a hairline and a whisper of top light; never nest one in another.">
+      <Section rule id="badges" title={titleOf("badges")} description="A badge says what kind or what state; tone is meaning. A panel is a hairline and a whisper of top light; never nest one in another.">
         <div className="flex flex-wrap items-center gap-3">
           <Badge>Fintech</Badge>
           <Badge tone="lit" dot>Open to members</Badge>
@@ -161,7 +167,7 @@ export default async function DesignSystemPage() {
         </div>
       </Section>
 
-      <Section title="Entries" note="One row of a list in a ring: a member, a listing, a notification. With a link the whole row is the target.">
+      <Section rule id="entries" title={titleOf("entries")} description="One row of a list in a ring: a member, a listing, a notification. With a link the whole row is the target.">
         <Panel className="p-2">
           <ul className="grid">
             <Entry as="li" glyph={<Icon name="members" size={20} />} title="Elena Petrova" meta="Imperial student · Angel investor" href="/members" trailing={<Badge tone="lit" dot>Looking for a co-founder</Badge>} />
@@ -171,13 +177,13 @@ export default async function DesignSystemPage() {
         </Panel>
       </Section>
 
-      <Section title="The logo" note="One flat colour, never rotated, cropped or crossed. The rocket breaks out of the ring, so keep a quarter of the mark's own height clear around it. Ring at least 45 px; lockup at least 51 px tall.">
+      <Section rule id="logo" title={titleOf("logo")} description="One flat colour, never rotated, cropped or crossed. The rocket breaks out of the ring, so keep a quarter of the mark's own height clear around it. Ring at least 45 px; lockup at least 51 px tall.">
         <div className="flex flex-wrap items-end gap-10">
           <Roundel size={45} label="Imperial Entrepreneurs" className="text-star" />
           <Roundel size={72} label="Imperial Entrepreneurs" className="text-star" />
           <Roundel size={120} label="Imperial Entrepreneurs" className="text-star" />
           <Lockup height={51} label="Imperial Entrepreneurs" className="text-star" />
-          <Lockup height={72} label="Imperial Entrepreneurs" className="text-star" />
+          <Lockup height={72} label="Imperial Entrepreneurs" className="h-auto max-w-full text-star" />
         </div>
         <div className="flex flex-wrap items-end gap-10 rounded-xl bg-star p-6 text-void sm:p-8">
           <Roundel size={72} label="Imperial Entrepreneurs" />
@@ -188,6 +194,28 @@ export default async function DesignSystemPage() {
       <FormsGallery />
       <DataGallery />
       <OverlaysGallery />
+    </>
+  );
+}
+
+export default async function DesignSystemPage() {
+  await requireAdminPage();
+  return (
+    <Page as="main">
+      <AdminPageHeader
+        eyebrow="Admin"
+        title="Lumen design system"
+        description="Colour is light direction, not decoration: six lights, one curve, a few gestures that all come from the logo."
+      />
+
+      {/* From 1024 px a list of the sections stands beside the page and stays in view; on a phone it is a "Jump to" select (StyleGuideNav). */}
+      <div className="lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-10">
+        <StyleGuideNav />
+        {/* minmax(0, 1fr): one track as wide as the column, never as wide as the widest thing in it (a 336 px lockup made every section 336 px wide at 320) */}
+        <div className="lm-sections grid-cols-[minmax(0,1fr)]">
+          <Sections />
+        </div>
+      </div>
     </Page>
   );
 }

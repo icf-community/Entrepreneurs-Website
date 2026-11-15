@@ -87,22 +87,62 @@ export default function CalendarClient({ items }: { items: CalItem[] }) {
       .sort((a, b) => new Date(a.occursAt).getTime() - new Date(b.occursAt).getTime());
   }, [items, now]);
 
+  // The month on show, held here because its stepper shares a row with the view toggle.
+  // Falls back to the current month when there's nothing upcoming — items[0]
+  // used to be read unconditionally, which crashed the moment the month view
+  // rendered with an empty list instead of showing an empty grid for "now".
+  const firstMonth = () => monthOf(upcoming[0]?.occursAt ?? new Date(now).toISOString());
+  const [cursor, setCursor] = useState<MonthCursor>(firstMonth);
+  const monthLabel = formatMonthYear(cursor.year, cursor.month);
+
+  // Coming back to the month view starts at the first upcoming month again, as it did when the month view owned its cursor.
+  const selectView = (next: View) => {
+    if (next === "month" && view !== "month") setCursor(firstMonth());
+    setView(next);
+  };
+
   return (
     <>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+      {/* One row from md up: the month stepper at the left, the count and the view toggle at the right. (It needs about 690 px: the stepper alone is
+          340, because its label keeps room for the longest month, so a row any narrower dropped the toggle under it.) Below that it stacks, the
+          toggle and count first (so the toggle stays where it is when the view changes) and the stepper under them. DOM order is the same on both:
+          the toggle, then the stepper; `order` only moves them on the wider row. */}
+      <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-3">
         <ButtonTabs<View>
           variant="segmented"
           size="sm"
+          className="md:order-3"
           items={[
             { value: "list", label: "List" },
             { value: "month", label: "Month" },
           ]}
           value={view}
-          onSelect={setView}
+          onSelect={selectView}
         />
-        <span className="data text-body text-text-muted">
+        <span className="data ml-auto text-body text-text-muted md:order-2">
           {upcoming.length} upcoming
         </span>
+        {view === "month" && (
+          <div className="flex w-full items-center gap-3 md:order-1 md:w-auto">
+            <button
+              type="button"
+              onClick={() => setCursor((c) => shiftMonth(c, -1))}
+              className="lm-iconbtn"
+              aria-label="Previous month"
+            >
+              <Icon name="chevron-left" size={20} />
+            </button>
+            <div aria-live="polite" className="min-w-0 flex-1 text-center font-display text-title text-text-primary md:min-w-[11rem] md:flex-none">{monthLabel}</div>
+            <button
+              type="button"
+              onClick={() => setCursor((c) => shiftMonth(c, 1))}
+              className="lm-iconbtn"
+              aria-label="Next month"
+            >
+              <Icon name="chevron-right" size={20} />
+            </button>
+          </div>
+        )}
       </div>
 
       <LegendRow />
@@ -113,7 +153,7 @@ export default function CalendarClient({ items }: { items: CalItem[] }) {
       {view === "list" ? (
         <ListView items={upcoming} onSelect={setSelected} />
       ) : (
-        <MonthView items={upcoming} onSelect={setSelected} />
+        <MonthView items={upcoming} cursor={cursor} onSelect={setSelected} />
       )}
 
       {selected && <DetailDialog item={selected} onClose={() => setSelected(null)} />}
@@ -218,50 +258,24 @@ function ListRow({ item, onSelect }: { item: CalItem; onSelect: (i: CalItem) => 
 }
 
 // ─── Month view ────────────────────────────────────────────────────
-// Renders the month containing the first upcoming item. Prev / next
-// month nav stays inside the same client component — no router round-
-// trips needed since the items array is already paginated client-side.
+// Renders the month the cursor is on (the first upcoming item's, to start with).
+// Prev / next month nav stays inside the same client component — no router round-
+// trips needed since the items array is already paginated client-side. The stepper
+// is in the toolbar above (CalendarClient), which owns the cursor.
 //
 // The one place a dense table is right: drawn with hairlines (a 1 px gap over a
 // rule colour), the days of the month on the card, the days of its neighbours a
 // step darker, and today as a lit ring: the only lit thing on the page.
-function MonthView({ items, onSelect }: { items: CalItem[]; onSelect: (i: CalItem) => void }) {
-  // The cursor is a London year/month, not a Date. A Date here would be a
-  // local-midnight one, and local midnight on the 1st is the previous month
-  // in any zone ahead of London — so the heading and the grid would name
-  // different months on a visitor's machine in Sydney.
-  //
-  // Falls back to the current month when there's nothing upcoming — items[0]
-  // used to be read unconditionally, which crashed the moment this view
-  // rendered with an empty list instead of showing an empty grid for "now".
-  const [cursor, setCursor] = useState<MonthCursor>(() =>
-    monthOf(items[0]?.occursAt ?? new Date().toISOString()));
-
-  const monthLabel = formatMonthYear(cursor.year, cursor.month);
+//
+// The cursor is a London year/month, not a Date. A Date here would be a
+// local-midnight one, and local midnight on the 1st is the previous month
+// in any zone ahead of London — so the heading and the grid would name
+// different months on a visitor's machine in Sydney.
+function MonthView({ items, cursor, onSelect }: { items: CalItem[]; cursor: MonthCursor; onSelect: (i: CalItem) => void }) {
   const grid = useMemo(() => buildMonthGrid(cursor, items), [cursor, items]);
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setCursor((c) => shiftMonth(c, -1))}
-          className="lm-iconbtn"
-          aria-label="Previous month"
-        >
-          <Icon name="chevron-left" size={20} />
-        </button>
-        <div aria-live="polite" className="min-w-0 flex-1 text-center font-display text-title text-text-primary sm:min-w-[11rem] sm:flex-none">{monthLabel}</div>
-        <button
-          type="button"
-          onClick={() => setCursor((c) => shiftMonth(c, 1))}
-          className="lm-iconbtn"
-          aria-label="Next month"
-        >
-          <Icon name="chevron-right" size={20} />
-        </button>
-      </div>
-
       <Panel className="overflow-hidden">
         <div className="grid grid-cols-7 gap-px bg-border-subtle text-small">
           {WEEKDAYS.map((d) => (

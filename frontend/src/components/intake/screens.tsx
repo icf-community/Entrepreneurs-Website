@@ -21,7 +21,7 @@ import {
   addressAs,
   type IntakeState,
 } from "@/lib/intake/state";
-import { Field, ChoiceCards, PillChoice, TagInput, FilePicker, FileTile, RankPicker, SkillPicker, type SkillOption } from "./controls";
+import { Field, ChoiceCards, PillChoice, TagInput, FilePicker, FileRow, FileTile, RankPicker, SkillPicker, type SkillOption } from "./controls";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
@@ -103,9 +103,6 @@ function Lead({ children }: { children: React.ReactNode }) {
   return <p className="max-w-[62ch] text-body leading-[1.6] text-text-secondary">{children}</p>;
 }
 
-/** A photo, a file or a document that is already in: the quiet row (a tinted band, no border of its own inside the card). */
-const ROW = "flex flex-wrap items-center gap-4 rounded-xl bg-tint-2 p-4";
-
 // ─── 01 · Face & bio ─────────────────────────────────────────────────
 
 export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, onCropAvatar }: ScreenProps) {
@@ -145,25 +142,30 @@ export function FaceScreen({ s, patch, firstName, avatarUploading, avatarError, 
             onCancel={() => setPendingFile(null)}
           />
         ) : s.photoPreview ? (
-          <div className={ROW}>
-            <Avatar src={s.photoPreview} name={s.preferredName || firstName} size="lg" />
-            <span className="min-w-0 flex-1 text-body text-text-primary">Great! You can change your profile picture in your settings at any time.</span>
-            <Button type="button" variant="ghost" size="sm" onClick={() => replaceRef.current?.click()}>
-              Replace
-            </Button>
-            <input
-              ref={replaceRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              tabIndex={-1}
-              className="sr-only"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) setPendingFile(f);
-                e.target.value = "";
-              }}
-            />
-          </div>
+          <FileRow
+            lead={<Avatar src={s.photoPreview} name={s.preferredName || firstName} size="lg" />}
+            actions={
+              <>
+                <Button type="button" variant="ghost" size="sm" onClick={() => replaceRef.current?.click()}>
+                  Replace
+                </Button>
+                <input
+                  ref={replaceRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  tabIndex={-1}
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) setPendingFile(f);
+                    e.target.value = "";
+                  }}
+                />
+              </>
+            }
+          >
+            Great! You can change your profile picture in your settings at any time.
+          </FileRow>
         ) : (
           <FilePicker
             accept="image/jpeg,image/png,image/webp"
@@ -337,7 +339,9 @@ export function YoureInScreen({ s, firstName, role, gradYear, matches }: ScreenP
         not just a name in a list.
       </p>
 
-      <ul className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-7 pt-1 text-left">
+      {/* centred under the centred heading, but safely: the auto margins at the two ends share whatever room there is and are nothing when the
+          strip overflows, so a phone still scrolls it from its first card (justify-content: center would cut the start off, out of reach) */}
+      <ul className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-7 pt-1 text-left [&>li:first-child]:ml-auto [&>li:last-child]:mr-auto">
         <SelfCard name={name} photoPreview={s.photoPreview} role={role} gradYear={gradYear} />
         {matches.map((m) => (
           <MatchCard key={m.id} member={m} onOpen={() => setOpenMember(m)} />
@@ -375,32 +379,35 @@ export function CvScreen({ s, patch, existingCv, role, existingLinkedin, ingesti
 
       <Field label={cvRequired ? "Your CV" : "Your CV, if you have one"} hint="PDF or DOCX · 8 MB maximum.">
         {alreadyUploaded ? (
-          <div className={ROW}>
-            <FileTile filename={s.cvOriginalFilename ?? "file"} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-body text-text-primary">{s.cvOriginalFilename}</span>
-              <span className="block text-small text-text-muted">Already uploaded</span>
-            </span>
-            {existingCv?.downloadUrl && (
-              <ButtonLink
-                href={existingCv.downloadUrl}
-                variant="ghost"
-                size="sm"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View
-              </ButtonLink>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => patch({ cvUploadedKey: null, cvOriginalFilename: null, suggestedSkillIds: [] })}
-            >
-              Replace
-            </Button>
-          </div>
+          <FileRow
+            lead={<FileTile filename={s.cvOriginalFilename ?? "file"} />}
+            actions={
+              <>
+                {existingCv?.downloadUrl && (
+                  <ButtonLink
+                    href={existingCv.downloadUrl}
+                    variant="ghost"
+                    size="sm"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View
+                  </ButtonLink>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => patch({ cvUploadedKey: null, cvOriginalFilename: null, suggestedSkillIds: [] })}
+                >
+                  Replace
+                </Button>
+              </>
+            }
+          >
+            <span className="block truncate text-body text-text-primary">{s.cvOriginalFilename}</span>
+            <span className="block text-small text-text-muted">Already uploaded</span>
+          </FileRow>
         ) : (
           <FilePicker
             accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"

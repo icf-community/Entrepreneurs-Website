@@ -22,7 +22,11 @@ function sourcesIn(dir: string): string[] {
 }
 const LANDING = [...sourcesIn(join(SRC, "components", "landing")), ...sourcesIn(join(SRC, "lib", "landing"))];
 
-const files = [...STATIC_CSP_ROUTES.map((r) => join(SRC, "app", r === "/" ? "" : r, "page.tsx")), ...LANDING];
+// The pieces the legal documents and /ideaforge render around their own words. A route is only as static as what it
+// imports, so the signed-out header and footer and the legal document's shell are scanned like a page.
+const SHARED = ["app/login/PublicHeader.tsx", "components/PublicFooter.tsx", "app/privacy/LegalDocument.tsx"].map((f) => join(SRC, f));
+
+const files = [...STATIC_CSP_ROUTES.map((r) => join(SRC, "app", r === "/" ? "" : r, "page.tsx")), ...SHARED, ...LANDING];
 
 describe("static-CSP routes render no user content", () => {
   it("the landing page's sources are all in the list", () => {

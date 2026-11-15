@@ -49,7 +49,7 @@ export function SkeletonRegion({
 /** Card grid placeholder, sized to the listing/member cards: a ring, two lines of name, two of text, two chips. */
 export function CardGridSkeleton({ count = 6, className = "" }: { count?: number; className?: string }) {
   return (
-    <SkeletonRegion className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${className}`}>
+    <SkeletonRegion className={`lm-cards ${className}`}>
       {Array.from({ length: count }, (_, i) => (
         <Panel key={i} className="p-6">
           <div className="flex items-center gap-4">

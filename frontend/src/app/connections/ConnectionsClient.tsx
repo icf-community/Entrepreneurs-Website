@@ -89,7 +89,7 @@ export type Tab = "connections" | "pending" | "sent";
 export type View = "cards" | "graph";
 
 // One grid for every list of people here (connections, requests, sent).
-const CARD_GRID = "grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3";
+const CARD_GRID = "lm-cards [--_gap:20px]";
 
 export default function ConnectionsClient({
   tab, view, displayName, graph, filters, myEmail, consentVersion,

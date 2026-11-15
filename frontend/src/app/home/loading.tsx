@@ -58,7 +58,7 @@ export default function Loading() {
         <SkeletonRegion className="lm-sections">
           <div className="grid gap-5">
             <Skeleton className="h-7 w-72 max-w-full" />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="lm-tiles">
               {[0, 1, 2, 3, 4].map((i) => (
                 <Panel key={i} className="grid justify-items-center gap-3 px-3 pb-5 pt-6">
                   <Skeleton shape="ring" className="size-24" />
@@ -70,14 +70,14 @@ export default function Loading() {
 
           <div className="grid gap-5">
             <HeadSkeleton title="w-32" line="w-64" />
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-              <Skeleton className="h-48 w-full rounded-xl lg:row-span-2 lg:h-full" />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+              <Skeleton className="h-48 w-full rounded-xl sm:col-span-2 xl:col-span-1 xl:row-span-2 xl:h-full" />
               <Skeleton className="h-24 w-full rounded-xl" />
               <Skeleton className="h-24 w-full rounded-xl" />
             </div>
           </div>
 
-          <div className="grid gap-[var(--section-gap)] lg:grid-cols-2 lg:gap-x-10">
+          <div className="grid gap-[var(--section-gap)] xl:grid-cols-2 xl:gap-x-10">
             <div className="grid gap-5">
               <HeadSkeleton title="w-40" line="w-56" />
               <RowsSkeleton />

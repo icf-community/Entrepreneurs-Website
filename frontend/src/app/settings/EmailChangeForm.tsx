@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { FormActions } from "@/components/ui/FormActions";
 import { Input } from "@/components/ui/Input";
 import { isImperialEmail } from "@/lib/auth/imperialEmail";
 import { verifyOtpServerSide } from "@/lib/auth/verifyOtpGate";
@@ -310,11 +311,11 @@ export default function EmailChangeForm({
           </>
         )}
 
-        <div>
-          <Button type="submit" loading={isLoading} variant="primary" size="md">
+        <FormActions>
+          <Button type="submit" loading={isLoading} variant="ghost" size="md">
             {stage === "idle" ? "Send codes" : "Confirm change"}
           </Button>
-        </div>
+        </FormActions>
       </form>
     </SettingsSection>
   );

@@ -64,7 +64,15 @@ export function ChoiceCards<T extends string>({
   onChange: (v: T) => void;
   columns?: 1 | 2 | 3 | "pair";
 }) {
-  const cols = columns === "pair" ? "grid-cols-2" : columns === 1 ? "grid-cols-1" : columns === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2";
+  // Nine options in two columns leave one tile alone with a hole beside it, so an odd last tile takes the whole row (only where there are two columns).
+  const cols =
+    columns === "pair"
+      ? "grid-cols-2 [&>:last-child:nth-child(odd)]:col-span-2"
+      : columns === 1
+        ? "grid-cols-1"
+        : columns === 3
+          ? "grid-cols-1 sm:grid-cols-3"
+          : "grid-cols-1 sm:grid-cols-2 sm:[&>:last-child:nth-child(odd)]:col-span-2";
   return (
     <div role="radiogroup" aria-label={name} className={`grid gap-2.5 ${cols}`}>
       {options.map((o) => (
@@ -411,6 +419,22 @@ export function FileTile({ filename }: { filename: string }) {
   );
 }
 
+/** A photo, a file or a document that is already in: the quiet row (a tinted band, no border of its own inside the card).
+ *  The picture and its words are one block that asks for room to be read (12rem; it shrinks only when it is alone on its line), and the
+ *  buttons share the line with it when there is room and wrap beneath it when there is not. Without that the words were given whatever the
+ *  buttons left over, which on a phone was 13 to 43 px: a column of single letters. */
+export function FileRow({ lead, actions, children }: { lead: ReactNode; actions: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl bg-tint-2 p-4">
+      <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-4">
+        {lead}
+        <span className="min-w-0 flex-1 text-body text-text-primary">{children}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">{actions}</div>
+    </div>
+  );
+}
+
 /**
  * File picker. Drag-and-drop is an accelerant, never the only route — the
  * dashed area is a real button, and there is a labelled control inside it,
@@ -439,21 +463,24 @@ export function FilePicker({
 
   if (file) {
     return (
-      <div className="flex flex-wrap items-center gap-4 rounded-xl bg-tint-2 p-4">
-        {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element -- object URL, not a remote asset
-          <img src={preview} alt="" className="size-16 shrink-0 rounded-lg object-cover" />
-        ) : (
-          <FileTile filename={file.name} />
-        )}
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-body text-text-primary">{file.name}</span>
-          <span className="data block text-small text-text-muted">{(file.size / 1024).toFixed(0)} KB</span>
-        </span>
-        <Button type="button" variant="ghost" size="sm" onClick={onClear}>
-          Replace
-        </Button>
-      </div>
+      <FileRow
+        lead={
+          preview ? (
+            // eslint-disable-next-line @next/next/no-img-element -- object URL, not a remote asset
+            <img src={preview} alt="" className="size-16 shrink-0 rounded-lg object-cover" />
+          ) : (
+            <FileTile filename={file.name} />
+          )
+        }
+        actions={
+          <Button type="button" variant="ghost" size="sm" onClick={onClear}>
+            Replace
+          </Button>
+        }
+      >
+        <span className="block truncate text-body text-text-primary">{file.name}</span>
+        <span className="data block text-small text-text-muted">{(file.size / 1024).toFixed(0)} KB</span>
+      </FileRow>
     );
   }
 

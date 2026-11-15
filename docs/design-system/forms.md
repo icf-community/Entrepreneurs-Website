@@ -68,7 +68,9 @@ renders
 ```
 
 - The control is **inside** the label, so every field is named and `getByLabel(/^Role title/)` matches. The required star and the hint stay inside
-  the label's span. Do not move them out.
+  the label. Do not move them out. **Where the hint is drawn depends on what it is**: a note (up to 24 characters: `optional`, `0/4000`, `range 2019–2028`)
+  stays on the label line in `.lm-label__hint`; a sentence or an example (longer than that) is drawn **beneath the control** in `.lm-hint`, still inside
+  the label, so it is still part of the name. On the label line a sentence wraps the label, and the control of the field beside it ends up a line lower.
 - The error is **outside** the label, so it does not become part of the control's name, and `role="alert"` announces it when it appears.
   `Field` ties it to the control with `aria-describedby` (a description, not a name) and marks it `aria-invalid`, for a single `input`,
   `textarea`, `select`, `Input`, `Textarea` or `Select` child. Anything else is left as written.
@@ -135,7 +137,7 @@ All in `forms.css`, in the components layer, so utilities written after them win
 
 | Class | What |
 |---|---|
-| `.lm-label`, `.lm-label__req`, `.lm-label__hint` | the caption above a control |
+| `.lm-label`, `.lm-label__req`, `.lm-label__hint`, `.lm-hint` | the caption above a control, its short note, and the sentence beneath it |
 | `.lm-error` | the error sentence and its drawn mark |
 | `.lm-field` | input, textarea, select, or a button that opens a list (`data-trigger`). `data-size="sm"` (44 px), `data-state="hover|focus"` (guide only), `data-spin="off"` (no number steppers) |
 | `.lm-static` | a value shown in a field's shape that is not a control |

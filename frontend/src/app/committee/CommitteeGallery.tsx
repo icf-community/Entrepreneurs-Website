@@ -81,11 +81,13 @@ export default function CommitteeGallery({ members }: { members: CommitteeMember
           </div>
         )}
 
+        {/* A carousel is a window centred on its arrows; a handful of members is a row that starts where the page's title does. */}
         <div
-          className={`flex min-w-0 flex-1 flex-wrap justify-center gap-3 transition-opacity duration-150 ${fading ? "opacity-40" : "opacity-100"}`}
+          className={`flex min-w-0 flex-1 flex-wrap gap-3 transition-opacity duration-150 ${carousel ? "justify-center" : "justify-start"} ${fading ? "opacity-40" : "opacity-100"}`}
         >
           {visible.map((m) => (
-            <div key={m.id} className="w-[calc(50%-0.375rem)] shrink-0 sm:w-[8.5rem]">
+            // grid, so the card (an <article>) fills this cell, which is as tall as the tallest card in its row: a person with no title or a short course was a shorter card.
+            <div key={m.id} className="grid w-[calc(50%-0.375rem)] shrink-0 sm:w-[8.5rem]">
               <MemberCard member={m} dense onClick={() => setOpen(m)} />
             </div>
           ))}

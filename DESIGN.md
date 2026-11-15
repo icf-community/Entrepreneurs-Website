@@ -196,7 +196,7 @@ A palette of one night and its lights. Values are OKLCH (the build serialises th
 - **Display** (300, 31–49 px fluid, 1.16): a page's own h1 and a section's h2.
 - **Heading** (400, 31 px, 1.18) and **Title** (400, 25 px, 1.25): a section, a panel, a card.
 - **Lead** (400, 20 px, 1.42): a lede, an entry's title.
-- **Body** (400, 16 px, 1.5): reading; a paragraph never runs past about 62 characters, a lede or caption past 34.
+- **Body** (400, 16 px, 1.5): reading; a paragraph never runs past `--measure-prose` (56ch, about 75 characters in this face: `ch` is the width of a 0, wider than an average glyph), a lede past 46ch, a caption past 34ch.
 - **Small** (14.5 px) and **Caption** (13 px, medium): dense rows and table cells; meta, helper text, badges.
 
 The scale is a 1.25 ratio from a 16 px body (plus Small for dense rows). The app runs a 125 % root (`html { font-size: 125% }` in `base.css`), so a 16 px body is `0.8rem`; use the tokens (`text-body`) and never do the arithmetic.
@@ -208,6 +208,8 @@ The scale is a 1.25 ratio from a 16 px body (plus Small for dense rows). The app
 ## Layout
 
 The signed-in app is a **labelled rail and a content column**. From 1024 px the rail is fixed at 280 px (92 px collapsed to a column of rings, remembered in `localStorage`); below that an app bar of 76 px (the menu control and the roundel, sized so a 45 px ring keeps a quarter of its height clear) opens the same rail as a drawer. The column's side margin is the fluid `--gutter` (20–56 px) everywhere. Every page sits in the same frame (`Page`): that margin, `--page-top` above and `--page-bottom` below, a column of at most `--content-max`, and, for a page of one column, `--col-page` (820 px) or `--col-narrow` (640 px) starting at the frame's left edge, so a title never moves sideways between pages. Every page opens with `PageHead`: where you are (a plain trail), the title, one sentence, the actions, and a hairline rule that draws across the top as it scrolls into view and lights its end. A faint pool of amber sits behind the trail and title (it is fainter than the page's own warm core, and fades out well inside the head's box), and the dot before the trail breathes on an 11 s loop.
+
+The rail needs about 910 px of height, and a laptop's window has 650 to 800, so on a short window it gives height back in steps (the air round its head and foot, then rows of 40 and 36 px for a mouse; a finger keeps its 44) and fades the edge that has more behind it, rather than cutting destinations off the bottom. Grids take their columns from the room they have, never from the window (beside the rail a 1024 px window leaves 670 px): `lm-cards` (cards, at least 15rem, three across at most), `lm-tiles` (a strip of five: 2 + 2 + 1, 3 + 2 or 5, never 4 + 1), `lm-filters` (the groups of an open filter panel) and `lm-actionrow` (the buttons of a card in equal cells). A page head's actions sit level with its title, not with the foot of its lede; the title wraps before they drop under it. Pages a visitor reaches without the rail share one bar (`PublicHeader`) and one foot (`PublicFooter`).
 
 Rhythm is generous and uncluttered by rule: one clear primary action per view; secondary detail goes behind a disclosure, a popover, a sheet or a tooltip (the words stay in the DOM and every action stays reachable by keyboard); long chip sets collapse to what is chosen plus a "+" ring. Nothing scrolls sideways at 320 px, every control is at least 44 px (24 px is the floor), and tables become stacked cards below 640 px of their own width with the same markup.
 
@@ -250,7 +252,7 @@ Every component is a class in a design-system stylesheet keyed by `data-*` attri
 - **Tabs:** a hairline with a lit dot under the current tab (links, toggle buttons, or a true ARIA tablist), or a segmented pill.
 
 ### Data and structure
-- **Tables** are a focusable named region that stacks into cards on a narrow container; **stats** draw a ring or bar only where a limit exists; **avatars** are a ring with initials or a photo, lit when they are the chosen one, and, with no photo, in one of the three person lights (People, above); disclosures, definition lists, pagers, progress, meters and step dots follow the same two devices (the hairline with a lit end, and the ring).
+- **Tables** are a focusable named region that stacks into cards on a narrow container; **stats** draw a ring or bar only where a limit exists; a **timeline** is a hairline with a ring per step and the last one lit; **avatars** are a ring with initials or a photo, lit when they are the chosen one, and, with no photo, in one of the three person lights (People, above); disclosures, definition lists, pagers, progress, meters and step dots follow the same two devices (the hairline with a lit end, and the ring).
 
 ### Overlays and feedback
 - **Dialog** (native `<dialog>`, focus trapped, `Close` ring), **Sheet** (a drawer from either edge), **Popover/Menu/Tooltip** (top layer, placed in script and flipped at the edges), **Notice** (info, lit, danger, success: a hairline, a wash and an icon, never a stripe), **EmptyState** (a small amber body circles its ring once every 40 s; under reduced motion it rests at 50°), **Toast**, **Skeleton**. Prefer a popover or a disclosure to a modal whenever the task needs neither interruption nor protected focus.
@@ -271,6 +273,7 @@ Every component is a class in a design-system stylesheet keyed by `data-*` attri
 ### Don't:
 - **Don't** hard-code a hex, an `rgb()`, a Tailwind palette class (`bg-black/60`), an arbitrary type size (`text-[13px]`) or `uppercase` tracking; `tokens.guard.test.ts` fails the build on all of them.
 - **Don't** use purple, gradient text, coloured card stripes, hard offset shadows, monospace, or tracked capitals.
+- **Don't** key a multi-column grid to the window beside the rail (`lg:grid-cols-3`): it is 280 px narrower than the window says. Use `lm-cards`, `lm-tiles` or `xl:`; `tokens.guard.test.ts` fails on it.
 - **Don't** use a person light for anything but a face, or add character to a page of its own: the character is in the system (page head, pressable panel, face, empty state), so one change in `tokens.css` or the design-system stylesheets changes it everywhere.
 - **Don't** give a page wrapper an opaque background, nest a panel in a panel, or open a modal for a task that needs neither interruption nor protected focus.
 - **Don't** draw the logo as an image, resize it under its minimums, or set a word beside the roundel alone; `logo.guard.test.ts` fails on all three, and on any trace of the 2025 logo.

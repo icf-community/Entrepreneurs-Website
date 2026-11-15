@@ -45,6 +45,7 @@ colour mix in `data.css` is `in oklab` (see the note in `tokens.css`).
 | progress toward finishing something | `ProgressBar` | `components/ui/ProgressBar.tsx` |
 | where a quantity stands in a known range | `Meter` (`MeterGlyph` for the drawing alone) | `components/ui/Meter.tsx` |
 | where you are in a short flow, or a grouped rail | `StepDots` | `components/ui/StepDots.tsx` |
+| a programme or a history in order | `Timeline` | `components/ui/Timeline.tsx` |
 | a rule between two things | `Divider` | `components/ui/Divider.tsx` |
 | a part of a long page, with its own title row | `Section`, in a `.lm-sections` wrapper | `components/ui/Section.tsx` |
 
@@ -136,7 +137,7 @@ at, an amber edge on a `selected` row (and `aria-selected`), comfortable density
 - **Stacking.** Below 640 px of the table's *own* width (a container query, so a table in a dialog or a narrow column stacks too) every row becomes a
   card, with **the same DOM**: the header row steps aside (visually hidden, kept for assistive technology) and each cell prints its `label` before its
   value. Give each `TD` its column's name as `label`; mark the first cell `primary` and it becomes the card's title; mark a cell of buttons `actions`
-  (left-aligned and wrapped in a card, right-aligned in the table). An empty cell vanishes from the card, with its rule. `narrow="scroll"` keeps the
+  (left-aligned and wrapped in a card, right-aligned in the table). An empty cell vanishes from the card, with its rule (`TD empty` does the same for a cell that holds only a dash, and `TD wide` puts a long value, an email address, on the line under its label). A table with many columns takes `stackBelow="md"` (880 px) or `"lg"` (1140 px) so it stacks before it would hide a third of its columns behind a sideways scroll on a tablet (the admin members table is `lg`). `narrow="scroll"` keeps the
   sideways scroll at every width instead, for dense numeric tables (`minWidth` sets where it starts); an edge of the region with more table beyond it is
   lit softly.
 - Explicit ARIA roles sit on every part (`table`, `rowgroup`, `row`, `columnheader`/`rowheader`, `cell`). They are redundant on purpose: browsers (Safari with
@@ -210,6 +211,14 @@ share the width, so nothing is wider than the screen at 320 px. It adds no `role
   `aria-current="step"`; with `onSelect` every other step is a button (the intake rail lets you jump). For a rail in groups render one `StepDots` per group
   under its own heading and pass `done` (the ids travelled across all groups).
 
+## Timeline
+
+`<Timeline items={[{ when, title, body? }]} />`: a programme or a history in order. A hairline runs down the left with a ring on it at each step and the step's words
+beside the ring (`when` in sentence case and muted, `title` in the display face, `body` in the secondary ink at up to 62 characters a line); the **last ring is lit**, as
+the masthead rule lights its end. `when` and `title` are strings (they also make the key); `titleAs` is `h3` (a Timeline sits inside a `Section`), `h4` or `p`. It is an
+ordered list, so a screen reader hears "list, 4 items", and nothing in it is a control or moves. Use it for a few steps with words (the IdeaForge programme), not for a flow the
+person is travelling (that is `StepDots`).
+
 ## Divider and Section
 
 - **Divider**: the hairline with a lit end (`end` "end", "start", "none"), decorative (`aria-hidden`) by default; `decorative={false}` makes it
@@ -233,6 +242,7 @@ share the width, so nothing is wider than the screen at 320 px. It adds no `role
 | ProgressBar | `lm-progress`, `__row`, `__track`, `__fill`, `__point`, `__foot`, `__text` | `data-size`, `data-tone`, `data-indeterminate`; `--lm-p` |
 | Meter | `lm-meter`, `__svg`, `__track`, `__arc`, `__bar`, `__barfill`, `__text` | `data-variant="bar"`, `data-size`, `data-tone`; `--lm-p` |
 | StepDots | `lm-steps`, `lm-step`, `__dot`, `__num`, `__label` | `data-orientation`; on each `li` `data-state="done\|current\|todo"` |
+| Timeline | `lm-timeline`, `__item`, `__when`, `__title`, `__body` | the last `__item` is the lit one (`:last-child`); `--_gap` (the space between steps) |
 | Divider / Section | `lm-divider`; `lm-sections`, `lm-section`, `__head`, `__titles`, `__title`, `__desc`, `__actions` | `data-end`, `data-vertical`; `data-rule`, `data-level` |
 
 Tokens: `--section-gap`, `--section-gap-inner` (data.css). Everything else is read from `tokens.css`: `--color-lit*` for the chosen thing,

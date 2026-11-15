@@ -202,7 +202,10 @@ function EventCard({ ev, going, onDismiss }: {
                 <span className="min-w-0">By {ev.organiserName}</span>
               </span>
               <span className="flex items-start gap-2">
-                <Icon name={isOnline ? "video" : "pin"} size={16} className="mt-0.5 shrink-0 text-text-muted" />
+                {/* the same 20 px box as the avatar above it, so both lines of text start at one x (a bare 16 px icon put this one 4 px left) */}
+                <span className="grid size-4 shrink-0 place-items-center text-text-muted">
+                  <Icon name={isOnline ? "video" : "pin"} size={16} />
+                </span>
                 <span className="min-w-0">{ev.location}</span>
               </span>
             </span>
@@ -217,7 +220,7 @@ function EventCard({ ev, going, onDismiss }: {
           {checking && <p className="text-small text-text-muted">Loading latest details…</p>}
           <div className="grid gap-1.5">
             <p className="label-wide text-text-muted">Description</p>
-            <p className="whitespace-pre-wrap text-body text-text-secondary">{ev.description}</p>
+            <p className="measure-prose whitespace-pre-wrap text-body text-text-secondary">{ev.description}</p>
           </div>
 
           <DefinitionList>
@@ -250,7 +253,7 @@ function EventCard({ ev, going, onDismiss }: {
             )}
           </DefinitionList>
 
-          <div className="flex flex-wrap items-start gap-3">
+          <div className="lm-actionrow">
             <ExternalButtonLink
               href={ev.lumaLink}
               onClick={() => recordListingEvent("event", ev.id, "external_click")}

@@ -4,6 +4,7 @@ import Starfield from "@/components/Starfield";
 import { Disc } from "@/design-system/icons/Disc";
 import { Icon } from "@/design-system/icons/Icon";
 import { PublicHeader } from "@/app/login/PublicHeader";
+import { PublicFooter } from "@/components/PublicFooter";
 
 // CSP on this page (history: 2026-09-08 C2 Finding 6; fixed 2026-10-29).
 //
@@ -56,12 +57,8 @@ export default function NotFound() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 px-[var(--gutter)] py-5">
-        <p className="text-center text-small text-text-muted">
-          Foundry · Imperial Entrepreneurs
-        </p>
-      </footer>
+      {/* Footer: the same links as every page a visitor can reach, and the line this page has always signed off with */}
+      <PublicFooter>Foundry · Imperial Entrepreneurs</PublicFooter>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { PageHead } from "@/components/ui/PageHead";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import VcForm from "./VcForm";
 import { Page } from "@/components/ui/Page";
+import { Trail } from "@/components/ui/Trail";
 
 export const metadata: Metadata = { title: "Suggest a VC or grant" };
 
@@ -15,7 +16,7 @@ export default async function NewVcPage() {
       <Page width="page">
         <PageHead
           className="mb-8"
-          context="Suggest a VC or grant"
+          context={<Trail href="/vcs" label="All grants & VCs" current="Suggest a VC or grant" />}
           title="Share a funding source"
           lede="Submissions go to the admin queue for review before they appear on the Grants & VCs tab."
         />

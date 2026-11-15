@@ -13,6 +13,11 @@ export type PersonHue = "warm" | "sun" | "cool" | undefined;
 
 const HUES: readonly PersonHue[] = [undefined, undefined, "warm", "sun", "cool"];
 
+/** The light a face is drawn in. A photo needs none (it is the face); otherwise the name's, or the initials' when no name was given. */
+export function hueOfFace(hasPhoto: boolean, name: string | undefined, initials: string | undefined): PersonHue {
+  return hasPhoto ? undefined : hueOf(name ?? initials);
+}
+
 /** "Ada Okafor" → the same light as "ada" and "Ada". No name, no light. */
 export function hueOf(name: string | null | undefined): PersonHue {
   const first = (name ?? "").trim().split(/\s+/)[0]?.toLowerCase() ?? "";

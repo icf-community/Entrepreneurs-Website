@@ -106,7 +106,7 @@ export default function VcsClient({
             {matching === 0 ? "No listings yet." : "No listings match your search or filters."}
           </EmptyState>
         ) : (
-          <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="lm-cards items-start">
             {visible.map((v) => <VcCard key={v.id} vc={v} applied={appliedSet.has(v.id)} onDismiss={() => dismiss(v.id)} />)}
           </div>
         )}
@@ -175,7 +175,10 @@ function VcCard({ vc: v, applied, onDismiss }: {
               </span>
               {(v.amount || v.stage) && (
                 <span className="flex items-start gap-2">
-                  <Icon name="pound" size={16} className="mt-0.5 shrink-0 text-text-muted" />
+                  {/* the same 20 px box as the avatar above it, so both lines of text start at one x (a bare 16 px icon put this one 4 px left) */}
+                  <span className="grid size-4 shrink-0 place-items-center text-text-muted">
+                    <Icon name="pound" size={16} />
+                  </span>
                   <span className="min-w-0">{[v.amount, v.stage].filter(Boolean).join(" · ")}</span>
                 </span>
               )}
@@ -191,10 +194,10 @@ function VcCard({ vc: v, applied, onDismiss }: {
           {checking && <p className="text-small text-text-muted">Loading latest details…</p>}
           <div className="grid gap-1.5">
             <p className="label-wide text-text-muted">Description</p>
-            <p className="whitespace-pre-wrap text-body text-text-secondary">{v.description}</p>
+            <p className="measure-prose whitespace-pre-wrap text-body text-text-secondary">{v.description}</p>
           </div>
 
-          <div className="flex flex-wrap items-start gap-3">
+          <div className="lm-actionrow">
             <ExternalButtonLink
               href={v.link}
               onClick={() => recordListingEvent("vc_grant", v.id, "external_click")}

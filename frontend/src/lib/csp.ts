@@ -61,7 +61,15 @@ export function generateNonce(): string {
 // option short of hashing Next.js's per-build inline bootstrap, which
 // changes every build. Anything rendering user content must therefore
 // stay dynamic — which is why the listing pages are not here.
-export const STATIC_CSP_ROUTES = ["/", "/privacy", "/terms", "/cookies", "/ai-notice"] as const;
+//
+// "/ideaforge" joined on 2026-11-15. The page came in from main (PR #122) as a prerendered
+// route that nobody had listed here, so the proxy gave it the nonce policy and strict-dynamic
+// blocked Next's own bundle: it painted, and nothing on it ever ran. It meets the three
+// criteria: it is public, it reads no session and no database, and it renders no user-supplied
+// content (its words and its programme are constants in the page file; the application form is
+// a Tally iframe, which runs on Tally's origin, and tally.so is already in frame-src).
+// staticRoutes.test.ts scans its sources.
+export const STATIC_CSP_ROUTES = ["/", "/privacy", "/terms", "/cookies", "/ai-notice", "/ideaforge"] as const;
 
 export function buildCsp(nonce: string): string {
   const supabaseOrigin = originOf(process.env.NEXT_PUBLIC_SUPABASE_URL);

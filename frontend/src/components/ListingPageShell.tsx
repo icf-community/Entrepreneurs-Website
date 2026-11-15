@@ -21,11 +21,13 @@ import { Page } from "@/components/ui/Page";
 // one lit action. The column and the side margin are the system's (--gutter,
 // --content-max); FilteredListLoadingSkeleton draws the same ones.
 export default function ListingPageShell({
-  active, isAdmin, justSubmitted, submittedKind,
+  active, isAdmin, name, justSubmitted, submittedKind,
   eyebrow, title, summary, cta, actions, children,
 }: {
   active: "opportunities" | "events" | "vcs";
   isAdmin: boolean;
+  /** The member's name, for the rail's identity chip (every other page shows it, so these must too). */
+  name?: string;
   justSubmitted: boolean;
   /** Noun for the post-submission banner, e.g. "opportunity". */
   submittedKind: string;
@@ -40,8 +42,11 @@ export default function ListingPageShell({
    *  (D1: LCP 0.9 s → 3.7 s on a mid-range phone). */
   summary: ReactNode;
   /** A trailing "→" in the label is drawn as an icon; the character stays as
-   *  visually hidden text, so the link's accessible name is unchanged. */
-  cta: { href: string; label: string };
+   *  visually hidden text, so the link's accessible name is unchanged.
+   *  `ghost` steps the button down from the lit cream one, for a page that has
+   *  something else to do first (the status question on /opportunities): a view has
+   *  one cream action, and then it is that one. */
+  cta: { href: string; label: string; ghost?: boolean };
   /** Extra links beside the CTA (only /opportunities has any). */
   actions?: ReactNode;
   children: ReactNode;
@@ -50,7 +55,7 @@ export default function ListingPageShell({
   const arrow = label !== cta.label;
 
   return (
-    <AppShell active={active} isAdmin={isAdmin}>
+    <AppShell active={active} name={name} isAdmin={isAdmin}>
       <Page>
         {justSubmitted && <SubmittedBanner kind={submittedKind} />}
         <PageHead
@@ -61,7 +66,7 @@ export default function ListingPageShell({
           actions={
             <>
               {actions}
-              <ButtonLink href={cta.href} variant="primary" size="md" lit>
+              <ButtonLink href={cta.href} variant={cta.ghost ? "ghost" : "primary"} size="md" lit={!cta.ghost}>
                 {label}
                 {arrow && (
                   <>

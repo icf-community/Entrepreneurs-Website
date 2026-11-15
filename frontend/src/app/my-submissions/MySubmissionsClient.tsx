@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteOwnListing, type ListingType } from "./actions";
+import { STACK_TRAILING } from "../entryTrailing";
 import { formatDate } from "@/lib/dates";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
@@ -66,7 +67,7 @@ export default function MySubmissionsClient({ opportunities, events, vcs }: Prop
     );
   }
   return (
-    <div className="grid gap-10">
+    <div className="lm-sections">
       <ListingSection type="opportunity" label="Opportunities" items={opportunities} />
       <ListingSection type="event"       label="Events"        items={events} />
       <ListingSection type="vc_grant"    label="VCs & grants"  items={vcs} />
@@ -75,14 +76,14 @@ export default function MySubmissionsClient({ opportunities, events, vcs }: Prop
 }
 
 // Keeps a long submissions list compact while every item stays reachable.
-// Two patterns by device, both kicking in only past 3 rows:
-//   • Desktop (lg+): a capped, scrollable box (nested scroll is fine with
-//     a mouse, and a power user can flick through many quickly). It is a
-//     focusable region, so a keyboard can scroll it too.
-//   • Mobile (<lg): show 3, then an "Show all" button expands inline —
-//     no nested scroll on touch, where it's fiddly.
-// All rows are always in the DOM; rows past the 3rd are hidden on mobile
-// via CSS until expanded, so the same markup serves both layouts.
+// Past 3 rows, by device:
+//   • Desktop (lg+): every row, and the page scrolls. (This used to be a box
+//     capped at 26rem that scrolled inside the page: 520 of 869 px showed under
+//     a heading that said 5, and nothing said there were more.)
+//   • Below lg: show 3, then a "Show all" button expands inline, so a phone
+//     does not scroll through a tall pile of rows.
+// All rows are always in the DOM; rows past the 3rd are hidden below lg via
+// CSS until expanded, so the same markup serves both layouts.
 function ListingSection({ type, label, items }: { type: ListingType; label: string; items: Item[] }) {
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
@@ -97,12 +98,7 @@ function ListingSection({ type, label, items }: { type: ListingType; label: stri
       }
     >
       <Panel className="overflow-hidden">
-        <div
-          role={overflowing ? "region" : undefined}
-          aria-label={overflowing ? `${label} submissions` : undefined}
-          tabIndex={overflowing ? 0 : undefined}
-          className={`divide-y divide-border-subtle ${overflowing ? "lg:max-h-[26rem] lg:overflow-y-auto" : ""}`}
-        >
+        <div className="divide-y divide-border-subtle">
           {items.map((it, idx) => (
             <div key={it.id} className={overflowing && idx >= 3 && !expanded ? "max-lg:hidden" : ""}>
               <Row type={type} item={it} />
@@ -142,6 +138,19 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
     });
   };
 
+  const actions = (
+    <>
+      {(item.status === "pending" || item.status === "approved") && (
+        <ButtonLink href={EDIT_HREF[type](item.id)} variant="ghost" size="sm">
+          {item.status === "approved" ? "Propose a change" : "Edit"}
+        </ButtonLink>
+      )}
+      <Button variant="dangerGhost" size="sm" onClick={() => setConfirming(true)} disabled={pending}>
+        Delete
+      </Button>
+    </>
+  );
+
   return (
     // Test id so E2E can scope to one row. Filtering by "a div containing
     // this title" instead matches every ancestor too, which is how the
@@ -156,7 +165,10 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
           </span>
         }
         meta={item.subtitle ?? undefined}
-        className="items-start rounded-none px-4 py-4 sm:px-5"
+        // The actions sit at the row's right, level with its title (STACK_TRAILING drops them under the words on a phone); the confirmation
+        // (below) replaces them in the body, away from the button that was pressed, so a double click on Delete cannot land on Confirm.
+        trailing={confirming ? undefined : actions}
+        className={`items-start rounded-none px-4 py-4 sm:px-5 ${STACK_TRAILING}`}
       >
         <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-text-muted">
           <span>Submitted {submitted}</span>
@@ -181,36 +193,35 @@ function Row({ type, item }: { type: ListingType; item: Item }) {
           </p>
         )}
 
-        {!confirming ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {(item.status === "pending" || item.status === "approved") && (
-              <ButtonLink href={EDIT_HREF[type](item.id)} variant="ghost" size="sm">
-                {item.status === "approved" ? "Propose a change" : "Edit"}
-              </ButtonLink>
-            )}
-            <Button variant="dangerGhost" size="sm" onClick={() => setConfirming(true)} disabled={pending}>
-              Delete
-            </Button>
-          </div>
-        ) : (
-          <div className="mt-3 grid gap-3">
-            {item.status === "approved" && (
-              <p className="max-w-prose text-small text-danger">
-                This is live in the community directory. Deleting it removes it for everyone, immediately, and is irreversible.
-              </p>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="danger" size="sm" onClick={handleDelete} disabled={pending}>
-                {pending ? "Deleting…" : "Confirm"}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={pending}>
-                Cancel
-              </Button>
-            </div>
-          </div>
+        {confirming && (
+          <DeleteConfirm approved={item.status === "approved"} pending={pending} onCancel={() => setConfirming(false)} onConfirm={handleDelete} />
         )}
       </Entry>
       {error && <div className="px-4 pb-4 sm:px-5"><ErrorBanner>{error}</ErrorBanner></div>}
+    </div>
+  );
+}
+
+// The inline confirmation that takes the place of a row's actions. Cancel, then the destructive one: the order of every delete dialog (a
+// confirm sits last, at the end of the reading line).
+function DeleteConfirm({
+  approved, pending, onCancel, onConfirm,
+}: { approved: boolean; pending: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="mt-3 grid gap-3">
+      {approved && (
+        <p className="max-w-prose text-small text-danger">
+          This is live in the community directory. Deleting it removes it for everyone, immediately, and is irreversible.
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button variant="danger" size="sm" onClick={onConfirm} disabled={pending}>
+          {pending ? "Deleting…" : "Confirm"}
+        </Button>
+      </div>
     </div>
   );
 }

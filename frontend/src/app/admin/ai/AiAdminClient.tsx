@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { Divider } from "@/components/ui/Divider";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Definition, DefinitionList } from "@/components/ui/DefinitionList";
 import { FormActions } from "@/components/ui/FormActions";
 import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { Section } from "@/components/ui/Section";
 import { Stat, StatGrid } from "@/components/ui/Stat";
 import { useToast } from "@/components/ui/Toast";
 import { Field } from "@/components/forms/Field";
@@ -75,20 +76,36 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
     if (res.ok) { toast(success, "success"); router.refresh(); } else toast(res.error ?? "That didn't work.", "error");
   };
 
+  // One rhythm between the page's blocks (lm-sections), and a size container: two panels share a row only when the column has room for two (each at
+  // least 425 px), so the columns come from the room the page has and not from the window.
   return (
-    <div className="grid gap-6">
-      {/* The one thing that stops AI search outright goes first, above the numbers it makes meaningless. */}
-      {!o.prices_confirmed && (
-        <Notice tone="danger">
-          Model prices aren&apos;t confirmed, so AI search refuses to run. Confirm them in ai_private.model_prices first.
-        </Notice>
-      )}
+    <div className="lm-sections @container">
+      <div className="grid gap-6">
+        {/* The one thing that stops AI search outright goes first, above the numbers it makes meaningless. */}
+        {!o.prices_confirmed && (
+          <Notice tone="danger">
+            Model prices aren&apos;t confirmed, so AI search refuses to run. Confirm them in ai_private.model_prices first.
+          </Notice>
+        )}
 
-      <HealthStats o={o} />
-      <SwitchesPanel o={o} reason={reason} onReason={setReason} busy={busy} run={run} />
-      <LimitsPanel o={o} reason={reason} busy={busy} run={run} />
-      <LastDayPanel o={o} />
-      <AudiencePanel jobs={needingAudience} busy={busy} run={run} />
+        <HealthStats o={o} />
+      </div>
+
+      <div className="grid items-start gap-6 @min-[44rem]:grid-cols-2">
+        {/* One reason, read by Switches and by Limits, so it stands once above the two panels it applies to (it used to sit inside Switches, far from "Save limits"). */}
+        <div className="@min-[44rem]:col-span-2">
+          <Field label="Reason (recorded with every change)">
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} />
+          </Field>
+        </div>
+        <SwitchesPanel o={o} reason={reason} busy={busy} run={run} />
+        <LimitsPanel o={o} reason={reason} busy={busy} run={run} />
+      </div>
+
+      <div className="grid items-start gap-6 @min-[44rem]:grid-cols-2">
+        <LastDaySection o={o} />
+        <AudiencePanel jobs={needingAudience} busy={busy} run={run} />
+      </div>
     </div>
   );
 }
@@ -99,7 +116,9 @@ export default function AiAdminClient({ overview: o, needingAudience }: { overvi
 function HealthStats({ o }: { o: AiOverview }) {
   const { limits, spend_today: spend } = o;
   return (
-    <StatGrid min="sm">
+    // sm (10.5rem) is right while the page is a few cells wide; on a wide page it would be six cells of 222 px, too narrow for "$0.00 of $5.00"
+    // beside its ring, so the cells stop narrowing at 15rem there.
+    <StatGrid min="sm" className="@min-[56rem]:[--_min:15rem]">
       <Stat size="sm" label="Matching spend today" value={`${dollars(spend.matching)} of ${dollars(limits.matching_daily_cap_micro)}`}
         meter={{ value: spend.matching, max: limits.matching_daily_cap_micro }} tone={spend.matching > limits.matching_daily_cap_micro ? "danger" : "default"} />
       <Stat size="sm" label="Ingestion spend today" value={`${dollars(spend.ingestion)} of ${dollars(limits.ingestion_daily_cap_micro)}`}
@@ -124,18 +143,14 @@ function HealthStats({ o }: { o: AiOverview }) {
 
 // ─── Switches ───────────────────────────────────────────────────────
 
-function SwitchesPanel({ o, reason, onReason, busy, run }: {
+function SwitchesPanel({ o, reason, busy, run }: {
   o: AiOverview;
   reason: string;
-  onReason: (next: string) => void;
   busy: string | null;
   run: Run;
 }) {
   return (
     <FormSection as="section" title="Switches" description={o.is_operator ? undefined : "Only AI operators can change these."}>
-      <Field label="Reason (recorded with every change)">
-        <Input value={reason} onChange={(e) => onReason(e.target.value)} maxLength={300} />
-      </Field>
       <ul className="divide-y divide-border-subtle">
         {FLAG_ROWS.map((f) => {
           const on = o.flags[f.field];
@@ -169,8 +184,10 @@ function LimitsPanel({ o, reason, busy, run }: { o: AiOverview; reason: string; 
       as="section"
       title="Limits"
       description="Raise the active-turn ceiling at most 25% at a time, and only when the queue is persistently full with healthy headroom."
+      className="@container"
     >
-      <div className="grid gap-5 sm:grid-cols-3">
+      {/* three across when the panel has room for three (items-end: a label that wraps to two lines does not push its field out of line) */}
+      <div className="grid items-end gap-5 @min-[18rem]:grid-cols-3">
         <Field label="Active turns">
           <Input type="number" min={1} max={50} value={ceiling} onChange={(e) => setCeiling(e.target.value)} />
         </Field>
@@ -198,7 +215,8 @@ function LimitsPanel({ o, reason, busy, run }: { o: AiOverview; reason: string; 
 
 // ─── The last day ───────────────────────────────────────────────────
 
-function LastDayPanel({ o }: { o: AiOverview }) {
+// A Section and not a panel: the counters are a StatGrid, which is a surface of its own, and a panel never holds another.
+function LastDaySection({ o }: { o: AiOverview }) {
   const counts = [
     ...Object.entries(o.refusals_24h).map(([k, v]) => ({ key: `r-${k}`, term: `Admission: ${k.replaceAll("_", " ")}`, v })),
     ...Object.entries(o.provider_errors_24h).map(([k, v]) => ({ key: `p-${k}`, term: `Provider: ${k.replaceAll("_", " ")}`, v })),
@@ -206,20 +224,24 @@ function LastDayPanel({ o }: { o: AiOverview }) {
     ...Object.entries(o.outcomes_24h).map(([k, v]) => ({ key: `o-${k}`, term: k, v })),
   ];
   return (
-    <FormSection as="section" title="Last 24 hours">
+    <Section title="Last 24 hours">
       {counts.length > 0 && (
-        <DefinitionList min="sm" strong>
-          {counts.map((c) => <Definition key={c.key} term={c.term}><span className="data">{c.v}</span></Definition>)}
-        </DefinitionList>
+        <StatGrid min="sm">
+          {counts.map((c) => <Stat key={c.key} size="sm" label={c.term} value={c.v} />)}
+        </StatGrid>
       )}
       {o.recent_changes.length > 0 && (
-        <ul className="divide-y divide-border-subtle text-body text-text-secondary">
-          {o.recent_changes.map((c) => (
-            <li key={`${c.at}-${c.action}`} className="py-2.5 first:pt-0 last:pb-0">{formatDate(c.at)} · {c.action} · {c.notes}</li>
-          ))}
-        </ul>
+        // the log under a rule, as it was under the counters before; it has no heading of its own (no new word), so the list is named for a reader who cannot see the rule
+        <div className="grid gap-4">
+          <Divider />
+          <ul aria-label="Changes" className="divide-y divide-border-subtle text-body text-text-secondary">
+            {o.recent_changes.map((c) => (
+              <li key={`${c.at}-${c.action}`} className="py-2.5 first:pt-0 last:pb-0">{formatDate(c.at)} · {c.action} · {c.notes}</li>
+            ))}
+          </ul>
+        </div>
       )}
-    </FormSection>
+    </Section>
   );
 }
 
@@ -243,7 +265,9 @@ function AudiencePanel({ jobs, busy, run }: { jobs: JobRow[]; busy: string | nul
               <span className="min-w-0 text-body text-text-muted">
                 <Link href={`/opportunities/${j.id}`} className="text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">{j.title}</Link> · {j.company} · {j.poster} · closes {formatDate(j.deadline)}
               </span>
-              <span className="flex flex-wrap gap-2">
+              {/* The three need 304 px and a phone's panel has 300 (285 at 375, 270 at 360), so "Both" wrapped alone. A little less padding and gap on a phone fits
+                  them in one row there, and flex-auto makes them share whatever row they are on (two and one when even that is too much), so none is left small. */}
+              <span className="flex flex-wrap gap-2 [&>.lm-btn]:flex-auto max-[30rem]:w-full max-[30rem]:gap-1.5 max-[30rem]:[&>.lm-btn]:px-3">
                 {AUDIENCES.map((a) => (
                   <Button key={a.value} size="sm" variant="ghost" loading={busy === `${j.id}:${a.value}`}
                     onClick={() => run(`${j.id}:${a.value}`, () => setOpportunityAudience(j.id, a.value), "Audience set.")}>

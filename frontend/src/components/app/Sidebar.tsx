@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import SignOutButton from "@/app/admin/SignOutButton";
 import { PendingBadge } from "@/components/connections/PendingBadge";
 import { hueOf } from "@/components/ui/avatarHue";
@@ -130,6 +130,36 @@ const SECONDARY: Item[] = [
   { key: "settings", href: "/settings", label: "Settings", icon: "settings" },
 ];
 
+// How the rail's list can scroll, so the stylesheet can fade the edge that has more behind it. A window shorter than the rail cuts rows off the
+// bottom, and an overlay scroll bar (macOS, phones) says nothing about it.
+type ScrollCue = "start" | "end" | "both" | undefined;
+
+function useScrollCue() {
+  const ref = useRef<HTMLElement>(null);
+  const [cue, setCue] = useState<ScrollCue>(undefined);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const read = () => {
+      const room = el.scrollHeight - el.clientHeight;
+      if (room <= 2) return setCue(undefined);
+      const above = el.scrollTop > 1;
+      const below = el.scrollTop < room - 1;
+      setCue(above && below ? "both" : below ? "end" : "start");
+    };
+    read();
+    el.addEventListener("scroll", read, { passive: true });
+    const observer = new ResizeObserver(read);
+    observer.observe(el);
+    for (const child of Array.from(el.children)) observer.observe(child);
+    return () => {
+      el.removeEventListener("scroll", read);
+      observer.disconnect();
+    };
+  }, []);
+  return { ref, cue };
+}
+
 export default function Sidebar({
   active,
   name,
@@ -166,6 +196,8 @@ export default function Sidebar({
   const primary = full ? PRIMARY : IN_REVIEW;
   const secondary = full ? SECONDARY : SECONDARY.filter((i) => i.key === "settings");
 
+  const { ref: navRef, cue } = useScrollCue();
+
   const row = (it: Item) => (
     <NavRow key={it.key} item={it} active={active} collapsed={collapsed} full={full} onNavigate={onNavigate} />
   );
@@ -174,7 +206,7 @@ export default function Sidebar({
     <div className="lm-rail" data-collapsed={collapsed || undefined} data-drawer={drawer || undefined}>
       <SidebarHeader collapsed={collapsed} onToggle={toggle} onClose={onClose} onNavigate={onNavigate} />
 
-      <nav aria-label="Main" className="lm-rail__nav">
+      <nav aria-label="Main" className="lm-rail__nav" ref={navRef} data-cue={cue}>
         {primary.length > 0 && (
           <>
             <ul className="lm-rail__list">{primary.map(row)}</ul>

@@ -21,10 +21,14 @@ import { myEducation } from "@/lib/data/opportunities";
 import { anyAiModeEnabled, listConcepts, myAiSettings } from "@/lib/ai/data";
 import { EducationForm } from "@/components/forms/EducationForm";
 import AiSettingsCard from "./AiSettingsCard";
-import { SettingsSection } from "./SettingsSection";
+import { SettingsColumn, SettingsSection } from "./SettingsSection";
 import { Page } from "@/components/ui/Page";
 
 export const metadata: Metadata = { title: "Settings" };
+
+// In a phone's half-width cell a label may wrap but never overflow, and the arrow (decoration) makes way for the words.
+const HEAD_LINK = "max-sm:whitespace-normal max-sm:px-3 max-sm:text-center";
+const HEAD_ARROW = "max-sm:hidden";
 
 // Fetches the settings page's cascading, approval-gated data (connections,
 // education, AI settings only load once we know the member is approved, and
@@ -88,28 +92,30 @@ export default async function SettingsPage() {
           context="Settings"
           title="Account & profile"
           actions={
-            <>
-              <ButtonLink href="/profile" size="sm">
+            // Four equal cells that never leave one alone: two by two until the head has room for all four across (xl, where it is about
+            // 900 px wide). Edit your profile is the page's one cream action; the section buttons below are ghost.
+            <div className="grid w-full min-w-0 grid-cols-2 gap-3 xl:grid-cols-4">
+              <ButtonLink href="/profile" size="sm" className={HEAD_LINK}>
                 Edit your profile
-                <Icon name="arrow-right" size={16} />
+                <Icon name="arrow-right" size={16} className={HEAD_ARROW} />
               </ButtonLink>
-              <ButtonLink href="/my-submissions" variant="ghost" size="sm">
+              <ButtonLink href="/my-submissions" variant="ghost" size="sm" className={HEAD_LINK}>
                 Your submissions
-                <Icon name="arrow-right" size={16} />
+                <Icon name="arrow-right" size={16} className={HEAD_ARROW} />
               </ButtonLink>
-              <ButtonLink href="/my-bookmarks" variant="ghost" size="sm">
+              <ButtonLink href="/my-bookmarks" variant="ghost" size="sm" className={HEAD_LINK}>
                 Saved opportunities
-                <Icon name="arrow-right" size={16} />
+                <Icon name="arrow-right" size={16} className={HEAD_ARROW} />
               </ButtonLink>
-              <ButtonLink href="/contact" variant="ghost" size="sm">
+              <ButtonLink href="/contact" variant="ghost" size="sm" className={HEAD_LINK}>
                 Contact the team
-                <Icon name="arrow-right" size={16} />
+                <Icon name="arrow-right" size={16} className={HEAD_ARROW} />
               </ButtonLink>
-            </>
+            </div>
           }
         />
 
-        <div className="mt-8">
+        <SettingsColumn className="mt-8">
           {connectionSettings && (
             <ConnectionSettings
               emailsEnabled={connectionSettings.connection_emails_enabled}
@@ -144,7 +150,7 @@ export default async function SettingsPage() {
           <div className="border-t border-border-subtle pt-9">
             <DeleteAccountSection email={user.email ?? ""} />
           </div>
-        </div>
+        </SettingsColumn>
       </Page>
     </AppShell>
   );

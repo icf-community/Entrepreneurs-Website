@@ -17,6 +17,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { FormActions } from "@/components/ui/FormActions";
 import { Input } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
@@ -335,7 +336,7 @@ export default function ProfileForm(props: Props) {
 
   return (
     <div>
-      <SaveResult error={error} saved={saved} errorRef={errorRef} />
+      <SaveResult error={error} errorRef={errorRef} />
 
       <PhotoSection avatarUrl={props.avatarUrl} name={`${firstName} ${surname}`.trim()} meta={[course.trim(), gradYear].filter(Boolean).join(" · ")} />
 
@@ -398,40 +399,49 @@ export default function ProfileForm(props: Props) {
           availabilityHours={availabilityHours} setAvailabilityHours={setAvailabilityHours}
         />
 
-        <SaveRow loading={isLoading} />
+        <SaveRow loading={isLoading} saved={saved && !error} />
       </form>
     </div>
   );
 }
 
-// The result of the last save, above the first row and on the controls' line.
+// What went wrong with the last save, above the first row and on the controls' line (the page scrolls here).
 function SaveResult({
-  error, saved, errorRef,
+  error, errorRef,
 }: {
   error: string;
-  saved: boolean;
   errorRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  if (!error && !saved) return null;
+  if (!error) return null;
   return (
     <div className="grid pt-8 xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] xl:gap-x-12">
       <div className="grid max-w-[34rem] gap-3 xl:col-start-2">
-        {error && <div ref={errorRef}><ErrorBanner>{error}</ErrorBanner></div>}
-        {saved && !error && <SuccessBanner>Saved.</SuccessBanner>}
+        <div ref={errorRef}><ErrorBanner>{error}</ErrorBanner></div>
       </div>
     </div>
   );
 }
 
-// The one primary action of the page, on the controls' line.
-function SaveRow({ loading }: { loading: boolean }) {
+// The one primary action of the page, on the controls' line, in the footer row every form ends on (full width on a phone). The confirmation
+// sits beside it: "Saved." used to be drawn at the top of the page, thousands of pixels above the button just pressed. A click needs no
+// scroll; "nearest" is for the other way to save, Enter in a field far above, which would otherwise confirm off-screen.
+function SaveRow({ loading, saved }: { loading: boolean; saved: boolean }) {
+  const savedRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (saved) savedRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [saved]);
   return (
     <div className="grid gap-x-12 border-t border-border-subtle py-9 xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
-      <div className="xl:col-start-2">
+      <FormActions className="xl:col-start-2">
         <Button type="submit" loading={loading} variant="primary" size="lg">
           Save changes
         </Button>
-      </div>
+        {saved && (
+          <div ref={savedRef} className="max-[30rem]:basis-full">
+            <SuccessBanner>Saved.</SuccessBanner>
+          </div>
+        )}
+      </FormActions>
     </div>
   );
 }

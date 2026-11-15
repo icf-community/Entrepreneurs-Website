@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { FormActions } from "@/components/ui/FormActions";
 import { Input } from "@/components/ui/Input";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
@@ -172,11 +173,11 @@ export default function PasswordChangeForm({ hasPassword, email }: { hasPassword
           </div>
         )}
 
-        <div>
-          <Button type="submit" loading={isLoading} variant="primary" size="md">
+        <FormActions>
+          <Button type="submit" loading={isLoading} variant="ghost" size="md">
             Update password
           </Button>
-        </div>
+        </FormActions>
       </form>
     </SettingsSection>
   );

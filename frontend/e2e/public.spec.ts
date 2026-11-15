@@ -99,6 +99,22 @@ test("home page carries the static CSP and hydrates with zero violations", async
   expect(violations, `CSP violations on /: ${violations.join(" | ")}`).toEqual([]);
 });
 
+test("the IdeaForge page carries the static CSP, hydrates with zero violations and may frame Tally", async ({ page }) => {
+  // /ideaforge is prerendered, so like "/" it has to be on STATIC_CSP_ROUTES: under the nonce policy
+  // its own bundle is blocked and nothing on the page runs. It is also the one page that embeds a
+  // third party, so this pins tally.so in frame-src on the policy the page is actually served.
+  const violations = watchForCspViolations(page);
+
+  const res = await page.goto("/ideaforge", { waitUntil: "networkidle" });
+  const csp = res?.headers()["content-security-policy"];
+  expect(csp, "CSP header present").toBeTruthy();
+  expect(csp!, "static route carries no nonce").not.toMatch(/'nonce-/);
+  expect(csp!, "static route falls back to unsafe-inline").toContain("'unsafe-inline'");
+  expect(csp!, "the Tally form may be framed").toMatch(/frame-src [^;]*https:\/\/tally\.so/);
+
+  expect(violations, `CSP violations on /ideaforge: ${violations.join(" | ")}`).toEqual([]);
+});
+
 test("a dynamic public route carries a nonce-based CSP and hydrates clean", async ({ page }) => {
   const violations = watchForCspViolations(page);
 

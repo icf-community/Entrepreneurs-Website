@@ -35,6 +35,11 @@ import { labelCls } from "./styles";
 
 type ControlProps = { "aria-describedby"?: string };
 
+// A hint is either a note on the label line (optional, 0/4000, range 2019–2028) or a sentence that helps with the answer (an example, a rule). The
+// sentence goes beneath its control, where forms.md puts a hint: on the label line it wraps the label, and the control of a field beside it ends up
+// a line lower (two fields in a row stop lining up). It stays inside the <label>, so a screen reader still hears it with the name.
+const NOTE_MAX = 24;
+
 // The only children Field reaches into to add aria-invalid / aria-describedby: one native control, or our wrapper of it.
 const CONTROLS: readonly unknown[] = ["input", "textarea", "select", Input, Textarea, Select];
 
@@ -56,10 +61,11 @@ export function Field({
   children: ReactNode;
 }) {
   const errorId = useId();
+  const below = !group && typeof hint === "string" && hint.length > NOTE_MAX;
   const caption = (
     <>
       {label} {required && <span className="lm-label__req">*</span>}
-      {hint && <span className="lm-label__hint">{hint}</span>}
+      {hint && !below && <span className="lm-label__hint">{hint}</span>}
     </>
   );
 
@@ -85,6 +91,7 @@ export function Field({
       <label className="block">
         <span className={`${labelCls} mb-2`}>{caption}</span>
         {control}
+        {below && <span className="lm-hint">{hint}</span>}
       </label>
       <FieldError id={errorId}>{error}</FieldError>
     </div>

@@ -20,8 +20,10 @@ import { Stat, StatGrid } from "@/components/ui/Stat";
 import { StepDots } from "@/components/ui/StepDots";
 import { Tab, TabCount, TabList, TabPanel, Tabs, ButtonTabs } from "@/components/ui/Tabs";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
+import { Timeline } from "@/components/ui/Timeline";
 import { Icon } from "@/design-system/icons/Icon";
 import type { UrlFilters } from "@/lib/filters/useUrlFilters";
+import { titleOf } from "./sections";
 
 // The Data section of the design-system gallery (/admin/design-system). Owned by the data family: every component of the family in every
 // state, with content that looks like the product's, and a line on when to use each. A client component because the demos keep state
@@ -790,6 +792,33 @@ function ProgressDemo() {
 
 // ── Divider and Section ──────────────────────────────────────────────────────────────────────────────────────
 
+const PROGRAMME = [
+  { when: "January", title: "Launch and foundation", body: "Mentor pairing, workshops on product development and customer discovery, and fireside chats with founders." },
+  { when: "February", title: "Growth and refinement", body: "Marketing, pitching masterclasses and fundraising sessions. Semi-final presentations at the end of the month." },
+  { when: "March", title: "Launch preparation", body: "Office hours with founders, final product sprints and go-to-market strategy." },
+  { when: "Late March", title: "Demo Day", body: "Teams pitch what they built to a panel of investors." },
+];
+
+function TimelineDemo() {
+  return (
+    <div className="grid gap-10 lg:grid-cols-2">
+      <Variant caption="Steps in order: when, what, and a sentence. The hairline joins the rings; the last ring is lit.">
+        <Timeline items={PROGRAMME} />
+      </Variant>
+      <Variant caption="Without a body, and with the titles as plain paragraphs where a heading would be one level too many.">
+        <Timeline
+          titleAs="p"
+          items={[
+            { when: "Week one", title: "Apply" },
+            { when: "Week three", title: "Meet your mentor" },
+            { when: "Week eight", title: "Pitch" },
+          ]}
+        />
+      </Variant>
+    </div>
+  );
+}
+
 function StructureDemo() {
   return (
     <div className="grid gap-12">
@@ -835,13 +864,12 @@ function StructureDemo() {
 
 export function DataGallery() {
   return (
-    <section className="grid gap-6 border-t border-border-subtle py-12">
-      <div className="grid gap-2">
-        <h2 className="font-display text-heading text-text-primary">Data display and structure</h2>
-        <p className="measure-prose text-small text-text-secondary">
-          Tabs, avatars, counters, tables, disclosures, definition lists, pagers, progress and dividers: one family, drawn with two devices from the logo, the hairline with a lit end and the ring. State is read off ARIA, so a site keeps its own semantics and takes the look.
-        </p>
-      </div>
+    <Section
+      rule
+      id="data"
+      title={titleOf("data")}
+      description="Tabs, avatars, counters, tables, disclosures, definition lists, pagers, progress and dividers: one family, drawn with two devices from the logo, the hairline with a lit end and the ring. State is read off ARIA, so a site keeps its own semantics and takes the look."
+    >
       <div className="grid gap-16">
         <Demo title="Tabs" note="Use tabs to switch between views of one thing; pick the markup by what the control is (links, toggle buttons, or a true tablist), the look is the same.">
           <TabsDemo />
@@ -864,10 +892,13 @@ export function DataGallery() {
         <Demo title="ProgressBar, Meter and StepDots" note="Use a progress bar for getting something done, a meter for where a quantity stands, and step dots for where you are in a flow.">
           <ProgressDemo />
         </Demo>
+        <Demo title="Timeline" note="Use a timeline for a programme or a history in order: a few steps, each with a when, a what and a sentence. It is a list, not a stepper: nothing in it is a control.">
+          <TimelineDemo />
+        </Demo>
         <Demo title="Divider and Section" note="Use a divider where two things need more than space between them, and a section for each part of a long page.">
           <StructureDemo />
         </Demo>
       </div>
-    </section>
+    </Section>
   );
 }

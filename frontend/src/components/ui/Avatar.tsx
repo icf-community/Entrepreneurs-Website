@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { hueOf } from "./avatarHue";
+import { hueOfFace } from "./avatarHue";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Avatar (Lumen)
@@ -78,7 +78,7 @@ export function Avatar({
       data-lit={lit || undefined}
       data-tone={tone === "lit" ? "lit" : undefined}
       data-ring={ring ? undefined : "none"}
-      data-hue={photo ? undefined : hueOf(name ?? initials)}
+      data-hue={hueOfFace(photo !== null, name, initials)}
       role={named && !photo ? "img" : undefined}
       aria-label={named && !photo ? alt : undefined}
     >

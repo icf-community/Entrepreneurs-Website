@@ -110,6 +110,10 @@
   .lm-tab__count { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 
   .lm-tabs--sm .lm-tab { --_h: 36px; --_px: 12px; --_fs: var(--text-caption); }
+  /* on the narrowest phones the tabs give up a little of their side room, so three short labels (Your connections, Requests, Sent) stay on one line at 320 */
+  @media (max-width: 24rem) {
+    .lm-tabs:not(.lm-tabs--segmented) > .lm-tab, .lm-tabs:not(.lm-tabs--segmented) > li > .lm-tab { --_px: 12px; }
+  }
   .lm-tabs--fill { display: flex; width: 100%; }
   .lm-tabs--fill::after { display: none; }
   .lm-tabs--fill > .lm-tab, .lm-tabs--fill > li { flex: 1 1 0; }
@@ -217,8 +221,8 @@
   .lm-statgrid {
     --_min: 14rem;
     position: relative;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(var(--_min), 100%), 1fr));
+    display: flex;
+    flex-wrap: wrap;
     margin: 0;
     overflow: hidden;
     background: var(--color-bg-card);
@@ -229,7 +233,10 @@
   .lm-statgrid[data-min="sm"] { --_min: 10.5rem; }
   @media (max-width: 560px) { .lm-statgrid[data-min="sm"] { --_min: 8.25rem; } }
   .lm-statgrid[data-min="lg"] { --_min: 19rem; }
+  /* The cells wrap at --_min and share each row equally, so a last row with fewer cells stretches across the sheet instead of leaving an empty one
+     (three counters on a phone are two and one wide, not two and a gap). */
   .lm-stat {
+    flex: 1 1 min(var(--_min), 100%);
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -242,7 +249,7 @@
   /* a ring sits at the cell's trailing edge; the words keep clear of it */
   .lm-stat[data-meter="ring"] { padding-inline-end: calc(20px + 48px + 14px); }
   .lm-stat[data-meter="ring"][data-size="sm"] { padding-inline-end: calc(18px + 36px + 10px); }
-  /* each cell draws its own right and bottom hairline just outside itself; the sheet clips the outermost ones, so a ragged last row has no blocks */
+  /* each cell draws its own right and bottom hairline just outside itself; the sheet clips the outermost ones, so a stretched last row has no blocks */
   .lm-stat::after {
     content: "";
     position: absolute;
@@ -281,7 +288,18 @@
      Real <table> semantics, drawn quietly: hairline rows, a tinted header that stays put, a row that lights when pointed at, and an amber edge on the
      chosen row. The scroll region is focusable so a keyboard can pan a wide table. Below 640 px of its own width (a container query, so a table in a
      dialog or a narrow column stacks too) each row becomes a card, the same DOM: the header row steps aside and each cell carries its own label. */
-  .lm-tablebox { container: lm-table / inline-size; min-width: 0; }
+  /* The outer box measures the room; the inner one is what the stack rule below asks about. A table with many columns stacks at 880 or 1140 px
+     instead of 640: from 640 px of room up its inner box is made 240 or 500 px narrower than the room (padding, which a container's measured
+     width leaves out) and its region takes the padding back (a negative margin), so the one 639 px rule fires at 880 or 1140 px. */
+  .lm-tablebox { container: lm-tablebox / inline-size; min-width: 0; }
+  .lm-tablecq { container: lm-table / inline-size; min-width: 0; }
+  @container lm-tablebox (min-width: 640px) {
+    .lm-tablebox[data-stack-below="md"] > .lm-tablecq { padding-inline-end: 240px; }
+    .lm-tablebox[data-stack-below="lg"] > .lm-tablecq { padding-inline-end: 500px; }
+    .lm-tablebox[data-stack-below] > .lm-tablecq > .lm-tablescroll { max-width: none; }
+    .lm-tablebox[data-stack-below="md"] > .lm-tablecq > .lm-tablescroll { margin-inline-end: -240px; }
+    .lm-tablebox[data-stack-below="lg"] > .lm-tablecq > .lm-tablescroll { margin-inline-end: -500px; }
+  }
   .lm-tablescroll {
     position: relative;
     max-width: 100%;
@@ -343,6 +361,9 @@
   .lm-table td[data-nowrap] { white-space: nowrap; }
   .lm-table td[data-actions] { text-align: right; white-space: nowrap; }
   .lm-table td[data-actions] > * + * { margin-inline-start: 8px; }
+  /* the actions cell keeps the height of its button even in a row that has none, so the rows of one table are one height (the stacked card turns this off) */
+  .lm-table td[data-actions]::before { content: ""; display: inline-block; width: 0; height: var(--_ah, 44px); vertical-align: middle; }
+  .lm-table[data-density="compact"] { --_ah: 36px; }
   /* a compact table keeps its rows short: its buttons are 36 px, still twice the 24 px floor */
   .lm-table[data-density="compact"] td[data-actions] .lm-btn { --_h: 36px; --_px: 16px; }
   /* a table that scrolls sideways keeps its actions in view: the actions cell sticks to the region's right edge, opaque so what scrolls
@@ -410,6 +431,11 @@
     .lm-table[data-narrow="stack"] td[data-nowrap] { white-space: normal; }
     /* a cell with nothing in it (an action that does not apply to this row) leaves no gap and no rule */
     .lm-table[data-narrow="stack"] td:empty { display: none !important; }
+    .lm-table[data-narrow="stack"] td[data-actions]::before { content: none; }
+    /* a long value takes the line under its label, and a cell that holds only a dash is not drawn */
+    .lm-table[data-narrow="stack"] td[data-wide]:not([data-label=""], [data-primary]) { flex-wrap: wrap; }
+    .lm-table[data-narrow="stack"] td[data-wide]:not([data-label=""], [data-primary])::before { flex-basis: 100%; }
+    .lm-table[data-narrow="stack"] td[data-empty] { display: none !important; }
   }
 
   /* ── Disclosure ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -706,10 +732,25 @@
   .lm-divider[data-vertical] { width: 1px; height: auto; min-height: 1.5rem; align-self: stretch; }
   .lm-divider[data-vertical]::after { content: none; }
 
+  /* ── Timeline ───────────────────────────────────────────────────────────
+     A programme or a history in order: a hairline down the left, a ring on it at each step, the step's words beside the ring. The last ring is lit,
+     the way the masthead rule lights its end, turned upright. The hairline runs from one ring to the next and stops short of each, so it never
+     touches a ring; the last step has none below it. Nothing moves. */
+  .lm-timeline { --_gap: 28px; position: relative; display: grid; gap: var(--_gap); margin: 0; padding: 0; list-style: none; }
+  .lm-timeline__item { position: relative; display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0 0 0 36px; }
+  .lm-timeline__item::before { content: ""; position: absolute; left: 6px; top: 21px; bottom: calc(6px - var(--_gap) - 2px); width: 1px; background: var(--color-border); }
+  .lm-timeline__item:last-child::before { content: none; }
+  .lm-timeline__item::after { content: ""; position: absolute; left: 0; top: 2px; box-sizing: border-box; width: 13px; height: 13px; border: 1.5px solid var(--color-border-strong); border-radius: 50%; }
+  .lm-timeline__item:last-child::after { border-color: var(--color-warm); box-shadow: 0 0 12px -2px var(--color-lit-glow); }
+  .lm-timeline__when { margin: 0; color: var(--color-text-muted); font-size: var(--text-caption); font-weight: 500; line-height: 1.3; }
+  .lm-timeline__title { margin: 0; color: var(--color-text-primary); font-family: var(--font-display); font-size: var(--text-lead); font-weight: 400; letter-spacing: -0.012em; line-height: 1.2; }
+  .lm-timeline__body { max-width: var(--measure-prose); margin: 0; color: var(--color-text-secondary); font-size: var(--text-body); line-height: 1.5; text-wrap: pretty; }
+
   /* ── Section ──────────────────────────────────────────────────────────────────────────────────────────────────
      A page section with its own title row in the display face. Sections stack on one rhythm (--section-gap): put them in .lm-sections. */
   .lm-sections { display: grid; gap: var(--section-gap); min-width: 0; }
-  .lm-section { display: grid; gap: var(--section-gap-inner); min-width: 0; }
+  /* align-content: start, so a section stretched to the height of the one beside it keeps its own rows at their own sizes (the spare height went into its head row and shifted its content) */
+  .lm-section { display: grid; gap: var(--section-gap-inner); align-content: start; min-width: 0; }
   /* the masthead's rule, static: a hairline across the top and a point of light at its end */
   .lm-section[data-rule] { position: relative; padding-top: 24px; }
   .lm-section[data-rule]::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: var(--color-border); }
@@ -725,7 +766,7 @@
     box-shadow: 0 0 10px 1px color-mix(in oklab, var(--color-warm) 70%, transparent);
   }
   .lm-section__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
-  .lm-section__titles { display: grid; gap: 6px; min-width: 0; }
+  .lm-section__titles { flex: 1 1 10rem; display: grid; gap: 6px; min-width: 0; }
   .lm-section__title {
     margin: 0;
     color: var(--color-text-primary);
@@ -738,8 +779,8 @@
     text-wrap: balance;
   }
   .lm-section__title[data-level="3"] { font-size: var(--text-lead); font-weight: 400; line-height: 1.2; }
-  .lm-section__desc { max-width: 62ch; margin: 0; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.5; }
-  .lm-section__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .lm-section__desc { max-width: var(--measure-prose); margin: 0; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.5; }
+  .lm-section__actions { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 
   /* ── Forced colours (Windows high contrast) ─────────────────────────────────────────────────────────────────────
      Backgrounds and shadows are not painted there, and every text colour becomes one, so what carries a chosen state here (a rule's fill, a wash, a
@@ -764,5 +805,7 @@
     .lm-pager__gauge, .lm-divider, .lm-steps > li + li::before { forced-color-adjust: none; background: GrayText; }
     .lm-pager__gauge::before, .lm-pager__gauge::after, .lm-steps > li[data-state="done"]::before, .lm-steps > li[data-state="current"]::before { forced-color-adjust: none; background: Highlight; }
     .lm-section[data-rule]::before { forced-color-adjust: none; background: GrayText; }
+    .lm-timeline__item::before { forced-color-adjust: none; background: GrayText; }
+    .lm-timeline__item:last-child::after { border-color: Highlight; }
   }
 }

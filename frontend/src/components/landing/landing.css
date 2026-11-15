@@ -428,6 +428,20 @@
   }
 }
 
+/* a phone's Sign in and Menu pills are fixed over copy that scrolls past them, and with nothing behind them the words ran under the pills and were cut
+   mid-word. A soft scrim of the night sits behind the bar: nearly void through the pills' row (14 + 44 px), then fading to nothing 100 px down. It is drawn
+   behind the pills and the rail (z-index -1 inside the nav's own stacking context) and takes no pointer. Phones only (below 768 px), where the collision was seen. */
+@media (max-width: 767px) {
+  .lumen .nav::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -28px;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(to bottom, color-mix(in oklab, var(--void) 92%, transparent) 0, color-mix(in oklab, var(--void) 92%, transparent) 58px, transparent 100%);
+  }
+}
+
 /* landscape phones (short and wide, still under 900 px): the hero keeps the desktop's arrangement, words left and the mark right (the director places the mark: POSES.hero) */
 @media (max-width: 899px) and (orientation: landscape) and (max-height: 560px) {
   .lumen {

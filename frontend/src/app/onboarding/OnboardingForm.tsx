@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { BrandLogo } from "@/components/BrandLogo";
+import { PublicHeader } from "@/app/login/PublicHeader";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { Field } from "@/components/forms/Field";
 import { cleanText } from "@/lib/text";
@@ -16,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { FormActions } from "@/components/ui/FormActions";
 import { FormSection } from "@/components/ui/FormSection";
 import { Input } from "@/components/ui/Input";
+import { Page } from "@/components/ui/Page";
 import { PageHead } from "@/components/ui/PageHead";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Select } from "@/components/ui/Select";
@@ -150,19 +150,16 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
   return (
     // no background of its own: the atmosphere (the night behind every page) shows through
     <div className="flex min-h-screen flex-col">
-      <header className="z-40 border-b border-border-subtle bg-bg-primary/85 px-[var(--gutter)] backdrop-blur-md sm:sticky sm:top-0">
-        <div className="mx-auto flex max-w-[var(--content-max)] flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3.5">
-          <Link href="/" className="no-underline">
-            <BrandLogo size="sm" />
-          </Link>
-          <span className="text-small text-text-muted">
-            Signed in as <span className="text-text-secondary">{firstName} {surname}</span>
-          </span>
-        </div>
-      </header>
+      {/* the same bar as every page before the rail, held at the top while the form scrolls */}
+      <PublicHeader sticky>
+        <span className="text-small text-text-muted">
+          Signed in as <span className="text-text-secondary">{firstName} {surname}</span>
+        </span>
+      </PublicHeader>
 
-      <main id="main-content" tabIndex={-1} className="flex-1 px-[var(--gutter)] pb-20 pt-4">
-        <div className="mx-auto w-full max-w-[640px]">
+      {/* the page frame (a narrow, centred column: no rail beside it), so the head sits where it does under every other bar */}
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <Page width="narrow" align="center">
           <PageHead
             context={<>Step {step + 1} of {TOTAL_STEPS} · {STEP_TITLES[step]}</>}
             title={<>Who let you <span className="text-text-secondary">in?</span></>}
@@ -231,7 +228,7 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
               )}
             </FormActions>
           </FormSection>
-        </div>
+        </Page>
       </main>
     </div>
   );

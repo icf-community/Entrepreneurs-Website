@@ -55,6 +55,9 @@
   /* a hint lives inside the label's span, so a screen reader still hears it with the name */
   .lm-label__hint { margin-left: 8px; font-size: var(--text-caption); font-weight: 400; letter-spacing: 0; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 
+  /* a hint that is a sentence, beneath its control and inside the label (Field puts it there) */
+  .lm-hint { display: block; margin-top: 8px; font-size: var(--text-small); font-weight: 400; letter-spacing: 0; line-height: 1.4; color: var(--color-text-muted); }
+
   .lm-error {
     display: flex;
     align-items: flex-start;
@@ -86,6 +89,7 @@
     font-size: var(--text-body);
     font-weight: 400;
     line-height: 1.4;
+    text-overflow: ellipsis;   /* a prompt wider than the box ends in an ellipsis instead of being cut mid-letter */
     color-scheme: dark;
     caret-color: var(--color-sun);
     box-shadow: inset 0 1px 0 var(--_light);
@@ -345,6 +349,8 @@
     cursor: pointer;
     transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
   }
+  /* a plain row is a 44 px target (it was 23 px, under the 24 px floor): the room is padding, so the control stays level with the first line of words */
+  .lm-choice:not([data-card]) { padding-block: calc((var(--touch) - 1.45 * var(--text-body)) / 2); }
   .lm-choice > .lm-check,
   .lm-choice > .lm-radio { margin-top: 1px; }
   .lm-choice__text { min-width: 0; }
@@ -613,12 +619,12 @@
   @media (min-width: 40rem) { .lm-formsec { padding: 32px; } }
   .lm-formsec__head { display: grid; gap: 6px; }
   .lm-formsec__title { margin: 0; font-family: var(--font-display); font-weight: 300; font-size: var(--text-title); line-height: var(--text-title--line-height); letter-spacing: var(--tracking-display); color: var(--color-text-primary); text-wrap: balance; }
-  .lm-formsec__desc { margin: 0; max-width: 62ch; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.5; }
+  .lm-formsec__desc { margin: 0; max-width: var(--measure-prose); color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.5; }
 
   .lm-group { padding-top: 24px; border-top: 1px solid var(--color-border-subtle); }
   .lm-group__set { min-width: 0; margin: 0; padding: 0; border: 0; }
   .lm-group__legend { display: block; width: 100%; padding: 0; margin: 0 0 4px; color: var(--color-text-primary); font-size: var(--text-body); font-weight: 500; line-height: 1.4; }
-  .lm-group__desc { margin: 0 0 16px; max-width: 62ch; color: var(--color-text-muted); font-size: var(--text-small); line-height: 1.5; }
+  .lm-group__desc { margin: 0 0 16px; max-width: var(--measure-prose); color: var(--color-text-muted); font-size: var(--text-small); line-height: 1.5; }
   .lm-group__legend:not(:has(+ .lm-group__desc)) { margin-bottom: 16px; }
   .lm-group__body { display: grid; gap: 16px; }
 

@@ -3,6 +3,7 @@ import AppShell from "@/components/app/AppShell";
 import { PageHead } from "@/components/ui/PageHead";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { myPostsPage } from "@/lib/data/posts";
+import { ButtonLink } from "@/components/ui/ButtonLink";
 import { toMyPostView } from "../feedView";
 import MyPostsClient from "./MyPostsClient";
 import { Page } from "@/components/ui/Page";
@@ -17,8 +18,8 @@ import { Page } from "@/components/ui/Page";
 //
 // It is a real route, not client state, so it can be linked and
 // bookmarked — which is what a member wants when they come back to delete
-// something before it expires. The two views are drawn as link tabs under the
-// head (MyPostsClient), the same column as the feed.
+// something before it expires. The two views are linked from the head: the
+// switch back to the feed sits where /community has its own switch.
 // ════════════════════════════════════════════════════════════════════
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default async function MyPostsPage() {
     <AppShell active="community" name={displayName} isAdmin={isAdmin}>
       <Page width="page">
         <PageHead
+          className="mb-8"
           context="Community"
           title="My posts"
           lede={
@@ -41,6 +43,11 @@ export default async function MyPostsPage() {
               Everything you&rsquo;ve posted that hasn&rsquo;t expired yet. Posts are deleted
               automatically seven days after publishing, and you can remove one sooner at any time.
             </>
+          }
+          actions={
+            <ButtonLink href="/community" variant="ghost" size="md">
+              All posts
+            </ButtonLink>
           }
         />
 

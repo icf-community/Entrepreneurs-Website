@@ -22,13 +22,13 @@ export function EditStatusNote({
 }) {
   if (status === "pending") {
     return (
-      <p className="mt-2 max-w-[62ch] text-body text-text-muted">
+      <p className="max-w-[62ch] text-body text-text-muted">
         This {noun} hasn&apos;t been reviewed yet, so changes save straight away.
       </p>
     );
   }
   return (
-    <p className="mt-2 max-w-[62ch] text-body text-text-muted">
+    <p className="max-w-[62ch] text-body text-text-muted">
       This {noun} is live. Changes to a published {noun} go to an admin first — yours
       stays up exactly as it is until they approve the new version.
     </p>

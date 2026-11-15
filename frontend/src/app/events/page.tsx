@@ -16,7 +16,7 @@ export default async function EventsPage({
 }: {
   searchParams: Promise<{ submitted?: string; e?: string }>;
 }) {
-  const { supabase, user, isAdmin } = await requireApprovedUser();
+  const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
   const sp = await searchParams;
 
   // /events?e=<id> was how a listing was linked to before it had a
@@ -36,6 +36,7 @@ export default async function EventsPage({
   return (
     <ListingPageShell
       active="events"
+      name={displayName}
       isAdmin={isAdmin}
       justSubmitted={justSubmitted}
       submittedKind="event"

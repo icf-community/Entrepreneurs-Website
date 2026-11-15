@@ -20,7 +20,7 @@ export default async function CommitteePage() {
           context="Meet the Committee"
           title="The people running the Foundry"
           lede="Use the arrows (or ← →) to page through everyone. Click a card for their full profile."
-          className="mb-10"
+          className="mb-8"
         />
 
         {members.length === 0 ? (

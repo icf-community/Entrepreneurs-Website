@@ -10,6 +10,7 @@ import AppShell from "@/components/app/AppShell";
 import { PageHead } from "@/components/ui/PageHead";
 import { listSkillsDetailed, listSectors, type ProfileIntakeData } from "@/lib/data/taxonomy";
 import { signedImageUrls } from "@/lib/storage/blobRead";
+import { SettingsColumn } from "@/app/settings/SettingsSection";
 import AffiliationSection from "./AffiliationSection";
 import ProfileForm from "./ProfileForm";
 import { Trail } from "@/components/ui/Trail";
@@ -132,15 +133,16 @@ export default async function ProfilePage() {
     >
       <Page>
         <PageHead
+          className="mb-8"
           context={<Trail href="/settings" label="Settings" current="Your profile" />}
           title="Edit your details"
           lede="Changes are visible in the directory once you're approved."
         />
 
-        <div>
+        <SettingsColumn>
           <ProfileForm {...profileFormProps} />
           <AffiliationSection role={profile.role} />
-        </div>
+        </SettingsColumn>
       </Page>
     </AppShell>
   );

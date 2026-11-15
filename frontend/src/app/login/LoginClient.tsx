@@ -9,6 +9,7 @@ import { SignupDisclosures } from "@/components/forms/SignupDisclosures";
 import { TurnstileWidget } from "@/components/forms/TurnstileWidget";
 import { turnstileConfigured } from "@/lib/turnstileConfig";
 import Starfield from "@/components/Starfield";
+import { PublicFooter } from "@/components/PublicFooter";
 import { destinationForStatus } from "@/lib/auth/status";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
 import { Button } from "@/components/ui/Button";
@@ -263,8 +264,9 @@ export default function LoginClient() {
         </Link>
       </header>
 
-      {/* Main */}
-      <main id="main-content" tabIndex={-1} className="relative z-10 flex flex-1 items-center justify-center px-[var(--gutter)] pb-10 pt-2 lg:py-12">
+      {/* Main. Anchored from the top, not centred: the card's height changes with the tab and the door (a short chooser, a long form), and a
+          centred block moved the title and the tabs 19 to 33 px under the pointer each time. The top space depends on the screen, never on the content. */}
+      <main id="main-content" tabIndex={-1} className="relative z-10 flex flex-1 items-start justify-center px-[var(--gutter)] pb-10 pt-2 lg:pb-12 lg:pt-[max(3rem,10svh)]">
         <div className="flex w-full items-center justify-center gap-[clamp(3rem,8vw,8rem)]">
           <AuthMark />
 
@@ -345,12 +347,12 @@ export default function LoginClient() {
         </div>
       </main>
 
-      <AuthFooter />
+      <PublicFooter />
     </div>
   );
 }
 
-/* ── The mark, and the foot ───────────────────────────────────────── */
+/* ── The mark ─────────────────────────────────────────────────────── */
 // From a desktop up the roundel stands beside the form, large, in the warm light the atmosphere
 // already puts behind the mark: the page's presence, with no words added. It breathes (slowly, and
 // not at all under reduced motion). It sits at the head of the row and, on a long form, stays in view
@@ -361,26 +363,6 @@ function AuthMark() {
       <span aria-hidden="true" className="anim-breathe absolute -inset-1/3 rounded-full bg-lit-glow blur-3xl" />
       <Roundel size={208} label="Imperial Entrepreneurs" className="relative text-star" />
     </Link>
-  );
-}
-
-const FOOT_LINK = "inline-flex min-h-[var(--touch)] items-center px-3 text-small text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary";
-
-function AuthFooter() {
-  return (
-    <footer className="relative z-10 px-[var(--gutter)] pb-6">
-      <div className="mx-auto flex max-w-[1200px] flex-wrap justify-center gap-x-4">
-        <Link href="/privacy" className={FOOT_LINK}>
-          Privacy
-        </Link>
-        <Link href="/terms" className={FOOT_LINK}>
-          Terms
-        </Link>
-        <Link href="/contact" className={FOOT_LINK}>
-          Contact
-        </Link>
-      </div>
-    </footer>
   );
 }
 
@@ -579,7 +561,8 @@ function Door({ glyph, title, blurb, onClick }: { glyph: "book" | "lighthouse"; 
       <span className="lm-disc">
         <Glyph name={glyph} ring={false} size={28} />
       </span>
-      <span className="min-w-0">
+      {/* balanced, so a title that wraps does not leave one word ("staff") alone on its second line */}
+      <span className="min-w-0 text-balance">
         <span className="lm-entry__title block">{title}</span>
         {blurb && <span className="lm-entry__meta block">{blurb}</span>}
       </span>

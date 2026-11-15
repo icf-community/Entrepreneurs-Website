@@ -7,6 +7,7 @@ import { MarkActionPill } from "@/components/MarkActionPill";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { recordListingEvent } from "@/lib/analytics";
 import { toggleOpportunityBookmark } from "../actions";
+import { applyHow, type ApplyHow } from "./applyHow";
 import type { Opportunity } from "@/lib/data/opportunities";
 import { mailtoHref } from "@/lib/safeUrl";
 import { settle } from "@/lib/settle";
@@ -14,6 +15,43 @@ import { useToast } from "@/components/ui/Toast";
 
 // Everything on the detail page that needs the browser: the apply
 // click-through (recorded), the applied pill, and the bookmark ribbon.
+
+/**
+ * The page's one lit action: the poster's portal, or an email to the poster. A client
+ * component of its own because the click is a tracked event; the page hands it to the
+ * masthead (ListingDetailShell's `actions`), apart from the applied pill and the
+ * bookmark under the facts. A role with neither has no button (see applyHow).
+ */
+export function OpportunityApplyButton({
+  id, title, apply,
+}: {
+  id: string;
+  /** The role's name: the subject of the email. */
+  title: string;
+  apply: Exclude<ApplyHow, { how: "linkedin" }>;
+}) {
+  return apply.how === "portal" ? (
+    <ExternalButtonLink
+      href={apply.url}
+      size="md"
+      lit
+      onClick={() => recordListingEvent("opportunity", id, "apply_click")}
+    >
+      Open application portal
+    </ExternalButtonLink>
+  ) : (
+    <ButtonLink
+      href={mailtoHref(apply.email, title)}
+      onClick={() => recordListingEvent("opportunity", id, "contact_click")}
+      variant="primary"
+      size="md"
+      lit
+    >
+      Email to apply
+      <OutArrow />
+    </ButtonLink>
+  );
+}
 
 export default function OpportunityActions({
   opportunity: o, applied, bookmarked: initiallyBookmarked,
@@ -59,28 +97,9 @@ export default function OpportunityActions({
   };
 
   return (
-    <div className="flex flex-wrap items-start gap-3">
-      {o.applyMethod === "link" && o.applyUrl ? (
-        <ExternalButtonLink
-          href={o.applyUrl}
-          lit
-          onClick={() => recordListingEvent("opportunity", o.id, "apply_click")}
-        >
-          Open application portal
-        </ExternalButtonLink>
-      ) : o.contactEmail ? (
-        <ButtonLink
-          href={mailtoHref(o.contactEmail, o.positionName)}
-          onClick={() => recordListingEvent("opportunity", o.id, "contact_click")}
-          variant="primary"
-          size="sm"
-          lit
-        >
-          Email to apply
-          <OutArrow />
-        </ButtonLink>
-      ) : (
-        <p className="self-center text-body text-text-secondary">
+    <>
+      {applyHow(o).how === "linkedin" && (
+        <p className="text-body text-text-secondary">
           Contact{" "}
           <span className="text-text-primary">
             {o.postedBy.firstName} {o.postedBy.surname}
@@ -88,8 +107,14 @@ export default function OpportunityActions({
           via LinkedIn to apply.
         </p>
       )}
-      <MarkActionPill kind="opportunity" id={o.id} initial={applied} />
-      <BookmarkButton bookmarked={bookmarked} onClick={toggleBookmark} />
-    </div>
+      <div className="lm-actionrow">
+        {/* The bookmark is a ring, not a button with words, so it shares the applied pill's cell rather than taking a cell of its own
+            (alone it wrapped onto a second row at 390). */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+          <MarkActionPill kind="opportunity" id={o.id} initial={applied} />
+          <BookmarkButton bookmarked={bookmarked} onClick={toggleBookmark} />
+        </div>
+      </div>
+    </>
   );
 }

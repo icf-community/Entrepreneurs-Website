@@ -133,7 +133,7 @@ export default function PostCard({
       )}
 
       <PostFooterActions
-        post={post}
+        kind={post.kind}
         isAuthor={isAuthor}
         isAdmin={isAdmin}
         liked={liked}
@@ -195,18 +195,20 @@ export function PostImages({ images }: { images: FeedPostView["images"] }) {
 }
 
 // ─── Like / delete / remove / report controls ──────────────────────
-function PostFooterActions({
-  post, isAuthor, isAdmin, liked, likeCount, onToggleLike, onOpenDialog,
+// Shared with My posts, so the author's footer (the likes at the left, Delete at the right) is the same row on both pages.
+export function PostFooterActions({
+  kind, isAuthor, isAdmin, liked, likeCount, onToggleLike, onOpenDialog,
 }: {
-  post: FeedPostView;
+  kind: FeedPostView["kind"];
   isAuthor: boolean;
   isAdmin: boolean;
   liked: boolean;
   likeCount: number;
-  onToggleLike: () => void;
+  /** Only the like chip uses it, which an author's own post does not have. */
+  onToggleLike?: () => void;
   onOpenDialog: (dialog: "delete" | "remove" | "report") => void;
 }) {
-  const isMember = post.kind === "member";
+  const isMember = kind === "member";
   // A listing-sourced post has nothing to like or report, and only an admin can remove it: no controls, no footer.
   if (!isMember && !(isAdmin && !isAuthor)) return null;
   return (

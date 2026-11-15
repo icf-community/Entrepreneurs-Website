@@ -126,8 +126,10 @@ export default async function HomePage() {
             </Suspense>
           </Section>
 
-          <div className="grid gap-[var(--section-gap)] lg:grid-cols-2 lg:gap-x-10">
+          <div className="grid gap-[var(--section-gap)] xl:grid-cols-2 xl:gap-x-10">
+            {/* the two sections share their rows (subgrid), so their panels start level whatever their heads do */}
             <Section
+              className="xl:row-span-2 xl:grid-rows-subgrid"
               title="Opportunities"
               description="Roles, projects and introductions shared by members"
               actions={<ViewAll href="/opportunities" label="Opportunities" />}
@@ -138,6 +140,7 @@ export default async function HomePage() {
             </Section>
 
             <Section
+              className="xl:row-span-2 xl:grid-rows-subgrid"
               title="VCs and Grants"
               description="Funding routes open to Foundry founders"
               actions={<ViewAll href="/vcs" label="VCs and Grants" />}
@@ -202,7 +205,7 @@ function StripSkeleton() {
   return (
     <SkeletonRegion label="Loading newest members…" className="grid gap-5">
       <Skeleton className="h-7 w-72 max-w-full" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="lm-tiles">
         {[0, 1, 2, 3, 4].map((i) => (
           <Panel key={i} className="grid justify-items-center gap-3 px-3 pb-5 pt-6">
             <Skeleton shape="ring" className="size-24" />
@@ -217,8 +220,8 @@ function StripSkeleton() {
 
 function EventsSkeleton() {
   return (
-    <SkeletonRegion label="Loading events…" className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <Skeleton className="h-48 w-full rounded-xl lg:row-span-2 lg:h-full" />
+    <SkeletonRegion label="Loading events…" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <Skeleton className="h-48 w-full rounded-xl sm:col-span-2 xl:col-span-1 xl:row-span-2 xl:h-full" />
       <Skeleton className="h-24 w-full rounded-xl" />
       <Skeleton className="h-24 w-full rounded-xl" />
     </SkeletonRegion>
@@ -268,10 +271,10 @@ async function Events({ data }: { data: ReturnType<typeof newestEvents> }) {
   }
   return (
     // One list, so every card stays a link inside a list item. The newest event is given the room.
-    <ul className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       {latest.map((e, i) =>
         i === 0 ? (
-          <li key={e.id} className="lg:row-span-2">
+          <li key={e.id} className="sm:col-span-2 xl:col-span-1 xl:row-span-2">
             <Panel interactive className="relative flex h-full min-h-44 flex-col justify-between gap-8 p-6 sm:p-7">
               <div className="grid gap-3">
                 <div className="flex flex-wrap items-center gap-3">

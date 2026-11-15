@@ -5,6 +5,7 @@ import { requireApprovedUser } from "@/lib/auth/guard";
 import { listTaxonomy } from "@/lib/data/taxonomy";
 import OpportunityForm from "./OpportunityForm";
 import { Page } from "@/components/ui/Page";
+import { Trail } from "@/components/ui/Trail";
 
 export const metadata: Metadata = { title: "Post an opportunity" };
 
@@ -18,7 +19,7 @@ export default async function NewOpportunityPage() {
       <Page width="page">
         <PageHead
           className="mb-8"
-          context="Post an opportunity"
+          context={<Trail href="/opportunities" label="All opportunities" current="Post an opportunity" />}
           title="Share a role with the network"
           lede="Submissions go to the admin queue for review before they appear on the Opportunities tab."
         />

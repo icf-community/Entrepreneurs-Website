@@ -10,7 +10,7 @@ import { requireApprovedUser } from "@/lib/auth/guard";
 import { markedIds } from "@/lib/data/activity";
 import { approvedEvent } from "@/lib/data/events";
 import { formatDateTime, formatDateTimeLong } from "@/lib/dates";
-import EventActions, { ContactOrganiserLink } from "./EventActions";
+import EventActions, { ContactOrganiserLink, EventRsvpButton } from "./EventActions";
 import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 import { externalHref } from "@/lib/safeUrl";
@@ -34,7 +34,7 @@ const BACK = { href: "/events", label: "All events" };
 type Params = { id: string };
 
 export default async function EventPage({ params }: { params: Promise<Params> }) {
-  const [{ id }, { supabase, user, isAdmin }] = await Promise.all([
+  const [{ id }, { supabase, user, isAdmin, displayName }] = await Promise.all([
     params,
     requireApprovedUser(),
   ]);
@@ -48,6 +48,7 @@ export default async function EventPage({ params }: { params: Promise<Params> })
     return (
       <ListingDetailShell
         active="events"
+        name={displayName}
         isAdmin={isAdmin}
         backHref={BACK.href}
         backLabel={BACK.label}
@@ -68,12 +69,14 @@ export default async function EventPage({ params }: { params: Promise<Params> })
   return (
     <ListingDetailShell
       active="events"
+      name={displayName}
       isAdmin={isAdmin}
       backHref={BACK.href}
       backLabel={BACK.label}
       eyebrow="Event"
       title={ev.title}
       meta={`${formatDateTime(ev.eventAt)} · ${ev.location}`}
+      actions={<EventRsvpButton id={ev.id} href={ev.lumaLink} />}
     >
       {revisionPending && <PendingRevisionNotice noun="event" />}
 

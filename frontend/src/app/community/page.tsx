@@ -6,6 +6,7 @@ import { communityFeedPage } from "@/lib/data/posts";
 import { uploadsEnabled } from "@/lib/storage/uploadTicket";
 import { toFeedView } from "./feedView";
 import CommunityClient from "./CommunityClient";
+import { CommunityHeadActions, ComposerProvider } from "./ComposerState";
 import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
@@ -35,25 +36,30 @@ export default async function CommunityPage() {
   return (
     <AppShell active="community" name={displayName} isAdmin={isAdmin}>
       <Page width="page">
-        <PageHead
-          context="Community"
-          title={<>What&rsquo;s happening</>}
-          lede={
-            <>
-              Share what you&rsquo;re building, ask for help, or point people at something worth
-              seeing. Posts are visible to approved members only and are deleted automatically
-              after seven days.
-            </>
-          }
-        />
+        {/* The head's button and the composer under it share one open/closed state (ComposerState.tsx). */}
+        <ComposerProvider>
+          <PageHead
+            className="mb-8"
+            context="Community"
+            title={<>What&rsquo;s happening</>}
+            lede={
+              <>
+                Share what you&rsquo;re building, ask for help, or point people at something worth
+                seeing. Posts are visible to approved members only and are deleted automatically
+                after seven days.
+              </>
+            }
+            actions={<CommunityHeadActions />}
+          />
 
-        <CommunityClient
-          initialPosts={await toFeedView(posts)}
-          initialCursor={nextCursor}
-          currentUserId={user.id}
-          isAdmin={isAdmin}
-          uploadsAvailable={uploadsEnabled()}
-        />
+          <CommunityClient
+            initialPosts={await toFeedView(posts)}
+            initialCursor={nextCursor}
+            currentUserId={user.id}
+            isAdmin={isAdmin}
+            uploadsAvailable={uploadsEnabled()}
+          />
+        </ComposerProvider>
       </Page>
     </AppShell>
   );

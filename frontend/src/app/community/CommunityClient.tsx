@@ -3,10 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
-import { ButtonLink } from "@/components/ui/ButtonLink";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Icon } from "@/design-system/icons/Icon";
 import { loadMoreFeed, refreshLikeCounts } from "./actions";
+import { useComposer } from "./ComposerState";
 import PostCard from "./PostCard";
 import PostComposer from "./PostComposer";
 import { ErrorBanner } from "@/components/forms/Banners";
@@ -35,9 +34,9 @@ import type { FeedPostView } from "./feedView";
 // see the effect below for why not live, and how it avoids fighting an
 // in-flight optimistic update on any one card.
 //
-// The actions row keeps its order: "My posts", then the button that opens the
-// composer, then the composer, so the keyboard's next Tab after the button
-// lands on the Title field (a11y.spec drives exactly that).
+// The button that opens the composer is in the page head (ComposerState.tsx), which
+// comes first in the DOM, then the composer, so the keyboard's next Tab after the
+// button lands on the Title field (a11y.spec drives exactly that).
 // ════════════════════════════════════════════════════════════════════
 
 export default function CommunityClient({
@@ -58,7 +57,7 @@ export default function CommunityClient({
   const [cursor, setCursor] = useState(initialCursor);
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
-  const [composerOpen, setComposerOpen] = useState(false);
+  const { open: composerOpen, setOpen: setComposerOpen } = useComposer();
 
   const removePost = (id: string) => {
     setPosts((prev) => prev.filter((p) => p.id !== id));
@@ -99,21 +98,7 @@ export default function CommunityClient({
   }, []);
 
   return (
-    <div className="mt-8 grid grid-cols-1 gap-6">
-      <nav aria-label="Community actions" className="flex flex-wrap items-center justify-end gap-3">
-        <ButtonLink href="/community/mine" variant="ghost" size="sm">
-          My posts
-        </ButtonLink>
-        <Button
-          variant={composerOpen ? "ghost" : "primary"}
-          size="sm"
-          leading={composerOpen ? undefined : <Icon name="plus" size={18} />}
-          onClick={() => setComposerOpen((v) => !v)}
-        >
-          {composerOpen ? "Cancel" : "Create a post"}
-        </Button>
-      </nav>
-
+    <div className="grid grid-cols-1 gap-6">
       {composerOpen && (
         <PostComposer
           uploadsAvailable={uploadsAvailable}

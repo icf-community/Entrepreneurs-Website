@@ -27,7 +27,7 @@ export default async function AdminAiPage() {
   if (!overview) throw new Error("Failed to load admin_ai_overview");
 
   return (
-    <Page width="page" as="main">
+    <Page as="main">
       <AdminPageHeader
         eyebrow="Admin"
         title="AI"

@@ -303,7 +303,7 @@ export function ConnectControl({
 }
 
 function Footer({ children }: { children: React.ReactNode }) {
-  return <section className="border-t border-border-subtle pt-4">{children}</section>;
+  return <section className="border-t border-border-subtle pt-4 first:border-t-0 first:pt-0">{children}</section>;
 }
 
 function LoadingFooter() {

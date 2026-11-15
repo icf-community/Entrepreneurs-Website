@@ -8,24 +8,13 @@ import RevisionQueuedNotice from "@/components/forms/RevisionQueuedNotice";
 import { Input } from "@/components/ui/Input";
 import { Panel } from "@/components/ui/Panel";
 import { Radio } from "@/components/ui/Radio";
+import { Section } from "@/components/ui/Section";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { titleOf } from "./sections";
 
 // The Forms section of the design-system gallery (/admin/design-system). Owned by the forms family. The static states are rendered here, on
 // the server; the demos that must be touched to show anything (a chip that toggles, a pick that opens) are in components/forms/FormsLiveDemo.
-
-// The same Section as page.tsx, copied locally so the look cannot drift from it.
-function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
-  return (
-    <section className="grid gap-6 border-t border-border-subtle py-12">
-      <div className="grid gap-2">
-        <h2 className="font-display text-heading text-text-primary">{title}</h2>
-        {note ? <p className="measure-prose text-small text-text-secondary">{note}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 /** One family of controls: a card with a title, a line of when-to-use, and the demos. `bare` drops the card, for demos that are cards themselves. */
 function Block({ title, note, bare = false, children }: { title: string; note?: string; bare?: boolean; children: ReactNode }) {
@@ -38,7 +27,7 @@ function Block({ title, note, bare = false, children }: { title: string; note?: 
       {children}
     </>
   );
-  if (bare) return <div className="grid gap-7 px-1 pt-2">{body}</div>;
+  if (bare) return <div className="grid gap-7 pt-2">{body}</div>;
   return <Panel className="grid gap-7 p-6 sm:p-8">{body}</Panel>;
 }
 
@@ -57,8 +46,10 @@ const GRID = "grid gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-4";
 export function FormsGallery() {
   return (
     <Section
-      title="Forms"
-      note="One family for every control that takes input or makes a choice. A field is a pane of the night with an edge that wakes up: pointing at it warms the edge, focus lights it (a cream edge and a wide faint amber halo), chosen is amber, wrong is the danger edge with a drawn mark and a sentence. Defined once, in forms.css."
+      rule
+      id="forms"
+      title={titleOf("forms")}
+      description="One family for every control that takes input or makes a choice. A field is a pane of the night with an edge that wakes up: pointing at it warms the edge, focus lights it (a cream edge and a wide faint amber halo), chosen is amber, wrong is the danger edge with a drawn mark and a sentence. Defined once, in forms.css."
     >
       <div className="grid gap-8">
         <Block
@@ -219,6 +210,7 @@ export function FormsGallery() {
         </Block>
 
         <Block
+          bare
           title="Filter bar"
           note="The chrome every list page shares: a search pill, a Filters button that carries the count of what is applied, Clear all, the result count (a status region), and a panel that opens on arrival when filters are already in the URL. The long skills set is a pick."
         >

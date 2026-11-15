@@ -6,6 +6,7 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 // Type-only, so the server-only module is erased rather than imported.
 import type { ActivityItem } from "@/lib/data/activity";
 import { externalHref } from "@/lib/safeUrl";
+import { STACK_TRAILING } from "../entryTrailing";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ButtonLink } from "@/components/ui/ButtonLink";
@@ -126,6 +127,28 @@ function Row({ item, onUnmark }: { item: ActivityItem; onUnmark: () => void }) {
   // Only an http(s) address becomes a link (lib/safeUrl); anything else draws no control.
   const openHref = externalHref(item.url);
 
+  // The controls sit above the row's stretched link: Entry's trailing slot is z-10, so they stay clickable. At the row's right, level
+  // with its title, as on /my-submissions (STACK_TRAILING drops them under the words on a phone).
+  const actions = (
+    <>
+      {openHref && (
+        <ButtonLink
+          href={openHref}
+          target="_blank"
+          rel="noreferrer noopener"
+          variant="ghost"
+          size="sm"
+        >
+          Open<span className="sr-only"> ↗</span>
+          <Icon name="arrow-up-right" size={16} />
+        </ButtonLink>
+      )}
+      <Button variant="dangerGhost" size="sm" onClick={onUnmark}>
+        Unmark
+      </Button>
+    </>
+  );
+
   return (
     <Entry
       as="li"
@@ -133,7 +156,8 @@ function Row({ item, onUnmark }: { item: ActivityItem; onUnmark: () => void }) {
       title={item.title}
       href={internalHref}
       meta={item.subtitle ?? undefined}
-      className="items-start rounded-none px-4 py-4 sm:px-5"
+      trailing={actions}
+      className={`items-start rounded-none px-4 py-4 sm:px-5 ${STACK_TRAILING}`}
     >
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Badge>{KIND_BADGE[item.listingKind]}</Badge>
@@ -144,24 +168,6 @@ function Row({ item, onUnmark }: { item: ActivityItem; onUnmark: () => void }) {
         {occursLabel && <span className="data">{occursLabel}</span>}
         <span>Marked <span className="data">{markedLabel}</span></span>
       </p>
-      {/* The controls sit above the row's stretched link (z-10), so they stay clickable. */}
-      <div className="relative z-10 mt-3 flex flex-wrap items-center gap-2">
-        {openHref && (
-          <ButtonLink
-            href={openHref}
-            target="_blank"
-            rel="noreferrer noopener"
-            variant="ghost"
-            size="sm"
-          >
-            Open<span className="sr-only"> ↗</span>
-            <Icon name="arrow-up-right" size={16} />
-          </ButtonLink>
-        )}
-        <Button variant="dangerGhost" size="sm" onClick={onUnmark}>
-          Unmark
-        </Button>
-      </div>
     </Entry>
   );
 }

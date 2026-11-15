@@ -170,7 +170,8 @@ export default function OpportunitiesClient({
           {items.length === 0 ? "No opportunities posted yet." : "No opportunities match your search."}
         </EmptyState>
       ) : (
-        <div className="grid gap-4">
+        // a size container, so a row arranges itself by the room it has (the rail takes 280 px of a 1024 px window) rather than by the window
+        <div className="@container grid gap-4">
           {filtered.slice(0, shown).map((o) => (
             <OpportunityCard
               key={o.id}
@@ -230,7 +231,9 @@ function OpportunityCard({
       onOpenChange={setOpen}
       closedLabel="Show details"
       openLabel="Hide details"
-      trailing={<span className="data">· Apply by {deadline}</span>}
+      // The dot joins "Show details" and the date on one line. Under 384 px (the card's footer is 279 px of words) they stack, and a dot would start the
+      // second line, so it is kept as hidden text (the name still reads "· Apply by …") and not drawn.
+      trailing={<span className="data"><span className="max-[24rem]:sr-only">· </span>Apply by {deadline}</span>}
       // The bookmark sits on the card's corner, outside the toggle, so a click on it never expands the card.
       accessory={<BookmarkButton bookmarked={bookmarked} onClick={onToggleBookmark} />}
       summary={
@@ -238,15 +241,17 @@ function OpportunityCard({
           <Disc size="sm">
             <Icon name="opportunities" size={18} />
           </Disc>
-          <span className="grid min-w-0 flex-1 gap-1.5">
+          {/* From 40rem of row the pay stands at the right, level with the title and beside the bookmark, so the row is one composition
+              and not a third of text with the rest empty. Same order in the DOM, so nothing moves for a keyboard or a reader. */}
+          <span className="grid min-w-0 flex-1 gap-1.5 @min-[32rem]:grid-cols-[minmax(0,1fr)_auto] @min-[32rem]:items-baseline @min-[32rem]:gap-x-6">
             <span className="block font-display text-lead text-text-primary">{o.positionName}</span>
             <span className="block text-small text-text-secondary">
               {o.company} · {location} · Starts {start}
               {audienceLabel(o.audience) && <> · {audienceLabel(o.audience)}</>}
             </span>
-            <span className="data block text-small text-accent-light">{o.pay}</span>
+            <span className="data block text-small text-accent-light @min-[32rem]:col-start-2 @min-[32rem]:row-start-1 @min-[32rem]:max-w-[16rem] @min-[32rem]:text-right">{o.pay}</span>
             {(o.sectors.length > 0 || o.skills.length > 0) && (
-              <span className="mt-1 flex flex-wrap gap-1.5">
+              <span className="mt-1 flex flex-wrap gap-1.5 @min-[32rem]:col-span-full">
                 {o.sectors.map((s) => (
                   <Badge key={`sec-${s}`} tone="lit">{s}</Badge>
                 ))}
@@ -266,7 +271,7 @@ function OpportunityCard({
           {checking && <p className="text-small text-text-muted">Loading latest details…</p>}
           <div className="grid gap-1.5">
             <p className="label-wide text-text-muted">Description</p>
-            <p className="whitespace-pre-wrap text-body text-text-secondary">{o.description}</p>
+            <p className="measure-prose whitespace-pre-wrap text-body text-text-secondary">{o.description}</p>
           </div>
 
           <DefinitionList min="sm">
@@ -294,7 +299,7 @@ function OpportunityCard({
 
           <div className="grid gap-2">
             <p className="label-wide text-text-muted">How to apply</p>
-            <div className="flex flex-wrap items-start gap-3">
+            <div className="lm-actionrow">
               {o.applyMethod === "link" && o.applyUrl ? (
                 <ExternalButtonLink
                   href={o.applyUrl}

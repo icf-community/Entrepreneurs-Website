@@ -27,18 +27,22 @@ export function ContactEmailSection({
 }) {
   return (
     <FieldGroup legend="Contact email" description={description}>
-      <Checkbox
-        label="Use a different contact email"
-        checked={useCustomContact}
-        onChange={(e) => onUseCustomContactChange(e.target.checked)}
-      />
-      <div data-invalid={error ? "" : undefined}>
-        {useCustomContact ? (
-          <input type="email" aria-label="Contact email" placeholder="contact@example.com" value={customContactEmail} onChange={(e) => onCustomContactEmailChange(e.target.value)} className={inputCls} required />
-        ) : (
-          <div className="lm-static">{signupEmail}</div>
-        )}
-        <FieldError>{error}</FieldError>
+      {/* The tick and the field it reveals sit 8 px apart; the group's 16 px is kept between that pair and the next tick, so the field
+          reads as belonging to the first tick rather than halfway between the two. */}
+      <div className="grid gap-[8px]">
+        <Checkbox
+          label="Use a different contact email"
+          checked={useCustomContact}
+          onChange={(e) => onUseCustomContactChange(e.target.checked)}
+        />
+        <div data-invalid={error ? "" : undefined}>
+          {useCustomContact ? (
+            <input type="email" aria-label="Contact email" placeholder="contact@example.com" value={customContactEmail} onChange={(e) => onCustomContactEmailChange(e.target.value)} className={inputCls} required />
+          ) : (
+            <div className="lm-static">{signupEmail}</div>
+          )}
+          <FieldError>{error}</FieldError>
+        </div>
       </div>
       <Checkbox
         label={visibleLabel}

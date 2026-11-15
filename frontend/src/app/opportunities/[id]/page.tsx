@@ -13,7 +13,8 @@ import { markedIds } from "@/lib/data/activity";
 import { approvedOpportunity, bookmarkedOpportunityIds } from "@/lib/data/opportunities";
 import { formatDate } from "@/lib/dates";
 import { startLabel, locationLabel } from "@/lib/listings/format";
-import OpportunityActions from "./OpportunityActions";
+import OpportunityActions, { OpportunityApplyButton } from "./OpportunityActions";
+import { applyHow } from "./applyHow";
 import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 import { externalHref } from "@/lib/safeUrl";
@@ -38,7 +39,7 @@ const BACK = { href: "/opportunities", label: "All opportunities" };
 type Params = { id: string };
 
 export default async function OpportunityPage({ params }: { params: Promise<Params> }) {
-  const [{ id }, { supabase, user, isAdmin }] = await Promise.all([
+  const [{ id }, { supabase, user, isAdmin, displayName }] = await Promise.all([
     params,
     requireApprovedUser(),
   ]);
@@ -52,6 +53,7 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
     return (
       <ListingDetailShell
         active="opportunities"
+        name={displayName}
         isAdmin={isAdmin}
         backHref={BACK.href}
         backLabel={BACK.label}
@@ -70,16 +72,19 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
   ]);
 
   const posterName = `${o.postedBy.firstName} ${o.postedBy.surname}`.trim();
+  const apply = applyHow(o);
 
   return (
     <ListingDetailShell
       active="opportunities"
+      name={displayName}
       isAdmin={isAdmin}
       backHref={BACK.href}
       backLabel={BACK.label}
       eyebrow="Opportunity"
       title={o.positionName}
       meta={`${o.company} · ${locationLabel(o)} · Starts ${startLabel(o)}`}
+      actions={apply.how === "linkedin" ? undefined : <OpportunityApplyButton id={o.id} title={o.positionName} apply={apply} />}
     >
       {revisionPending && <PendingRevisionNotice noun="role" />}
 
@@ -104,22 +109,25 @@ export default async function OpportunityPage({ params }: { params: Promise<Para
           <Fact label="Location">{locationLabel(o)}</Fact>
           {audienceLabel(o.audience) && <Fact label="Who can apply">{audienceLabel(o.audience)}</Fact>}
           <Fact label="Posted by">
-            {posterName}
-            {o.postedBy.linkedinUrl && (
-              <>
-                {" · "}
-                <a
-                  href={externalHref(o.postedBy.linkedinUrl)}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1 text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
-                >
-                  LinkedIn
-                  <OutArrow />
-                </a>
-              </>
-            )}
-            <div className="mt-2">
+            {/* The last fact takes the whole row (see Facts), so the name and the button sit on one line instead of the button under a short name; they stack again when there is one column. */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <span>
+                {posterName}
+                {o.postedBy.linkedinUrl && (
+                  <>
+                    {" · "}
+                    <a
+                      href={externalHref(o.postedBy.linkedinUrl)}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="inline-flex items-center gap-1 text-text-primary underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-accent"
+                    >
+                      LinkedIn
+                      <OutArrow />
+                    </a>
+                  </>
+                )}
+              </span>
               <ViewProfileButton memberId={o.postedBy.id} />
             </div>
           </Fact>

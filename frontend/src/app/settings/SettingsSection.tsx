@@ -23,6 +23,15 @@ const ROW = "grid gap-x-12 gap-y-6 xl:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]"
 // The boxed row's own padding (p-8, 2 rem) moves its content right; a narrower first column puts its control back on the other rows' line.
 const DANGER_ROW = "grid gap-x-12 gap-y-6 xl:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]";
 
+/**
+ * The column the rows sit in. The controls stop at 34rem, so the rest of the row stops there too: the sentence under a title, the hairline
+ * between rows and the boxed row all end where the controls end, instead of the rules running on past them on a tablet (the single column is
+ * 34rem) or a wide window (the two columns are 16rem + the 3rem gap + 34rem = 53rem). Narrower than that, it is simply the page's column.
+ */
+export function SettingsColumn({ className = "", children }: { className?: string; children: ReactNode }) {
+  return <div className={`max-w-[34rem] xl:max-w-[53rem] ${className}`.trim()}>{children}</div>;
+}
+
 export function SettingsSection({
   id,
   title,

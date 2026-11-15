@@ -150,7 +150,10 @@ function SelectBox({ noun, checked, onToggle }: { noun: string; checked: boolean
 
 /**
  * The raised bar at the foot of the viewport while anything is ticked: how many, then approve / reject / clear. Rejecting swaps the three for
- * a reason field and its confirm and cancel, in the same place, so the bar never changes size under the pointer.
+ * a reason field and its confirm and cancel, in the same place, so the bar does not change size under the pointer. The bar keys on its own width
+ * (a container query, since it floats at up to 640 px): with 540 px inside it both states are one line, the count then the controls; narrower, both
+ * are two, the count over the controls. (The reason field used to be `w-full`, a line of its own whatever the width, which made the bar 39 px taller.)
+ * Only on a phone, where the field and its two buttons do not fit one row, does rejecting add a row.
  */
 function BulkBar({
   count, pending, error, rejecting, reason, onReason, onApprove, onStartReject, onCancelReject, onConfirmReject, onClear,
@@ -169,7 +172,7 @@ function BulkBar({
 }) {
   const busy = pending ? <OrbitGlyph spin="fast" /> : undefined;
   return (
-    <div className="anim-panel sticky bottom-4 z-30 mx-auto grid max-w-[640px] gap-3 rounded-2xl border border-lit-line bg-bg-raised p-4 shadow-pop">
+    <div className="@container anim-panel sticky bottom-4 z-30 mx-auto grid max-w-[640px] gap-3 rounded-2xl border border-lit-line bg-bg-raised p-4 shadow-pop">
       {error && <ErrorBanner>{error}</ErrorBanner>}
       <div className="flex flex-wrap items-center gap-3">
         <span className="data inline-flex items-center gap-2 text-body font-medium text-text-primary">
@@ -177,7 +180,7 @@ function BulkBar({
           {count} selected
         </span>
         {rejecting ? (
-          <div className="flex w-full flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 @max-[27rem]:basis-full @min-[27rem]:flex-1 @min-[27rem]:flex-nowrap">
             <Input
               type="text"
               compact
@@ -186,7 +189,7 @@ function BulkBar({
               value={reason}
               onChange={(e) => onReason(e.target.value)}
               placeholder={`Reason — sent to all ${count}`}
-              className="min-w-[12.5rem] flex-1"
+              className="min-w-[10rem] flex-1"
             />
             <Button type="button" size="sm" variant="danger" disabled={pending || !reason.trim()} onClick={onConfirmReject} leading={busy}>
               {pending ? "Working…" : `Reject ${count}`}
@@ -196,7 +199,7 @@ function BulkBar({
             </Button>
           </div>
         ) : (
-          <div className="ml-auto flex flex-wrap items-center gap-3">
+          <div className="ml-auto flex flex-wrap items-center gap-3 @max-[27rem]:ml-0 @max-[27rem]:basis-full">
             <Button type="button" size="sm" disabled={pending} onClick={onApprove} leading={busy}>
               {pending ? "Working…" : `Approve ${count}`}
             </Button>

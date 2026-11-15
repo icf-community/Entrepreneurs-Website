@@ -8,7 +8,7 @@ import { requireApprovedUser } from "@/lib/auth/guard";
 import { markedIds } from "@/lib/data/activity";
 import { approvedVc } from "@/lib/data/vcs";
 import { formatDate } from "@/lib/dates";
-import VcActions from "./VcActions";
+import VcActions, { VcLinkButton } from "./VcActions";
 import { PendingRevisionNotice } from "@/components/PendingRevisionNotice";
 import { hasPendingRevision } from "@/lib/listings/hasPendingRevision";
 
@@ -30,7 +30,7 @@ const BACK = { href: "/vcs", label: "All grants & VCs" };
 type Params = { id: string };
 
 export default async function VcPage({ params }: { params: Promise<Params> }) {
-  const [{ id }, { supabase, isAdmin }] = await Promise.all([
+  const [{ id }, { supabase, isAdmin, displayName }] = await Promise.all([
     params,
     requireApprovedUser(),
   ]);
@@ -44,6 +44,7 @@ export default async function VcPage({ params }: { params: Promise<Params> }) {
     return (
       <ListingDetailShell
         active="vcs"
+        name={displayName}
         isAdmin={isAdmin}
         backHref={BACK.href}
         backLabel={BACK.label}
@@ -67,12 +68,14 @@ export default async function VcPage({ params }: { params: Promise<Params> }) {
   return (
     <ListingDetailShell
       active="vcs"
+      name={displayName}
       isAdmin={isAdmin}
       backHref={BACK.href}
       backLabel={BACK.label}
       eyebrow="Grants & VCs"
       title={v.name}
       meta={[kindLabel, v.amount, v.stage, deadlineLabel].filter(Boolean).join(" · ")}
+      actions={<VcLinkButton id={v.id} href={v.link} />}
     >
       {revisionPending && <PendingRevisionNotice noun="listing" />}
 

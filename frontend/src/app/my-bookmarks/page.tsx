@@ -26,7 +26,9 @@ export default async function MyBookmarksPage() {
 
   return (
     <AppShell active="opportunities" name={displayName} isAdmin={isAdmin}>
-      <Page>
+      {/* Nothing saved is one message in the page column (820 px, as its sibling pages are), not a panel across the whole row; and its
+          own button goes to the directory, so the head does not offer the same link a second time. */}
+      <Page width={items.length === 0 ? "page" : "wide"}>
         <PageHead
           context="Bookmarks"
           title="Saved opportunities"
@@ -36,10 +38,12 @@ export default async function MyBookmarksPage() {
               : `${items.length} saved opportunit${items.length === 1 ? "y" : "ies"} still open for applications.`
           }
           actions={
-            <ButtonLink href="/opportunities" variant="ghost" size="sm">
-              <Icon name="arrow-left" size={16} />
-              <span className="sr-only">← </span>Browse all opportunities
-            </ButtonLink>
+            items.length === 0 ? undefined : (
+              <ButtonLink href="/opportunities" variant="ghost" size="sm">
+                <Icon name="arrow-left" size={16} />
+                <span className="sr-only">← </span>Browse all opportunities
+              </ButtonLink>
+            )
           }
           className="mb-8"
         />

@@ -100,8 +100,6 @@ describe("nothing bypasses the design system", () => {
     const STANDALONE = new Set([
       "app/error.tsx", "app/not-found.tsx", "app/login/page.tsx", "app/login/LoginClient.tsx", "app/login/PublicHeader.tsx",
       "app/reset-password/page.tsx", "app/pending/page.tsx", "app/rejected/page.tsx",
-      "app/onboarding/OnboardingForm.tsx", "app/onboarding/loading.tsx", "components/intake/IntakeFlow.tsx", "app/intake/loading.tsx",
-      "app/privacy/LegalDocument.tsx",
     ]);
     const bad: string[] = [];
     for (const f of code) {
@@ -111,6 +109,21 @@ describe("nothing bypasses the design system", () => {
       text.split("\n").forEach((line, i) => {
         if (/px-\[var\(--gutter\)\]/.test(line)) bad.push(`${rel(f)}:${i + 1}`);
         if (/\bmx-auto\b[^"'`]*\bmax-w-\[(?:\d+(?:px|rem)|var\(--content-max\))\]/.test(line) && /app\/.*\/(?:page|loading)\.tsx$/.test(rel(f))) bad.push(`${rel(f)}:${i + 1}  a hand-set page column`);
+      });
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it("no card grid is keyed to the window beside the rail (lg:grid-cols-3 and up): use lm-cards, lm-tiles or a container, or xl:", () => {
+    // From 1024 px the signed-in column is the window minus the 280 px rail, so a three-column grid at `lg` gets 670 px and its cards 210 (names and
+    // courses were cut, and a strip of five tiles was 122 px each). The admin pages have no rail, and the design-system folder is the system itself.
+    const bad: string[] = [];
+    for (const f of code) {
+      const r = rel(f);
+      if (r.startsWith("app/admin/") || r.startsWith("design-system/")) continue;
+      const text = stripComments(readFileSync(f, "utf8"));
+      text.split("\n").forEach((line, i) => {
+        if (/\blg:grid-cols-(?:[3-9]|1\d)\b/.test(line)) bad.push(`${r}:${i + 1}`);
       });
     }
     expect(bad).toEqual([]);

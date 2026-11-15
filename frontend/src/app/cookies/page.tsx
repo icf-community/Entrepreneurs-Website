@@ -154,23 +154,27 @@ export default function CookiesPage() {
 // Both tables of the policy are this one: the system's Table, a named focusable region (so a keyboard can pan it where it is wider than the
 // screen), which below 640 px of its own width stacks into one card per row with every cell captioned by its column. The names are set in the
 // body face, not a monospace: Lumen has none.
+// The two tables sit one above the other, so their columns are the same columns: a fixed layout, with the widths of the three short ones set on
+// the header cells and the rest (the purpose, which is prose) left to the table. An automatic layout sized each table by its own longest word, so
+// the second table's "Set by" and "Purpose" began 16 and 56 px away from the first's. (Stacked, the table is not a table any more and none of this applies.)
+// The names stay on one line, and the column is wide enough for the longest of both; "Set by" may wrap ("Cloudflare Turnstile").
 function CookieTable({ label, nameHead, rows }: { label: string; nameHead: string; rows: Cookie[] }) {
   return (
     <div className="mt-2">
-      <Table label={label}>
+      <Table label={label} className="[&_.lm-table]:table-fixed">
         <THead>
           <TR>
-            <TH>{nameHead}</TH>
-            <TH>Set by</TH>
+            <TH className="w-[11rem]">{nameHead}</TH>
+            <TH className="w-[6rem]">Set by</TH>
             <TH>Purpose</TH>
-            <TH>Duration</TH>
+            <TH className="w-[7rem]">Duration</TH>
           </TR>
         </THead>
         <TBody>
           {rows.map((c) => (
             <TR key={c.name}>
               <TD label={nameHead} primary nowrap>{c.name}</TD>
-              <TD label="Set by" nowrap>{c.provider}</TD>
+              <TD label="Set by">{c.provider}</TD>
               <TD label="Purpose">{c.purpose}</TD>
               <TD label="Duration">{c.duration}</TD>
             </TR>

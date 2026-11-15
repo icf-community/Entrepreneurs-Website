@@ -68,7 +68,7 @@ export function MemberCard({
             <div className="min-w-0">
               <p className="truncate font-display text-lead text-text-primary">{name}</p>
               <p className="truncate text-small text-text-muted">{memberSubtitle(m)}</p>
-              {m.course && <p className="mt-0.5 truncate text-small text-text-secondary">{m.course}</p>}
+              {m.course && <p className="mt-0.5 line-clamp-2 break-words text-small text-text-secondary">{m.course}</p>}
             </div>
           </div>
 

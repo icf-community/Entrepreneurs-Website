@@ -257,7 +257,7 @@ function MembersTable({
         // The Table keeps its own focusable scroll region, so the seven columns
         // never clip off-screen, and below 640 px of its width every row becomes
         // a card with the same DOM (each cell prints its own column name).
-        <Table label="Member directory" density="compact">
+        <Table label="Member directory" density="compact" stackBelow="lg">
           <THead>
             <TR>
               <TH>Name</TH>
@@ -292,16 +292,16 @@ function MemberRow({
   return (
     <TR>
       <TD label="Name" primary nowrap>{m.firstName} {m.surname}</TD>
-      <TD label="Email">{m.email ?? <span className="text-text-muted">—</span>}</TD>
+      <TD label="Email" wide empty={!m.email}>{m.email ?? <span className="text-text-muted">—</span>}</TD>
       <TD label="Role">{m.role}</TD>
       <TD label="Status">
         <Badge tone={STATUS_TONE[m.status]} dot>{STATUS_LABEL[m.status]}</Badge>
       </TD>
-      <TD label="Course">
+      <TD label="Course" empty={!m.course}>
         {m.course ? <span className="block max-w-[14rem] truncate" title={m.course}>{m.course}</span> : <span className="text-text-muted">—</span>}
       </TD>
-      <TD label="Year" className="data">{m.gradYear ?? <span className="text-text-muted">—</span>}</TD>
-      <TD label="Committee">
+      <TD label="Year" className="data" empty={!m.gradYear}>{m.gradYear ?? <span className="text-text-muted">—</span>}</TD>
+      <TD label="Committee" empty={!m.isCommittee}>
         {m.isCommittee ? <Badge tone="lit">{m.committeeRole}</Badge> : <span className="text-text-muted">—</span>}
       </TD>
       {/* The two things you can do to a member sit behind one ring: fifty rows

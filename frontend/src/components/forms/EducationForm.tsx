@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/design-system/icons/Icon";
 import { Button } from "@/components/ui/Button";
+import { FormActions } from "@/components/ui/FormActions";
 import { Radio } from "@/components/ui/Radio";
 import { FieldError } from "@/components/forms/Field";
 import { setMyEducation } from "@/app/settings/actions";
@@ -54,11 +55,13 @@ export function EducationForm({
           Saved.
         </p>
       )}
-      <div>
-        <Button type="submit" size="sm" loading={saving}>
+      {/* On /settings the row is one of several, and its Save is ghost like the others' (the page's one cream action is in its head); the
+          gate on /opportunities (`compact`) is that page's own one reason to be there, so it stays cream. */}
+      <FormActions>
+        <Button type="submit" variant={compact ? "primary" : "ghost"} size={compact ? "sm" : "md"} loading={saving}>
           {compact ? "Confirm and show jobs" : "Save"}
         </Button>
-      </div>
+      </FormActions>
     </form>
   );
 }

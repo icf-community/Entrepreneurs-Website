@@ -27,7 +27,7 @@ export default function NewestMembers({ newest }: { newest: DirectoryMember[] })
           title="Some of our newest members…"
           actions={<span className="data text-small text-text-muted">{newest.length} just joined</span>}
         >
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="lm-tiles">
             {newest.map((m) => <MemberCard key={m.id} member={m} dense onClick={() => setOpenMember(m)} />)}
           </div>
         </Section>

@@ -170,6 +170,19 @@ describe("buildStaticCsp", () => {
     expect(matcher.test("/ai-notice-settings")).toBe(true); // prefix must not be swallowed
   });
 
+  it("includes /ideaforge: it is prerendered, so a nonce policy would block every script on it", () => {
+    // The page came in from main prerendered and unlisted, so the proxy gave it the strict nonce
+    // policy and its own bundle never ran (found by loading it in a production build; no unit test
+    // would have). It qualifies because it renders no user-supplied content (staticRoutes.test.ts
+    // scans it); the application form is a Tally iframe on Tally's origin, so frame-src must survive.
+    expect(STATIC_CSP_ROUTES).toContain("/ideaforge");
+    const matcher = new RegExp(`^${proxyConfig.matcher[0]}$`);
+    expect(matcher.test("/ideaforge")).toBe(false); // excluded: next.config serves its CSP
+    expect(matcher.test("/ideaforge/")).toBe(false);
+    expect(matcher.test("/ideaforge-settings")).toBe(true); // prefix must not be swallowed
+    expect(buildStaticCsp()).toMatch(/frame-src [^;]*https:\/\/tally\.so/);
+  });
+
   it("covers only routes that render no user-supplied content", () => {
     // A guard against someone adding /login or /contact here later: both
     // are public, but both take user input, so both must keep the strict
