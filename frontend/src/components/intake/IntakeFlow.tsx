@@ -369,7 +369,7 @@ export default function IntakeFlow({
 
   return (
     // no background of its own: the atmosphere (the night behind every page) shows through
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-svh flex-col">
       {/* the same bar as every page before the rail, held at the top while a long screen scrolls */}
       <PublicHeader sticky>
         {!done && compulsoryDone && (

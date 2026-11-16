@@ -26,7 +26,7 @@ import { PublicFooter } from "@/components/PublicFooter";
 // and the number in a lit ring, the one lit thing on the page, with the page's words beside it.
 export default function NotFound() {
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
+    <div className="relative flex min-h-svh flex-col overflow-hidden">
       <Starfield className="pointer-events-none absolute inset-0 h-full w-full" />
 
       {/* Top bar */}

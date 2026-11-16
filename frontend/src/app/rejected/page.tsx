@@ -41,7 +41,7 @@ export default async function RejectedPage() {
 
   // No background of its own: the atmosphere is the night behind every page.
   return (
-    <div className="relative flex min-h-screen flex-col">
+    <div className="relative flex min-h-svh flex-col">
       <SiteBanner />
       <PublicHeader>
         <SignOutButton />

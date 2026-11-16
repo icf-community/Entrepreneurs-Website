@@ -129,6 +129,20 @@ describe("nothing bypasses the design system", () => {
     expect(bad).toEqual([]);
   });
 
+  it("no page is sized to 100vh (min-h-screen, h-screen): use min-h-svh, as the shell does", () => {
+    // 100vh is the viewport with the phone's browser bars away, so a page sized to it put its footer a toolbar's height below the fold.
+    const bad: string[] = [];
+    for (const f of code) {
+      const r = rel(f);
+      if (!r.startsWith("app/") && !r.startsWith("components/")) continue;
+      const text = stripComments(readFileSync(f, "utf8"));
+      text.split("\n").forEach((line, i) => {
+        if (/\bmin-h-screen\b|\bh-screen\b/.test(line)) bad.push(`${r}:${i + 1}`);
+      });
+    }
+    expect(bad).toEqual([]);
+  });
+
   it("stylesheets name no raw hue outside tokens.css and surfaces.css (the dust tiles are data)", () => {
     const bad: string[] = [];
     for (const f of styles) {

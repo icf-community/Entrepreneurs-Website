@@ -23,6 +23,7 @@ import { newestOpportunities } from "@/lib/data/opportunities";
 import { newestVcs } from "@/lib/data/vcs";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { Page } from "@/components/ui/Page";
+import { STACK_TRAILING } from "../entryTrailing";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -303,6 +304,8 @@ async function Events({ data }: { data: ReturnType<typeof newestEvents> }) {
           <li key={e.id}>
             <Panel className="h-full p-1.5">
               <Entry
+                // a society event's badge drops under the words on a phone, as it would squeeze the title beside them
+                className={STACK_TRAILING}
                 glyph={<Icon name="events" size={20} />}
                 title={e.title}
                 href={`/events/${e.id}`}
@@ -328,8 +331,9 @@ async function Opportunities({ data }: { data: ReturnType<typeof newestOpportuni
       </EmptyState>
     );
   }
+  // self-start: the two sections share their rows so the panels start level, but a short list is not stretched to the height of the other's
   return (
-    <Panel className="p-1.5">
+    <Panel className="self-start p-1.5">
       <ul className="grid gap-0.5">
         {latest.map((o) => (
           <Entry
@@ -361,7 +365,7 @@ async function Vcs({ data }: { data: ReturnType<typeof newestVcs> }) {
     );
   }
   return (
-    <Panel className="p-1.5">
+    <Panel className="self-start p-1.5">
       <ul className="grid gap-0.5">
         {latest.map((v) => (
           <Entry

@@ -9,6 +9,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { FieldError } from "@/components/forms/Field";
 import { unblockMember } from "@/app/connections/actions";
+import { STACK_TRAILING } from "../entryTrailing";
 import { SettingsSection } from "./SettingsSection";
 
 // ════════════════════════════════════════════════════════════════════
@@ -127,6 +128,8 @@ export default function BlockedMembers() {
             <Entry
               key={b.member_id}
               as="li"
+              // Unblock drops under the name on a phone, so a name is not cut to a few letters beside it
+              className={STACK_TRAILING}
               glyph={<Avatar name={`${b.first_name} ${b.surname}`} size="md" />}
               title={
                 <span className="block truncate">

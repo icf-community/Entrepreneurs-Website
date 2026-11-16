@@ -43,7 +43,7 @@ export default function LoginPage() {
 function LoginSkeleton() {
   return (
     // No background of its own: the atmosphere shows through, as it does behind the real page.
-    <main id="main-content" tabIndex={-1} className="flex min-h-screen items-center justify-center px-[var(--gutter)]">
+    <main id="main-content" tabIndex={-1} className="flex min-h-svh items-center justify-center px-[var(--gutter)]">
       <SkeletonRegion label="Loading sign in…" className="w-full max-w-[460px] space-y-4">
         <Skeleton className="h-12 w-12" shape="ring" />
         <Skeleton className="h-8 w-56" />

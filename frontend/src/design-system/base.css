@@ -73,6 +73,12 @@ input, textarea, select { caret-color: var(--color-sun); accent-color: var(--col
 /* Native form controls that take the UA's colour (date pickers, number steppers) read as part of the night. */
 input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.85); }
 
+/* The logo is one flat currentColor, set to star white by its call sites. A forced palette leaves an SVG's own colour alone, so on a light
+   Canvas the mark vanished; there it takes the system's text colour. */
+@media (forced-colors: active) {
+  svg[data-logo] { color: CanvasText; }
+}
+
 /* Autofill keeps its surface instead of flashing the UA's pale yellow-blue. */
 input:-webkit-autofill, textarea:-webkit-autofill, select:-webkit-autofill {
   -webkit-text-fill-color: var(--color-text-primary);

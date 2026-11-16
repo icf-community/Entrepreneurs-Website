@@ -254,7 +254,7 @@ export default function LoginClient() {
   return (
     // No background of its own: the atmosphere is the night behind every page. (overflow-x-clip, not -hidden: a hidden overflow is a scroll
     // container, and the mark's `sticky` would then stick to this box instead of the screen.)
-    <div className="relative flex min-h-screen flex-col overflow-x-clip">
+    <div className="relative flex min-h-svh flex-col overflow-x-clip">
       <BackgroundEffects />
 
       {/* Below a desktop the mark is the roundel alone at the top (48 px); from lg up it is the big one beside the form. */}

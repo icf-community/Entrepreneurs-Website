@@ -41,7 +41,9 @@
   .lm-btn[data-size="sm"] { --_h: 44px; --_px: 20px; --_fs: var(--text-small); gap: 8px; }
   .lm-btn[data-size="md"] { --_h: 50px; --_px: 24px; }
   .lm-btn[data-size="lg"] { --_h: 58px; --_px: 30px; }
-  .lm-btn:active:not(:disabled):not([aria-disabled="true"]) { transform: translateY(1px); }
+  /* Every pressable of this kind sinks a pixel when pressed, the same way. The independent `translate` property, not `transform`, because an open
+     picker's chips run lm-chip-in with fill-mode both, which would hold their transform against it. */
+  :is(.lm-btn, .lm-iconbtn, .lm-chip, .lm-pick__toggle):active:not(:disabled):not([aria-disabled="true"]) { translate: 0 1px; }
   .lm-btn:disabled, .lm-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
   /* a disabled cream button would read as beige mud at half opacity: it becomes a quiet surface instead */
   .lm-btn[data-variant="primary"]:disabled:not([aria-busy="true"]) {
@@ -196,10 +198,18 @@
   }
   .lm-disc[data-size="sm"] { --_d: 36px; }
   .lm-disc[data-size="lg"] { --_d: 56px; }
-  .lm-disc[data-lit], .lm-entry:hover .lm-disc, .lm-entry:focus-within .lm-disc {
+  .lm-disc[data-lit], .lm-entry:focus-within .lm-disc {
     color: var(--color-accent-light);
     border-color: var(--color-lit-line);
     box-shadow: 0 0 22px -4px var(--color-lit-glow);
+  }
+  /* pointed at, too, where there is a pointer: a touch screen would leave the disc lit after a tap */
+  @media (hover: hover) {
+    .lm-entry:hover .lm-disc {
+      color: var(--color-accent-light);
+      border-color: var(--color-lit-line);
+      box-shadow: 0 0 22px -4px var(--color-lit-glow);
+    }
   }
   /* A face drawn in a disc (an Entry's glyph) wears its light on the disc's own ring, so there is one ring in the face's colour, as on a card
      (data.css draws the same on an avatar standing alone). Only the two variables the disc reads are set here, so the lit and pointed-at rules
@@ -259,7 +269,8 @@
   @media (hover: hover) {
     .lm-entry:hover { background: var(--color-tint-1); }
   }
-  .lm-entry__title { font-family: var(--font-display); font-weight: 400; font-size: var(--text-lead); line-height: 1.2; letter-spacing: -0.012em; color: var(--color-text-primary); }
+  /* a title is a heading in all but tag: balanced, so a two-line title never ends on one word */
+  .lm-entry__title { font-family: var(--font-display); font-weight: 400; font-size: var(--text-lead); line-height: 1.2; letter-spacing: -0.012em; color: var(--color-text-primary); text-wrap: balance; }
   .lm-entry__meta  { margin-top: 2px; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.4; }
 
   /* ── Badge: a small pill that says what state or kind something is. ───────────────────────────────────────── */
@@ -317,10 +328,12 @@
     pointer-events: none;
     background: radial-gradient(closest-side, color-mix(in oklab, var(--color-warm) 7%, transparent), transparent);
   }
-  .lm-pagehead__context a { display: inline-flex; align-items: center; gap: 8px; min-width: 24px; min-height: 24px; color: inherit; text-decoration: none; }   /* a flex item is not inline text: it needs the 24 px target */
-  .lm-pagehead__context a:hover { color: var(--color-text-primary); text-decoration: underline; text-underline-offset: 3px; }
+  .lm-pagehead__context a { display: inline-flex; align-items: center; gap: 8px; min-width: 24px; min-height: 24px; border-radius: var(--radius-sm); color: inherit; text-decoration: none; }   /* a flex item is not inline text: it needs the 24 px target; the radius is the focus ring's, which follows it */
+  @media (hover: hover) {
+    .lm-pagehead__context a:hover { color: var(--color-text-primary); text-decoration: underline; text-underline-offset: 3px; }
+  }
   .lm-pagehead__title { font-family: var(--font-display); font-weight: 300; font-size: var(--text-display); line-height: var(--text-display--line-height); letter-spacing: var(--tracking-display); color: var(--color-text-primary); margin: 0; text-wrap: balance; }
-  .lm-pagehead__lede { max-width: 46ch; margin: 0; color: var(--color-text-secondary); font-size: var(--text-body); line-height: 1.5; }
+  .lm-pagehead__lede { max-width: 46ch; margin: 0; color: var(--color-text-secondary); font-size: var(--text-body); line-height: 1.5; text-wrap: pretty; }   /* a <div> when the lede is rich, which the base p rule misses */
   /* The actions sit level with the title, not with the foot of the lede (a lede of three lines would drop them a hundred pixels below the title), and
      the title gives way before they do: it wraps at 22rem rather than letting the actions fall under it as the window narrows. */
   .lm-pagehead__row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px 24px; }

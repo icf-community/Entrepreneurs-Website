@@ -29,7 +29,7 @@ function RailGroup({ rows }: { rows: number }) {
 
 export default function Loading() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-svh flex-col">
       <PublicHeader sticky>
         <Skeleton className="h-11 w-32 rounded-full" />
       </PublicHeader>

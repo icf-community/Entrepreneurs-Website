@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { Button } from "@/components/ui/Button";
+import { Page } from "@/components/ui/Page";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Segment-scoped error boundary
@@ -24,39 +25,45 @@ export function SegmentError({
   error,
   retry,
   label,
+  as,
 }: {
   error: Error & { digest?: string };
   retry: () => void;
   /** Shown in the message, e.g. "the members admin queue". */
   label: string;
+  /** "main" where no AppShell provides the landmark (admin); a member page's boundary sits inside AppShell's <main>, so never nest one. */
+  as?: "div" | "main";
 }) {
   useEffect(() => {
     console.error(error);
     Sentry.captureException(error);
   }, [error]);
 
-  return <SegmentErrorView label={label} digest={error.digest} retry={retry} />;
+  // In the page frame, so the message starts where every page's head does instead of in a centred column of its own.
+  return (
+    <Page width="narrow" as={as}>
+      <SegmentErrorView label={label} digest={error.digest} retry={retry} />
+    </Page>
+  );
 }
 
 export function SegmentErrorView({ label, digest, retry }: { label: string; digest?: string; retry: () => void }) {
   return (
-    <div className="px-4 py-8 sm:px-8">
-      <div className="mx-auto grid max-w-[560px] gap-4">
-        <ErrorBanner>
-          Something went wrong loading {label}. You can try again — the rest
-          of the app is unaffected.
-        </ErrorBanner>
-        <div>
-          <Button type="button" size="md" onClick={retry}>
-            Try again
-          </Button>
-        </div>
-        {digest && (
-          <p className="text-caption text-text-muted">
-            Error ID: <span className="data">{digest}</span>
-          </p>
-        )}
+    <div className="grid gap-4">
+      <ErrorBanner>
+        Something went wrong loading {label}. You can try again — the rest
+        of the app is unaffected.
+      </ErrorBanner>
+      <div>
+        <Button type="button" size="md" onClick={retry}>
+          Try again
+        </Button>
       </div>
+      {digest && (
+        <p className="text-caption text-text-muted">
+          Error ID: <span className="data">{digest}</span>
+        </p>
+      )}
     </div>
   );
 }

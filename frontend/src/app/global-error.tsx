@@ -33,7 +33,7 @@ export default function GlobalError({
       <body
         style={{
           margin: 0,
-          minHeight: "100vh",
+          minHeight: "100svh",
           backgroundColor: "#04080d",
           color: "#eff2f6",
           fontFamily: "'Helvetica Neue', Arial, system-ui, sans-serif",

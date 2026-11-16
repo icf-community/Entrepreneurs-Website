@@ -24,7 +24,7 @@ export default async function ResetPasswordPage() {
 
   // No background of its own: the atmosphere is the night behind every page.
   return (
-    <main id="main-content" tabIndex={-1} className="flex min-h-screen items-center justify-center px-[var(--gutter)] py-10">
+    <main id="main-content" tabIndex={-1} className="flex min-h-svh items-center justify-center px-[var(--gutter)] py-10">
       <div className="w-full max-w-[460px]">
         {/* a quarter of the mark's height clear below it, so the masthead's rule does not crowd the logo */}
         <Link href="/" className="mb-4 inline-block no-underline">

@@ -103,6 +103,9 @@
     .lm-tab:hover:not(:disabled):not([aria-disabled="true"]) { color: var(--color-text-primary); background: var(--color-tint-1); }
   }
   .lm-tab:disabled, .lm-tab[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+  /* the tab is square at its foot so it sits on the hairline; the focus ring is drawn on the whole tab, so it takes the rounded shape every other
+     control's ring has (the segmented pill, later in the file, keeps its own) */
+  .lm-tab:focus-visible { border-radius: var(--radius-sm); }
   /* a group disabled while a navigation is in flight must not blink: the current tab keeps its full light */
   .lm-tab:disabled:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-selected="true"]) { opacity: 1; cursor: progress; }
 
@@ -240,12 +243,16 @@
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
+    /* the cells of a row share a height, and the spare room sits under the label, so a value lines up with its neighbours' when one label
+       wraps to two lines and the next does not (the cells of one sheet share one anatomy: data.md) */
+    grid-template-rows: auto 1fr;
     align-content: start;
     row-gap: 4px;
     min-width: 0;
     margin: 0;
     padding: 18px 20px;
   }
+  .lm-stat > .lm-stat__value { align-self: end; }
   /* a ring sits at the cell's trailing edge; the words keep clear of it */
   .lm-stat[data-meter="ring"] { padding-inline-end: calc(20px + 48px + 14px); }
   .lm-stat[data-meter="ring"][data-size="sm"] { padding-inline-end: calc(18px + 36px + 10px); }
@@ -565,9 +572,11 @@
     transform: translateX(calc(var(--lm-p, 0) * 100cqw));
     transition: transform var(--duration-slow) var(--ease-out);
   }
-  /* on a phone the sentence takes its own row above the two buttons, which share the width, so nothing is wider than the screen at 320 px */
-  @media (max-width: 480px) {
-    .lm-pager { flex-wrap: wrap; gap: 14px 10px; }
+  /* in a narrow column (a phone, or a narrow card on a wide screen) the sentence takes its own row above the two buttons, which share the width,
+     so nothing is wider than its column. Keyed to the pager's own width, not the window's: 22rem is the old 480 px phone less its gutters.
+     The gauge is its own container, so its cqw still read the gauge. (A box cannot query itself, so the gap stays the pager's 14 px.) */
+  .lm-pager { container-type: inline-size; flex-wrap: wrap; }
+  @container (max-width: 22rem) {
     .lm-pager__status { order: -1; flex: 1 0 100%; min-width: 0; }
     .lm-pager > .lm-btn { flex: 1 1 0; min-width: 0; padding-inline: 12px; }
   }
@@ -779,7 +788,7 @@
     text-wrap: balance;
   }
   .lm-section__title[data-level="3"] { font-size: var(--text-lead); font-weight: 400; line-height: 1.2; }
-  .lm-section__desc { max-width: var(--measure-prose); margin: 0; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.5; }
+  .lm-section__desc { max-width: var(--measure-prose); margin: 0; color: var(--color-text-secondary); font-size: var(--text-small); line-height: 1.5; text-wrap: pretty; }
   .lm-section__actions { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 
   /* ── Forced colours (Windows high contrast) ─────────────────────────────────────────────────────────────────────

@@ -180,7 +180,8 @@ The one banner every callout is built from.
 In-text links inside it keep their underline (`.lm-notice__text a`). A server component unless `onDismiss` is used.
 
 Built on it, one family: `ErrorBanner` (alert, danger), `SuccessBanner` (status, success), `SiteBanner` (bar; info is info, warning is lit, critical is danger and cannot be dismissed),
-`SegmentError` (an `ErrorBanner`, the one primary "Try again", the error id as a measured value; `SegmentErrorView` is the drawing without the reporting),
+`SegmentError` (an `ErrorBanner`, the one primary "Try again", the error id as a measured value; `SegmentErrorView` is the drawing without the reporting; the boundary puts it in the page frame, `Page width="narrow"`, so it starts where a page's head does, and
+passes `as="main"` only from the admin boundary, which has no AppShell around it),
 `PendingRevisionNotice` (info, clock, status), `SubmittedBanner` (success, dismissible), `ListingGoneNotice` (a compact `EmptyState`).
 
 ### EmptyState (`ui/EmptyState.tsx`)

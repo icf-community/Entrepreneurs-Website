@@ -291,7 +291,7 @@ function MemberRow({
   const name = `${m.firstName} ${m.surname}`;
   return (
     <TR>
-      <TD label="Name" primary nowrap>{m.firstName} {m.surname}</TD>
+      <TD label="Name" primary>{m.firstName} {m.surname}</TD>
       <TD label="Email" wide empty={!m.email}>{m.email ?? <span className="text-text-muted">—</span>}</TD>
       <TD label="Role">{m.role}</TD>
       <TD label="Status">

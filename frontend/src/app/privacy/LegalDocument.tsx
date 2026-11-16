@@ -80,7 +80,7 @@ export function LegalDocument({
   const titles = sectionTitles(children);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-svh flex-col">
       <PublicHeader />
 
       {/* the page frame, so the document's head sits where every other page's does under its bar */}

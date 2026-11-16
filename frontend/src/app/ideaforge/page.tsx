@@ -65,7 +65,7 @@ const STREAMS = ["AI", "ClimateTech", "HealthTech", "FinTech", "Consumer", "Robo
 export default function IdeaForgePage() {
   return (
     // No background of its own: the atmosphere is the night behind every page.
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-svh flex-col">
       <PublicHeader>
         <ButtonLink href="/" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={16} />}>
           <span className="sr-only">← </span>Back to home

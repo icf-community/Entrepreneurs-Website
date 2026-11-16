@@ -28,7 +28,7 @@ export default function Error({
   // The sky behind it, and no background of its own: the atmosphere shows through. The one thing to do is try again, so that is the
   // primary action; the way home is the quiet one beside it. The error id is a measured value.
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
+    <div className="relative flex min-h-svh flex-col overflow-hidden">
       <Starfield className="pointer-events-none absolute inset-0 h-full w-full" />
 
       <main id="main-content" tabIndex={-1} className="relative z-10 flex flex-1 items-center justify-center px-[var(--gutter)] py-12">

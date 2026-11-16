@@ -278,7 +278,12 @@ function SidebarHeader({
   const closeRef = useRef<HTMLButtonElement>(null);
   const drawer = onClose !== undefined;
   useEffect(() => {
-    if (drawer) closeRef.current?.focus();
+    if (!drawer) return;
+    closeRef.current?.focus({ preventScroll: true });
+    // On a short screen (a phone on its side) the current page's row starts below the drawer's fold: bring it into view once, as it opens.
+    // No `behavior`: the drawer's own scrollers are scroll-behavior auto, so this is instant (the page's smooth rule is on <html>), and an
+    // older browser that does not know the "instant" value would throw here instead of scrolling.
+    closeRef.current?.closest(".lm-rail")?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
   }, [drawer]);
 
   return (

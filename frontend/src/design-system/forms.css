@@ -136,6 +136,9 @@
       0 0 0 6px var(--color-danger-muted),
       0 14px 34px -14px var(--color-danger-muted);
   }
+  /* wrong before the server has seen it: a required or malformed field the person has left, or tried to submit, takes the danger edge (the
+     browser's own bubble says why). Focus keeps its cream edge. A rule of its own, so a browser without :user-invalid drops only this. */
+  .lm-field:user-invalid:not(:focus) { --_edge: var(--color-danger); }
 
   /* off: no fill, the quiet rule instead of the firm edge, muted ink, a not-allowed cursor. Quieter by structure, not just by opacity. */
   .lm-field:disabled,

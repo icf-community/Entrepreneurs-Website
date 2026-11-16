@@ -10,7 +10,7 @@ import { FormSkeleton, PageHeaderSkeleton, Skeleton } from "@/components/ui/Skel
 // Onboarding has no app shell (the member isn't approved yet).
 export default function Loading() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-svh flex-col">
       <PublicHeader sticky>
         <Skeleton className="h-4 w-40" />
       </PublicHeader>

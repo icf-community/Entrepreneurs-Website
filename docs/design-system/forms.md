@@ -88,10 +88,12 @@ renders
 | Focus | cream edge + amber halo | automatic (`:focus`). Shown in the guide with `data-state="focus"` |
 | Filled | primary ink | a value |
 | Error | danger edge, drawn mark, sentence | `<Field error="…">`, or `invalid` on a primitive, or `aria-invalid="true"` |
+| Invalid before submit | danger edge only (the browser's own bubble carries the words) | automatic: `:user-invalid`, after the person has left the field or tried to submit |
 | Disabled | no fill, quiet rule, muted ink | `disabled` |
 | Read-only | no fill, quiet rule, readable ink, still focusable and selectable | `readOnly` |
 | Loading | the field breathes (opacity only) | `aria-busy="true"` |
 | Chosen | amber + tick | `aria-pressed="true"` on a chip, `:checked` on a box, ring or switch |
+| Pressed | sinks 1 px, like a button (`translate`, shared with `.lm-btn` and `.lm-iconbtn` in components.css) | automatic (`:active`) on a chip and the pick's ring |
 | Busy switch | the knob's ring goes dotted and turns; the track keeps its state | `<Switch busy>` |
 | Empty list | "No matches." in the list or the pick | automatic |
 

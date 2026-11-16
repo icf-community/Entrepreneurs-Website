@@ -117,6 +117,9 @@ label, `dd` the value (and a second `dd` for `hint`), so a screen reader hears "
   text, so nothing depends on seeing it. Use it only where there is a limit to draw against; give `tone="danger"` to a value that has crossed it.
 - `size="sm"` for long values ("p50 412ms · p95 1,860ms"). The AI admin's 15 tiles are `StatGrid min="sm"`; the connections admin's three counters are a
   plain `StatGrid`.
+- **The cells of one sheet share one anatomy.** The cells of a row share a height and the spare room sits under the label, so the values of a row stay
+  level when one label wraps and its neighbour's does not. That holds while the cells below the value match: give every cell of a sheet a hint of about
+  the same length, or none, and a `bar` meter to all of them or to none (a ring sits beside the words and does not count).
 
 ## Table
 
@@ -193,8 +196,9 @@ missing ones fall away. `layout="grid"` (default) reflows to the room; `layout="
 `Pager` keeps its name and its props (`url`, `page`, `total`, `pageSize`, `label`), its landmark (`nav` named by `label`), its button names ("Previous",
 "Next", with the arrows now drawn icons) and its sentence ("Page N of M", still one run of text for `toContainText("Page 1 of")`). It renders nothing when
 everything fits on one page. It is two ghost `Button`s (ring buttons) either side of the sentence, the current number lit in its own ring, and a hairline gauge
-under it with a point of light at the current position (decoration, `aria-hidden`). On a phone the sentence takes its own row above the two buttons, which
-share the width, so nothing is wider than the screen at 320 px. It adds no `role="status"` or live region: `admin.spec.ts` takes `getByRole("status").first()`.
+under it with a point of light at the current position (decoration, `aria-hidden`). In a narrow column (under 22rem of its own width: a phone, or a narrow
+card on a wide screen) the sentence takes its own row above the two buttons, which share the width, so nothing is wider than its column; the pager is a
+container, keyed to its own width, not the window's. It adds no `role="status"` or live region: `admin.spec.ts` takes `getByRole("status").first()`.
 
 ## ProgressBar, Meter and StepDots
 
@@ -303,3 +307,8 @@ that two sites gain a state attribute they lacked), URL-as-state (`useUrlFilters
   scroll region, which is still correct.
 - `Disclosure` needs a **client boundary** only because it keeps state; a page that passes it `open` still owns the state.
 - The gallery's sample photographs are SVGs drawn in the file (the CSP allows no third-party images).
+- An **`Entry`'s trailing slot** keeps its own width: a long `nowrap` badge or button there squeezes the title and meta to a few letters on a phone. Such a
+  call site drops its trailing slot under the words below `md` with `STACK_TRAILING` (`app/entryTrailing.ts`), as `/my-submissions`, `/my-activity`,
+  `/notifications` (a title column was 38 px at 320 with the date beside it), the calendar list, the blocked-members list and Home's events do. A new call
+  site with a trailing badge or button should do the same; the class is the convention, not a container query, because a row's trailing slot is the one place
+  a design-system rule cannot know how long the words of the page will be.

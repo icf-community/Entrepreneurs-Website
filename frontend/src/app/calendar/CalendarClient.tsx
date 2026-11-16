@@ -22,6 +22,7 @@ import {
   formatMonthYear,
   formatTime,
 } from "@/lib/dates";
+import { STACK_TRAILING } from "../entryTrailing";
 
 type ListingKind = "opportunity" | "event" | "vc_grant";
 type Role = "applied" | "going" | "organising" | "posted";
@@ -228,6 +229,8 @@ function ListRow({ item, onSelect }: { item: CalItem; onSelect: (i: CalItem) => 
   return (
     <Entry
       as="li"
+      // the status and role badges drop under the words on a phone (beside them they left the title about 70 px)
+      className={STACK_TRAILING}
       glyph={<Icon name={KIND_ICON[item.listingKind]} size={20} />}
       // The whole row is the button, as the stretched link of any other Entry: one control in the
       // accessibility tree, opening the item's details.

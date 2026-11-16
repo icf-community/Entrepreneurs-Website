@@ -12,6 +12,7 @@ import { browserClient } from "@/lib/supabase/browser";
 import { invalidateUnreadBadge } from "@/components/notifications/unreadBadgeStore";
 import type { Notification } from "@/lib/data/notifications";
 import { track } from "@/lib/analytics/track";
+import { STACK_TRAILING } from "../entryTrailing";
 
 // Hoisted: constructing an Intl.DateTimeFormat is comparatively expensive,
 // and `when` is called once per notification on every render.
@@ -83,6 +84,8 @@ export default function NotificationsList({ initial }: { initial: Notification[]
               <Entry
                 key={n.id}
                 as="li"
+                // the date (and the unread dot) drop under the words on a phone: beside them they left the title a column of one or two words
+                className={STACK_TRAILING}
                 glyph={<Icon name="notifications" size={20} className={n.readAt ? undefined : "text-accent-light"} />}
                 title={
                   n.link ? (
