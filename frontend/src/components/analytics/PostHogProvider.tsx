@@ -19,6 +19,7 @@ import { sanitiseAnalyticsEvent } from "@/lib/observability/analyticsUrls";
 import { POSTHOG_KEY, POSTHOG_HOST, flushQueuedTracking, analyticsOptedOut, ANALYTICS_CHANGE_EVENT } from "@/lib/analytics/track";
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- the cleanup below owns both allocations: the setup is async, so it assigns `unsubscribe` after its last await, and the cleanup sets `cancelled` (every earlier await re-checks it before allocating) then calls `unsubscribe()`. The rule cannot follow that assignment out of the async function.
   useEffect(() => {
     // Opted out on this device (Settings): posthog-js is never loaded.
     if (!POSTHOG_KEY || analyticsOptedOut()) return;
