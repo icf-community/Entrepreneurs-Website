@@ -47,6 +47,12 @@ jobs:
   azure-lifecycle-drift:
     name: Azure blob lifecycle/retention drift check
     runs-on: ubuntu-latest
+    # The Azure federated credential is issued for the `production` environment
+    # (the deploy workflows log in under it). Without this line the login's OIDC
+    # subject is `...:ref:refs/heads/main`, which has no credential, and the job
+    # fails with AADSTS700213. The environment has a required reviewer, so this
+    # job waits for that approval before it runs.
+    environment: production
     steps:
       - uses: actions/checkout@v5
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
