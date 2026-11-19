@@ -89,11 +89,14 @@ overrides:
   # arrives through @sentry/bundler-plugins, which uses it to find source maps
   # at build time, and never reaches the deployed app. Caret bounds it at 14.x
   # (one major from the 13.x it resolves to today).
-  # NOT overridden: minimatch (GHSA-g3hv-75wg-m249, <11.0.1). 98 paths, including
-  # ESLint's own tooling on minimatch 3, which cannot take a newer major (see the
-  # brace-expansion note above). Build/lint-time only, fed repo files, not
-  # reachable from a request. Accepted until eslint-config-next moves off it.
   glob@<14.0.2: '^14.0.2'
+  # Glob-pattern DoS via globparts amplification (GHSA-g3hv-75wg-m249, >=7 <11.0.1;
+  # the only patched line is 11.0.1). The only copy in range was 10.2.6, arriving
+  # through @typescript-eslint/typescript-estree: lint-time only, never the deployed
+  # app. The selector starts at 7 on purpose: ESLint's own tooling uses minimatch 3,
+  # which is outside the advisory and cannot take a newer major (see the
+  # brace-expansion note above), so it must not match. Caret bounds it at 11.x.
+  minimatch@>=7 <11.0.1: '^11.0.1'
   # Quadratic CPU use scanning unterminated stop-node tags (GHSA-474x-hrwr-fgx4,
   # <=5.11.2). Arrives via @azure/storage-blob -> @azure/core-xml, which parses
   # Blob storage's own XML responses, not member input. Caret bounds it at 5.x.
