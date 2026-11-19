@@ -133,6 +133,11 @@ export default function IdeaForgePage() {
                   src={EMBED_URL}
                   title="IdeaForge application form"
                   loading="lazy"
+                  // Tally's page needs its own scripts, storage and form posts, and its links
+                  // open in new tabs. Withheld: navigating this page away, downloads, modals.
+                  // allow-same-origin is safe here because the frame is tally.so, not our origin.
+                  // react-doctor-disable-next-line react-doctor/iframe-missing-sandbox -- the rule's warning is for content with the same origin as its embedding page; this frame is tally.so. Tested: without allow-same-origin Tally's app throws a cookie SecurityError and half-renders.
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
                   className="block h-[720px] w-full rounded-lg bg-ink"
                 />
               </Panel>
