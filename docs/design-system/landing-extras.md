@@ -17,7 +17,7 @@ legal links, the `Join Foundry` destination (`/login`), and the names the old co
 
 | Field | Verbatim |
 |---|---|
-| lede paragraph under the headline | `Foundry connects students, recent graduates, alumni founders, mentors, and investors across Imperial's ecosystem. Build something real, together.` |
+| lede paragraph under the headline | **Restored 2026-11-19** (the owner's call): `HERO.lede` in `content.ts`, `.hero-lede` in `landing.css`. Shown on desktop windows taller than 640 px and on tablets and phones taller than 879 px; visually hidden (still in the page) elsewhere, because on a phone the scene shrinks the mark to make room for it. The words: `Foundry connects students, recent graduates, alumni founders, mentors, and investors across Imperial's ecosystem. Build something real, together.` |
 | "Learn more" button, visible label | `Learn more` (now a drawn arrow; the words are visually hidden text: `Learn more about who we are`) |
 | "Join Foundry" button | a trailing arrow icon after the label (now the orbit glyph before it) |
 | the mark's fallback image, `alt` | `Imperial Entrepreneurs` (the 2025 `/logo-roundel.png`, replaced by the scene and the painted poster) |

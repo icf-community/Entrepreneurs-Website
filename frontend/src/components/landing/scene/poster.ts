@@ -280,7 +280,7 @@ export async function mountPosters({ root, world, director, glyphs, art, dprMax 
   // ── one poster ───────────────────────────────────────────────────────────────────────────────────────────────
   function rectsFor(p: Poster): { left: number; right: number; top: number; bottom: number }[] {
     const o = p.canvas.getBoundingClientRect();
-    const pick = p.k === 0 ? ".hero-copy h1, .hero-copy .actions, .hero-copy .who-wrap" : p.k === STATIONS.length - 1 ? ".strip" : null;
+    const pick = p.k === 0 ? ".hero-copy h1, .hero-copy .hero-lede, .hero-copy .actions, .hero-copy .who-wrap" : p.k === STATIONS.length - 1 ? ".strip" : null;
     if (!pick) return [];
     return [...p.sec.querySelectorAll(pick)].map((el) => {
       const r = el.getBoundingClientRect();

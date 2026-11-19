@@ -72,6 +72,8 @@ On `window`: `__ready` (true when the first frame is drawn), `__stage`, `__mark(
 
 ## Known limits
 
+- The hero's lede (`.hero-lede`) is visually hidden on phones and short windows (under 880 px tall at 899 px wide and below, under 641 px tall above it). The director fits the hero's mark into the room above the words, so every line added to the stack shrinks it (measured with `window.__mark()` in CSS pixels: radius 119 to 102 at 844 px tall, 107 to 63 at 741 px, 82 to 33 at 631 px; untouched from 889 px up). The words stay in the page for screen readers and search. To show it on phones, give the mark that room first.
+
 - A Playwright `fullPage` capture can catch the page mid-resize (the rail's cursor on the wrong station, a poster repainting at a transient size); shoot the viewport, or retake.
 - Frame rate on a real GPU, Safari and Firefox WebGL, and real phones are unmeasured (software GL on a shared machine only).
 - The static layout reaches a reduced-motion visitor when the page hydrates; before that the server's page is the (compacted) live layout. The mock decided before first paint with an inline script, which the static-CSP

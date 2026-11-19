@@ -17,6 +17,7 @@ export function Hero() {
         <h1 id="h1" className="display-xl">
           <Lines lines={HERO.headline} />
         </h1>
+        <p className="lede hero-lede">{HERO.lede}</p>
         <div className="actions">
           <ButtonLink className="btn" href={HERO.cta.href} leading={<OrbitGlyph className="btn-g" />}>
             <span className="btn-t">{HERO.cta.label}</span>

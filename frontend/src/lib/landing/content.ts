@@ -9,8 +9,9 @@
 // `/` are illustrative, which is why the three example groups carry a quiet "Example" marker.
 //
 // Strings the live page had and this one leaves out on purpose (longer section paragraphs, event "spots left" counts and Reserve buttons,
-// the mock signup form, sector / skills / posted details on listings, initials and skills on members, the hero lede, eyebrow labels) are
-// listed verbatim in docs/design-system/landing-extras.md.
+// the mock signup form, sector / skills / posted details on listings, initials and skills on members, eyebrow labels) are
+// listed verbatim in docs/design-system/landing-extras.md. The hero lede was restored (the owner's call, 2026-11-19): without it the hero never
+// says what Foundry is.
 
 import {
   AUDIENCES, EVENT_TYPES, LISTING_KINDS, SIGNUP_STEPS, STATUS_GLYPHS,
@@ -52,6 +53,8 @@ export const NAV = {
 
 export const HERO = {
   headline: ["The founder community,", "built by Imperial students", "for Imperial students."],
+  /** Verbatim from the live page this one replaced (docs/design-system/landing-extras.md). */
+  lede: "Foundry connects students, recent graduates, alumni founders, mentors, and investors across Imperial's ecosystem. Build something real, together.",
   cta: { label: "Join Foundry", href: "/login" },
   /** The scroll cue: a glyph, named (as visually hidden text) as the live "Learn more" link was. */
   cue: { label: "Learn more about who we are", href: "#who-we-are", glyph: STATUS_GLYPHS.learnMore },

@@ -18,7 +18,7 @@ const wrapPi = (a: number): number => ((((a + Math.PI) % TAU) + TAU) % TAU) - Ma
 export const STATIONS = ["hero", "who-we-are", "community", "opportunities", "events", "apply", "footer"];
 export const ENTRY_SEL: Record<string, string> = { "who-we-are": ".role", community: ".member", opportunities: ".listing", events: ".event", apply: ".step" };
 const HOST_SEL = ".role, .member, .listing, .step, .event, .head, .access, .ex, .picker, .cta, .hero-copy"; // the block whose mask (_m = 0) hides a rectangle
-const RECT_SEL = ".hero-copy h1, .hero-copy .actions, .hero-copy .who-wrap, .head, .tx, .ev-tx, .access, .ex, .picker, .cta, .strip";
+const RECT_SEL = ".hero-copy h1, .hero-copy .hero-lede, .hero-copy .actions, .hero-copy .who-wrap, .head, .tx, .ev-tx, .access, .ex, .picker, .cta, .strip";
 
 // The bodies in the scene wear the drawings of the words they stand for: the audiences, the four example members (an audience each), the three listings (a briefcase
 // or a coin), the four events (their type), the three sign-up steps. They come from the same mappings the markup uses, so they cannot drift apart.
