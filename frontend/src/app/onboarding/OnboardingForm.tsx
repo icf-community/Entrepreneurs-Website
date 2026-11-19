@@ -208,9 +208,9 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
               )}
             </div>
 
-            {/* KEEP AS WRITTEN (pre-existing): Continue and the submit button are both a <Button> at this same position, so React reuses
-                the one DOM node and flips its type; the click that advances to step 2 therefore also submits the form. Giving the two
-                buttons different `key`s stops that. It is left alone here because it changes what a student's first click does. */}
+            {/* Continue and the submit button are both a <Button> at this same position. Without distinct `key`s React reuses the one
+                DOM node and flips its type to "submit" during the click that advances the step, and the browser then runs the click's
+                default action on a submit button: the form submits. The keys make them two nodes (e2e/onboarding.spec.ts). */}
             <FormActions align="between">
               {step > 0 && (
                 <Button type="button" variant="ghost" size="lg" onClick={handleBack} disabled={isLoading}>
@@ -218,11 +218,11 @@ export default function OnboardingForm({ role, firstName, surname }: Props) {
                 </Button>
               )}
               {step < TOTAL_STEPS - 1 ? (
-                <Button type="button" onClick={handleNext} variant="primary" size="lg" className="ml-auto">
+                <Button key="continue" type="button" onClick={handleNext} variant="primary" size="lg" className="ml-auto">
                   Continue
                 </Button>
               ) : (
-                <Button type="submit" loading={isLoading} variant="primary" size="lg" lit className="ml-auto">
+                <Button key="submit" type="submit" loading={isLoading} variant="primary" size="lg" lit className="ml-auto">
                   {role === "student" ? "Finish onboarding" : "Submit for review"}
                 </Button>
               )}

@@ -92,7 +92,7 @@ export default defineConfig({
     // Admin session.
     {
       name: "admin",
-      testMatch: /admin\.spec\.ts|banner\.spec\.ts|intake\.spec\.ts|graduates\.spec\.ts/,
+      testMatch: /admin\.spec\.ts|banner\.spec\.ts|intake\.spec\.ts|onboarding\.spec\.ts|graduates\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: storageStatePath("admin") },
     },
     // Credential pipelines: email change, password change, password reset.
