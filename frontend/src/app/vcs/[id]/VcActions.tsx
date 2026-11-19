@@ -1,13 +1,31 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ExternalButtonLink } from "@/components/FullPageLink";
 import { MarkActionPill } from "@/components/MarkActionPill";
 import { recordListingEvent } from "@/lib/analytics";
 import type { Vc } from "@/lib/data/vcs";
-import { externalHref } from "@/lib/safeUrl";
 
 // The browser-side half of /vcs/[id]: the click-through to the fund's own
 // site, and the applied pill.
+
+/**
+ * The page's one lit action. A client component of its own because the click is a
+ * tracked event; the page hands it to the masthead (ListingDetailShell's `actions`),
+ * apart from the applied pill under the facts.
+ */
+export function VcLinkButton({ id, href }: { id: string; href: string }) {
+  return (
+    <ExternalButtonLink
+      href={href}
+      size="md"
+      lit
+      onClick={() => recordListingEvent("vc_grant", id, "external_click")}
+    >
+      Open link
+    </ExternalButtonLink>
+  );
+}
 
 export default function VcActions({ vc: v, applied }: { vc: Vc; applied: boolean }) {
   const viewRecorded = useRef(false);
@@ -21,16 +39,7 @@ export default function VcActions({ vc: v, applied }: { vc: Vc; applied: boolean
   }, [v.id]);
 
   return (
-    <div className="flex flex-wrap items-start gap-2">
-      <a
-        href={externalHref(v.link)}
-        target="_blank"
-        rel="noreferrer noopener"
-        onClick={() => recordListingEvent("vc_grant", v.id, "external_click")}
-        className="inline-block rounded-lg bg-accent px-4 py-2 text-[0.825rem] font-medium text-bg-primary no-underline transition-colors hover:bg-accent-light"
-      >
-        Open link ↗
-      </a>
+    <div className="lm-actionrow">
       <MarkActionPill kind="vc_grant" id={v.id} initial={applied} />
     </div>
   );

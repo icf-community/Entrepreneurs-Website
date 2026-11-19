@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { updateConnectionSettings } from "@/app/connections/actions";
+import { FieldError } from "@/components/forms/Field";
 import { Switch } from "@/components/forms/Switch";
+import { SettingsSection } from "./SettingsSection";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · The two connection switches
@@ -55,29 +57,32 @@ export default function ConnectionSettings({
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-6">
-      <h2 className="text-[0.95rem] font-medium text-text-primary">Connections</h2>
-
-      <div className="mt-4 space-y-4">
-        <Switch
-          id="conn-open"
-          checked={open}
-          busy={busy === "open"}
-          onChange={(v) => toggle("open", v)}
-          label="Accept new connection requests"
-          hint="Turn this off to pause requests without affecting the connections you already have. Nobody is told."
-        />
-        <Switch
-          id="conn-emails"
-          checked={emails}
-          busy={busy === "emails"}
-          onChange={(v) => toggle("emails", v)}
-          label="Email me about pending requests"
-          hint="One daily summary, only when something is waiting. Requests still appear in Foundry either way."
-        />
+    <SettingsSection title="Connections">
+      {/* Two switches on one ruled sheet: the label and its sentence at the left, the switch at the right. */}
+      <div className="grid divide-y divide-border-subtle">
+        <div className="pb-5">
+          <Switch
+            id="conn-open"
+            checked={open}
+            busy={busy === "open"}
+            onChange={(v) => toggle("open", v)}
+            label="Accept new connection requests"
+            hint="Turn this off to pause requests without affecting the connections you already have. Nobody is told."
+          />
+        </div>
+        <div className="pt-5">
+          <Switch
+            id="conn-emails"
+            checked={emails}
+            busy={busy === "emails"}
+            onChange={(v) => toggle("emails", v)}
+            label="Email me about pending requests"
+            hint="One daily summary, only when something is waiting. Requests still appear in Foundry either way."
+          />
+        </div>
       </div>
 
-      {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
-    </section>
+      <FieldError>{error ?? undefined}</FieldError>
+    </SettingsSection>
   );
 }

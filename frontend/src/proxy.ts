@@ -26,7 +26,7 @@ export const config = {
     // running getUser() on every font request is wasted DB chatter.
     //
     // Also skipped: the pure-content public pages in csp.ts's
-    // STATIC_CSP_ROUTES (/privacy, /terms, /cookies, /ai-notice). They need neither a
+    // STATIC_CSP_ROUTES (/privacy, /terms, /cookies, /ai-notice, /ideaforge). They need neither a
     // session nor a nonce, and during a traffic spike anonymous hits to
     // content pages are a large share of the load — each one was costing
     // a middleware invocation plus a Supabase Auth round trip for
@@ -41,7 +41,7 @@ export const config = {
     // skipped. Any other path has characters left, so `$` cannot match
     // there and nothing else is affected.
     //
-    // privacy/terms/cookies are each anchored with (?:$|/) — without it,
+    // Each named route is anchored with (?:$|/) — without it,
     // the bare alternative "privacy" matches as a PREFIX, so a future
     // route like /privacy-settings would also be silently excluded from
     // session refresh (audit follow-up: confirmed with a direct regex
@@ -52,6 +52,6 @@ export const config = {
     // Also skipped: /api/banner (F-x4). It reads no session and is CDN
     // cached, so the proxy's getUser() would be an Auth round trip per
     // page view for nothing.
-    "/((?!_next/static|_next/image|favicon.ico|privacy(?:$|/)|terms(?:$|/)|cookies(?:$|/)|ai-notice(?:$|/)|api/banner$|$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|css|js)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|privacy(?:$|/)|terms(?:$|/)|cookies(?:$|/)|ai-notice(?:$|/)|ideaforge(?:$|/)|api/banner$|$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf|css|js)$).*)",
   ],
 };

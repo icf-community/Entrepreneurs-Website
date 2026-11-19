@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { labelCls } from "@/components/forms/styles";
+import { FieldError } from "@/components/forms/Field";
+import { Button } from "@/components/ui/Button";
+import { Panel } from "@/components/ui/Panel";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Avatar cropper
@@ -162,8 +166,10 @@ export function AvatarCropper({
   };
 
   return (
-    <div className="rounded-lg border border-border-strong bg-white/[0.04] p-5">
-      {error && <p className="mb-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+    <Panel className="p-5">
+      <div className="mb-3 empty:hidden">
+        <FieldError>{error || undefined}</FieldError>
+      </div>
 
       {/* Always rendered (not gated on bitmap) so containerRef can measure
           the real available width before the first image ever loads —
@@ -186,7 +192,7 @@ export function AvatarCropper({
               if (e.key === "ArrowDown") { e.preventDefault(); nudge(0, -step); }
             }}
             style={{ width: box, height: box }}
-            className="relative cursor-move touch-none select-none overflow-hidden rounded-full border border-border-strong bg-black/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="relative cursor-move touch-none select-none overflow-hidden rounded-full border border-border-strong bg-bg-secondary"
           >
             <CropperImage bitmap={bitmap} width={dw} height={dh} x={offset.x} y={offset.y} />
           </div>
@@ -196,7 +202,7 @@ export function AvatarCropper({
       {bitmap && (
         <>
           <div className="mt-5">
-            <label htmlFor={zoomId} className="mb-1.5 block text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-secondary">
+            <label htmlFor={zoomId} className={`${labelCls} mb-2`}>
               Zoom
             </label>
             <input
@@ -211,25 +217,17 @@ export function AvatarCropper({
             />
           </div>
 
-          <div className="mt-5 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={confirm}
-              className="cursor-pointer rounded-lg border border-accent bg-accent px-4 py-2 text-[0.8rem] font-medium text-bg-primary transition-colors duration-150 hover:bg-accent-dim"
-            >
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Button type="button" variant="primary" size="md" onClick={confirm}>
               Use this photo
-            </button>
-            <button
-              type="button"
-              onClick={onCancel}
-              className="cursor-pointer rounded-lg border border-border-strong bg-white/[0.03] px-4 py-2 text-[0.8rem] text-text-secondary transition-colors duration-150 hover:border-accent hover:text-text-primary"
-            >
+            </Button>
+            <Button type="button" variant="ghost" size="md" onClick={onCancel}>
               Choose a different photo
-            </button>
+            </Button>
           </div>
         </>
       )}
-    </div>
+    </Panel>
   );
 }
 

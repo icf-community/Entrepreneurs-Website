@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
+import { Notice } from "@/components/ui/Notice";
+import { Panel } from "@/components/ui/Panel";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Icon } from "@/design-system/icons/Icon";
 import type { JobRequirements, SpecAtom } from "@/lib/ai/types";
 import { confirmRequirements, loadJobRequirements } from "./actions";
 
@@ -12,6 +16,11 @@ import { confirmRequirements, loadJobRequirements } from "./actions";
 // the poster can drop anything wrong and say which items are must-haves.
 // Nothing here is invented: an item is a dictionary skill or a phrase
 // copied from the advert. Editing the job's text sends it back here.
+//
+// Drawn as a ruled list, one requirement a row: its words on the left, and on
+// the right the must-have toggle (a chip: aria-pressed, lit with a tick when
+// it is a must-have) and a quiet Remove. A list reads faster than a wrap of
+// chips when each one carries two controls.
 // ════════════════════════════════════════════════════════════════════
 
 export function RequirementsPanel({ jobId, onConfirmed }: { jobId: string; onConfirmed: () => void }) {
@@ -49,9 +58,9 @@ export function RequirementsPanel({ jobId, onConfirmed }: { jobId: string; onCon
 
   const pending = !reqs || reqs.status === "pending";
   return (
-    <section className="rounded-2xl border border-border bg-bg-card p-5" aria-labelledby="req-heading">
-      <h2 id="req-heading" className="text-[0.95rem] font-medium text-text-primary">Confirm what this job requires</h2>
-      <p className="mt-1 text-[0.8rem] text-text-muted">
+    <Panel as="section" className="p-5 sm:p-6" aria-labelledby="req-heading">
+      <h2 id="req-heading" className="font-display text-title text-text-primary">Confirm what this job requires</h2>
+      <p className="mt-2 max-w-[62ch] text-body text-text-secondary">
         {pending
           ? "We're still reading this job's description. Check back in a minute."
           : reqs?.status === "failed"
@@ -59,36 +68,39 @@ export function RequirementsPanel({ jobId, onConfirmed }: { jobId: string; onCon
             : "Remove anything that's wrong and mark the must-haves."}
       </p>
       {!pending && atoms.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-2">
+        <ul className="mt-5 divide-y divide-border-subtle border-y border-border-subtle">
           {atoms.map((a) => (
-            <li key={a.id} className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-white/[0.04] px-2.5 py-1.5 text-[0.8rem]">
-              <span className="text-text-primary">{a.label}</span>
-              <button
-                type="button"
-                className="cursor-pointer rounded-md border border-border-strong bg-white/[0.05] px-2 py-1 text-[0.7rem] text-text-secondary hover:border-accent"
-                onClick={() => setAtoms((xs) => xs.map((x) => (x.id === a.id ? { ...x, required: !x.required } : x)))}
-                aria-pressed={a.required}
-              >
-                {a.required ? "Must have" : "Nice to have"}
-              </button>
-              <button
-                type="button"
-                className="cursor-pointer rounded-md border border-border-strong bg-white/[0.05] px-2 py-1 text-[0.7rem] text-text-secondary hover:border-accent"
-                onClick={() => setAtoms((xs) => xs.filter((x) => x.id !== a.id))}
-                aria-label={`Remove ${a.label}`}
-              >
-                Remove
-              </button>
+            <li key={a.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5">
+              <span className="min-w-0 text-body text-text-primary">{a.label}</span>
+              <span className="flex flex-wrap items-center gap-2">
+                <Chip
+                  size="sm"
+                  pressed={a.required}
+                  onClick={() => setAtoms((xs) => xs.map((x) => (x.id === a.id ? { ...x, required: !x.required } : x)))}
+                >
+                  {a.required ? "Must have" : "Nice to have"}
+                </Chip>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  type="button"
+                  leading={<Icon name="close" size={16} />}
+                  onClick={() => setAtoms((xs) => xs.filter((x) => x.id !== a.id))}
+                  aria-label={`Remove ${a.label}`}
+                >
+                  Remove
+                </Button>
+              </span>
             </li>
           ))}
         </ul>
       )}
-      {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
+      {error && <Notice tone="danger" role="alert" className="mt-4">{error}</Notice>}
       {!pending && (
-        <Button className="mt-4" size="sm" loading={saving} onClick={save}>
+        <Button className="mt-5" size="sm" lit loading={saving} onClick={save}>
           Confirm requirements
         </Button>
       )}
-    </section>
+    </Panel>
   );
 }

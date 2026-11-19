@@ -1,11 +1,12 @@
 import { pageParam } from "@/lib/filters/serverParams";
 import { Suspense } from "react";
-import Link from "next/link";
 import { Skeleton, RowListSkeleton } from "@/components/ui/Skeleton";
 import { listPendingProfiles, type PendingProfilesPage } from "@/lib/data/admin";
 import type { Db } from "@/lib/data/query";
 import UsersReview from "./UsersReview";
 import { requireAdminPage } from "@/lib/auth/guard";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { Page } from "@/components/ui/Page";
 
 // Smaller than /admin/members's 50: each row here is a full review card
 // with bio, what they're working on, and their links — the heaviest
@@ -35,35 +36,23 @@ export default async function AdminUsersPage({
   const data = loadPending(supabase, page);
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
-      <div className="max-w-[1200px] mx-auto">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
-          <div className="min-w-0">
-            <p className="label-wide text-text-secondary mb-3">Admin · review queue</p>
-            <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">
-              Pending alumni profiles
-            </h1>
-            {/* div, not p: the skeleton is a div, and a div inside a p
-                breaks hydration (see ListingPageShell). */}
-            <div className="text-[0.85rem] text-text-muted mt-2">
-              <Suspense fallback={<Skeleton className="h-3 w-32 inline-block align-middle" />}>
-                <PendingCount data={data} />
-              </Suspense>
-            </div>
-          </div>
-          <Link
-            href="/admin"
-            className="text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary"
-          >
-            ← Admin home
-          </Link>
-        </div>
+    <Page as="main">
+      {/* The count streams in beside the header; PageHead takes a block lede
+          when it is not a plain sentence, so the skeleton <div> is safe here. */}
+      <AdminPageHeader
+        eyebrow="Admin · review queue"
+        title="Pending alumni profiles"
+        description={
+          <Suspense fallback={<Skeleton className="h-3 w-32" />}>
+            <PendingCount data={data} />
+          </Suspense>
+        }
+      />
 
-        <Suspense fallback={<RowListSkeleton count={4} />}>
-          <Queue data={data} page={page} />
-        </Suspense>
-      </div>
-    </main>
+      <Suspense fallback={<RowListSkeleton count={4} />}>
+        <Queue data={data} page={page} />
+      </Suspense>
+    </Page>
   );
 }
 
@@ -74,9 +63,15 @@ async function loadPending(supabase: Db, page: number): Promise<PendingProfilesP
   });
 }
 
+// A lit point only while something is waiting: the queue's one signal.
 async function PendingCount({ data }: { data: Promise<PendingProfilesPage> }) {
   const { total } = await data;
-  return <>{total} awaiting review.</>;
+  return (
+    <span className="inline-flex items-center gap-2">
+      {total > 0 && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-lit" />}
+      {total} awaiting review.
+    </span>
+  );
 }
 
 async function Queue({ data, page }: { data: Promise<PendingProfilesPage>; page: number }) {

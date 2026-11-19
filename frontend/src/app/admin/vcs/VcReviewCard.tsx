@@ -6,6 +6,10 @@ import { track } from "@/lib/analytics/track";
 import { formatDate } from "@/lib/dates";
 import { ErrorBanner } from "@/components/forms/Banners";
 import { ApprovalActions, RejectionForm } from "@/components/admin/ReviewActions";
+import { Badge } from "@/components/ui/Badge";
+import { Definition, DefinitionList } from "@/components/ui/DefinitionList";
+import { Disclosure } from "@/components/ui/Disclosure";
+import { Icon } from "@/design-system/icons/Icon";
 import { externalHref } from "@/lib/safeUrl";
 
 type Vc = {
@@ -27,8 +31,9 @@ type Vc = {
   editVersion: number;
 };
 
+// Same row anatomy as the event and opportunity queues: a summary that opens the details, the approve and
+// reject actions always under it.
 export default function VcReviewCard({ vc: v }: { vc: Vc }) {
-  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [showReject, setShowReject] = useState(false);
@@ -56,85 +61,92 @@ export default function VcReviewCard({ vc: v }: { vc: Vc }) {
   };
 
   return (
-    <article className="rounded-2xl bg-bg-card border border-border overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full px-6 py-5 text-left bg-transparent border-0 cursor-pointer transition-colors duration-150 hover:bg-white/[0.02]"
-      >
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-[1.05rem] font-medium text-text-primary">{v.name}</div>
-            <div className="text-[0.8rem] text-text-muted mt-1">
+    <Disclosure
+      as="article"
+      size="sm"
+      lazy
+      closedLabel="Show details"
+      openLabel="Hide details"
+      summary={
+        <span className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <span className="min-w-0">
+            <span className="block font-display text-lead text-text-primary">{v.name}</span>
+            <span className="mt-1 block text-body text-text-secondary">
               {v.stage  && <>{v.stage} · </>}
               {v.amount && <>{v.amount} · </>}
-              {deadline ? `Deadline ${deadline}` : "No deadline"}
-            </div>
-            <div className="text-[0.75rem] text-text-muted mt-1">
+              {deadline ? <>Deadline <span className="data">{deadline}</span></> : "No deadline"}
+            </span>
+            <span className="mt-1 block text-small text-text-muted">
               Posted by <span className="text-text-secondary">{v.postedBy.firstName} {v.postedBy.surname}</span>
               {v.postedBy.signupEmail && (<> · <span className="text-text-secondary">{v.postedBy.signupEmail}</span></>)}
-              {" · submitted "}{submittedOn}
-            </div>
-          </div>
-          <span className="px-2 py-0.5 rounded-lg text-[0.65rem] bg-accent-muted text-accent-light border border-accent/20 uppercase tracking-wider shrink-0">
-            {v.kind === "vc" ? "VC" : "Grant"}
+              {" · submitted "}<span className="data">{submittedOn}</span>
+            </span>
           </span>
-        </div>
-        <div className="text-[0.7rem] text-text-muted mt-3">
-          {open ? "▾ Hide details" : "▸ Show details"}
-        </div>
-      </button>
-
-      {open && <VcDetails v={v} />}
-
-      {error && <div className="mx-6 mb-3"><ErrorBanner>{error}</ErrorBanner></div>}
-
-      <div className="px-6 pb-6">
-        {showReject ? (
-          <RejectionForm
-            id={`reason-${v.id}`}
-            reason={reason}
-            onReasonChange={setReason}
-            label="Reason for rejection (internal)"
-            confirmLabel="Confirm rejection"
-            pending={pending}
-            onConfirm={handleReject}
-            onCancel={() => { setShowReject(false); setReason(""); setError(""); }}
-          />
-        ) : (
-          <ApprovalActions pending={pending} onApprove={handleApprove} onReject={() => setShowReject(true)} />
-        )}
-      </div>
-    </article>
+          <Badge tone="lit" className="shrink-0">{v.kind === "vc" ? "VC" : "Grant"}</Badge>
+        </span>
+      }
+      footer={
+        <>
+          {error && <div className="mb-3"><ErrorBanner>{error}</ErrorBanner></div>}
+          {showReject ? (
+            <RejectionForm
+              id={`reason-${v.id}`}
+              reason={reason}
+              onReasonChange={setReason}
+              label="Reason for rejection (internal)"
+              confirmLabel="Confirm rejection"
+              pending={pending}
+              onConfirm={handleReject}
+              onCancel={() => { setShowReject(false); setReason(""); setError(""); }}
+            />
+          ) : (
+            <ApprovalActions pending={pending} onApprove={handleApprove} onReject={() => setShowReject(true)} />
+          )}
+        </>
+      }
+    >
+      <VcDetails v={v} />
+    </Disclosure>
   );
 }
 
 function VcDetails({ v }: { v: Vc }) {
   return (
-    <div className="px-6 pb-6 pt-1 border-t border-border-subtle space-y-5">
-      <DetailBlock label="Description">
-        <p className="text-[0.85rem] text-text-secondary leading-relaxed whitespace-pre-wrap">{v.description}</p>
-      </DetailBlock>
-      <DetailBlock label="Link">
-        <a href={externalHref(v.link)} target="_blank" rel="noreferrer noopener" className="text-[0.85rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">
-          {v.link} ↗
-        </a>
-      </DetailBlock>
-      <DetailBlock label="Poster (signup email)">
-        <p className="text-[0.85rem] text-text-secondary">{v.postedBy.signupEmail ?? "—"}</p>
-        {v.postedBy.linkedinUrl && (
-          <a href={externalHref(v.postedBy.linkedinUrl)} target="_blank" rel="noreferrer noopener" className="text-[0.75rem] text-text-primary underline underline-offset-[3px] decoration-border-strong transition-colors hover:decoration-accent">LinkedIn ↗</a>
-        )}
-      </DetailBlock>
-    </div>
-  );
-}
-
-function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="text-[0.7rem] text-text-muted uppercase tracking-wider mb-1">{label}</div>
-      {children}
+    <div className="grid gap-5 pt-4">
+      <DefinitionList>
+        <Definition term="Description">
+          <p className="whitespace-pre-wrap leading-relaxed">{v.description}</p>
+        </Definition>
+      </DefinitionList>
+      <DefinitionList>
+        <Definition term="Link">
+          <a
+            href={externalHref(v.link)}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-text-primary underline underline-offset-4 decoration-border-strong transition-colors hover:decoration-accent"
+          >
+            {v.link}
+            <span className="sr-only"> ↗</span>
+            <Icon name="arrow-up-right" size={16} className="ml-1 inline-block align-text-bottom" />
+          </a>
+        </Definition>
+        <Definition term="Poster (signup email)">
+          <p>{v.postedBy.signupEmail ?? "—"}</p>
+          {v.postedBy.linkedinUrl && (
+            <a
+              href={externalHref(v.postedBy.linkedinUrl)}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-small text-text-primary underline underline-offset-4 decoration-border-strong transition-colors hover:decoration-accent"
+            >
+              LinkedIn
+              <span className="sr-only"> ↗</span>
+              <Icon name="arrow-up-right" size={14} className="ml-1 inline-block align-text-bottom" />
+            </a>
+          )}
+        </Definition>
+      </DefinitionList>
     </div>
   );
 }

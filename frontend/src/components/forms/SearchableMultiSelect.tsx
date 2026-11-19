@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Icon } from "@/design-system/icons/Icon";
+import { Chip } from "@/components/ui/Chip";
+import { SearchField } from "@/components/ui/SearchField";
 
 // ════════════════════════════════════════════════════════════════════
 // Searchable multi-select dropdown.
@@ -11,8 +14,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // surface as removable chips below. The dropdown has an internal
 // search input that filters the option list in-memory.
 //
-// Closes on Escape or click outside, matches Foundry's existing
-// borderless `border-border` look.
+// Closes on Escape or click outside. The look is the field family's:
+// the trigger wears a field's face and chevron, the list is a raised
+// panel, the chosen values are lit chips (forms.css: .lm-field, .lm-ms,
+// .lm-chip).
+//
+// Keyboard: Arrow Down from the search box enters the list, Up and Down
+// move between options, Home and End jump to the ends, Up from the first
+// option returns to the search box. Options are also still reachable with
+// Tab, and Enter or Space toggles the focused one.
 // ════════════════════════════════════════════════════════════════════
 
 type Props = {
@@ -33,6 +43,7 @@ export default function SearchableMultiSelect({
   const [query, setQuery]   = useState("");
   const wrapRef             = useRef<HTMLDivElement | null>(null);
   const inputRef            = useRef<HTMLInputElement | null>(null);
+  const listRef             = useRef<HTMLDivElement | null>(null);
   const triggerRef          = useRef<HTMLButtonElement | null>(null);
 
   // Click outside / Escape close.
@@ -44,7 +55,7 @@ export default function SearchableMultiSelect({
     };
     // Escape hands focus back to the button: the search box it was in is
     // unmounted by closing, which would otherwise drop focus to <body>.
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") { setOpen(false); triggerRef.current?.focus(); }
     };
     document.addEventListener("mousedown", onClickAway);
@@ -78,21 +89,40 @@ export default function SearchableMultiSelect({
     onChange(next);
   };
 
+  // Arrow keys move between the options. Home and End only act on an option, so they keep
+  // their usual job (moving the caret) inside the search box.
+  const onPopKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
+    const opts = Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+    if (opts.length === 0) return;
+    const at = opts.indexOf(document.activeElement as HTMLButtonElement);
+    if (at < 0 && (e.key === "Home" || e.key === "End")) return;
+    if (at < 0 && e.key === "ArrowUp") return;
+    e.preventDefault();
+    if (e.key === "Home") opts[0].focus();
+    else if (e.key === "End") opts[opts.length - 1].focus();
+    else if (e.key === "ArrowDown") opts[Math.min(at + 1, opts.length - 1)].focus();
+    else if (at === 0) inputRef.current?.focus();
+    else opts[at - 1].focus();
+  };
+
   return (
     <div>
-      <div className="text-[0.75rem] text-text-muted mb-2">
+      <div className="lm-label mb-2">
         {label}
         {selected.size > 0 && (
-          <span className="ml-2 text-text-muted">— {selected.size} selected</span>
+          <span className="lm-label__hint">— {selected.size} selected</span>
         )}
       </div>
 
-      <div ref={wrapRef} className="relative">
+      <div ref={wrapRef} className="lm-ms">
         <button
           ref={triggerRef}
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="w-full text-left px-3 py-2 bg-white/[0.03] border border-border rounded-lg text-[0.8rem] text-text-secondary transition-colors duration-150 hover:border-accent focus:border-accent/50 cursor-pointer flex items-center justify-between gap-2"
+          className="lm-field"
+          data-trigger=""
+          data-empty={selected.size === 0 || undefined}
           aria-expanded={open}
           aria-haspopup="listbox"
         >
@@ -101,85 +131,56 @@ export default function SearchableMultiSelect({
               ? placeholder
               : `${selected.size} option${selected.size === 1 ? "" : "s"} selected`}
           </span>
-          <svg
-            width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden
-            className={`shrink-0 text-text-muted transition-transform duration-150 ${open ? "rotate-180" : ""}`}
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
+          <Icon name="chevron-down" size={18} className="lm-chev" />
         </button>
 
         {open && (
-          <div
-            className="absolute left-0 right-0 top-full mt-1 z-30 overflow-hidden rounded-lg border border-border-strong bg-bg-card shadow-2xl"
-            role="listbox"
-          >
-            <div className="p-2 border-b border-border-subtle">
-              <input
-                ref={inputRef}
-                type="search"
-                aria-label={placeholder}
-                spellCheck={false}
-                autoComplete="off"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+          <div className="lm-ms__pop anim-panel" onKeyDown={onPopKeyDown}>
+            <div className="lm-ms__head">
+              <SearchField
+                label={placeholder}
                 placeholder={placeholder}
-                className="w-full px-3 py-2 bg-white/[0.03] border border-border rounded-md text-[0.8rem] text-text-primary placeholder:text-text-muted focus:border-accent/50"
+                value={query}
+                onChange={setQuery}
+                inputRef={inputRef}
+                // Tab from the box goes to the first option (focus.spec asserts it), so the clear button is not a stop
+                clearFocusable={false}
+                // inside a form, Enter in this box would submit the form being filled in
+                onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
               />
             </div>
-            <div className="max-h-[260px] overflow-y-auto py-1">
-              {filtered.length === 0 ? (
-                <div className="px-3 py-3 text-[0.775rem] text-text-muted">{emptyText}</div>
-              ) : (
-                filtered.map((opt) => {
+            {filtered.length === 0 ? (
+              <div className="lm-ms__empty">{emptyText}</div>
+            ) : (
+              <div ref={listRef} className="lm-ms__list" role="listbox" aria-multiselectable="true" aria-label={label}>
+                {filtered.map((opt) => {
                   const on = selected.has(opt);
                   return (
                     <button
                       key={opt}
                       type="button"
                       onClick={() => toggle(opt)}
-                      className={`w-full text-left px-3 py-1.5 text-[0.8rem] cursor-pointer transition-colors flex items-center gap-2 border-0 bg-transparent ${
-                        on
-                          ? "text-accent-light bg-accent-muted/40"
-                          : "text-text-secondary hover:bg-white/[0.03] hover:text-text-primary"
-                      }`}
+                      className="lm-ms__opt"
                       role="option"
                       aria-selected={on}
                     >
-                      <span className={`inline-flex w-4 h-4 rounded border items-center justify-center shrink-0 ${
-                        on ? "bg-accent border-accent text-bg-primary" : "border-border"
-                      }`}>
-                        {on && (
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </span>
+                      <span className="lm-ms__box" aria-hidden="true" />
                       <span className="truncate">{opt}</span>
                     </button>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {selected.size > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {[...selected].sort((a, b) => a.localeCompare(b)).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => removeOne(v)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[0.725rem] bg-accent-muted border border-accent/30 text-accent-light cursor-pointer transition-colors hover:bg-accent-muted/70"
-            >
-              <span className="truncate max-w-[200px]">{v}</span>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
+            <Chip key={v} lit removable size="sm" title={`Remove ${v}`} onClick={() => removeOne(v)} className="max-w-full">
+              {v}
+            </Chip>
           ))}
         </div>
       )}

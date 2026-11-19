@@ -2,12 +2,22 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Dialog } from "@/components/ui/Dialog";
+import { Dialog, DialogClose } from "@/components/ui/Dialog";
 import { closeDialog, dialogCloser } from "@/components/ui/dialogCloser";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Notice } from "@/components/ui/Notice";
 import { Pager } from "@/components/ui/Pager";
+import { Panel } from "@/components/ui/Panel";
+import { Section } from "@/components/ui/Section";
+import { Stat, StatGrid } from "@/components/ui/Stat";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
+import { ButtonTabs } from "@/components/ui/Tabs";
+import { Textarea } from "@/components/ui/Textarea";
 import { useUrlFilters } from "@/lib/filters/useUrlFilters";
 import { ErrorBanner } from "@/components/forms/Banners";
+import { Field } from "@/components/forms/Field";
 import { CONNECTION_REPORT_CATEGORIES } from "@/lib/validation/connections";
 import type {
   ConnectionReport,
@@ -88,59 +98,46 @@ export default function ConnectionsAdminClient({
   const [clearing, setClearing] = useState<FlaggedSender | null>(null);
 
   return (
-    <div>
-      <ConnectionStatsRow stats={stats} />
+    <>
+      <div className="lm-sections">
+        <ConnectionStatsRow stats={stats} />
 
-      <KillSwitch initial={connectionsStatus} />
+        <KillSwitch initial={connectionsStatus} />
 
-      <section className="mt-12 rule-draw pt-6">
-        <p className="label-wide text-text-secondary mb-3">Reported connections</p>
+        <Section rule title="Reported connections">
+          <ButtonTabs
+            semantics="current"
+            label="Report status"
+            items={STATUS_TABS}
+            value={status}
+            disabled={url.pending}
+            // Which tab is showing is carried by a rule under it, and a screen
+            // reader needs it said: aria-current="page", because the selection
+            // lives in the URL — this is navigation, not a toggle.
+            onSelect={(next) => url.apply({ status: next, page: null })}
+          />
 
-        <nav aria-label="Report status" className="mb-6 flex flex-wrap gap-2">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              disabled={url.pending}
-              // Which tab is showing is carried by a border colour and
-              // nothing else, so without this a screen reader reads four
-              // identical buttons and the admin cannot tell which list they
-              // are looking at. aria-current="page" because the selection
-              // lives in the URL — this is navigation, not a toggle.
-              aria-current={status === tab.value ? "page" : undefined}
-              onClick={() => url.apply({ status: tab.value, page: null })}
-              className={
-                "rounded-lg border px-4 py-2 text-[0.8rem] transition-colors cursor-pointer " +
-                (status === tab.value
-                  ? "border-accent bg-white/[0.05] text-text-primary"
-                  : "border-border-strong bg-white/[0.03] text-text-secondary hover:border-accent hover:text-text-primary")
-              }
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+          {reports.length === 0 ? (
+            <EmptyState icon={status === "open" ? "check" : "list"}>
+              {status === "open" ? "No open reports. Nothing needs your attention." : "Nothing here."}
+            </EmptyState>
+          ) : (
+            <ul className="grid gap-4">
+              {reports.map((report) => (
+                <ReportRow
+                  key={report.id}
+                  report={report}
+                  onResolve={(mode) => setResolving({ report, mode })}
+                />
+              ))}
+            </ul>
+          )}
 
-        {reports.length === 0 ? (
-          <p className="rounded-xl border border-border-subtle bg-white/[0.02] px-6 py-12 text-center text-[0.875rem] text-text-secondary">
-            {status === "open" ? "No open reports. Nothing needs your attention." : "Nothing here."}
-          </p>
-        ) : (
-          <ul className="space-y-4">
-            {reports.map((report) => (
-              <ReportRow
-                key={report.id}
-                report={report}
-                onResolve={(mode) => setResolving({ report, mode })}
-              />
-            ))}
-          </ul>
-        )}
+          <Pager url={url} page={page} total={matching} pageSize={pageSize} label="Report pages" />
+        </Section>
 
-        <Pager url={url} page={page} total={matching} pageSize={pageSize} label="Report pages" />
-      </section>
-
-      <FlaggedSenders senders={senders} onClear={setClearing} />
+        <FlaggedSenders senders={senders} onClear={setClearing} />
+      </div>
 
       {resolving && (
         <ResolveDialog
@@ -153,7 +150,7 @@ export default function ConnectionsAdminClient({
       {clearing && (
         <ClearThrottleDialog sender={clearing} onClose={() => setClearing(null)} />
       )}
-    </div>
+    </>
   );
 }
 
@@ -162,7 +159,7 @@ export default function ConnectionsAdminClient({
 function ConnectionStatsRow({ stats }: { stats: ConnectionStats | null }) {
   if (!stats) return null;
   return (
-    <div className="grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-3">
+    <StatGrid>
       <Stat
         label="Total connections"
         value={stats.totalConnections.toLocaleString("en-GB")}
@@ -177,18 +174,9 @@ function ConnectionStatsRow({ stats }: { stats: ConnectionStats | null }) {
         label="Cross-cohort"
         value={`${stats.crossCohortPct}%`}
         hint="Connections between different graduation years"
+        meter={{ value: stats.crossCohortPct, max: 100 }}
       />
-    </div>
-  );
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="bg-bg-card p-5">
-      <div className="text-[0.75rem] text-text-muted">{label}</div>
-      <div className="data mt-1 text-[1.5rem] font-medium text-text-primary">{value}</div>
-      <div className="mt-1 text-[0.7rem] text-text-muted">{hint}</div>
-    </div>
+    </StatGrid>
   );
 }
 
@@ -212,32 +200,30 @@ function KillSwitch({ initial }: { initial: ConnectionsStatus }) {
     });
   };
 
+  // It looks like the state it is in (a calm panel while it runs, a danger panel while it is paused), as IngestionToggle does.
   return (
-    <div className="mt-12 rule-draw pt-6">
-      <p className="label-wide text-text-secondary mb-3">New connection requests</p>
-      <p className="text-[0.8rem] text-text-muted mb-4 leading-relaxed">
-        Pauses <strong>new requests only</strong>. Accepting, declining, withdrawing, blocking,
-        reporting and removing all keep working while this is off, and the daily digest keeps
-        going out — otherwise flipping it strands everyone mid-handshake with an inbox they
-        cannot clear.
-      </p>
-      {error && <div className="mb-3"><ErrorBanner>{error}</ErrorBanner></div>}
-      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border-strong bg-white/[0.03] p-4">
-        <span
-          className={
-            "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-[0.75rem] font-semibold " +
-            (status.enabled
-              ? "border border-border text-text-muted"
-              : "border border-[#ff4d4d]/40 bg-[#ff4d4d]/15 text-[#ff8080]")
-          }
-        >
+    <Section
+      rule
+      title="New connection requests"
+      description={
+        <>
+          Pauses <strong>new requests only</strong>. Accepting, declining, withdrawing, blocking,
+          reporting and removing all keep working while this is off, and the daily digest keeps
+          going out — otherwise flipping it strands everyone mid-handshake with an inbox they
+          cannot clear.
+        </>
+      }
+    >
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+      <Panel tone={status.enabled ? "default" : "danger"} className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4 sm:px-5">
+        <Badge tone={status.enabled ? "success" : "danger"} dot>
           {status.enabled ? "Open" : "Paused"}
-        </span>
+        </Badge>
         {status.lastChangedAt && (
           // suppressHydrationWarning: this formats in the viewer's local zone,
           // which legitimately differs from the server's (same pattern as
           // BannerForm's CurrentBannerStatus).
-          <span className="text-[0.75rem] text-text-muted" suppressHydrationWarning>
+          <span className="text-small text-text-muted" suppressHydrationWarning>
             {/* react-doctor-disable-next-line react-doctor/no-locale-format-in-render -- cosmetic admin-only timestamp; suppressHydrationWarning above accepts the server/client locale mismatch rather than adding post-mount state for it */}
             Last changed {DATE_TIME_FORMAT.format(new Date(status.lastChangedAt))}
             {status.lastChangedBy ? ` by ${status.lastChangedBy}` : ""}
@@ -253,8 +239,8 @@ function KillSwitch({ initial }: { initial: ConnectionsStatus }) {
         >
           {status.enabled ? "Pause new requests" : "Allow new requests"}
         </Button>
-      </div>
-    </div>
+      </Panel>
+    </Section>
   );
 }
 
@@ -266,30 +252,17 @@ function ReportRow({
   report: ConnectionReport;
   onResolve: (mode: "actioned" | "dismissed") => void;
 }) {
-  const [note, setNote] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const [error, setError] = useState("");
-
   return (
-    <li className="rounded-xl border border-border-subtle bg-white/[0.02] p-5">
+    <Panel as="li" className="grid gap-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <span
-            className={
-              "inline-block rounded-full px-2.5 py-1 text-[0.65rem] uppercase tracking-wider " +
-              (URGENT.has(report.category)
-                ? "border border-[#ff4d4d]/40 bg-[#ff4d4d]/10 text-[#ff8080]"
-                : "border border-border-strong text-text-muted")
-            }
-          >
-            {categoryLabel(report.category)}
-          </span>
-          <h2 className="mt-3 text-[1rem] font-medium tracking-tight text-text-primary break-words">
+          <Badge tone={URGENT.has(report.category) ? "danger" : "neutral"}>{categoryLabel(report.category)}</Badge>
+          <h3 className="mt-3 break-words font-display text-lead text-text-primary">
             About {report.reportedName || "a member who has since left"}
-          </h2>
+          </h3>
           {/* suppressHydrationWarning: this formats in the viewer's local
               zone, which legitimately differs from the server's. */}
-          <p className="mt-1 text-[0.75rem] text-text-muted" suppressHydrationWarning>
+          <p className="mt-1 text-small text-text-muted" suppressHydrationWarning>
             Reported by {report.reporterName}
             <span aria-hidden className="mx-1.5">·</span>
             {/* react-doctor-disable-next-line react-doctor/no-locale-format-in-render -- cosmetic admin-only timestamp; suppressHydrationWarning above accepts the server/client locale mismatch rather than adding post-mount state for it */}
@@ -300,72 +273,36 @@ function ReportRow({
         {/* The number that decides whether this is a pattern or a one-off,
             shown next to the report rather than left to be counted. */}
         {report.reportedSignals > 0 && (
-          <span className="shrink-0 rounded-lg border border-border-strong px-2.5 py-1 text-[0.7rem] text-text-secondary">
+          <Badge className="shrink-0">
             {report.reportedSignals} distinct{" "}
             {report.reportedSignals === 1 ? "signal" : "signals"} against them
-          </span>
+          </Badge>
         )}
       </div>
 
       {report.adminIsParty && (
-        <p
-          role="note"
-          className="mt-4 rounded-lg border border-[#c9a84c]/40 bg-[#c9a84c]/10 px-3 py-2 text-[0.75rem] text-text-secondary"
-        >
-          You are one of the people involved in this report. You can still act on it, and your
-          action is logged either way — but consider passing it to another admin.
-        </p>
-      )}
-
-      <blockquote className="mt-4 border-l-2 border-border-strong pl-4 text-[0.85rem] text-text-secondary whitespace-pre-wrap break-words">
-        {report.reason}
-      </blockquote>
-
-      {report.hasNote && (
-        <div className="mt-4">
-          {note === null ? (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                loading={pending}
-                onClick={() =>
-                  start(async () => {
-                    setError("");
-                    const res = await revealConnectionNote(report.id);
-                    if (!res.ok) { setError(res.error); return; }
-                    setNote(res.data);
-                  })
-                }
-              >
-                Show the note they sent
-              </Button>
-              <p className="mt-2 text-[0.7rem] text-text-muted">
-                Private member-to-member content. Opening it is recorded against your account.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-[0.7rem] text-text-muted">
-                Note sent with the request, as it read when this was reported:
-              </p>
-              <blockquote className="mt-2 rounded-lg border border-border-strong bg-white/[0.03] px-4 py-3 text-[0.85rem] text-text-secondary whitespace-pre-wrap break-words">
-                {note || "(the note was empty)"}
-              </blockquote>
-            </>
-          )}
-          {error && <p role="alert" className="mt-2 text-[0.8rem] text-[#ff8080]">{error}</p>}
+        <div role="note">
+          <Notice tone="lit">
+            You are one of the people involved in this report. You can still act on it, and your
+            action is logged either way — but consider passing it to another admin.
+          </Notice>
         </div>
       )}
 
+      <blockquote className="whitespace-pre-wrap break-words rounded-lg bg-tint-2 px-4 py-3 text-body text-text-secondary">
+        {report.reason}
+      </blockquote>
+
+      {report.hasNote && <NoteReveal reportId={report.id} />}
+
       {report.resolutionNote && (
-        <p className="mt-3 text-[0.75rem] text-text-muted">
+        <p className="text-small text-text-muted">
           Resolution note: {report.resolutionNote}
         </p>
       )}
 
       {report.status === "open" && (
-        <div className="mt-5 flex flex-wrap gap-2 border-t border-border-subtle pt-4">
+        <div className="flex flex-wrap gap-2 border-t border-border-subtle pt-4">
           <Button variant="danger" size="sm" onClick={() => onResolve("actioned")}>
             Uphold
           </Button>
@@ -374,7 +311,53 @@ function ReportRow({
           </Button>
         </div>
       )}
-    </li>
+    </Panel>
+  );
+}
+
+/** The private note, one deliberate click away (see 1. at the top). Opening it is what writes the audit row. */
+function NoteReveal({ reportId }: { reportId: string }) {
+  const [note, setNote] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const [error, setError] = useState("");
+
+  return (
+    <div className="grid gap-2">
+      {note === null ? (
+        <>
+          <div>
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={pending}
+              onClick={() =>
+                start(async () => {
+                  setError("");
+                  const res = await revealConnectionNote(reportId);
+                  if (!res.ok) { setError(res.error); return; }
+                  setNote(res.data);
+                })
+              }
+            >
+              Show the note they sent
+            </Button>
+          </div>
+          <p className="text-small text-text-muted">
+            Private member-to-member content. Opening it is recorded against your account.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-small text-text-muted">
+            Note sent with the request, as it read when this was reported:
+          </p>
+          <blockquote className="whitespace-pre-wrap break-words rounded-lg bg-tint-2 px-4 py-3 text-body text-text-secondary">
+            {note || "(the note was empty)"}
+          </blockquote>
+        </>
+      )}
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+    </div>
   );
 }
 
@@ -391,41 +374,45 @@ function ResolveDialog({
   const [error, setError] = useState("");
 
   const upholding = mode === "actioned";
+  const title = upholding ? `Uphold this report about ${report.reportedName || "this member"}?` : "Dismiss this report?";
 
   return (
     <Dialog
       onClose={onClose}
       label={upholding ? "Uphold this report" : "Dismiss this report"}
-      className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6"
+      tone={upholding ? "danger" : "default"}
+      className="w-full max-w-[28rem] p-6 sm:p-7"
     >
-      <h3 className="font-display text-[1.1rem] text-text-primary">
-        {upholding ? `Uphold this report about ${report.reportedName || "this member"}?` : "Dismiss this report?"}
-      </h3>
-      <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="font-display text-title text-text-primary">{title}</h2>
+        <DialogClose className="-mr-2 -mt-2" />
+      </div>
+      <p className="mt-3 text-body text-text-secondary">
         {upholding
           ? "This counts as a reputation signal against them: enough distinct signals and their daily request cap drops automatically for 30 days. The reporter is emailed that we agreed. It does not remove the connection or ban anyone — do that separately if it is warranted."
           : "The reporter is emailed to say it was reviewed and no action was taken. No reputation signal is recorded."}
       </p>
 
-      <label htmlFor="resolve-note" className="mt-5 block text-[0.75rem] text-text-muted">
-        Note for the reporter (optional)
-      </label>
-      <textarea
-        id="resolve-note"
-        rows={3}
-        value={text}
-        maxLength={2000}
-        onChange={(e) => setText(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.85rem] text-text-primary"
-      />
+      <div className="mt-5">
+        <Field label="Note for the reporter (optional)">
+          <Textarea
+            id="resolve-note"
+            rows={3}
+            value={text}
+            maxLength={2000}
+            onChange={(e) => setText(e.target.value)}
+            className="resize-none"
+          />
+        </Field>
+      </div>
 
       {error && <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={(e) => closeDialog(e)}>Cancel</Button>
+      <div className="mt-6 flex flex-wrap justify-end gap-3">
+        <Button variant="quiet" size="md" onClick={(e) => closeDialog(e)}>Cancel</Button>
         <Button
           variant={upholding ? "danger" : "primary"}
-          size="sm"
+          size="md"
           loading={pending}
           // dialogCloser, not onClose(). Calling the parent's onClose
           // unmounts the <dialog> from React without the browser ever
@@ -453,6 +440,10 @@ function ResolveDialog({
 
 // ─── Flagged senders ────────────────────────────────────────────────
 
+const SENDERS_LABEL = "Members with blocks, upheld reports, or an unusual decline rate";
+// The four measured columns, in the order SenderRow prints them.
+const SENDER_COUNTS = ["Signals", "Requests sent", "Declined", "Decline rate"] as const;
+
 function FlaggedSenders({
   senders, onClear,
 }: {
@@ -460,76 +451,72 @@ function FlaggedSenders({
   onClear: (s: FlaggedSender) => void;
 }) {
   return (
-    <section className="mt-12 rule-draw pt-6">
-      <p className="label-wide text-text-secondary mb-3">Senders worth a look</p>
-      <p className="text-[0.8rem] text-text-muted mb-4 max-w-[70ch] leading-relaxed">
-        <strong>Throttled</strong> is automatic — that many distinct members have blocked them or
-        had a report upheld against them, so their daily cap has already dropped. It decays on
-        its own.{" "}
-        <strong>Decline rate</strong> drives nothing and never will: students requesting alumni
-        and alumni requesting angels means unanswered requests are normal here, and throttling on
-        that would penalise exactly who the platform exists to help. It is here so a person can
-        look.
-      </p>
-
+    <Section
+      rule
+      title="Senders worth a look"
+      description={
+        <>
+          <strong>Throttled</strong> is automatic — that many distinct members have blocked them or
+          had a report upheld against them, so their daily cap has already dropped. It decays on
+          its own.{" "}
+          <strong>Decline rate</strong> drives nothing and never will: students requesting alumni
+          and alumni requesting angels means unanswered requests are normal here, and throttling on
+          that would penalise exactly who the platform exists to help. It is here so a person can
+          look.
+        </>
+      }
+    >
       {senders.length === 0 ? (
-        <p className="rounded-xl border border-border-subtle bg-white/[0.02] px-6 py-12 text-center text-[0.875rem] text-text-secondary">
+        <EmptyState icon="check">
           Nobody is flagged. No member has attracted a block or an upheld report recently.
-        </p>
+        </EmptyState>
       ) : (
-        <div
-          className="overflow-x-auto rounded-xl border border-border-subtle"
-          role="region"
-          aria-label="Members with blocks, upheld reports, or an unusual decline rate"
-          tabIndex={0}
-        >
-          <table className="w-full min-w-[640px] border-collapse text-[0.8rem]">
-            <caption className="sr-only">
-              Members with blocks, upheld reports, or an unusual decline rate
-            </caption>
-            <thead>
-              <tr className="border-b border-border-subtle text-left text-text-muted">
-                <th scope="col" className="px-4 py-3 font-normal">Member</th>
-                <th scope="col" className="px-4 py-3 font-normal">Signals</th>
-                <th scope="col" className="px-4 py-3 font-normal">Requests sent</th>
-                <th scope="col" className="px-4 py-3 font-normal">Declined</th>
-                <th scope="col" className="px-4 py-3 font-normal">Decline rate</th>
-                <th scope="col" className="px-4 py-3 font-normal">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {senders.map((s) => (
-                <tr key={s.memberId} className="border-b border-border-subtle last:border-0">
-                  <td className="px-4 py-3 text-text-primary">
-                    {s.memberName}
-                    {s.throttled && (
-                      <span className="ml-2 inline-block rounded-full border border-[#ff4d4d]/40 bg-[#ff4d4d]/10 px-2 py-0.5 text-[0.65rem] uppercase tracking-wider text-[#ff8080]">
-                        Throttled
-                      </span>
-                    )}
-                  </td>
-                  <td className="tnum px-4 py-3 text-text-secondary">{s.distinctSignals}</td>
-                  <td className="tnum px-4 py-3 text-text-secondary">{s.requestsSent}</td>
-                  <td className="tnum px-4 py-3 text-text-secondary">{s.declines}</td>
-                  <td className="tnum px-4 py-3 text-text-secondary">
-                    {Math.round(s.declineRate * 100)}%
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {s.throttled && (
-                      <Button variant="ghost" size="sm" onClick={() => onClear(s)}>
-                        Lift throttle
-                      </Button>
-                    )}
-                  </td>
-                </tr>
+        <Table label={SENDERS_LABEL} caption={SENDERS_LABEL}>
+          <THead>
+            <TR>
+              <TH>Member</TH>
+              {SENDER_COUNTS.map((name) => (
+                <TH key={name} numeric>{name}</TH>
               ))}
-            </tbody>
-          </table>
-        </div>
+              <TH>
+                <span className="sr-only">Actions</span>
+              </TH>
+            </TR>
+          </THead>
+          <TBody>
+            {senders.map((s) => (
+              <SenderRow key={s.memberId} s={s} onClear={onClear} />
+            ))}
+          </TBody>
+        </Table>
       )}
-    </section>
+    </Section>
+  );
+}
+
+function SenderRow({ s, onClear }: { s: FlaggedSender; onClear: (s: FlaggedSender) => void }) {
+  return (
+    <TR>
+      <TD label="Member" primary>
+        {s.memberName}
+        {s.throttled && (
+          <Badge tone="danger" className="ml-2 align-middle">
+            Throttled
+          </Badge>
+        )}
+      </TD>
+      <TD label="Signals" numeric>{s.distinctSignals}</TD>
+      <TD label="Requests sent" numeric>{s.requestsSent}</TD>
+      <TD label="Declined" numeric>{s.declines}</TD>
+      <TD label="Decline rate" numeric>{Math.round(s.declineRate * 100)}%</TD>
+      <TD actions>
+        {s.throttled && (
+          <Button variant="ghost" size="sm" onClick={() => onClear(s)}>
+            Lift throttle
+          </Button>
+        )}
+      </TD>
+    </TR>
   );
 }
 
@@ -548,37 +535,41 @@ function ClearThrottleDialog({
     <Dialog
       onClose={onClose}
       label="Lift this throttle"
-      className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6"
+      className="w-full max-w-[28rem] p-6 sm:p-7"
     >
-      <h3 className="font-display text-[1.1rem] text-text-primary">
-        Lift the throttle on {sender.memberName}?
-      </h3>
-      <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="font-display text-title text-text-primary">
+          Lift the throttle on {sender.memberName}?
+        </h2>
+        <DialogClose className="-mr-2 -mt-2" />
+      </div>
+      <p className="mt-3 text-body text-text-secondary">
         Their daily request cap goes back to normal immediately. The{" "}
         {sender.distinctSignals} {sender.distinctSignals === 1 ? "signal" : "signals"} against
         them are not deleted — this records that you reviewed them and decided they do not
         warrant a restriction. They are not told, either way.
       </p>
 
-      <label htmlFor="clear-note" className="mt-5 block text-[0.75rem] text-text-muted">
-        Why (recorded in the admin log, optional)
-      </label>
-      <textarea
-        id="clear-note"
-        rows={3}
-        value={text}
-        maxLength={2000}
-        onChange={(e) => setText(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.85rem] text-text-primary"
-      />
+      <div className="mt-5">
+        <Field label="Why (recorded in the admin log, optional)">
+          <Textarea
+            id="clear-note"
+            rows={3}
+            value={text}
+            maxLength={2000}
+            onChange={(e) => setText(e.target.value)}
+            className="resize-none"
+          />
+        </Field>
+      </div>
 
       {error && <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={(e) => closeDialog(e)}>Cancel</Button>
+      <div className="mt-6 flex flex-wrap justify-end gap-3">
+        <Button variant="quiet" size="md" onClick={(e) => closeDialog(e)}>Cancel</Button>
         <Button
           variant="primary"
-          size="sm"
+          size="md"
           loading={pending}
           // See ResolveDialog: the browser has to be the one that closes it
           // or focus is dropped on <body>.

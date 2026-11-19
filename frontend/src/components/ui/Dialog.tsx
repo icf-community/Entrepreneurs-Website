@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { Icon } from "@/design-system/icons/Icon";
+import { closeDialog } from "./dialogCloser";
 
 // ════════════════════════════════════════════════════════════════════
-// Foundry · Dialog
+// Foundry · Dialog (Lumen)
 //
 // Built on the native <dialog> element opened with showModal(), which
 // hands us four things the two hand-rolled modals it replaces never
@@ -17,11 +19,24 @@ import { useEffect, useRef, type ReactNode } from "react";
 //
 // Mounting the component opens it — both call sites already render it
 // conditionally — so there is no `open` prop to keep in sync.
+//
+// The look is in src/design-system/overlays.css (.lm-dialog): a raised
+// panel (18 px, the one overlay shadow, a hairline of warm light along its
+// top edge) over a night wash with a touch of warm light from above. Pass
+// only layout in `className` (width, padding, overflow); the surface, the
+// border, the radius and the shadow are the Dialog's. A utility passed here
+// still wins over them, which is how a bottom sheet on a phone can ask for
+// `rounded-t-2xl`.
+//
+// A dialog interrupts and traps focus. Reach for it when the task needs
+// both (a confirmation, a short form that must be finished or abandoned).
+// If it needs neither, use a Popover or a disclosure instead.
 // ════════════════════════════════════════════════════════════════════
 
 export function Dialog({
   onClose,
   label,
+  tone = "default",
   className = "",
   containerClassName = "flex items-center justify-center px-4 py-8 overflow-y-auto overscroll-contain",
   children,
@@ -29,7 +44,9 @@ export function Dialog({
   onClose: () => void;
   /** Accessible name for the dialog. */
   label: string;
-  /** Classes for the panel itself — width, radius, padding. */
+  /** `danger` draws the panel's edge and its top light in the danger tone (a removal, a destructive confirmation). */
+  tone?: "default" | "danger";
+  /** Classes for the panel itself — width, padding, overflow. */
   className?: string;
   /** Classes for the full-viewport area around the panel, which controls
    *  alignment and which element scrolls. */
@@ -66,9 +83,9 @@ export function Dialog({
       ref={ref}
       aria-label={label}
       // The UA gives <dialog> its own size, centring margins and a
-      // background; all three are reset so the element is just a
+      // background; .lm-dialog resets all three so the element is just a
       // transparent full-viewport layer holding the container below.
-      className="fixed inset-0 m-0 p-0 w-full max-w-none h-full max-h-none bg-transparent text-text-primary backdrop:bg-black/60 backdrop:backdrop-blur-sm"
+      className="lm-dialog"
     >
       {/* Clicking outside the panel closes. The panel stops propagation
           rather than the container testing event.target, so a drag that
@@ -82,10 +99,37 @@ export function Dialog({
         className={`w-full h-full ${containerClassName}`}
         onClick={() => ref.current?.close()}
       >
-        <div className={`anim-dialog ${className}`} onClick={(e) => e.stopPropagation()}>
+        <div
+          className={`anim-dialog lm-dialog__panel ${className}`}
+          data-tone={tone === "danger" ? "danger" : undefined}
+          onClick={(e) => e.stopPropagation()}
+        >
           {children}
         </div>
       </div>
     </dialog>
+  );
+}
+
+/**
+ * A dialog's close control: a round ring with the close glyph, named "Close".
+ * It closes the dialog it is inside (through the element, so the browser
+ * restores focus to whatever opened it), which also makes it the close
+ * control for a Sheet. Place it top right of the panel.
+ */
+export function DialogClose({
+  label = "Close",
+  disabled = false,
+  className = "",
+}: {
+  /** The accessible name. The specs look for "Close". */
+  label?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <button type="button" onClick={closeDialog} aria-label={label} disabled={disabled} className={`lm-iconbtn ${className}`}>
+      <Icon name="close" size={18} />
+    </button>
   );
 }

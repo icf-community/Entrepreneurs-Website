@@ -2,10 +2,19 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Field, FieldError } from "@/components/forms/Field";
+import { labelCls } from "@/components/forms/styles";
 import { Switch } from "@/components/forms/Switch";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Chip } from "@/components/ui/Chip";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
+import { Textarea } from "@/components/ui/Textarea";
+import { Icon } from "@/design-system/icons/Icon";
 import type { AiSettings, Concept } from "@/lib/ai/types";
 import { previewMyProjection, saveAiSettings, type ProjectionPreviewItem } from "./actions";
+import { SettingsSection } from "./SettingsSection";
 
 // ════════════════════════════════════════════════════════════════════
 // AI matching choices (AI-plan §1, §6, §12). Three separate permissions,
@@ -51,27 +60,41 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
   };
 
   return (
-    <section id="ai" className="rounded-2xl border border-border bg-bg-card p-6">
-      <h2 className="text-[0.95rem] font-medium text-text-primary">AI matching</h2>
-      <p className="mt-1 text-[0.75rem] text-text-muted">
-        Each choice is off until you turn it on. <Link href="/ai-notice" className="underline">How AI search uses your profile</Link>
-      </p>
-      <div className="mt-4 space-y-4">
-        <Switch id="ai-recruiter" checked={s.recruiterDiscoverable} busy={saving}
-          onChange={(v) => save({ ...s, recruiterDiscoverable: v })}
-          label="Let recruiters find me" hint="Members who posted a job can see you in AI candidate search." />
-        <Switch id="ai-network" checked={s.networkDiscoverable} busy={saving}
-          onChange={(v) => save({ ...s, networkDiscoverable: v })}
-          label="Suggest me to members building their network" hint="Members can find you by shared skills and interests." />
-        <Switch id="ai-evidence" checked={s.evidenceSharing} busy={saving}
-          onChange={(v) => save({ ...s, evidenceSharing: v })}
-          label="Show recruiters lines from my CV" hint="Up to two short lines, only to recruiters who found you." />
-        <Switch id="ai-memory" checked={s.useChatMemory} busy={saving}
-          onChange={(v) => save({ ...s, useChatMemory: v })}
-          label="Use my recent searches to understand new ones" hint="Your own searches from the last 7 days only." />
+    <SettingsSection
+      id="ai"
+      title="AI matching"
+      description={
+        <>
+          Each choice is off until you turn it on.{" "}
+          <Link href="/ai-notice" className="underline underline-offset-2">How AI search uses your profile</Link>
+        </>
+      }
+    >
+      {/* The four permissions on one ruled sheet. */}
+      <div className="grid divide-y divide-border-subtle">
+        <div className="pb-5">
+          <Switch id="ai-recruiter" checked={s.recruiterDiscoverable} busy={saving}
+            onChange={(v) => save({ ...s, recruiterDiscoverable: v })}
+            label="Let recruiters find me" hint="Members who posted a job can see you in AI candidate search." />
+        </div>
+        <div className="py-5">
+          <Switch id="ai-network" checked={s.networkDiscoverable} busy={saving}
+            onChange={(v) => save({ ...s, networkDiscoverable: v })}
+            label="Suggest me to members building their network" hint="Members can find you by shared skills and interests." />
+        </div>
+        <div className="py-5">
+          <Switch id="ai-evidence" checked={s.evidenceSharing} busy={saving}
+            onChange={(v) => save({ ...s, evidenceSharing: v })}
+            label="Show recruiters lines from my CV" hint="Up to two short lines, only to recruiters who found you." />
+        </div>
+        <div className="pt-5">
+          <Switch id="ai-memory" checked={s.useChatMemory} busy={saving}
+            onChange={(v) => save({ ...s, useChatMemory: v })}
+            label="Use my recent searches to understand new ones" hint="Your own searches from the last 7 days only." />
+        </div>
       </div>
 
-      <div className="mt-6 space-y-4 border-t border-border-subtle pt-5">
+      <div className="mt-8 grid gap-7 border-t border-border-subtle pt-8">
         <TopicPicker label="I can help with" concepts={concepts} value={s.networkOffers} disabled={saving}
           onChange={(v) => save({ ...s, networkOffers: v })} />
         <TopicPicker label="I'd like help with" concepts={concepts} value={s.networkSeeks} disabled={saving}
@@ -81,41 +104,41 @@ export default function AiSettingsCard({ initial, concepts }: { initial: AiSetti
         <Checks label="Where I'd like to work" options={LOCATIONS} value={s.prefLocationTypes} disabled={saving}
           onChange={(v) => save({ ...s, prefLocationTypes: v })} />
         <div>
-          <label htmlFor="ai-self-reported" className="text-[0.85rem] text-text-primary">Projects and experience</label>
-          <p className="mt-0.5 text-[0.75rem] text-text-muted">Useful if you haven&apos;t uploaded a CV. Shown as self-reported.</p>
-          <textarea id="ai-self-reported" rows={4} maxLength={1200} value={note} onChange={(e) => setNote(e.target.value)}
-            className="mt-2 w-full resize-none rounded-lg border border-border bg-white/[0.03] px-3 py-2 text-[0.8rem] text-text-primary" />
-          <div className="mt-1 flex items-center justify-between">
-            <span className="text-[0.7rem] text-text-muted">{note.length}/1200</span>
+          <label htmlFor="ai-self-reported" className={labelCls}>Projects and experience</label>
+          <p id="ai-self-reported-note" className="mb-2 mt-0.5 text-small text-text-muted">Useful if you haven&apos;t uploaded a CV. Shown as self-reported.</p>
+          <Textarea id="ai-self-reported" rows={4} maxLength={1200} value={note} onChange={(e) => setNote(e.target.value)}
+            aria-describedby="ai-self-reported-note" className="resize-none" />
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className="text-small text-text-muted data">{note.length}/1200</span>
             <Button size="sm" variant="ghost" loading={saving} disabled={note === s.selfReported}
               onClick={() => save({ ...s, selfReported: note })}>Save</Button>
           </div>
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2 border-t border-border-subtle pt-5">
-        <span className="w-full text-[0.75rem] text-text-muted">See exactly what AI search uses:</span>
+      <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-border-subtle pt-8">
+        <span className="w-full text-small text-text-muted">See exactly what AI search uses:</span>
         <Button variant="ghost" size="sm" onClick={() => showPreview("self")}>For my job matches</Button>
         {s.recruiterDiscoverable && <Button variant="ghost" size="sm" onClick={() => showPreview("recruiter")}>What recruiters search</Button>}
         {s.networkDiscoverable && <Button variant="ghost" size="sm" onClick={() => showPreview("network")}>What members search</Button>}
       </div>
       {preview && (
-        <div className="mt-3 rounded-lg border border-border p-3">
+        <Panel tone="inset" size="sm" className="mt-4 p-4">
           {preview.items.length === 0 ? (
-            <p className="text-[0.8rem] text-text-muted">Nothing yet. It updates a few minutes after you change your profile.</p>
+            <p className="text-body text-text-muted">Nothing yet. It updates a few minutes after you change your profile.</p>
           ) : (
-            <ul className="space-y-1.5">
+            <ul className="grid gap-2">
               {preview.items.map((item) => (
-                <li key={`${item.kind}:${item.text}`} className="text-[0.8rem] text-text-secondary">
+                <li key={`${item.kind}:${item.text}`} className="text-body text-text-secondary">
                   {item.text}{item.fromCv && <span className="text-text-muted"> · from your CV</span>}
                 </li>
               ))}
             </ul>
           )}
-        </div>
+        </Panel>
       )}
-      {error && <p role="alert" className="mt-3 text-[0.8rem] text-[#ff8080]">{error}</p>}
-    </section>
+      <FieldError>{error ?? undefined}</FieldError>
+    </SettingsSection>
   );
 }
 
@@ -131,30 +154,36 @@ function TopicPicker({
   const inputId = `topic-${label.replace(/\W+/g, "-").toLowerCase()}`;
   return (
     <div>
-      <label htmlFor={inputId} className="text-[0.85rem] text-text-primary">{label}</label>
-      <ul className="mt-2 flex flex-wrap gap-1.5">
-        {value.map((slug) => (
-          <li key={slug} className="inline-flex items-center gap-1 rounded-lg border border-border-strong px-2 py-1 text-[0.75rem] text-text-secondary">
-            {byslug.get(slug)?.label ?? slug}
-            <button type="button" disabled={disabled} aria-label={`Remove ${byslug.get(slug)?.label ?? slug}`}
-              className="cursor-pointer rounded border border-border-strong px-1.5 text-[0.7rem] hover:border-accent"
-              onClick={() => onChange(value.filter((v) => v !== slug))}>×</button>
-          </li>
-        ))}
-      </ul>
+      <label htmlFor={inputId} className={labelCls}>{label}</label>
+      {value.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {value.map((slug) => {
+            const name = byslug.get(slug)?.label ?? slug;
+            return (
+              <li key={slug}>
+                <Chip lit removable size="sm" disabled={disabled} aria-label={`Remove ${name}`}
+                  onClick={() => onChange(value.filter((v) => v !== slug))}>{name}</Chip>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       {value.length < 10 && (
         <>
-          <input id={inputId} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search topics"
-            className="mt-2 w-full rounded-lg border border-border bg-white/[0.03] px-3 py-2 text-[0.8rem] text-text-primary" />
+          <Input id={inputId} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search topics"
+            className="mt-2" />
           {matches.length > 0 && (
-            <ul className="mt-1 flex flex-wrap gap-1.5">
+            <ul className="mt-3 flex flex-wrap gap-2">
               {matches.map((c) => (
                 <li key={c.slug}>
-                  <button type="button" disabled={disabled}
-                    className="cursor-pointer rounded-lg border border-border-strong bg-white/[0.04] px-2.5 py-1 text-[0.75rem] text-text-secondary hover:border-accent"
+                  <Chip size="sm" disabled={disabled}
                     onClick={() => { onChange([...value, c.slug]); setQuery(""); }}>
-                    + {c.label}
-                  </button>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Icon name="plus" size={14} />
+                      <span className="sr-only">+ </span>
+                      {c.label}
+                    </span>
+                  </Chip>
                 </li>
               ))}
             </ul>
@@ -175,18 +204,14 @@ function Checks({
   onChange: (v: string[]) => void;
 }) {
   return (
-    <fieldset>
-      <legend className="text-[0.85rem] text-text-primary">{label}</legend>
-      <div className="mt-2 flex flex-wrap gap-3 text-[0.8rem] text-text-secondary">
+    <Field group label={label}>
+      <div className="grid grid-cols-2 gap-x-6 sm:grid-cols-3">
         {options.map(([v, l]) => (
-          <label key={v} className="flex items-center gap-1.5">
-            {/* react-doctor-disable-next-line js-set-map-lookups -- array is provably bounded to a tiny fixed size (not user/data-scaled); O(n²) concern doesn't apply */}
-            <input type="checkbox" disabled={disabled} checked={value.includes(v)}
-              onChange={(e) => onChange(e.target.checked ? [...value, v] : value.filter((x) => x !== v))} />
-            {l}
-          </label>
+          /* react-doctor-disable-next-line js-set-map-lookups -- array is provably bounded to a tiny fixed size (not user/data-scaled); O(n²) concern doesn't apply */
+          <Checkbox key={v} className="py-2.5" label={l} disabled={disabled} checked={value.includes(v)}
+            onChange={(e) => onChange(e.target.checked ? [...value, v] : value.filter((x) => x !== v))} />
         ))}
       </div>
-    </fieldset>
+    </Field>
   );
 }

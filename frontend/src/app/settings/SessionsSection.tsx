@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ErrorBanner } from "@/components/forms/Banners";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
+import { SettingsSection } from "./SettingsSection";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · Active sessions card
@@ -44,46 +47,32 @@ export default function SessionsSection() {
   };
 
   return (
-    <div className="rounded-2xl bg-bg-card border border-border p-8 space-y-5">
-      <div>
-        <div className="text-[0.95rem] font-medium text-text-primary">Active sessions</div>
-      </div>
+    <SettingsSection title="Active sessions">
+      <div className="grid gap-4">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
 
-      {error && <ErrorBanner>{error}</ErrorBanner>}
-
-      {!confirming ? (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="px-5 py-2.5 rounded-lg bg-transparent border border-[#ff4d4d]/25 text-[#ff6b6b] text-[0.825rem] font-medium cursor-pointer transition-colors hover:bg-[#ff4d4d]/10"
-        >
-          Sign out everywhere
-        </button>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-[0.8rem] text-[#ff8b8b] leading-relaxed">
-            This will sign you out on this device too. You&apos;ll have to sign in again to get back to Foundry.
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleSignOutEverywhere}
-              disabled={pending}
-              className="px-5 py-2.5 rounded-lg bg-[#ff4d4d]/15 border border-[#ff4d4d]/30 text-[#ff6b6b] text-[0.825rem] font-medium cursor-pointer transition-colors hover:bg-[#ff4d4d]/25 disabled:opacity-60"
-            >
-              {pending ? "Signing out…" : "Confirm — sign out everywhere"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              disabled={pending}
-              className="px-5 py-2.5 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.825rem] cursor-pointer transition-colors hover:bg-white/[0.10] disabled:opacity-60"
-            >
-              Cancel
-            </button>
+        {!confirming ? (
+          <div>
+            <Button type="button" variant="dangerGhost" size="md" onClick={() => setConfirming(true)}>
+              Sign out everywhere
+            </Button>
           </div>
-        </div>
-      )}
-    </div>
+        ) : (
+          <>
+            <Notice tone="danger" icon="warning">
+              This will sign you out on this device too. You&apos;ll have to sign in again to get back to Foundry.
+            </Notice>
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" variant="danger" size="md" onClick={handleSignOutEverywhere} loading={pending}>
+                {pending ? "Signing out…" : "Confirm — sign out everywhere"}
+              </Button>
+              <Button type="button" variant="ghost" size="md" onClick={() => setConfirming(false)} disabled={pending}>
+                Cancel
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </SettingsSection>
   );
 }

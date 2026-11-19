@@ -69,15 +69,30 @@ bulk actions are a real usage scene, not an edge case.
 
 - **The logo is the fixed point** and the brief for the visual system: a white
   rocket roundel and a condensed grotesque wordmark on a black starfield, with
-  the hand-lettered tagline "GO DO SHIT."
+  the hand-lettered tagline "GO DO SHIT." Since 2026 the roundel is redrawn: the
+  rocket is larger and **breaks out of the ring** through a gap at its top. The
+  2025 logo is retired everywhere on the site and must not come back. Rules: one
+  flat colour (white on the night), never rotated, cropped, outlined or crossed,
+  ring at least 45 px, lockup at least 51 px tall, a quarter of the mark's height
+  clear, never a word set beside the roundel alone (docs/design-system/logo.md).
 - The product name **Foundry** sits alongside the organisation name **Imperial
   Entrepreneurs**; both appear in the nav lockup and in metadata.
 - Data controller is IC Founders Ltd (Companies House 17171277).
-- **Decided 2026-08-27:** the site's visual world is rebuilt around the logo —
-  monochrome and high-contrast, condensed grotesque headlines, near-black
-  surfaces, starfield as real texture. Gold is retired as the primary accent and
-  survives only as a rare signal. The previous gold + DM Serif Display world is
-  anti-reference.
+- **Decided 2026-08-27 (superseded 2026-11-13 by the Lumen decision below):** the
+  site's visual world is rebuilt around the logo — monochrome and high-contrast,
+  condensed grotesque headlines, near-black surfaces, starfield as real texture.
+  Gold is retired as the primary accent and survives only as a rare signal. The
+  previous gold + DM Serif Display world is anti-reference.
+- **Decided 2026-11-13:** the whole front end moves onto **Lumen** (DESIGN.md,
+  docs/design-system/). Colour is light direction, not decoration: a night with
+  six lights, where cream (sun) is the one action and the focus ring, amber
+  (warm) is light itself and is never an action fill, and nothing is purple.
+  Funnel Display for headings, Host Grotesk for everything else, no monospace.
+  The landing page matches the Lumen mock; the signed-in app keeps a labelled
+  left sidebar in the same language. Only the look changed: no content or
+  behaviour. Live-page extras the mock left out (event spot counts and Reserve
+  buttons, the mock signup form in Apply, per-card skills and sectors) are held
+  back for the owner's later decision (docs/design-system/landing-extras.md).
 - **Decided 2026-08-27:** the site's existing measured copy voice wins over the
   tagline's register. The tagline lives on the artwork; it does not set the tone
   for body copy, and copy is not to be rewritten as part of the redesign.

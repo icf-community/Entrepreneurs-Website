@@ -1,8 +1,12 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { PageHead } from "@/components/ui/PageHead";
+import { Icon } from "@/design-system/icons/Icon";
 
-// The "Admin · <title>" eyebrow + heading + description + "← Admin home"
-// link, identical across every /admin/* page that wants it.
+// The masthead of every /admin/* page that wants one: where you are (the
+// eyebrow, now PageHead's context line), the title, one line about it, and
+// the way back to "Admin home". A thin wrapper over PageHead so every admin
+// page opens the same way; the props are what they always were.
 export function AdminPageHeader({
   eyebrow,
   title,
@@ -13,24 +17,17 @@ export function AdminPageHeader({
   description?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
-      <div className="min-w-0">
-        <p className="label-wide text-text-secondary mb-3">{eyebrow}</p>
-        <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">
-          {title}
-        </h1>
-        {description && (
-          <p className="text-[0.85rem] text-text-muted mt-2 max-w-[60ch] leading-relaxed">
-            {description}
-          </p>
-        )}
-      </div>
-      <Link
-        href="/admin"
-        className="text-[0.8rem] rounded-lg border border-border-strong bg-white/[0.05] px-4 py-1.5 text-text-primary no-underline hover:border-accent"
-      >
-        ← Admin home
-      </Link>
-    </div>
+    <PageHead
+      className="mb-8"
+      context={eyebrow}
+      title={title}
+      lede={description}
+      actions={
+        <ButtonLink href="/admin" variant="quiet" size="sm" leading={<Icon name="arrow-left" size={18} />}>
+          {/* the arrow is drawn; the character stays in the accessible name, as it always was */}
+          <span className="sr-only">← </span>Admin home
+        </ButtonLink>
+      }
+    />
   );
 }

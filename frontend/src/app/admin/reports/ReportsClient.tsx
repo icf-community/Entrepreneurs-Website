@@ -2,10 +2,17 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Dialog } from "@/components/ui/Dialog";
+import { Dialog, DialogClose } from "@/components/ui/Dialog";
 import { closeDialog } from "@/components/ui/dialogCloser";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Pager } from "@/components/ui/Pager";
+import { Panel } from "@/components/ui/Panel";
+import { ButtonTabs } from "@/components/ui/Tabs";
+import { Textarea } from "@/components/ui/Textarea";
+import { Field } from "@/components/forms/Field";
+import { Icon } from "@/design-system/icons/Icon";
 import { useUrlFilters } from "@/lib/filters/useUrlFilters";
 import { REPORT_CATEGORIES } from "@/lib/validation/posts";
 import { adminDeletePost } from "@/app/community/actions";
@@ -26,6 +33,11 @@ import { resolveReport } from "./actions";
 //
 // "server" navigation because the filter is an argument to a Postgres
 // query, not something the browser already holds.
+//
+// Drawn for scanning: the kind of report is a badge (the urgent kinds in the
+// danger tone), the post and who is involved under it, what was said as a
+// recessed quote, and the two actions in tone: Remove is the danger button,
+// Resolve is neutral.
 // ════════════════════════════════════════════════════════════════════
 
 const STATUS_TABS = [
@@ -57,86 +69,70 @@ export default function ReportsClient({
 
   return (
     <div>
-      <nav aria-label="Report status" className="mb-6 flex flex-wrap gap-2">
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            disabled={url.pending}
-            onClick={() => url.apply({ status: tab.value, page: null })}
-            className={
-              "rounded-lg border px-4 py-2 text-[0.8rem] transition-colors cursor-pointer " +
-              (status === tab.value
-                ? "border-accent bg-white/[0.05] text-text-primary"
-                : "border-border-strong bg-white/[0.03] text-text-secondary hover:border-accent hover:text-text-primary")
-            }
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      <ButtonTabs
+        semantics="current"
+        label="Report status"
+        items={STATUS_TABS}
+        value={status}
+        disabled={url.pending}
+        onSelect={(next) => url.apply({ status: next, page: null })}
+        className="mb-6"
+      />
 
       {reports.length === 0 ? (
-        <p className="rounded-xl border border-border-subtle bg-white/[0.02] px-6 py-12 text-center text-[0.875rem] text-text-secondary">
+        <EmptyState icon="flag">
           {status === "open" ? "No open reports. Nothing needs your attention." : "Nothing here."}
-        </p>
+        </EmptyState>
       ) : (
         <ul className="space-y-4">
           {reports.map((report) => (
-            <li
-              key={report.id}
-              className="rounded-xl border border-border-subtle bg-white/[0.02] p-5"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <Panel as="li" key={report.id} className="p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
                 <div className="min-w-0">
-                  <span
-                    className={
-                      "inline-block rounded-full px-2.5 py-1 text-[0.65rem] uppercase tracking-wider " +
-                      (URGENT.has(report.category)
-                        ? "border border-[#ff4d4d]/40 bg-[#ff4d4d]/10 text-[#ff8080]"
-                        : "border border-border-strong text-text-muted")
-                    }
-                  >
+                  <Badge tone={URGENT.has(report.category) ? "danger" : "neutral"}>
                     {categoryLabel(report.category)}
-                  </span>
-                  <h2 className="mt-3 text-[1rem] font-medium tracking-tight text-text-primary break-words">
+                  </Badge>
+                  <h2 className="mt-3 break-words font-display text-lead text-text-primary">
                     {report.postTitle}
                   </h2>
                   {/* suppressHydrationWarning: the date below formats in the
                       viewer's local zone, which legitimately differs from
                       the server's. */}
-                  <p className="mt-1 text-[0.75rem] text-text-muted" suppressHydrationWarning>
+                  <p className="mt-1 text-small text-text-muted" suppressHydrationWarning>
                     Posted by {report.authorName}
                     <span aria-hidden className="mx-1.5">·</span>
                     Reported by {report.reporterName}
                     <span aria-hidden className="mx-1.5">·</span>
-                    {new Date(report.createdAt).toLocaleDateString("en-GB", {
-                      day: "numeric", month: "short", year: "numeric",
-                    })}
+                    <span className="data" suppressHydrationWarning>
+                      {new Date(report.createdAt).toLocaleDateString("en-GB", {
+                        day: "numeric", month: "short", year: "numeric",
+                      })}
+                    </span>
                   </p>
                 </div>
 
-                <span className="shrink-0 text-[0.7rem] text-text-muted">
+                <Badge tone={report.postStillExists ? "lit" : "neutral"} dot className="shrink-0">
                   {report.postStillExists ? "Post is live" : "Post already removed"}
-                </span>
+                </Badge>
               </div>
 
-              <blockquote className="mt-4 border-l-2 border-border-strong pl-4 text-[0.85rem] text-text-secondary whitespace-pre-wrap break-words">
+              <blockquote className="mt-4 whitespace-pre-wrap break-words rounded-lg bg-tint-1 px-4 py-3 text-body text-text-secondary">
                 {report.reason}
               </blockquote>
 
               {report.resolutionNote && (
-                <p className="mt-3 text-[0.75rem] text-text-muted">
+                <p className="mt-3 text-small text-text-muted">
                   Resolution note: {report.resolutionNote}
                 </p>
               )}
 
               {report.status === "open" && (
-                <div className="mt-5 flex flex-wrap gap-2 border-t border-border-subtle pt-4">
+                <div className="mt-5 flex flex-wrap gap-3 border-t border-border-subtle pt-4">
                   {report.postStillExists && (
                     <Button
                       variant="danger"
                       size="sm"
+                      leading={<Icon name="trash" size={18} />}
                       onClick={() => setActing({ report, mode: "remove" })}
                     >
                       Remove post
@@ -151,7 +147,7 @@ export default function ReportsClient({
                   </Button>
                 </div>
               )}
-            </li>
+            </Panel>
           ))}
         </ul>
       )}
@@ -183,28 +179,32 @@ function ActionDialog({
     <Dialog
       onClose={onClose}
       label={removing ? "Remove the reported post" : "Resolve this report"}
-      className="w-full max-w-md rounded-xl border border-border-strong bg-bg-primary p-6"
+      tone={removing ? "danger" : "default"}
+      className="w-full max-w-[28rem] p-6 sm:p-7"
     >
-      <h3 className="font-display text-[1.1rem] text-text-primary">
-        {removing ? `Remove ${report.authorName}'s post?` : "Resolve this report"}
-      </h3>
-      <p className="mt-2 text-[0.85rem] text-text-secondary leading-relaxed">
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="font-display text-title text-text-primary">
+          {removing ? `Remove ${report.authorName}'s post?` : "Resolve this report"}
+        </h2>
+        <DialogClose className="-mr-2 -mt-2" />
+      </div>
+      <p className="mt-3 text-body text-text-secondary">
         {removing
           ? "The post and its images are deleted immediately, the author is emailed your reason, and a record is kept for 12 months. Every open report on this post is resolved."
           : "The post stays up. The member who reported it is emailed to say it was reviewed and no action was taken."}
       </p>
 
-      <label htmlFor="action-note" className="mt-5 block text-[0.75rem] text-text-muted">
-        {removing ? "Reason (sent to the author)" : "Note for the reporter (optional)"}
-      </label>
-      <textarea
-        id="action-note"
-        rows={3}
-        value={text}
-        maxLength={2000}
-        onChange={(e) => setText(e.target.value)}
-        className="mt-2 w-full rounded-lg border border-border-strong bg-white/[0.03] px-3 py-2 text-[0.85rem] text-text-primary"
-      />
+      <div className="mt-5">
+        <Field label={removing ? "Reason (sent to the author)" : "Note for the reporter (optional)"}>
+          <Textarea
+            id="action-note"
+            rows={3}
+            value={text}
+            maxLength={2000}
+            onChange={(e) => setText(e.target.value)}
+          />
+        </Field>
+      </div>
 
       {error && <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>}
 

@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { Skeleton, FilterBarSkeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import {
   adminMemberPage,
@@ -10,6 +9,8 @@ import {
 import MembersAdminClient from "./MembersAdminClient";
 import { requireAdminPage } from "@/lib/auth/guard";
 import { flattenSearchParams, pageParam, yearParam } from "@/lib/filters/serverParams";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { Page } from "@/components/ui/Page";
 
 type SearchParams = {
   q?: string; role?: string; status?: string; course?: string;
@@ -53,43 +54,33 @@ export default async function AdminCommunityPage({
   const data = adminMemberPage(supabase, filters);
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-bg-primary text-text-primary px-8 py-12">
-      <div className="max-w-[1200px] mx-auto">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8 rule-draw pt-6">
-          <div className="min-w-0">
-            <p className="label-wide text-text-secondary mb-3">Admin · member directory</p>
-            <h1 className="font-display text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-tight">
-              All members
-            </h1>
-            {/* div, not p: the skeleton is a div, and a div inside a p
-                breaks hydration (see ListingPageShell). */}
-            <div className="text-[0.85rem] text-text-muted mt-2">
-              <Suspense fallback={<Skeleton className="h-3 w-16 inline-block align-middle" />}>
-                <MemberTotal data={data} />
-              </Suspense>{" "}
-              Filter by role, status, course, year, interests, or skills. Deletion is permanent and notifies the user by email.
-            </div>
-          </div>
-          <Link
-            href="/admin"
-            className="text-[0.8rem] text-text-secondary no-underline transition-colors duration-150 hover:text-text-primary"
-          >
-            ← Admin home
-          </Link>
-        </div>
+    <Page as="main">
+      {/* The total streams in inside the lede; PageHead takes a block lede
+          when it is not a plain sentence, so the skeleton <div> is safe here. */}
+      <AdminPageHeader
+        eyebrow="Admin · member directory"
+        title="All members"
+        description={
+          <>
+            <Suspense fallback={<Skeleton className="h-3 w-16 inline-block align-middle" />}>
+              <MemberTotal data={data} />
+            </Suspense>{" "}
+            Filter by role, status, course, year, interests, or skills. Deletion is permanent and notifies the user by email.
+          </>
+        }
+      />
 
-        <Suspense
-          fallback={
-            <>
-              <FilterBarSkeleton />
-              <TableSkeleton className="mt-8" rows={10} />
-            </>
-          }
-        >
-          <MemberTable data={data} filters={filters} />
-        </Suspense>
-      </div>
-    </main>
+      <Suspense
+        fallback={
+          <>
+            <FilterBarSkeleton />
+            <TableSkeleton className="mt-8" rows={10} />
+          </>
+        }
+      >
+        <MemberTable data={data} filters={filters} />
+      </Suspense>
+    </Page>
   );
 }
 

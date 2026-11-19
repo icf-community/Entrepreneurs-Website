@@ -1,5 +1,6 @@
 "use client";
 
+import { Tab, TabList, Tabs } from "@/components/ui/Tabs";
 import type { AiMode } from "@/lib/ai/types";
 
 const MODE_LABEL: Record<AiMode, string> = {
@@ -8,6 +9,8 @@ const MODE_LABEL: Record<AiMode, string> = {
   opportunities: "Find opportunities",
 };
 
+// The one true tablist in the product: role=tablist / tab / aria-selected, now with a roving tabindex and
+// arrow keys. `panels={false}` because the modes switch the whole search below, not a TabPanel.
 export function ModeTabs({
   modes, mode, onSwitch,
 }: {
@@ -17,21 +20,12 @@ export function ModeTabs({
 }) {
   if (modes.length <= 1) return null;
   return (
-    <div role="tablist" aria-label="Search mode" className="flex flex-wrap gap-2">
-      {modes.map((m) => (
-        <button
-          key={m}
-          role="tab"
-          type="button"
-          aria-selected={m === mode}
-          onClick={() => onSwitch(m)}
-          className={`cursor-pointer rounded-lg border px-4 py-2 text-[0.8rem] ${
-            m === mode ? "border-accent bg-white/[0.08] text-text-primary" : "border-border-strong text-text-secondary hover:border-accent"
-          }`}
-        >
-          {MODE_LABEL[m]}
-        </button>
-      ))}
-    </div>
+    <Tabs<AiMode> value={mode} onValueChange={onSwitch} panels={false}>
+      <TabList label="Search mode">
+        {modes.map((m) => (
+          <Tab key={m} value={m}>{MODE_LABEL[m]}</Tab>
+        ))}
+      </TabList>
+    </Tabs>
   );
 }

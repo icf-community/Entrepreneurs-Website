@@ -66,7 +66,7 @@ const nextConfig: NextConfig = {
       // instead, or these pages would ship with no policy at all.
       //
       // See buildStaticCsp for exactly what is weaker about this policy
-      // and why it is confined to these three routes.
+      // and why it is confined to these routes.
       ...STATIC_CSP_ROUTES.map((route) => ({
         source: route,
         headers: [{ key: "Content-Security-Policy", value: buildStaticCsp() }],

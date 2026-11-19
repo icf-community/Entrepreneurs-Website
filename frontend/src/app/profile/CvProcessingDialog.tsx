@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Dialog } from "@/components/ui/Dialog";
-import { closeDialog } from "@/components/ui/dialogCloser";
+import { Dialog, DialogClose } from "@/components/ui/Dialog";
+import { Badge } from "@/components/ui/Badge";
+import { Notice } from "@/components/ui/Notice";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { watchProgress } from "@/lib/realtime/progress";
@@ -84,43 +85,33 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
   const processing = status === null || PROCESSING_STATUSES.includes(status);
 
   return (
-    <Dialog
-      onClose={onClose}
-      label="CV processing"
-      className="w-full max-w-[520px] rounded-2xl bg-bg-card border border-border shadow-2xl my-auto p-7"
-    >
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-[1.2rem] text-text-primary">Your CV</h2>
-        <button
-          type="button"
-          onClick={closeDialog}
-          aria-label="Close"
-          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 text-text-muted transition-colors hover:bg-white/[0.06]"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
+    <Dialog onClose={onClose} label="CV processing" className="my-auto w-full max-w-[520px] p-7">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h2 className="font-display text-title text-text-primary">Your CV</h2>
+        <DialogClose className="-mr-2" />
       </div>
 
       {loadFailed && (
-        <div className="space-y-3">
-          <p role="alert" className="text-[0.85rem] text-text-muted">
-            We couldn&apos;t check your CV&apos;s status just now. It&apos;s already saved.
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setLoadFailed(false); setStatus(null); setAttempt((n) => n + 1); }}
-          >
-            Try again
-          </Button>
-        </div>
+        <Notice
+          tone="danger"
+          role="alert"
+          action={
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setLoadFailed(false); setStatus(null); setAttempt((n) => n + 1); }}
+            >
+              Try again
+            </Button>
+          }
+        >
+          We couldn&apos;t check your CV&apos;s status just now. It&apos;s already saved.
+        </Notice>
       )}
 
       {!loadFailed && processing && (
         <div className="space-y-3">
-          <p className="text-[0.85rem] text-text-secondary">Reading your CV and generating a summary…</p>
+          <p className="text-body text-text-secondary">Reading your CV and generating a summary…</p>
           <Skeleton className="h-3 w-full" />
           <Skeleton className="h-3 w-5/6" />
           <Skeleton className="h-3 w-2/3" />
@@ -128,13 +119,13 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
       )}
 
       {!loadFailed && status === "failed" && (
-        <p className="text-[0.85rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           {failureReason ?? "That file couldn't be processed. Please upload a text-based PDF or Word document."}
         </p>
       )}
 
       {!loadFailed && status === "flagged" && (
-        <p className="text-[0.85rem] text-text-secondary">
+        <p className="text-body text-text-secondary">
           Your CV needs a quick manual check before it&apos;s used in search. This doesn&apos;t affect the rest of
           your account.
         </p>
@@ -144,15 +135,10 @@ export function CvProcessingDialog({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           {profile.skills.length > 0 && (
             <section>
-              <div className="mb-2 text-[0.7rem] uppercase tracking-wider text-text-muted">Skills detected</div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="mb-2 text-small text-text-muted">Skills detected</div>
+              <div className="flex flex-wrap gap-2">
                 {profile.skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-lg border border-border bg-white/[0.03] px-2.5 py-1 text-[0.725rem] text-text-secondary"
-                  >
-                    {skill}
-                  </span>
+                  <Badge key={skill}>{skill}</Badge>
                 ))}
               </div>
             </section>

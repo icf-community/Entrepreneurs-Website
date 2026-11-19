@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Input } from "@/components/ui/Input";
+import { Icon } from "@/design-system/icons/Icon";
 import { mailtoHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
@@ -56,14 +59,23 @@ export function EmailCopy({ email, name }: { email: string; name: string }) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5">
-        <a
+      <div className="flex items-center gap-2">
+        {/* The address is a link as well as a copy target: copy is for when the
+            conversation is happening somewhere else, mailto for when it isn't. */}
+        <ButtonLink
           href={mailtoHref(email)}
-          className="min-w-0 flex-1 truncate rounded-lg border border-border-strong bg-white/[0.05] px-2.5 py-1.5 text-[0.75rem] text-text-primary no-underline transition-colors hover:border-accent hover:bg-white/[0.10]"
+          variant="ghost"
+          size="sm"
+          leading={<Icon name="mail" size={18} />}
+          className="min-w-0 flex-1 justify-start"
           title={`Email ${name} at ${email}`}
         >
-          {email}
-        </a>
+          <span className="truncate">{email}</span>
+        </ButtonLink>
+        {/* In the row, not under it: a line that appears and goes would shift the card for two seconds. */}
+        {state === "copied" && (
+          <span className="shrink-0 text-small text-text-muted" aria-hidden>Copied</span>
+        )}
         <button
           type="button"
           onClick={copy}
@@ -71,18 +83,9 @@ export function EmailCopy({ email, name }: { email: string; name: string }) {
           // whole meaning — including whose address it is, because a list
           // of cards otherwise reads as forty identical "Copy" buttons.
           aria-label={`Copy ${name}'s email address`}
-          className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-white/[0.05] text-text-primary transition-colors hover:border-accent hover:bg-white/[0.10] cursor-pointer"
+          className="lm-iconbtn"
         >
-          {state === "copied" ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <rect x="9" y="9" width="13" height="13" rx="2" />
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-            </svg>
-          )}
+          <Icon name={state === "copied" ? "check" : "copy"} size={18} />
         </button>
       </div>
 
@@ -101,23 +104,20 @@ export function EmailCopy({ email, name }: { email: string; name: string }) {
       <p aria-live="polite" className="sr-only">
         {state === "copied" ? "Email address copied" : ""}
       </p>
-      {state === "copied" && (
-        <span className="text-[0.7rem] text-text-muted" aria-hidden>Copied</span>
-      )}
 
       {state === "failed" && (
-        <div className="flex flex-col gap-1">
-          <span id={hintId} className="text-[0.7rem] text-text-muted">
+        <div className="flex flex-col gap-1.5">
+          <span id={hintId} className="text-small text-text-muted">
             Your browser blocked the copy. Select the address and copy it yourself:
           </span>
-          <input
+          <Input
             ref={fallbackRef}
+            compact
             readOnly
             value={email}
             aria-label={`${name}'s email address`}
             aria-describedby={hintId}
             onFocus={(e) => e.currentTarget.select()}
-            className="w-full rounded-lg border border-border-strong bg-bg-secondary px-2.5 py-1.5 text-[0.75rem] text-text-primary"
           />
         </div>
       )}

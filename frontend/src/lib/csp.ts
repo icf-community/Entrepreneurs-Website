@@ -43,12 +43,14 @@ export function generateNonce(): string {
 // "/" joined the list on 2026-09-08 (C2 Finding 6). It is the app's
 // most-requested route and measured its slowest — 12.3 s p95 at 500 VUs,
 // all of it render cost, none of it data. Its whole component tree
-// (Navbar, Hero, WhoWeAre, Community, Opportunities, Events, Apply,
-// Footer) was checked against the three criteria above before adding it:
-// no component reads a session or the database, and not one renders a
-// form, an input, or a search param, so there is no path by which
-// attacker-controlled bytes reach the HTML. Navbar is a client component
-// holding nothing but scroll and menu-open state.
+// (everything under components/landing and lib/landing) was checked against
+// the three criteria above before adding it: no component reads a session or
+// the database, and none renders a form or an input, so there is no path by
+// which attacker-controlled bytes reach the HTML. (The scene reads the query
+// string in client code only, as flags and numbers, never as a string into
+// the DOM; staticRoutes.test.ts pins that to one file.) LandingFrame is the
+// one client component holding state, and the WebGL scene is a lazily
+// imported chunk that draws a canvas.
 //
 // This is the whole of what "static rendering" costs, and it is worth
 // being explicit that the two are inseparable: a statically rendered page
@@ -59,7 +61,15 @@ export function generateNonce(): string {
 // option short of hashing Next.js's per-build inline bootstrap, which
 // changes every build. Anything rendering user content must therefore
 // stay dynamic — which is why the listing pages are not here.
-export const STATIC_CSP_ROUTES = ["/", "/privacy", "/terms", "/cookies", "/ai-notice"] as const;
+//
+// "/ideaforge" joined on 2026-11-15. The page came in from main (PR #122) as a prerendered
+// route that nobody had listed here, so the proxy gave it the nonce policy and strict-dynamic
+// blocked Next's own bundle: it painted, and nothing on it ever ran. It meets the three
+// criteria: it is public, it reads no session and no database, and it renders no user-supplied
+// content (its words and its programme are constants in the page file; the application form is
+// a Tally iframe, which runs on Tally's origin, and tally.so is already in frame-src).
+// staticRoutes.test.ts scans its sources.
+export const STATIC_CSP_ROUTES = ["/", "/privacy", "/terms", "/cookies", "/ai-notice", "/ideaforge"] as const;
 
 export function buildCsp(nonce: string): string {
   const supabaseOrigin = originOf(process.env.NEXT_PUBLIC_SUPABASE_URL);

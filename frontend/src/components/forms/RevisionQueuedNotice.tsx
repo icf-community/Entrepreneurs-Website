@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { Panel } from "@/components/ui/Panel";
 import { externalHref } from "@/lib/safeUrl";
 
 // ════════════════════════════════════════════════════════════════════
@@ -33,21 +34,21 @@ export default function RevisionQueuedNotice({
   lumaLink?: string;
 }) {
   return (
-    <div className="rounded-2xl bg-bg-card border border-border p-8 space-y-4">
-      <h2 className="font-display text-[1.4rem] leading-tight text-text-primary">
+    <Panel size="lg" className="grid gap-5 p-8">
+      <h2 className="font-display text-heading text-text-primary">
         Your changes are with an admin
       </h2>
-      <p className="text-[0.85rem] text-text-secondary leading-relaxed">
+      <p className="max-w-[62ch] text-body leading-relaxed text-text-secondary">
         Your {noun} is still live with its current details — nothing has been taken down.
         An admin reviews the change and it goes out once they approve it. We&apos;ll email you
         either way.
       </p>
-      <p className="text-[0.8rem] text-text-muted leading-relaxed">
+      <p className="max-w-[62ch] text-small leading-relaxed text-text-muted">
         Editing again before then replaces this proposal rather than adding a second one.
       </p>
 
       {remindAboutLuma && (
-        <div className="rounded-lg border border-signal/40 bg-signal-muted px-4 py-3 text-[0.8rem] text-text-primary leading-relaxed">
+        <div className="max-w-[62ch] rounded-lg border border-lit-line bg-lit-muted px-5 py-4 text-body leading-relaxed text-text-primary">
           <span className="font-medium">One more thing —</span> people who already registered
           signed up on Luma, not here, so this change doesn&apos;t reach them. Update your Luma
           event as well.
@@ -58,7 +59,7 @@ export default function RevisionQueuedNotice({
                 href={externalHref(lumaLink)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent-light underline"
+                className="text-accent-light underline underline-offset-4"
               >
                 Open it
               </a>
@@ -68,14 +69,11 @@ export default function RevisionQueuedNotice({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 pt-1">
-        <Link
-          href="/my-submissions"
-          className="inline-flex items-center rounded-lg border border-border-strong bg-white/[0.05] px-4 py-2 text-[0.8rem] text-text-primary no-underline transition-colors hover:bg-white/[0.10] hover:border-accent"
-        >
+      <div className="flex flex-wrap gap-3">
+        <ButtonLink href="/my-submissions" variant="ghost" size="sm">
           Your submissions
-        </Link>
+        </ButtonLink>
       </div>
-    </div>
+    </Panel>
   );
 }

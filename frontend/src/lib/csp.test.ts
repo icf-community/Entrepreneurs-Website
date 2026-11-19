@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { buildCsp, generateNonce, buildStaticCsp, STATIC_CSP_ROUTES } from "./csp";
 import { config as proxyConfig } from "@/proxy";
@@ -170,6 +170,19 @@ describe("buildStaticCsp", () => {
     expect(matcher.test("/ai-notice-settings")).toBe(true); // prefix must not be swallowed
   });
 
+  it("includes /ideaforge: it is prerendered, so a nonce policy would block every script on it", () => {
+    // The page came in from main prerendered and unlisted, so the proxy gave it the strict nonce
+    // policy and its own bundle never ran (found by loading it in a production build; no unit test
+    // would have). It qualifies because it renders no user-supplied content (staticRoutes.test.ts
+    // scans it); the application form is a Tally iframe on Tally's origin, so frame-src must survive.
+    expect(STATIC_CSP_ROUTES).toContain("/ideaforge");
+    const matcher = new RegExp(`^${proxyConfig.matcher[0]}$`);
+    expect(matcher.test("/ideaforge")).toBe(false); // excluded: next.config serves its CSP
+    expect(matcher.test("/ideaforge/")).toBe(false);
+    expect(matcher.test("/ideaforge-settings")).toBe(true); // prefix must not be swallowed
+    expect(buildStaticCsp()).toMatch(/frame-src [^;]*https:\/\/tally\.so/);
+  });
+
   it("covers only routes that render no user-supplied content", () => {
     // A guard against someone adding /login or /contact here later: both
     // are public, but both take user input, so both must keep the strict
@@ -194,9 +207,17 @@ describe("buildStaticCsp", () => {
   it("the homepage renders no user-supplied content, as its static CSP requires", () => {
     const dir = join(process.cwd(), "src");
     const homepage = readFileSync(join(dir, "app/page.tsx"), "utf8");
-    const components = [
-      "Navbar", "Hero", "WhoWeAre", "Community", "Opportunities", "Events", "Apply", "Footer",
-    ].map((name) => readFileSync(join(dir, `components/${name}.tsx`), "utf8"));
+    // The landing page's whole source: its server components, its client frame, its scene and its content module (every .ts / .tsx under
+    // components/landing and lib/landing, so a file added there later is scanned without anyone remembering to list it).
+    const sourcesIn = (d: string): string[] =>
+      readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+        const path = join(d, e.name);
+        if (e.isDirectory()) return sourcesIn(path);
+        return /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [path] : [];
+      });
+    const files = [...sourcesIn(join(dir, "components/landing")), ...sourcesIn(join(dir, "lib/landing"))];
+    expect(files.length).toBeGreaterThan(20); // the scan is worth nothing if it finds nothing
+    const components = files.map((f) => readFileSync(f, "utf8"));
 
     // Comments are stripped first, or the test fails on prose: page.tsx's
     // own header explains that nothing there may read cookies(), and a

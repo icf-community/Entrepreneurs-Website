@@ -25,6 +25,19 @@ export function useGithubConnectFlow(
   const [ghShowcase, setGhShowcase] = useState<GithubScreenState["showcase"]>(null);
   const [ghSaving, setGhSaving] = useState(false);
   const [ghSaved, setGhSaved] = useState(false);
+  // Bumped to start a scan wait; the effect below owns the wait, so leaving
+  // the screen (or starting another wait) cancels its Realtime socket and
+  // its 40s deadline.
+  const [scanRun, setScanRun] = useState(0);
+
+  /**
+   * Starts waiting for the scan. The screen reads as scanning at once; the
+   * wait itself is the effect below.
+   */
+  const loadGithub = useCallback(() => {
+    setGhScanning(true);
+    setScanRun((n) => n + 1);
+  }, []);
 
   /**
    * Waits for the scan the way the profile dialog does — re-reading when
@@ -33,8 +46,8 @@ export function useGithubConnectFlow(
    * leaves the screen saying so and lets the member move on — an optional
    * screen must never be able to trap someone mid-signup.
    */
-  const loadGithub = useCallback(() => {
-    setGhScanning(true);
+  useEffect(() => {
+    if (scanRun === 0) return;
     const finish = () => {
       clearTimeout(deadline);
       setGhScanning(false);
@@ -76,7 +89,11 @@ export function useGithubConnectFlow(
       stop();
       setGhScanning(false);
     }, 40_000);
-  }, []);
+    return () => {
+      clearTimeout(deadline);
+      stop();
+    };
+  }, [scanRun]);
 
   /**
    * The OAuth round trip leaves the flow entirely and comes back to

@@ -9,5 +9,5 @@ export default function AdminError({
   error: Error & { digest?: string };
   retry: () => void;
 }) {
-  return <SegmentError error={error} retry={retry} label="this admin page" />;
+  return <SegmentError error={error} retry={retry} label="this admin page" as="main" />;
 }

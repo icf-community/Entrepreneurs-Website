@@ -1,10 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { BrandLogo } from "@/components/BrandLogo";
+import { PublicHeader } from "@/app/login/PublicHeader";
 import { Button } from "@/components/ui/Button";
+import { Page } from "@/components/ui/Page";
+import { PageHead } from "@/components/ui/PageHead";
+import { Panel } from "@/components/ui/Panel";
 import { ErrorBanner } from "@/components/forms/Banners";
 import type { ChipItem } from "@/components/forms/ChipGroup";
 import type { DirectoryMember } from "@/lib/data/directory";
@@ -12,7 +14,6 @@ import type { SkillOption } from "./controls";
 import { createClient } from "@/lib/supabase/client";
 import { describeSupabaseError, isSessionExpiredError } from "@/lib/supabaseErrors";
 import {
-  GROUPS,
   ORDER,
   STEPS,
   TOTAL_SCREENS,
@@ -24,7 +25,7 @@ import {
 import { track } from "@/lib/analytics/track";
 import { MIN_SKILLS, initialState, type IntakeState } from "@/lib/intake/state";
 import { useIntakeDraft } from "@/lib/intake/useIntakeDraft";
-import StepRail from "./StepRail";
+import StepRail, { StepRailDisclosure } from "./StepRail";
 import { useGithubConnectFlow } from "./useGithubConnectFlow";
 import { useCvUpload } from "./useCvUpload";
 import { useAvatarUpload } from "./useAvatarUpload";
@@ -356,61 +357,71 @@ export default function IntakeFlow({
     github,
   };
 
-  return (
-    <div className="flex min-h-screen flex-col bg-bg-primary">
-      <header className="sticky top-0 z-40 border-b border-border-subtle bg-bg-primary/90 px-8 py-5 backdrop-blur-md">
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between">
-          <Link href="/" className="no-underline">
-            <BrandLogo size="sm" />
-          </Link>
-          {!done && compulsoryDone && (
-            <Button type="button" variant="ghost" size="sm" onClick={skip} disabled={busy}>
-              Skip for now
-            </Button>
-          )}
-        </div>
-      </header>
+  // STEPS.cv.title is static and reads "if you have one" — wrong for a student, for whom the paragraph right below it says the
+  // opposite. Only this one screen's heading needs to be role-aware; everything else can keep reading straight from steps.ts.
+  const heading = step === "cv" ? (role === "student" ? "Your CV" : "Your CV, if you have one") : meta.title;
+  const enter = dir === "fwd" ? "anim-step-fwd" : "anim-step-back";
+  const errorBanner = error ? (
+    <div className="mb-6">
+      <ErrorBanner>{error}</ErrorBanner>
+    </div>
+  ) : null;
 
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="mx-auto w-full max-w-[1200px] flex-1 px-8 py-12"
-      >
+  return (
+    // no background of its own: the atmosphere (the night behind every page) shows through
+    <div className="flex min-h-svh flex-col">
+      {/* the same bar as every page before the rail, held at the top while a long screen scrolls */}
+      <PublicHeader sticky>
+        {!done && compulsoryDone && (
+          <Button type="button" variant="ghost" size="sm" onClick={skip} disabled={busy}>
+            Skip for now
+          </Button>
+        )}
+      </PublicHeader>
+
+      {/* the page frame: the head sits as far under the bar as it does on every other page (the column is the rail and the screen) */}
+      <Page as="main" className="flex-1">
         {done ? (
           <IntakeDoneScreen onGoToDashboard={() => router.push("/home")} />
         ) : (
-          <div className="grid gap-12 lg:grid-cols-[15rem_1fr]">
+          <div className="grid gap-10 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-16">
             <aside className="hidden lg:block">
-              <StepRail current={step} onJump={(to) => go(to, "back")} />
+              {/* sticky, and level with the masthead's first line */}
+              <div className="sticky top-[calc(var(--appbar-height)+2.5rem)] pt-[28px]">
+                <StepRail current={step} onJump={(to) => go(to, "back")} />
+              </div>
             </aside>
 
-            <div className="min-w-0">
-              <IntakeProgressBar pct={pct} />
-
-              <div key={step} className={dir === "fwd" ? "anim-step-fwd" : "anim-step-back"}>
-                <p className="mb-3 text-[0.75rem] font-medium uppercase tracking-[0.14em] text-text-muted">
-                  {meta.eyebrow}
-                </p>
-                {step !== "youre-in" && (
-                  <h1 className="mb-5 font-display text-[clamp(1.75rem,3.5vw,2.5rem)] leading-[1.1] tracking-tight text-text-primary">
-                    {/* STEPS.cv.title is static and reads "if you have one" —
-                        wrong for a student, for whom the paragraph right
-                        below it says the opposite. Only this one screen's
-                        heading needs to be role-aware; everything else can
-                        keep reading straight from steps.ts. */}
-                    {step === "cv" ? (role === "student" ? "Your CV" : "Your CV, if you have one") : meta.title}
-                  </h1>
+            <div className="min-w-0 max-w-[44rem]">
+              {/* the heading and the card each enter from the side you are travelling toward; the progress between them stays
+                  put, so its fill and its point of light can move */}
+              <div key={`${step}-head`} className={enter}>
+                {step !== "youre-in" ? (
+                  <PageHead context={meta.eyebrow} title={heading} />
+                ) : (
+                  // this screen draws its own "Welcome" and greeting; the eyebrow stays in the page for a screen reader, as it always was
+                  <p className="sr-only">{meta.eyebrow}</p>
                 )}
+              </div>
 
-                {error && (
-                  <div className="mb-6">
-                    <ErrorBanner>{error}</ErrorBanner>
-                  </div>
+              <div className="my-7">
+                <IntakeProgressBar pct={pct} />
+              </div>
+
+              <div key={`${step}-body`} className={enter}>
+                {/* the "You're in" screen is a moment, not a form: its cards are the surfaces, so it gets no card of its own (and its error sits above them).
+                    Everywhere else the error is the first thing in the card, as it is on /onboarding and /login. */}
+                {step === "youre-in" ? (
+                  <>
+                    {errorBanner}
+                    <IntakeStepBody step={step} screenProps={screenProps} matches={matches} />
+                  </>
+                ) : (
+                  <Panel className="p-6 sm:p-8">
+                    {errorBanner}
+                    <IntakeStepBody step={step} screenProps={screenProps} matches={matches} />
+                  </Panel>
                 )}
-
-                <div className="rounded-2xl border border-border bg-bg-card p-6 sm:p-8">
-                  <IntakeStepBody step={step} screenProps={screenProps} matches={matches} />
-                </div>
 
                 <IntakeWarningDialogs
                   skipWarningFor={skipWarningFor}
@@ -430,16 +441,11 @@ export default function IntakeFlow({
                 isLast={isLast}
               />
 
-              <div className="mt-10 lg:hidden">
-                <p className="mb-3 text-[0.7rem] font-medium uppercase tracking-[0.14em] text-text-muted">
-                  {GROUPS.length} groups · {TOTAL_SCREENS} screens
-                </p>
-                <StepRail current={step} onJump={(to) => go(to, "back")} />
-              </div>
+              <StepRailDisclosure className="mt-10 lg:hidden" current={step} onJump={(to) => go(to, "back")} />
             </div>
           </div>
         )}
-      </main>
+      </Page>
     </div>
   );
 }

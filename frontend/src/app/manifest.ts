@@ -11,8 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Foundry is the founder community for Imperial College London students and alumni — student founders, alumni, mentors, and investors.",
     start_url: "/",
     display: "standalone",
-    background_color: "#08080a",
-    theme_color: "#08080a",
+    background_color: "#04080d",
+    theme_color: "#04080d",
     icons: [
       { src: "/icon.png", sizes: "512x512", type: "image/png" },
       { src: "/apple-icon.png", sizes: "180x180", type: "image/png" },

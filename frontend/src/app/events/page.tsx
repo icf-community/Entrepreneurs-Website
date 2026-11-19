@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import ListingPageShell from "@/components/ListingPageShell";
@@ -8,12 +9,14 @@ import { listApprovedEvents, type FoundryEvent } from "@/lib/data/events";
 import type { Db } from "@/lib/data/query";
 import EventsClient from "./EventsClient";
 
+export const metadata: Metadata = { title: "Events" };
+
 export default async function EventsPage({
   searchParams,
 }: {
   searchParams: Promise<{ submitted?: string; e?: string }>;
 }) {
-  const { supabase, user, isAdmin } = await requireApprovedUser();
+  const { supabase, user, isAdmin, displayName } = await requireApprovedUser();
   const sp = await searchParams;
 
   // /events?e=<id> was how a listing was linked to before it had a
@@ -33,13 +36,14 @@ export default async function EventsPage({
   return (
     <ListingPageShell
       active="events"
+      name={displayName}
       isAdmin={isAdmin}
       justSubmitted={justSubmitted}
       submittedKind="event"
       eyebrow="Events"
       title="Upcoming Foundry events"
       summary={
-        <Suspense fallback={<Skeleton className="h-3 w-40" />}>
+        <Suspense fallback={<Skeleton className="h-5 w-40" />}>
           <EventCount data={data} />
         </Suspense>
       }

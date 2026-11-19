@@ -1,6 +1,8 @@
+import type { Metadata } from "next";
 import { flattenSearchParams, yearParam } from "@/lib/filters/serverParams";
 import { Suspense } from "react";
 import AppShell from "@/components/app/AppShell";
+import { PageHead } from "@/components/ui/PageHead";
 import { requireApprovedUser } from "@/lib/auth/guard";
 import { FilterBarSkeleton, CardGridSkeleton } from "@/components/ui/Skeleton";
 import type { MemberFilters } from "@/lib/data/directory";
@@ -19,6 +21,9 @@ import {
   type ConnectionGraph,
 } from "@/lib/data/connections";
 import ConnectionsClient, { type Tab, type View } from "./ConnectionsClient";
+import { Page } from "@/components/ui/Page";
+
+export const metadata: Metadata = { title: "Connections" };
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · /connections
@@ -32,6 +37,9 @@ import ConnectionsClient, { type Tab, type View } from "./ConnectionsClient";
 // would put two of them on every page load for nothing, and the counts
 // that matter — the pending badge — come from one cheap index-only scan
 // that the shell already runs.
+//
+// The page opens with PageHead (its h1 is what loading.spec waits for); the
+// tabs, the filters and the lists are ConnectionsClient's.
 // ════════════════════════════════════════════════════════════════════
 
 type SearchParams = {
@@ -84,19 +92,14 @@ export default async function ConnectionsPage({
 
   return (
     <AppShell active="connections" name={displayName} isAdmin={isAdmin}>
-      <div className="px-4 sm:px-8 py-10 sm:py-12">
-        <div className="max-w-[1200px] mx-auto">
-          <div className="mb-8 rule-draw pt-4">
-            <p className="label-wide text-text-muted mb-6">Connections</p>
-            <h1 className="font-display text-text-primary leading-[1.1] tracking-tight text-[clamp(1.75rem,3.5vw,2.5rem)]">
-              People you can reach
-            </h1>
-            <p className="text-[0.875rem] text-text-muted mt-3 leading-relaxed max-w-[62ch]">
-              A connection is a mutual agreement to share email addresses. Either of you
-              can undo it at any time.
-            </p>
-          </div>
+      <Page>
+        <PageHead
+          context="Connections"
+          title="People you can reach"
+          lede="A connection is a mutual agreement to share email addresses. Either of you can undo it at any time."
+        />
 
+        <div className="mt-8">
           <Suspense
             fallback={
               <>
@@ -108,7 +111,7 @@ export default async function ConnectionsPage({
             <Tabs data={data} tab={tab} view={view} filters={filters} myEmail={user.email ?? ""} displayName={displayName} />
           </Suspense>
         </div>
-      </div>
+      </Page>
     </AppShell>
   );
 }

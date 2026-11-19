@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getCachedCount, getCount, listeners } from "@/components/connections/pendingBadgeStore";
+import { Badge } from "@/components/ui/Badge";
 
 // ════════════════════════════════════════════════════════════════════
 // Foundry · The pending-requests badge on the Connections nav row
@@ -52,13 +53,13 @@ export function PendingBadge() {
   if (count <= 0) return null;
 
   return (
-    <span
-      className="ml-auto shrink-0 rounded-full border border-accent/40 bg-accent-muted px-1.5 py-0.5 text-[0.65rem] font-medium leading-none text-accent-light"
+    <Badge
+      tone="lit"
       // The number alone reads as "3" to a screen reader, which says
       // nothing. The row's own label supplies the noun.
       aria-label={`${count} pending connection ${count === 1 ? "request" : "requests"}`}
     >
       {count > 99 ? "99+" : count}
-    </span>
+    </Badge>
   );
 }

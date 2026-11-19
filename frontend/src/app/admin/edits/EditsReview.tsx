@@ -2,9 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/forms/Field";
 import { ErrorBanner } from "@/components/forms/Banners";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/ButtonLink";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
+import { Textarea } from "@/components/ui/Textarea";
+import { Icon } from "@/design-system/icons/Icon";
 import { formatDate } from "@/lib/dates";
 import { approveEdit, declineEdit } from "./actions";
 import type { ListingEdit } from "@/lib/listings/edits";
@@ -23,6 +29,12 @@ import type { ListingEdit } from "@/lib/listings/edits";
 // student attendees those are the safeguarding-relevant edits — a venue
 // moved off campus, or a start pushed to 11pm — even when not one word
 // of the description changed.
+//
+// Drawn as a Table: three columns (field, published now, proposed) that
+// stack into labelled lines on a phone. Cells hold plain text, never a
+// wrapper of their own, so the diff reads as one run per value. The Table is
+// itself the surface, so each proposal is an open article on the page (a rule
+// between them), not a Panel around a bordered table.
 // ════════════════════════════════════════════════════════════════════
 
 const KIND_LABEL: Record<ListingEdit["listingKind"], string> = {
@@ -49,13 +61,13 @@ type Props = {
 export default function EditsReview({ items, labels, changed }: Props) {
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-bg-card px-6 py-14 text-center text-[0.85rem] text-text-muted">
+      <EmptyState icon="edit">
         No proposed changes. Published listings are all as their organisers left them.
-      </div>
+      </EmptyState>
     );
   }
   return (
-    <div className="space-y-6">
+    <div className="divide-y divide-border-subtle">
       {items.map((e) => (
         <EditCard key={e.id} edit={e} labels={labels} changed={changed[e.id] ?? []} />
       ))}
@@ -90,110 +102,110 @@ function EditCard({
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-bg-card p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+    <article className="py-8 first:pt-0 last:pb-0">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2 py-0.5 rounded-lg border border-border-strong text-[0.65rem] uppercase tracking-wider text-text-secondary">
-              {KIND_LABEL[edit.listingKind]}
-            </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge>{KIND_LABEL[edit.listingKind]}</Badge>
             {safety.length > 0 && (
-              <span className="px-2 py-0.5 rounded-lg border border-[#ff4d4d]/30 bg-[#ff4d4d]/10 text-[0.65rem] uppercase tracking-wider text-[#ff8b8b]">
+              <Badge tone="danger">
+                <Icon name="flag" size={14} />
                 Time / place changed
-              </span>
+              </Badge>
             )}
           </div>
-          <h2 className="text-[1.05rem] text-text-primary mt-2">{edit.listingTitle}</h2>
-          <p className="text-[0.75rem] text-text-muted mt-1">
-            Proposed by {edit.proposedByName ?? "a member"} on {formatDate(edit.createdAt)}
+          <h2 className="mt-3 font-display text-lead text-text-primary">{edit.listingTitle}</h2>
+          <p className="mt-1 text-small text-text-muted">
+            Proposed by {edit.proposedByName ?? "a member"} on <span className="data">{formatDate(edit.createdAt)}</span>
           </p>
         </div>
-        <Link
-          href={`${PUBLIC_PATH[edit.listingKind]}/${edit.listingId}`}
-          className="shrink-0 inline-flex items-center rounded-lg border border-border-strong bg-white/[0.05] px-3 py-1.5 text-[0.75rem] text-text-primary no-underline transition-colors hover:bg-white/[0.10] hover:border-accent"
-        >
+        <ButtonLink href={`${PUBLIC_PATH[edit.listingKind]}/${edit.listingId}`} variant="ghost" size="sm">
           View live listing
-        </Link>
+        </ButtonLink>
       </div>
 
       {changed.length === 0 ? (
-        <p className="text-[0.8rem] text-text-muted">
+        <p className="text-body text-text-muted">
           Nothing differs from the published version. Approving is harmless; declining is tidier.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-[0.8rem] border-collapse">
-            <thead>
-              <tr className="text-left text-text-muted">
-                <th className="py-2 pr-4 font-normal w-[22%]">Field</th>
-                <th className="py-2 pr-4 font-normal">Published now</th>
-                <th className="py-2 font-normal">Proposed</th>
-              </tr>
-            </thead>
-            <tbody className="align-top">
-              {changed.map((f) => (
-                <tr key={f} className="border-t border-border-subtle">
-                  <td className="py-2 pr-4 text-text-secondary">
-                    {labels[f] ?? f}
-                    {SAFETY_FIELDS.has(f) && <span className="text-[#ff8b8b]"> •</span>}
-                  </td>
-                  <td className="py-2 pr-4 text-text-muted whitespace-pre-wrap break-words">
-                    {render(edit.current[f])}
-                  </td>
-                  <td className="py-2 text-text-primary whitespace-pre-wrap break-words">
-                    {render(edit.proposed[f])}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table label={`Proposed changes to ${edit.listingTitle}`}>
+          <THead>
+            <TR>
+              <TH>Field</TH>
+              <TH>Published now</TH>
+              <TH>Proposed</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {changed.map((f) => (
+              <TR key={f}>
+                <TD primary nowrap label="Field">
+                  {labels[f] ?? f}
+                  {SAFETY_FIELDS.has(f) && (
+                    <>
+                      <Icon name="flag" size={14} className="ml-2 inline-block align-text-bottom text-danger" />
+                      <span className="sr-only">Time or place changed</span>
+                    </>
+                  )}
+                </TD>
+                <TD label="Published now" className="whitespace-pre-wrap break-words text-text-muted">
+                  {render(edit.current[f])}
+                </TD>
+                <TD label="Proposed" className="whitespace-pre-wrap break-words text-text-primary">
+                  {render(edit.proposed[f])}
+                </TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
       )}
 
       {error && <div className="mt-4"><ErrorBanner>{error}</ErrorBanner></div>}
 
       {!declining ? (
-        <div className="flex flex-wrap gap-2 mt-5">
+        <div className="mt-5 flex flex-wrap gap-3">
           <Button
             type="button"
             variant="primary"
+            size="sm"
             loading={pending}
             onClick={() => run(() => approveEdit(edit.id))}
           >
             Approve changes
           </Button>
-          <Button type="button" variant="ghost" disabled={pending} onClick={() => setDeclining(true)}>
+          <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={() => setDeclining(true)}>
             Decline
           </Button>
         </div>
       ) : (
-        <div className="mt-5 space-y-3">
-          <label className="block text-[0.8rem] text-text-secondary" htmlFor={`reason-${edit.id}`}>
-            Why? The organiser gets this, so it has to tell them what to change.
-          </label>
-          <textarea
-            id={`reason-${edit.id}`}
-            rows={3}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white/[0.02] border border-border-strong text-text-primary text-[0.85rem] resize-none"
-          />
-          <div className="flex flex-wrap gap-2">
+        <div className="mt-5 grid gap-4">
+          <Field label="Why? The organiser gets this, so it has to tell them what to change.">
+            <Textarea
+              id={`reason-${edit.id}`}
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="resize-none"
+            />
+          </Field>
+          <div className="flex flex-wrap gap-3">
             <Button
               type="button"
               variant="danger"
+              size="sm"
               loading={pending}
               onClick={() => run(() => declineEdit(edit.id, reason))}
             >
               Decline changes
             </Button>
-            <Button type="button" variant="ghost" disabled={pending} onClick={() => setDeclining(false)}>
+            <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={() => setDeclining(false)}>
               Cancel
             </Button>
           </div>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 

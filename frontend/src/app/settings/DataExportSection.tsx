@@ -3,9 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ErrorBanner } from "@/components/forms/Banners";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/design-system/icons/Icon";
 import { settle } from "@/lib/settle";
 import { exportMyData } from "./actions";
 import { track } from "@/lib/analytics/track";
+import { SettingsSection } from "./SettingsSection";
 
 // Settings → "Download my data" (launch programme F-x2). The server action
 // returns the JSON; the browser saves it as a file, so nothing is stored
@@ -30,23 +33,28 @@ export default function DataExportSection() {
   };
 
   return (
-    <div className="rounded-2xl bg-bg-card border border-border p-8 space-y-5">
-      <div>
-        <div className="text-[0.95rem] font-medium text-text-primary mb-1">Your data</div>
-        <p className="text-[0.8rem] text-text-muted leading-relaxed">
-          A copy of everything we hold about you, as a JSON file. <Link href="/privacy" className="underline underline-offset-2">Privacy notice</Link>
-        </p>
+    <SettingsSection
+      title="Your data"
+      description={
+        <>
+          A copy of everything we hold about you, as a JSON file.{" "}
+          <Link href="/privacy" className="underline underline-offset-2">Privacy notice</Link>
+        </>
+      }
+    >
+      <div className="grid justify-items-start gap-4">
+        {error && <ErrorBanner>{error}</ErrorBanner>}
+        <Button
+          type="button"
+          variant="ghost"
+          size="md"
+          onClick={download}
+          loading={pending}
+          leading={<Icon name="download" size={18} />}
+        >
+          {pending ? "Preparing…" : "Download my data"}
+        </Button>
       </div>
-      {error && <ErrorBanner>{error}</ErrorBanner>}
-      <button
-        type="button"
-        onClick={download}
-        disabled={pending}
-        aria-busy={pending}
-        className="px-5 py-2.5 rounded-lg bg-white/[0.05] border border-border-strong text-text-primary text-[0.825rem] cursor-pointer transition-colors hover:bg-white/[0.10] disabled:opacity-60"
-      >
-        {pending ? "Preparing…" : "Download my data"}
-      </button>
-    </div>
+    </SettingsSection>
   );
 }

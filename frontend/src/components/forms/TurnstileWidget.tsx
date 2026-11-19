@@ -39,6 +39,8 @@ export function TurnstileWidget({ onToken }: { onToken: (token: string) => void 
       rendered.current = true;
       window.turnstile.render(ref.current, {
         sitekey: SITE_KEY,
+        // the app is dark-only: without this the widget follows the visitor's system theme and lands as a white slab on the night
+        theme: "dark",
         callback: (token: string) => cb.current(token),
         "error-callback": () => cb.current(""),
         "expired-callback": () => cb.current(""),
